@@ -59,9 +59,6 @@
     {{-- HEADER --}}
     @include('partials.header')
 
-    {{-- NAVBAR / SIDEBAR --}}
-    @include('partials.navbar')
-
     {{-- MAIN CONTENT --}}
     <main class="container-fluid">
         <div class="container">

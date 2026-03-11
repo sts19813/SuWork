@@ -84,6 +84,7 @@
                                 <th class="min-w-150px">Inquilino</th>
                                 <th class="min-w-130px">Contrato vence</th>
                                 <th class="min-w-110px">Incidencias</th>
+                                <th class="min-w-160px text-end">Opciones</th>
                             </tr>
                         </thead>
                         <tbody class="fw-semibold text-gray-700">
@@ -122,10 +123,19 @@
                                             <span class="text-muted">0</span>
                                         @endif
                                     </td>
+                                    <td class="text-end">
+                                        <a href="{{ route('properties.show', $property) }}"
+                                            class="btn btn-sm btn-light-primary me-2">
+                                            Ver
+                                        </a>
+                                        <a href="{{ route('properties.edit', $property) }}" class="btn btn-sm btn-primary">
+                                            Editar
+                                        </a>
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center py-16 text-muted">
+                                    <td colspan="9" class="text-center py-16 text-muted">
                                         Aún no hay propiedades registradas.
                                     </td>
                                 </tr>
@@ -140,4 +150,3 @@
         </div>
     </div>
 @endsection
-

@@ -2,34 +2,45 @@
     $user = Auth::user();
     $name = $user->name;
     $initials = collect(explode(' ', $name))
-        ->map(fn($w) => mb_substr($w, 0, 1))
+        ->map(fn($word) => mb_substr($word, 0, 1))
         ->join('');
-
-    $currentLocale = app()->getLocale();
-    $currentLangName = $currentLocale === 'en' ? __('messages.language_english') : __('messages.language_spanish');
-    $currentFlag = $currentLocale === 'en'
-        ? 'assets/media/flags/united-states.svg'
-        : 'assets/media/flags/mexico.svg';
 @endphp
 
 <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm py-0">
     <div class="container-fluid px-4">
-
-        {{-- Logo --}}
-        <a href="/" class="d-flex align-items-center py-1 px-1">
+        <a href="{{ route('properties.index') }}" class="d-flex align-items-center py-2 me-8">
             <img src="{{ asset('assets/img/Logo.png') }}" alt="Logo SuWork" height="45">
         </a>
 
-        {{-- Right --}}
-        <div class="d-flex align-items-center ms-auto">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainHeaderNav"
+            aria-controls="mainHeaderNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
 
-            {{-- User dropdown --}}
+        <div class="collapse navbar-collapse" id="mainHeaderNav">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-lg-2">
+                <li class="nav-item">
+                    <a class="nav-link fw-semibold {{ request()->routeIs('dashboard') ? 'active text-primary' : 'text-gray-700' }}"
+                        href="{{ route('dashboard') }}">
+                        Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link fw-semibold {{ request()->routeIs('properties.*') ? 'active text-primary' : 'text-gray-700' }}"
+                        href="{{ route('properties.index') }}">
+                        Propiedades
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link fw-semibold {{ request()->routeIs('profile.*') ? 'active text-primary' : 'text-gray-700' }}"
+                        href="{{ route('profile.index') }}">
+                        Perfil
+                    </a>
+                </li>
+            </ul>
+
             <div class="dropdown d-flex align-items-center gap-3">
-
-                {{-- Avatar clickable --}}
-                <div class="cursor-pointer symbol symbol-circle symbol-40px" data-bs-toggle="dropdown"
-                    aria-expanded="false">
-
+                <div class="cursor-pointer symbol symbol-circle symbol-40px" data-bs-toggle="dropdown" aria-expanded="false">
                     @if ($user->profile_photo)
                         <img src="{{ asset($user->profile_photo) }}" alt="user" class="symbol-label"
                             style="object-fit: cover;">
@@ -41,26 +52,13 @@
                     @endif
                 </div>
 
-                {{-- Nombre visible siempre --}}
-                <span class="fw-semibold text-dark d-none d-md-inline">
-                    {{ $user->name }}
-                </span>
+                <span class="fw-semibold text-dark d-none d-md-inline">{{ $user->name }}</span>
 
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-                    <button type="submit" class="btn btn-sm btn-white border fw-semibold text-dark">
-                        Salir
-                    </button>
-                </form>
-
-                {{-- Dropdown --}}
                 <div class="dropdown-menu dropdown-menu-end p-0 shadow-sm" style="width:280px">
-
-                    {{-- User info --}}
                     <div class="px-4 py-3 border-bottom d-flex align-items-center">
                         <div class="symbol symbol-45px me-3">
                             @if ($user->profile_photo)
-                                <img src="{{ asset($user->profile_photo) }}" class="symbol-label">
+                                <img src="{{ asset($user->profile_photo) }}" class="symbol-label" alt="avatar">
                             @else
                                 <div class="symbol-label fw-bold d-flex justify-content-center align-items-center text-white"
                                     style="background:#0d6efd;">
@@ -69,84 +67,26 @@
                             @endif
                         </div>
                         <div>
-                            <div class="fw-bold">
-                                {{ $user->name }}
-                                @if($user->is_admin)
-                                    <span class="badge bg-success-subtle text-success ms-1">Admin</span>
-                                @endif
-                            </div>
+                            <div class="fw-bold">{{ $user->name }}</div>
                             <div class="text-muted small">{{ $user->email }}</div>
                         </div>
                     </div>
 
-                    {{-- Profile --}}
-                    <a href="{{ route('profile.index') }}" class="dropdown-item px-4 py-2">
-                        {{ __('messages.user_profile') }}
-                    </a>
+                    <a href="{{ route('profile.index') }}" class="dropdown-item px-4 py-2">Mi perfil</a>
 
                     <div class="dropdown-divider"></div>
 
-                    {{-- Theme mode --}}
-                    <div class="px-4 py-2">
-                        <div class="fw-semibold text-muted mb-2">{{ __('messages.mode') }}</div>
-
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-light btn-sm" onclick="setThemeMode('light')">
-                                Light
-                            </button>
-
-                            <button class="btn btn-light btn-sm" onclick="setThemeMode('dark')">
-                                Dark
-                            </button>
-
-                            <button class="btn btn-light btn-sm" onclick="setThemeMode('system')">
-                                System
-                            </button>
-
-                        </div>
-                    </div>
-
-                    <div class="dropdown-divider"></div>
-
-                    <!--
-
-                    {{-- Language --}}
-                    <div class="px-4 py-2">
-                        <div class="fw-semibold text-muted mb-2">{{ __('messages.language') }}</div>
-
-                        <a href="{{ route('lang.switch', 'en') }}"
-                            class="dropdown-item d-flex align-items-center {{ $currentLocale == 'en' ? 'active' : '' }}">
-                            <img src="{{ asset('/metronic/assets/media/flags/united-states.svg') }}" class="me-2"
-                                width="20">
-                            English
-                        </a>
-
-                        <a href="{{ route('lang.switch', 'es') }}"
-                            class="dropdown-item d-flex align-items-center {{ $currentLocale == 'es' ? 'active' : '' }}">
-                            <img src="{{ asset('/metronic/assets/media/flags/mexico.svg') }}" class="me-2" width="20">
-                            Español
-                        </a>
-                    </div>
-                    
-
-                    <div class="dropdown-divider"></div>
-
-                -->
-
-                    {{-- Logout --}}
                     <a href="#" class="dropdown-item text-danger px-4 py-2"
                         onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                        <i class="ki-outline ki-exit-right me-2"></i>
-                        {{ __('messages.logout') }}
+                        <i class="ki-outline ki-exit-right me-2"></i> Cerrar sesión
                     </a>
-
                 </div>
             </div>
-
-            {{-- Logout form --}}
-            <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-                @csrf
-            </form>
         </div>
     </div>
 </nav>
+
+<form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+    @csrf
+</form>
+

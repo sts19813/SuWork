@@ -67,126 +67,37 @@ class PropertyController extends Controller
 
     public function create(): View
     {
-        return view('properties.create', [
-            'zones' => $this->getZonesCatalog(),
-            'propertyTypes' => $this->getPropertyTypesCatalog(),
-            'statusOptions' => [
-                Property::STATUS_AVAILABLE => Property::STATUS_LABELS[Property::STATUS_AVAILABLE],
-                Property::STATUS_IN_PROCESS => Property::STATUS_LABELS[Property::STATUS_IN_PROCESS],
-                Property::STATUS_BLOCKED => Property::STATUS_LABELS[Property::STATUS_BLOCKED],
-            ],
-            'ownerTypes' => PropertyOwner::OWNER_TYPE_LABELS,
-            'paymentMethods' => PropertyOwner::PAYMENT_METHOD_LABELS,
-            'requiredDocuments' => PropertyDocument::REQUIRED_DOCUMENTS,
-            'defaultAreas' => [
-                'Cocina',
-                'Recámara principal',
-                'Sala',
-                'Comedor',
-            ],
-        ]);
+        return view('properties.create', $this->formViewData());
     }
 
     public function store(StorePropertyRequest $request): RedirectResponse
     {
-        $validated = $request->validated();
-        $property = DB::transaction(function () use ($request, $validated) {
-            $property = Property::create([
-                'internal_name' => $validated['internal_name'],
-                'internal_reference' => $validated['internal_reference'] ?? null,
-                'property_type_id' => $validated['property_type_id'],
-                'zone_id' => $validated['zone_id'],
-                'full_address' => $validated['full_address'],
-                'complex_name' => $validated['complex_name'] ?? null,
-                'official_number' => $validated['official_number'] ?? null,
-                'unit_number' => $validated['unit_number'] ?? null,
-                'status' => $validated['status'],
-                'current_tenant_name' => $validated['current_tenant_name'] ?? null,
-                'contract_expires_at' => $validated['contract_expires_at'] ?? null,
-                'onboarding_step' => 5,
-                'created_by' => $request->user()->id,
-            ]);
-
-            if ($request->hasFile('facade_photo')) {
-                $path = $request->file('facade_photo')->store("properties/{$property->id}/facade", 'public');
-                $property->update(['facade_photo_path' => $path]);
-            }
-
-            foreach ($validated['owners'] as $ownerData) {
-                $property->owners()->create([
-                    'name' => $ownerData['name'],
-                    'phone' => $ownerData['phone'],
-                    'email' => $ownerData['email'],
-                    'owner_type' => $ownerData['owner_type'],
-                    'bank_name' => $ownerData['bank_name'] ?? null,
-                    'clabe' => $ownerData['clabe'] ?? null,
-                    'account_holder' => $ownerData['account_holder'] ?? null,
-                    'payment_method' => $ownerData['payment_method'] ?? null,
-                ]);
-            }
-
-            foreach (PropertyDocument::REQUIRED_DOCUMENTS as $documentType => $documentLabel) {
-                $filePath = null;
-                $status = PropertyDocument::STATUS_PENDING;
-                $uploadedAt = null;
-
-                if ($request->hasFile("documents.{$documentType}")) {
-                    $filePath = $request->file("documents.{$documentType}")->store("properties/{$property->id}/documents", 'public');
-                    $status = PropertyDocument::STATUS_UPLOADED;
-                    $uploadedAt = now();
-                }
-
-                $property->documents()->create([
-                    'document_type' => $documentType,
-                    'label' => $documentLabel,
-                    'file_path' => $filePath,
-                    'status' => $status,
-                    'uploaded_at' => $uploadedAt,
-                ]);
-            }
-
-            foreach ($validated['inventory_areas'] ?? [] as $areaIndex => $areaData) {
-                $hasItems = collect($areaData['items'] ?? [])->contains(fn ($item) => filled($item['name'] ?? null));
-                $hasPhotos = $request->hasFile("inventory_areas.{$areaIndex}.photos");
-                $hasContent = filled($areaData['name'] ?? null) || filled($areaData['notes'] ?? null) || $hasItems || $hasPhotos;
-
-                if (!$hasContent) {
-                    continue;
-                }
-
-                $area = $property->inventoryAreas()->create([
-                    'name' => $areaData['name'] ?? 'Área ' . ($areaIndex + 1),
-                    'notes' => $areaData['notes'] ?? null,
-                ]);
-
-                foreach ($areaData['items'] ?? [] as $itemData) {
-                    if (blank($itemData['name'] ?? null)) {
-                        continue;
-                    }
-
-                    $area->items()->create([
-                        'name' => $itemData['name'],
-                        'condition' => $itemData['condition'] ?? null,
-                        'notes' => $itemData['notes'] ?? null,
-                    ]);
-                }
-
-                foreach ($request->file("inventory_areas.{$areaIndex}.photos", []) as $photoIndex => $photo) {
-                    $filePath = $photo->store("properties/{$property->id}/inventory/{$area->id}", 'public');
-
-                    $area->photos()->create([
-                        'file_path' => $filePath,
-                        'display_order' => $photoIndex,
-                    ]);
-                }
-            }
-
-            return $property;
-        });
+        $property = $this->saveProperty($request);
 
         return redirect()
             ->route('properties.show', $property)
             ->with('success', 'La propiedad se registró correctamente.');
+    }
+
+    public function edit(Property $property): View
+    {
+        $property->load([
+            'owners',
+            'documents',
+            'inventoryAreas.items',
+            'inventoryAreas.photos',
+        ]);
+
+        return view('properties.create', $this->formViewData($property, true));
+    }
+
+    public function update(StorePropertyRequest $request, Property $property): RedirectResponse
+    {
+        $property = $this->saveProperty($request, $property);
+
+        return redirect()
+            ->route('properties.show', $property)
+            ->with('success', 'La propiedad se actualizó correctamente.');
     }
 
     public function show(Property $property): View
@@ -214,6 +125,174 @@ class PropertyController extends Controller
             'property' => $property,
             'documents' => $documents,
         ]);
+    }
+
+    private function formViewData(?Property $property = null, bool $isEdit = false): array
+    {
+        return [
+            'zones' => $this->getZonesCatalog(),
+            'propertyTypes' => $this->getPropertyTypesCatalog(),
+            'statusOptions' => [
+                Property::STATUS_AVAILABLE => Property::STATUS_LABELS[Property::STATUS_AVAILABLE],
+                Property::STATUS_IN_PROCESS => Property::STATUS_LABELS[Property::STATUS_IN_PROCESS],
+                Property::STATUS_BLOCKED => Property::STATUS_LABELS[Property::STATUS_BLOCKED],
+            ],
+            'ownerTypes' => PropertyOwner::OWNER_TYPE_LABELS,
+            'paymentMethods' => PropertyOwner::PAYMENT_METHOD_LABELS,
+            'requiredDocuments' => PropertyDocument::REQUIRED_DOCUMENTS,
+            'defaultAreas' => [
+                'Cocina',
+                'Recamara principal',
+                'Sala',
+                'Comedor',
+            ],
+            'property' => $property,
+            'isEdit' => $isEdit,
+        ];
+    }
+
+    private function saveProperty(StorePropertyRequest $request, ?Property $property = null): Property
+    {
+        $validated = $request->validated();
+
+        return DB::transaction(function () use ($request, $validated, $property) {
+            $property = $property ?? new Property();
+
+            $property->fill([
+                'internal_name' => $validated['internal_name'],
+                'internal_reference' => $validated['internal_reference'] ?? null,
+                'property_type_id' => $validated['property_type_id'],
+                'zone_id' => $validated['zone_id'],
+                'full_address' => $validated['full_address'],
+                'complex_name' => $validated['complex_name'] ?? null,
+                'official_number' => $validated['official_number'] ?? null,
+                'unit_number' => $validated['unit_number'] ?? null,
+                'status' => $validated['status'],
+                'current_tenant_name' => $validated['current_tenant_name'] ?? null,
+                'contract_expires_at' => $validated['contract_expires_at'] ?? null,
+                'onboarding_step' => 5,
+            ]);
+
+            if (!$property->exists) {
+                $property->created_by = $request->user()->id;
+            }
+
+            $property->save();
+
+            if ($request->hasFile('facade_photo')) {
+                $path = $request->file('facade_photo')->store("properties/{$property->id}/facade", 'public');
+                $property->update(['facade_photo_path' => $path]);
+            }
+
+            $this->syncOwners($property, $validated['owners']);
+            $this->syncDocuments($property, $request);
+            $this->syncInventory($property, $validated['inventory_areas'] ?? [], $request);
+
+            return $property->fresh();
+        });
+    }
+
+    private function syncOwners(Property $property, array $owners): void
+    {
+        $property->owners()->delete();
+
+        foreach ($owners as $ownerData) {
+            $property->owners()->create([
+                'name' => $ownerData['name'],
+                'phone' => $ownerData['phone'],
+                'email' => $ownerData['email'],
+                'owner_type' => $ownerData['owner_type'],
+                'bank_name' => $ownerData['bank_name'] ?? null,
+                'clabe' => $ownerData['clabe'] ?? null,
+                'account_holder' => $ownerData['account_holder'] ?? null,
+                'payment_method' => $ownerData['payment_method'] ?? null,
+            ]);
+        }
+    }
+
+    private function syncDocuments(Property $property, StorePropertyRequest $request): void
+    {
+        $existingDocuments = $property->documents()->get()->keyBy('document_type');
+
+        foreach (PropertyDocument::REQUIRED_DOCUMENTS as $documentType => $documentLabel) {
+            $document = $existingDocuments->get($documentType);
+
+            if ($document) {
+                $updates = ['label' => $documentLabel];
+
+                if ($request->hasFile("documents.{$documentType}")) {
+                    $updates['file_path'] = $request->file("documents.{$documentType}")
+                        ->store("properties/{$property->id}/documents", 'public');
+                    $updates['status'] = PropertyDocument::STATUS_UPLOADED;
+                    $updates['uploaded_at'] = now();
+                }
+
+                $document->update($updates);
+                continue;
+            }
+
+            $data = [
+                'document_type' => $documentType,
+                'label' => $documentLabel,
+                'status' => PropertyDocument::STATUS_PENDING,
+                'uploaded_at' => null,
+                'file_path' => null,
+            ];
+
+            if ($request->hasFile("documents.{$documentType}")) {
+                $data['file_path'] = $request->file("documents.{$documentType}")
+                    ->store("properties/{$property->id}/documents", 'public');
+                $data['status'] = PropertyDocument::STATUS_UPLOADED;
+                $data['uploaded_at'] = now();
+            }
+
+            $property->documents()->create($data);
+        }
+
+        $property->documents()
+            ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
+            ->delete();
+    }
+
+    private function syncInventory(Property $property, array $inventoryAreas, StorePropertyRequest $request): void
+    {
+        $property->inventoryAreas()->delete();
+
+        foreach ($inventoryAreas as $areaIndex => $areaData) {
+            $hasItems = collect($areaData['items'] ?? [])->contains(fn ($item) => filled($item['name'] ?? null));
+            $hasPhotos = $request->hasFile("inventory_areas.{$areaIndex}.photos");
+            $hasContent = filled($areaData['name'] ?? null) || filled($areaData['notes'] ?? null) || $hasItems || $hasPhotos;
+
+            if (!$hasContent) {
+                continue;
+            }
+
+            $area = $property->inventoryAreas()->create([
+                'name' => $areaData['name'] ?? 'Area ' . ($areaIndex + 1),
+                'notes' => $areaData['notes'] ?? null,
+            ]);
+
+            foreach ($areaData['items'] ?? [] as $itemData) {
+                if (blank($itemData['name'] ?? null)) {
+                    continue;
+                }
+
+                $area->items()->create([
+                    'name' => $itemData['name'],
+                    'condition' => $itemData['condition'] ?? null,
+                    'notes' => $itemData['notes'] ?? null,
+                ]);
+            }
+
+            foreach ($request->file("inventory_areas.{$areaIndex}.photos", []) as $photoIndex => $photo) {
+                $filePath = $photo->store("properties/{$property->id}/inventory/{$area->id}", 'public');
+
+                $area->photos()->create([
+                    'file_path' => $filePath,
+                    'display_order' => $photoIndex,
+                ]);
+            }
+        }
     }
 
     private function getPropertyTypesCatalog(): Collection
@@ -256,3 +335,4 @@ class PropertyController extends Controller
             ->values();
     }
 }
+

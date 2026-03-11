@@ -1,9 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'Nueva Propiedad | SuWork')
+@section('title', (($isEdit ?? false) ? 'Editar Propiedad' : 'Nueva Propiedad') . ' | SuWork')
 
 @section('content')
     @php
+        $isEdit = $isEdit ?? false;
+        $property = $property ?? null;
+
         $steps = [
             1 => 'Datos de la propiedad',
             2 => 'Propietarios',
@@ -29,7 +32,24 @@
             'payment_method' => \App\Models\PropertyOwner::PAYMENT_METHOD_TRANSFER,
         ];
 
-        $oldOwners = old('owners', [$ownerDefaults]);
+        $propertyOwnerDefaults = $isEdit && $property
+            ? $property->owners
+                ->map(
+                    fn($owner) => [
+                        'name' => $owner->name,
+                        'phone' => $owner->phone,
+                        'email' => $owner->email,
+                        'owner_type' => $owner->owner_type,
+                        'bank_name' => $owner->bank_name,
+                        'clabe' => $owner->clabe,
+                        'account_holder' => $owner->account_holder,
+                        'payment_method' => $owner->payment_method,
+                    ],
+                )
+                ->values()
+                ->all()
+            : [$ownerDefaults];
+        $oldOwners = old('owners', $propertyOwnerDefaults ?: [$ownerDefaults]);
 
         $defaultAreaData = collect($defaultAreas)->map(function ($area) {
             return [
@@ -40,7 +60,41 @@
                 ],
             ];
         });
-        $oldAreas = old('inventory_areas', $defaultAreaData->toArray());
+        $propertyAreaDefaults = $isEdit && $property
+            ? $property->inventoryAreas
+                ->map(
+                    fn($area) => [
+                        'name' => $area->name,
+                        'notes' => $area->notes,
+                        'items' => $area->items->map(
+                            fn($item) => [
+                                'name' => $item->name,
+                                'condition' => $item->condition,
+                                'notes' => $item->notes,
+                            ],
+                        )
+                            ->values()
+                            ->all() ?: [['name' => '', 'condition' => '', 'notes' => '']],
+                    ],
+                )
+                ->values()
+                ->all()
+            : [];
+        $oldAreas = old('inventory_areas', $propertyAreaDefaults ?: $defaultAreaData->toArray());
+
+        $fieldValue = function (string $key, mixed $default = '') use ($isEdit, $property) {
+            return old($key, $isEdit && $property ? data_get($property, $key, $default) : $default);
+        };
+
+        $selectedStatus = old(
+            'status',
+            $isEdit && $property ? $property->status : \App\Models\Property::STATUS_AVAILABLE,
+        );
+
+        $existingDocuments = $isEdit && $property ? $property->documents->keyBy('document_type') : collect();
+        $existingFacadePhoto = $isEdit && $property ? $property->facade_photo_path : null;
+        $selectedType = (string) $fieldValue('property_type_id');
+        $selectedZone = (string) $fieldValue('zone_id');
 
         $initialStep = (int) old('wizard_step', 1);
         if ($errors->isNotEmpty()) {
@@ -74,12 +128,19 @@
         </div>
 
         <div class="mb-9">
-            <h1 class="mb-1 fw-bold">Nueva Propiedad</h1>
-            <p class="text-muted mb-0">Completa los siguientes pasos para registrar una nueva propiedad.</p>
+            <h1 class="mb-1 fw-bold">{{ $isEdit ? 'Editar Propiedad' : 'Nueva Propiedad' }}</h1>
+            <p class="text-muted mb-0">
+                {{ $isEdit ? 'Actualiza la información de la propiedad en los siguientes pasos.' : 'Completa los siguientes pasos para registrar una nueva propiedad.' }}
+            </p>
         </div>
 
-        <form id="property-wizard-form" method="POST" action="{{ route('properties.store') }}" enctype="multipart/form-data">
+        <form id="property-wizard-form" method="POST"
+            action="{{ $isEdit ? route('properties.update', $property) : route('properties.store') }}"
+            enctype="multipart/form-data">
             @csrf
+            @if ($isEdit)
+                @method('PUT')
+            @endif
             <input type="hidden" name="wizard_step" id="wizard-step-input" value="{{ $initialStep }}">
 
             @if ($errors->any())
@@ -109,7 +170,7 @@
 
                     <div class="notice d-flex bg-light-warning rounded border border-warning border-dashed p-4 mb-8">
                         <div class="d-flex flex-column text-warning">
-                            <span class="fw-bold">Estado: Borrador</span>
+                            <span class="fw-bold">Estado: {{ \App\Models\Property::STATUS_LABELS[$selectedStatus] ?? 'Borrador' }}</span>
                         </div>
                     </div>
 
@@ -117,7 +178,7 @@
                         <div class="col-lg-6">
                             <label class="form-label required">Nombre interno de la propiedad</label>
                             <input type="text" name="internal_name" class="form-control @error('internal_name') is-invalid @enderror"
-                                value="{{ old('internal_name') }}" placeholder="Ej: Casa Montebello 101">
+                                value="{{ $fieldValue('internal_name') }}" placeholder="Ej: Casa Montebello 101">
                             @error('internal_name')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -126,7 +187,7 @@
                             <label class="form-label">Referencia interna o alias</label>
                             <input type="text" name="internal_reference"
                                 class="form-control @error('internal_reference') is-invalid @enderror"
-                                value="{{ old('internal_reference') }}" placeholder="Ej: MB-101">
+                                value="{{ $fieldValue('internal_reference') }}" placeholder="Ej: MB-101">
                             @error('internal_reference')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -136,10 +197,10 @@
                             <label class="form-label required">Tipo de propiedad</label>
                             <select name="property_type_id" required
                                 class="form-select @error('property_type_id') is-invalid @enderror">
-                                <option value="" disabled {{ old('property_type_id') ? '' : 'selected' }}>Seleccionar tipo</option>
+                                <option value="" disabled {{ $selectedType ? '' : 'selected' }}>Seleccionar tipo</option>
                                 @foreach ($propertyTypes as $type)
                                     <option value="{{ $type->id }}"
-                                        {{ (string) old('property_type_id') === (string) $type->id ? 'selected' : '' }}>
+                                        {{ $selectedType === (string) $type->id ? 'selected' : '' }}>
                                         {{ $type->name }}
                                     </option>
                                 @endforeach
@@ -152,9 +213,9 @@
                         <div class="col-lg-6">
                             <label class="form-label required">Zona</label>
                             <select name="zone_id" required class="form-select @error('zone_id') is-invalid @enderror">
-                                <option value="" disabled {{ old('zone_id') ? '' : 'selected' }}>Seleccionar zona</option>
+                                <option value="" disabled {{ $selectedZone ? '' : 'selected' }}>Seleccionar zona</option>
                                 @foreach ($zones as $zone)
-                                    <option value="{{ $zone->id }}" {{ (string) old('zone_id') === (string) $zone->id ? 'selected' : '' }}>
+                                    <option value="{{ $zone->id }}" {{ $selectedZone === (string) $zone->id ? 'selected' : '' }}>
                                         {{ $zone->name }}
                                     </option>
                                 @endforeach
@@ -167,7 +228,7 @@
                         <div class="col-12">
                             <label class="form-label required">Dirección completa</label>
                             <input type="text" name="full_address" class="form-control @error('full_address') is-invalid @enderror"
-                                value="{{ old('full_address') }}" placeholder="Calle, número, colonia, CP">
+                                value="{{ $fieldValue('full_address') }}" placeholder="Calle, número, colonia, CP">
                             @error('full_address')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -176,22 +237,28 @@
                         <div class="col-lg-6">
                             <label class="form-label">Complejo o privada</label>
                             <input type="text" name="complex_name" class="form-control @error('complex_name') is-invalid @enderror"
-                                value="{{ old('complex_name') }}" placeholder="Nombre del complejo">
+                                value="{{ $fieldValue('complex_name') }}" placeholder="Nombre del complejo">
                         </div>
                         <div class="col-lg-6">
                             <label class="form-label">Número oficial</label>
                             <input type="text" name="official_number"
                                 class="form-control @error('official_number') is-invalid @enderror"
-                                value="{{ old('official_number') }}" placeholder="Número">
+                                value="{{ $fieldValue('official_number') }}" placeholder="Número">
                         </div>
                         <div class="col-lg-6">
                             <label class="form-label">Unidad o departamento</label>
                             <input type="text" name="unit_number" class="form-control @error('unit_number') is-invalid @enderror"
-                                value="{{ old('unit_number') }}" placeholder="Ej: A-302">
+                                value="{{ $fieldValue('unit_number') }}" placeholder="Ej: A-302">
                         </div>
 
                         <div class="col-12">
                             <label class="form-label">Foto de fachada de la propiedad</label>
+                            @if ($existingFacadePhoto)
+                                <div class="mb-4">
+                                    <img src="{{ \Illuminate\Support\Facades\Storage::url($existingFacadePhoto) }}" alt="Fachada actual"
+                                        class="property-cover">
+                                </div>
+                            @endif
                             <label class="upload-box">
                                 <input type="file" name="facade_photo" accept=".jpg,.jpeg,.png">
                                 <i class="ki-outline ki-cloud-add fs-2x text-muted mb-2"></i>
@@ -323,10 +390,15 @@
 
                     <div class="d-flex flex-column gap-6">
                         @foreach ($requiredDocuments as $documentKey => $documentLabel)
+                            @php
+                                $existingDocument = $existingDocuments->get($documentKey);
+                            @endphp
                             <div class="border rounded p-6">
                                 <div class="d-flex justify-content-between align-items-center mb-4">
                                     <h4 class="mb-0">{{ $documentLabel }}</h4>
-                                    <span class="badge badge-light-secondary text-secondary">Pendiente</span>
+                                    <span class="badge {{ $existingDocument?->status_badge_class ?? 'badge-light-secondary text-secondary' }}">
+                                        {{ $existingDocument?->status_label ?? 'Pendiente' }}
+                                    </span>
                                 </div>
                                 <label class="upload-box upload-box-sm">
                                     <input type="file" name="documents[{{ $documentKey }}]" accept=".pdf,.jpg,.jpeg,.png">
@@ -334,6 +406,12 @@
                                     <span class="fw-semibold text-gray-700">Haz clic para subir documento</span>
                                     <span class="text-muted fs-8">PDF, JPG, PNG hasta 10MB</span>
                                 </label>
+                                @if ($existingDocument?->file_path)
+                                    <a href="{{ \Illuminate\Support\Facades\Storage::url($existingDocument->file_path) }}"
+                                        target="_blank" class="btn btn-sm btn-light-primary mt-3">
+                                        Ver archivo actual
+                                    </a>
+                                @endif
                                 @error("documents.$documentKey")
                                     <div class="text-danger fs-8 mt-2">{{ $message }}</div>
                                 @enderror
@@ -430,7 +508,7 @@
                     <div class="d-flex flex-column gap-4 mb-8">
                         @foreach ($statusOptions as $statusValue => $statusLabel)
                             @php
-                                $isSelected = old('status', \App\Models\Property::STATUS_AVAILABLE) === $statusValue;
+                                $isSelected = $selectedStatus === $statusValue;
                             @endphp
                             <label class="status-option {{ $isSelected ? 'is-selected' : '' }}">
                                 <input type="radio" name="status" value="{{ $statusValue }}"
@@ -454,12 +532,12 @@
                         <div class="col-lg-6">
                             <label class="form-label">Inquilino actual (opcional)</label>
                             <input type="text" name="current_tenant_name" class="form-control"
-                                value="{{ old('current_tenant_name') }}" placeholder="Ej: María González">
+                                value="{{ $fieldValue('current_tenant_name') }}" placeholder="Ej: María González">
                         </div>
                         <div class="col-lg-6">
                             <label class="form-label">Contrato vence (opcional)</label>
                             <input type="date" name="contract_expires_at" class="form-control"
-                                value="{{ old('contract_expires_at') }}">
+                                value="{{ old('contract_expires_at', $isEdit && $property && $property->contract_expires_at ? $property->contract_expires_at->format('Y-m-d') : '') }}">
                         </div>
                     </div>
                 </div>
@@ -474,7 +552,7 @@
                         Guardar y continuar <i class="ki-outline ki-arrow-right fs-4 ms-1"></i>
                     </button>
                     <button type="submit" id="wizard-submit" class="btn btn-success d-none">
-                        <i class="ki-outline ki-check fs-4 me-1"></i> Guardar propiedad
+                        <i class="ki-outline ki-check fs-4 me-1"></i> {{ $isEdit ? 'Actualizar propiedad' : 'Guardar propiedad' }}
                     </button>
                 </div>
             </div>

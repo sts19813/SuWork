@@ -34,6 +34,9 @@
                     </div>
                     <div class="d-flex align-items-center gap-3">
                         <span class="badge {{ $property->status_badge_class }}">{{ $property->status_label }}</span>
+                        <a href="{{ route('properties.edit', $property) }}" class="btn btn-sm btn-light-primary">
+                            Editar propiedad
+                        </a>
                         <button type="button" class="btn btn-sm btn-primary disabled" disabled>Asignar inquilino</button>
                     </div>
                 </div>
@@ -190,4 +193,3 @@
         </div>
     </div>
 @endsection
-

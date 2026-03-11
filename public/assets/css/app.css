@@ -19,6 +19,15 @@
     border-radius: 8px;
 }
 
+.navbar .nav-link {
+    padding: 1.05rem 0.95rem;
+    border-bottom: 2px solid transparent;
+}
+
+.navbar .nav-link.active {
+    border-bottom-color: #1b84ff;
+}
+
 .property-stepper {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));

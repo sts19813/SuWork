@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Property extends Model
 {
@@ -34,6 +35,7 @@ class Property extends Model
     ];
 
     protected $fillable = [
+        'uuid',
         'internal_name',
         'internal_reference',
         'property_type_id',
@@ -56,6 +58,15 @@ class Property extends Model
             'contract_expires_at' => 'date',
             'onboarding_step' => 'integer',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $property) {
+            if (blank($property->uuid)) {
+                $property->uuid = (string) Str::uuid();
+            }
+        });
     }
 
     public function type(): BelongsTo
@@ -102,5 +113,9 @@ class Property extends Model
     {
         return self::STATUS_BADGE_CLASSES[$this->status] ?? 'badge-light-secondary text-secondary';
     }
-}
 
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
+}

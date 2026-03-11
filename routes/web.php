@@ -6,6 +6,10 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LocaleController;
 
 Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('properties.index');
+    }
+
     return view('welcome');
 });
 
@@ -21,11 +25,14 @@ Route::middleware(['auth'])
         Route::get('/propiedades', [PropertyController::class, 'index'])->name('properties.index');
         Route::get('/propiedades/nueva', [PropertyController::class, 'create'])->name('properties.create');
         Route::post('/propiedades', [PropertyController::class, 'store'])->name('properties.store');
+        Route::get('/propiedades/{property}/editar', [PropertyController::class, 'edit'])->name('properties.edit');
+        Route::put('/propiedades/{property}', [PropertyController::class, 'update'])->name('properties.update');
         Route::get('/propiedades/{property}', [PropertyController::class, 'show'])->name('properties.show');
     });
+
 Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+    return redirect()->route('properties.index');
+})->middleware(['auth'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
