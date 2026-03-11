@@ -12,12 +12,12 @@
         : 'assets/media/flags/mexico.svg';
 @endphp
 
-<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm py-0">
     <div class="container-fluid px-4">
 
         {{-- Logo --}}
-        <a href="/" class="navbar-brand d-flex align-items-center">
-            <img src="{{ asset('assets/img/Videre-Logo.svg') }}" alt="Videre" height="30">
+        <a href="/" class="d-flex align-items-center py-1 px-1">
+            <img src="{{ asset('assets/img/Logo.png') }}" alt="Logo SuWork" height="45">
         </a>
 
         {{-- Right --}}
