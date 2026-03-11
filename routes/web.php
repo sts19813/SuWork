@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PropertyController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LocaleController;
 
@@ -16,6 +17,11 @@ Route::middleware(['auth'])
         Route::post('/perfil/actualizar', [ProfileController::class, 'update'])->name('profile.update');
         Route::post('/perfil/foto', [ProfileController::class, 'updatePhoto'])->name('profile.update.photo');
         Route::post('/perfil/password', [ProfileController::class, 'updatePassword'])->name('profile.update.password');
+
+        Route::get('/propiedades', [PropertyController::class, 'index'])->name('properties.index');
+        Route::get('/propiedades/nueva', [PropertyController::class, 'create'])->name('properties.create');
+        Route::post('/propiedades', [PropertyController::class, 'store'])->name('properties.store');
+        Route::get('/propiedades/{property}', [PropertyController::class, 'show'])->name('properties.show');
     });
 Route::get('/dashboard', function () {
     return view('dashboard');

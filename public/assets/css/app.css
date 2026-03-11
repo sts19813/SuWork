@@ -1,0 +1,139 @@
+.property-module .property-thumb {
+    width: 72px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 10px;
+}
+
+.property-module .property-cover {
+    width: 160px;
+    height: 110px;
+    object-fit: cover;
+    border-radius: 12px;
+}
+
+.property-module .inventory-thumb {
+    width: 88px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.property-stepper {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.property-stepper .step-item {
+    position: relative;
+    text-align: center;
+    padding-top: 2px;
+}
+
+.property-stepper .step-item:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 19px;
+    left: calc(50% + 20px);
+    right: calc(-50% + 20px);
+    height: 2px;
+    background: #d9dee8;
+}
+
+.property-stepper .step-circle {
+    width: 38px;
+    height: 38px;
+    margin: 0 auto 8px;
+    border-radius: 50%;
+    border: 1px solid #d9dee8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    color: #6c757d;
+    background: #fff;
+    position: relative;
+    z-index: 2;
+}
+
+.property-stepper .step-label {
+    font-size: 12px;
+    color: #7e8299;
+    line-height: 1.35;
+}
+
+.property-stepper .step-item.is-active .step-circle,
+.property-stepper .step-item.is-completed .step-circle {
+    border-color: #1b84ff;
+    color: #1b84ff;
+}
+
+.property-stepper .step-item.is-completed .step-circle {
+    background: #1b84ff;
+    color: #fff;
+}
+
+.property-stepper .step-item.is-completed:not(:last-child)::after,
+.property-stepper .step-item.is-active:not(:last-child)::after {
+    background: #1b84ff;
+}
+
+.upload-box {
+    border: 1px dashed #c8ced8;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 140px;
+    cursor: pointer;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.upload-box:hover {
+    border-color: #1b84ff;
+    background: #f8fbff;
+}
+
+.upload-box input[type="file"] {
+    display: none;
+}
+
+.upload-box.upload-box-sm {
+    min-height: 120px;
+}
+
+.status-option {
+    border: 1px solid #d9dee8;
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.status-option input[type="radio"] {
+    margin-top: 6px;
+}
+
+.status-option.is-selected {
+    border-color: #f49e36;
+    background: #fff6ed;
+}
+
+@media (max-width: 991px) {
+    .property-stepper {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .property-stepper .step-item::after {
+        display: none;
+    }
+}
