@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
@@ -84,9 +85,9 @@ class Property extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function owners(): HasMany
+    public function owners(): BelongsToMany
     {
-        return $this->hasMany(PropertyOwner::class);
+        return $this->belongsToMany(Owner::class)->withTimestamps();
     }
 
     public function documents(): HasMany

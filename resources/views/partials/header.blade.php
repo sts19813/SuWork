@@ -32,6 +32,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link fw-semibold {{ request()->routeIs('owners.*') ? 'active text-primary' : 'text-gray-700' }}"
+                        href="{{ route('owners.index') }}">
+                        Propietarios
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link fw-semibold {{ request()->routeIs('profile.*') ? 'active text-primary' : 'text-gray-700' }}"
                         href="{{ route('profile.index') }}">
                         Perfil
@@ -89,4 +95,3 @@
 <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
     @csrf
 </form>
-

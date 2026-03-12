@@ -25,31 +25,22 @@
             'name' => '',
             'phone' => '',
             'email' => '',
-            'owner_type' => \App\Models\PropertyOwner::OWNER_INDIVIDUAL,
+            'rfc' => '',
+            'curp' => '',
+            'owner_type' => \App\Models\Owner::OWNER_INDIVIDUAL,
             'bank_name' => '',
             'clabe' => '',
             'account_holder' => '',
-            'payment_method' => \App\Models\PropertyOwner::PAYMENT_METHOD_TRANSFER,
+            'payment_method' => \App\Models\Owner::PAYMENT_METHOD_TRANSFER,
+            'address' => '',
+            'notes' => '',
         ];
 
-        $propertyOwnerDefaults = $isEdit && $property
-            ? $property->owners
-                ->map(
-                    fn($owner) => [
-                        'name' => $owner->name,
-                        'phone' => $owner->phone,
-                        'email' => $owner->email,
-                        'owner_type' => $owner->owner_type,
-                        'bank_name' => $owner->bank_name,
-                        'clabe' => $owner->clabe,
-                        'account_holder' => $owner->account_holder,
-                        'payment_method' => $owner->payment_method,
-                    ],
-                )
-                ->values()
-                ->all()
-            : [$ownerDefaults];
-        $oldOwners = old('owners', $propertyOwnerDefaults ?: [$ownerDefaults]);
+        $selectedOwnerIds = collect(old('owner_ids', $isEdit && $property ? $property->owners->pluck('id')->all() : []))
+            ->map(fn($ownerId) => (int) $ownerId)
+            ->all();
+
+        $oldNewOwners = old('new_owners', []);
 
         $defaultAreaData = collect($defaultAreas)->map(function ($area) {
             return [
@@ -100,7 +91,7 @@
         if ($errors->isNotEmpty()) {
             $initialStep = 1;
             foreach ($errors->keys() as $errorKey) {
-                if (str_starts_with($errorKey, 'owners.')) {
+                if (str_starts_with($errorKey, 'owner_ids') || str_starts_with($errorKey, 'new_owners.')) {
                     $initialStep = 2;
                     break;
                 }
@@ -277,100 +268,154 @@
             <div class="card mb-8 wizard-step d-none" data-step-panel="2">
                 <div class="card-body p-lg-10">
                     <h3 class="mb-3 fw-bold">Propietarios</h3>
-                    <p class="text-muted mb-8">Agrega la información de uno o varios titulares de la propiedad.</p>
+                    <p class="text-muted mb-8">Selecciona propietarios registrados o crea uno nuevo desde este paso.</p>
 
-                    <div id="owners-container">
-                        @foreach ($oldOwners as $ownerIndex => $owner)
-                            <div class="owner-block border rounded p-6 mb-6" data-owner-index="{{ $ownerIndex }}">
-                                <div class="d-flex justify-content-between align-items-center mb-6">
-                                    <h4 class="mb-0">Propietario <span class="owner-number">{{ $loop->iteration }}</span></h4>
-                                    <button type="button" class="btn btn-sm btn-light-danger btn-remove-owner {{ $loop->count === 1 ? 'd-none' : '' }}">
-                                        Eliminar
-                                    </button>
-                                </div>
+                    @error('owner_ids')
+                        <div class="alert alert-danger mb-6">{{ $message }}</div>
+                    @enderror
 
-                                <div class="row g-5">
-                                    <div class="col-12">
-                                        <label class="form-label required">Nombre del propietario</label>
-                                        <input type="text" name="owners[{{ $ownerIndex }}][name]"
-                                            class="form-control @error("owners.$ownerIndex.name") is-invalid @enderror"
-                                            value="{{ $owner['name'] ?? '' }}" placeholder="Nombre completo">
-                                        @error("owners.$ownerIndex.name")
-                                            <div class="invalid-feedback">{{ $message }}</div>
-                                        @enderror
-                                    </div>
-                                    <div class="col-lg-6">
-                                        <label class="form-label required">Teléfono</label>
-                                        <input type="text" name="owners[{{ $ownerIndex }}][phone]"
-                                            class="form-control @error("owners.$ownerIndex.phone") is-invalid @enderror"
-                                            value="{{ $owner['phone'] ?? '' }}" placeholder="999 123 4567">
-                                        @error("owners.$ownerIndex.phone")
-                                            <div class="invalid-feedback">{{ $message }}</div>
-                                        @enderror
-                                    </div>
-                                    <div class="col-lg-6">
-                                        <label class="form-label required">Correo electrónico</label>
-                                        <input type="email" name="owners[{{ $ownerIndex }}][email]"
-                                            class="form-control @error("owners.$ownerIndex.email") is-invalid @enderror"
-                                            value="{{ $owner['email'] ?? '' }}" placeholder="correo@ejemplo.com">
-                                        @error("owners.$ownerIndex.email")
-                                            <div class="invalid-feedback">{{ $message }}</div>
-                                        @enderror
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label required d-block">Tipo de titular</label>
-                                        <div class="d-flex gap-6">
-                                            @foreach ($ownerTypes as $typeValue => $typeLabel)
-                                                <label class="form-check form-check-custom form-check-solid">
-                                                    <input class="form-check-input" type="radio"
-                                                        name="owners[{{ $ownerIndex }}][owner_type]" value="{{ $typeValue }}"
-                                                        {{ ($owner['owner_type'] ?? '') === $typeValue ? 'checked' : '' }}>
-                                                    <span class="form-check-label">{{ $typeLabel }}</span>
-                                                </label>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                    <div class="col-12">
-                                        <h5 class="mb-2">Datos bancarios para recibir pagos</h5>
-                                    </div>
-                                    <div class="col-lg-6">
-                                        <label class="form-label">Banco</label>
-                                        <input type="text" name="owners[{{ $ownerIndex }}][bank_name]" class="form-control"
-                                            value="{{ $owner['bank_name'] ?? '' }}" placeholder="Nombre del banco">
-                                    </div>
-                                    <div class="col-lg-6">
-                                        <label class="form-label">CLABE</label>
-                                        <input type="text" name="owners[{{ $ownerIndex }}][clabe]"
-                                            class="form-control @error("owners.$ownerIndex.clabe") is-invalid @enderror"
-                                            value="{{ $owner['clabe'] ?? '' }}" placeholder="18 dígitos">
-                                        @error("owners.$ownerIndex.clabe")
-                                            <div class="invalid-feedback">{{ $message }}</div>
-                                        @enderror
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label">Titular de la cuenta</label>
-                                        <input type="text" name="owners[{{ $ownerIndex }}][account_holder]" class="form-control"
-                                            value="{{ $owner['account_holder'] ?? '' }}" placeholder="Nombre del titular">
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label">Método de pago permitido</label>
-                                        <select name="owners[{{ $ownerIndex }}][payment_method]" class="form-select">
-                                            @foreach ($paymentMethods as $methodValue => $methodLabel)
-                                                <option value="{{ $methodValue }}"
-                                                    {{ ($owner['payment_method'] ?? '') === $methodValue ? 'selected' : '' }}>
-                                                    {{ $methodLabel }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
+                    <div class="mb-6">
+                        <label class="form-label">Buscar propietario</label>
+                        <input type="text" id="owners-search-input" class="form-control"
+                            placeholder="Buscar por nombre, telefono, email, RFC...">
                     </div>
 
-                    <button type="button" id="add-owner-btn" class="btn btn-light-primary w-100 border-dashed">
-                        <i class="ki-outline ki-plus fs-4 me-1"></i> Agregar otro propietario
-                    </button>
+                    <div id="owners-select-list" class="row g-5 mb-8">
+                        @forelse ($availableOwners as $owner)
+                            @php
+                                $isChecked = in_array($owner->id, $selectedOwnerIds, true);
+                                $searchText = strtolower(trim(($owner->name ?? '') . ' ' . ($owner->phone ?? '') . ' ' . ($owner->email ?? '') . ' ' . ($owner->rfc ?? '')));
+                            @endphp
+                            <div class="col-lg-6 owner-option-item" data-owner-search="{{ $searchText }}">
+                                <label class="owner-option-card {{ $isChecked ? 'is-selected' : '' }}">
+                                    <input type="checkbox" name="owner_ids[]" value="{{ $owner->id }}"
+                                        class="form-check-input owner-option-checkbox" {{ $isChecked ? 'checked' : '' }}>
+                                    <div class="owner-option-content">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="fw-bold text-gray-900">{{ $owner->name }}</span>
+                                            <span class="badge badge-light-info text-info">{{ $owner->owner_type_label }}</span>
+                                        </div>
+                                        <div class="text-muted fs-7 mb-1">{{ $owner->phone }} {{ $owner->email ? '| ' . $owner->email : '' }}</div>
+                                        <div class="text-muted fs-8">Banco: {{ $owner->bank_name ?: '-' }} | CLABE: {{ $owner->clabe ?: '-' }}</div>
+                                    </div>
+                                </label>
+                            </div>
+                        @empty
+                            <div class="col-12">
+                                <div class="alert alert-light-info mb-0">No hay propietarios registrados todavía.</div>
+                            </div>
+                        @endforelse
+                    </div>
+
+                    <div class="border rounded p-6">
+                        <div class="d-flex justify-content-between align-items-center mb-5">
+                            <h4 class="mb-0">Crear nuevo propietario desde aqui</h4>
+                            <button type="button" id="add-inline-owner" class="btn btn-sm btn-light-primary">
+                                <i class="ki-outline ki-plus fs-5 me-1"></i> Nuevo propietario
+                            </button>
+                        </div>
+
+                        <div id="inline-new-owners" class="d-flex flex-column gap-5">
+                            @foreach ($oldNewOwners as $newOwnerIndex => $newOwner)
+                                <div class="new-owner-block border rounded p-5" data-new-owner-index="{{ $newOwnerIndex }}">
+                                    <div class="d-flex justify-content-between align-items-center mb-4">
+                                        <h5 class="mb-0">Nuevo propietario {{ $loop->iteration }}</h5>
+                                        <button type="button" class="btn btn-sm btn-light-danger btn-remove-new-owner">
+                                            Eliminar
+                                        </button>
+                                    </div>
+                                    <div class="row g-4">
+                                        <div class="col-lg-6">
+                                            <label class="form-label required">Nombre completo</label>
+                                            <input type="text" name="new_owners[{{ $newOwnerIndex }}][name]"
+                                                class="form-control @error("new_owners.$newOwnerIndex.name") is-invalid @enderror"
+                                                value="{{ $newOwner['name'] ?? '' }}">
+                                            @error("new_owners.$newOwnerIndex.name")
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <label class="form-label required">Telefono</label>
+                                            <input type="text" name="new_owners[{{ $newOwnerIndex }}][phone]"
+                                                class="form-control @error("new_owners.$newOwnerIndex.phone") is-invalid @enderror"
+                                                value="{{ $newOwner['phone'] ?? '' }}">
+                                            @error("new_owners.$newOwnerIndex.phone")
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <label class="form-label">Email</label>
+                                            <input type="email" name="new_owners[{{ $newOwnerIndex }}][email]"
+                                                class="form-control @error("new_owners.$newOwnerIndex.email") is-invalid @enderror"
+                                                value="{{ $newOwner['email'] ?? '' }}">
+                                            @error("new_owners.$newOwnerIndex.email")
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <label class="form-label">RFC</label>
+                                            <input type="text" name="new_owners[{{ $newOwnerIndex }}][rfc]" class="form-control"
+                                                value="{{ $newOwner['rfc'] ?? '' }}">
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <label class="form-label">CURP</label>
+                                            <input type="text" name="new_owners[{{ $newOwnerIndex }}][curp]" class="form-control"
+                                                value="{{ $newOwner['curp'] ?? '' }}">
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <label class="form-label">Banco</label>
+                                            <input type="text" name="new_owners[{{ $newOwnerIndex }}][bank_name]" class="form-control"
+                                                value="{{ $newOwner['bank_name'] ?? '' }}">
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <label class="form-label">CLABE (18 digitos)</label>
+                                            <input type="text" name="new_owners[{{ $newOwnerIndex }}][clabe]"
+                                                class="form-control @error("new_owners.$newOwnerIndex.clabe") is-invalid @enderror"
+                                                value="{{ $newOwner['clabe'] ?? '' }}">
+                                            @error("new_owners.$newOwnerIndex.clabe")
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-lg-6">
+                                            <label class="form-label">Titular de la cuenta</label>
+                                            <input type="text" name="new_owners[{{ $newOwnerIndex }}][account_holder]" class="form-control"
+                                                value="{{ $newOwner['account_holder'] ?? '' }}">
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <label class="form-label">Tipo de titular</label>
+                                            <select name="new_owners[{{ $newOwnerIndex }}][owner_type]" class="form-select">
+                                                @foreach ($ownerTypes as $typeValue => $typeLabel)
+                                                    <option value="{{ $typeValue }}"
+                                                        {{ ($newOwner['owner_type'] ?? \App\Models\Owner::OWNER_INDIVIDUAL) === $typeValue ? 'selected' : '' }}>
+                                                        {{ $typeLabel }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <label class="form-label">Metodo de pago</label>
+                                            <select name="new_owners[{{ $newOwnerIndex }}][payment_method]" class="form-select">
+                                                @foreach ($paymentMethods as $methodValue => $methodLabel)
+                                                    <option value="{{ $methodValue }}"
+                                                        {{ ($newOwner['payment_method'] ?? \App\Models\Owner::PAYMENT_METHOD_TRANSFER) === $methodValue ? 'selected' : '' }}>
+                                                        {{ $methodLabel }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Domicilio</label>
+                                            <textarea name="new_owners[{{ $newOwnerIndex }}][address]" rows="2" class="form-control">{{ $newOwner['address'] ?? '' }}</textarea>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Notas</label>
+                                            <textarea name="new_owners[{{ $newOwnerIndex }}][notes]" rows="2" class="form-control">{{ $newOwner['notes'] ?? '' }}</textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -558,63 +603,74 @@
             </div>
         </form>
     </div>
-<template id="owner-template">
-    <div class="owner-block border rounded p-6 mb-6" data-owner-index="__INDEX__">
-        <div class="d-flex justify-content-between align-items-center mb-6">
-            <h4 class="mb-0">Propietario <span class="owner-number">__NUMBER__</span></h4>
-            <button type="button" class="btn btn-sm btn-light-danger btn-remove-owner">Eliminar</button>
+<template id="new-owner-template">
+    <div class="new-owner-block border rounded p-5" data-new-owner-index="__INDEX__">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="mb-0">Nuevo propietario __NUMBER__</h5>
+            <button type="button" class="btn btn-sm btn-light-danger btn-remove-new-owner">Eliminar</button>
         </div>
-        <div class="row g-5">
-            <div class="col-12">
-                <label class="form-label required">Nombre del propietario</label>
-                <input type="text" name="owners[__INDEX__][name]" class="form-control" placeholder="Nombre completo">
-            </div>
+        <div class="row g-4">
             <div class="col-lg-6">
-                <label class="form-label required">Teléfono</label>
-                <input type="text" name="owners[__INDEX__][phone]" class="form-control" placeholder="999 123 4567">
+                <label class="form-label required">Nombre completo</label>
+                <input type="text" name="new_owners[__INDEX__][name]" class="form-control">
             </div>
-            <div class="col-lg-6">
-                <label class="form-label required">Correo electrónico</label>
-                <input type="email" name="owners[__INDEX__][email]" class="form-control" placeholder="correo@ejemplo.com">
+            <div class="col-lg-3">
+                <label class="form-label required">Telefono</label>
+                <input type="text" name="new_owners[__INDEX__][phone]" class="form-control">
             </div>
-            <div class="col-12">
-                <label class="form-label required d-block">Tipo de titular</label>
-                <div class="d-flex gap-6">
-                    @foreach ($ownerTypes as $typeValue => $typeLabel)
-                        <label class="form-check form-check-custom form-check-solid">
-                            <input class="form-check-input" type="radio" name="owners[__INDEX__][owner_type]"
-                                value="{{ $typeValue }}"
-                                {{ $typeValue === \App\Models\PropertyOwner::OWNER_INDIVIDUAL ? 'checked' : '' }}>
-                            <span class="form-check-label">{{ $typeLabel }}</span>
-                        </label>
-                    @endforeach
-                </div>
+            <div class="col-lg-3">
+                <label class="form-label">Email</label>
+                <input type="email" name="new_owners[__INDEX__][email]" class="form-control">
             </div>
-            <div class="col-12">
-                <h5 class="mb-2">Datos bancarios para recibir pagos</h5>
+            <div class="col-lg-3">
+                <label class="form-label">RFC</label>
+                <input type="text" name="new_owners[__INDEX__][rfc]" class="form-control">
             </div>
-            <div class="col-lg-6">
+            <div class="col-lg-3">
+                <label class="form-label">CURP</label>
+                <input type="text" name="new_owners[__INDEX__][curp]" class="form-control">
+            </div>
+            <div class="col-lg-3">
                 <label class="form-label">Banco</label>
-                <input type="text" name="owners[__INDEX__][bank_name]" class="form-control" placeholder="Nombre del banco">
+                <input type="text" name="new_owners[__INDEX__][bank_name]" class="form-control">
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label">CLABE (18 digitos)</label>
+                <input type="text" name="new_owners[__INDEX__][clabe]" class="form-control">
             </div>
             <div class="col-lg-6">
-                <label class="form-label">CLABE</label>
-                <input type="text" name="owners[__INDEX__][clabe]" class="form-control" placeholder="18 dígitos">
-            </div>
-            <div class="col-12">
                 <label class="form-label">Titular de la cuenta</label>
-                <input type="text" name="owners[__INDEX__][account_holder]" class="form-control" placeholder="Nombre del titular">
+                <input type="text" name="new_owners[__INDEX__][account_holder]" class="form-control">
             </div>
-            <div class="col-12">
-                <label class="form-label">Método de pago permitido</label>
-                <select name="owners[__INDEX__][payment_method]" class="form-select">
+            <div class="col-lg-3">
+                <label class="form-label">Tipo de titular</label>
+                <select name="new_owners[__INDEX__][owner_type]" class="form-select">
+                    @foreach ($ownerTypes as $typeValue => $typeLabel)
+                        <option value="{{ $typeValue }}"
+                            {{ $typeValue === \App\Models\Owner::OWNER_INDIVIDUAL ? 'selected' : '' }}>
+                            {{ $typeLabel }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label">Metodo de pago</label>
+                <select name="new_owners[__INDEX__][payment_method]" class="form-select">
                     @foreach ($paymentMethods as $methodValue => $methodLabel)
                         <option value="{{ $methodValue }}"
-                            {{ $methodValue === \App\Models\PropertyOwner::PAYMENT_METHOD_TRANSFER ? 'selected' : '' }}>
+                            {{ $methodValue === \App\Models\Owner::PAYMENT_METHOD_TRANSFER ? 'selected' : '' }}>
                             {{ $methodLabel }}
                         </option>
                     @endforeach
                 </select>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Domicilio</label>
+                <textarea name="new_owners[__INDEX__][address]" rows="2" class="form-control"></textarea>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Notas</label>
+                <textarea name="new_owners[__INDEX__][notes]" rows="2" class="form-control"></textarea>
             </div>
         </div>
     </div>
@@ -728,45 +784,55 @@
                 stepInput.value = totalSteps.toString();
             });
 
-            const ownersContainer = document.getElementById('owners-container');
-            const ownerTemplate = document.getElementById('owner-template').innerHTML;
-            const addOwnerBtn = document.getElementById('add-owner-btn');
-            let ownerIndex = ownersContainer.querySelectorAll('.owner-block').length;
+            const ownersSearchInput = document.getElementById('owners-search-input');
+            const ownerOptionItems = [...document.querySelectorAll('.owner-option-item')];
 
-            const refreshOwners = () => {
-                const blocks = ownersContainer.querySelectorAll('.owner-block');
+            ownersSearchInput?.addEventListener('input', () => {
+                const searchTerm = ownersSearchInput.value.trim().toLowerCase();
+                ownerOptionItems.forEach((item) => {
+                    const haystack = item.dataset.ownerSearch || '';
+                    item.classList.toggle('d-none', searchTerm && !haystack.includes(searchTerm));
+                });
+            });
+
+            document.querySelectorAll('.owner-option-checkbox').forEach((checkbox) => {
+                checkbox.addEventListener('change', () => {
+                    const card = checkbox.closest('.owner-option-card');
+                    card?.classList.toggle('is-selected', checkbox.checked);
+                });
+            });
+
+            const inlineNewOwnersContainer = document.getElementById('inline-new-owners');
+            const addInlineOwnerBtn = document.getElementById('add-inline-owner');
+            const newOwnerTemplate = document.getElementById('new-owner-template').innerHTML;
+            let inlineOwnerIndex = inlineNewOwnersContainer?.querySelectorAll('.new-owner-block').length || 0;
+
+            const refreshInlineOwners = () => {
+                const blocks = inlineNewOwnersContainer?.querySelectorAll('.new-owner-block') || [];
                 blocks.forEach((block, index) => {
-                    const numberNode = block.querySelector('.owner-number');
-                    if (numberNode) {
-                        numberNode.textContent = (index + 1).toString();
-                    }
-                    const removeBtn = block.querySelector('.btn-remove-owner');
-                    if (removeBtn) {
-                        removeBtn.classList.toggle('d-none', blocks.length === 1);
+                    const title = block.querySelector('h5');
+                    if (title) {
+                        title.textContent = `Nuevo propietario ${index + 1}`;
                     }
                 });
             };
 
-            addOwnerBtn.addEventListener('click', () => {
-                const html = ownerTemplate
-                    .replaceAll('__INDEX__', ownerIndex.toString())
-                    .replaceAll('__NUMBER__', (ownerIndex + 1).toString());
-                ownersContainer.insertAdjacentHTML('beforeend', html);
-                ownerIndex++;
-                refreshOwners();
+            addInlineOwnerBtn?.addEventListener('click', () => {
+                const html = newOwnerTemplate
+                    .replaceAll('__INDEX__', inlineOwnerIndex.toString())
+                    .replaceAll('__NUMBER__', (inlineOwnerIndex + 1).toString());
+                inlineNewOwnersContainer?.insertAdjacentHTML('beforeend', html);
+                inlineOwnerIndex++;
+                refreshInlineOwners();
             });
 
-            ownersContainer.addEventListener('click', (event) => {
-                const removeButton = event.target.closest('.btn-remove-owner');
+            inlineNewOwnersContainer?.addEventListener('click', (event) => {
+                const removeButton = event.target.closest('.btn-remove-new-owner');
                 if (!removeButton) {
                     return;
                 }
-
-                const block = removeButton.closest('.owner-block');
-                if (block && ownersContainer.querySelectorAll('.owner-block').length > 1) {
-                    block.remove();
-                    refreshOwners();
-                }
+                removeButton.closest('.new-owner-block')?.remove();
+                refreshInlineOwners();
             });
 
             const areasContainer = document.getElementById('inventory-areas-container');
@@ -855,7 +921,7 @@
                 });
             });
 
-            refreshOwners();
+            refreshInlineOwners();
             refreshAreaButtons();
             renderWizard();
         })();

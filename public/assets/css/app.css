@@ -136,6 +136,47 @@
     background: #fff6ed;
 }
 
+.owner-option-card {
+    border: 1px solid #d9dee8;
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.owner-option-card.is-selected {
+    border-color: #1b84ff;
+    background: #f3f8ff;
+}
+
+.owner-option-card .owner-option-checkbox {
+    margin-top: 5px;
+}
+
+.owner-option-content {
+    width: 100%;
+}
+
+.owner-card {
+    border: 1px solid #e2e6ef;
+}
+
+.owner-initial {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e9f4ef;
+    color: #0a9b71;
+    font-weight: 700;
+    font-size: 18px;
+}
+
 @media (max-width: 991px) {
     .property-stepper {
         grid-template-columns: repeat(2, minmax(0, 1fr));

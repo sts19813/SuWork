@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePropertyRequest;
+use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
-use App\Models\PropertyOwner;
 use App\Models\PropertyType;
 use App\Models\Zone;
 use Illuminate\Http\RedirectResponse;
@@ -137,8 +137,8 @@ class PropertyController extends Controller
                 Property::STATUS_IN_PROCESS => Property::STATUS_LABELS[Property::STATUS_IN_PROCESS],
                 Property::STATUS_BLOCKED => Property::STATUS_LABELS[Property::STATUS_BLOCKED],
             ],
-            'ownerTypes' => PropertyOwner::OWNER_TYPE_LABELS,
-            'paymentMethods' => PropertyOwner::PAYMENT_METHOD_LABELS,
+            'ownerTypes' => Owner::OWNER_TYPE_LABELS,
+            'paymentMethods' => Owner::PAYMENT_METHOD_LABELS,
             'requiredDocuments' => PropertyDocument::REQUIRED_DOCUMENTS,
             'defaultAreas' => [
                 'Cocina',
@@ -146,6 +146,7 @@ class PropertyController extends Controller
                 'Sala',
                 'Comedor',
             ],
+            'availableOwners' => Owner::query()->where('is_active', true)->orderBy('name')->get(),
             'property' => $property,
             'isEdit' => $isEdit,
         ];
@@ -184,7 +185,11 @@ class PropertyController extends Controller
                 $property->update(['facade_photo_path' => $path]);
             }
 
-            $this->syncOwners($property, $validated['owners']);
+            $this->syncOwners(
+                $property,
+                $validated['owner_ids'] ?? [],
+                $validated['new_owners'] ?? [],
+            );
             $this->syncDocuments($property, $request);
             $this->syncInventory($property, $validated['inventory_areas'] ?? [], $request);
 
@@ -192,22 +197,39 @@ class PropertyController extends Controller
         });
     }
 
-    private function syncOwners(Property $property, array $owners): void
+    private function syncOwners(Property $property, array $ownerIds, array $newOwners): void
     {
-        $property->owners()->delete();
+        $selectedOwnerIds = collect($ownerIds)
+            ->filter(fn ($ownerId) => filled($ownerId))
+            ->map(fn ($ownerId) => (int) $ownerId)
+            ->values();
 
-        foreach ($owners as $ownerData) {
-            $property->owners()->create([
+        foreach ($newOwners as $ownerData) {
+            $hasAnyData = collect($ownerData)->contains(fn ($value) => filled($value));
+            if (!$hasAnyData) {
+                continue;
+            }
+
+            $owner = Owner::create([
                 'name' => $ownerData['name'],
                 'phone' => $ownerData['phone'],
-                'email' => $ownerData['email'],
-                'owner_type' => $ownerData['owner_type'],
+                'email' => $ownerData['email'] ?? null,
+                'rfc' => $ownerData['rfc'] ?? null,
+                'curp' => $ownerData['curp'] ?? null,
+                'owner_type' => $ownerData['owner_type'] ?? Owner::OWNER_INDIVIDUAL,
                 'bank_name' => $ownerData['bank_name'] ?? null,
                 'clabe' => $ownerData['clabe'] ?? null,
                 'account_holder' => $ownerData['account_holder'] ?? null,
-                'payment_method' => $ownerData['payment_method'] ?? null,
+                'payment_method' => $ownerData['payment_method'] ?? Owner::PAYMENT_METHOD_TRANSFER,
+                'address' => $ownerData['address'] ?? null,
+                'notes' => $ownerData['notes'] ?? null,
+                'is_active' => true,
             ]);
+
+            $selectedOwnerIds->push($owner->id);
         }
+
+        $property->owners()->sync($selectedOwnerIds->unique()->all());
     }
 
     private function syncDocuments(Property $property, StorePropertyRequest $request): void
@@ -335,4 +357,3 @@ class PropertyController extends Controller
             ->values();
     }
 }
-

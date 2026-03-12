@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\PropertyController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LocaleController;
@@ -28,6 +29,11 @@ Route::middleware(['auth'])
         Route::get('/propiedades/{property}/editar', [PropertyController::class, 'edit'])->name('properties.edit');
         Route::put('/propiedades/{property}', [PropertyController::class, 'update'])->name('properties.update');
         Route::get('/propiedades/{property}', [PropertyController::class, 'show'])->name('properties.show');
+
+        Route::get('/propietarios', [OwnerController::class, 'index'])->name('owners.index');
+        Route::post('/propietarios', [OwnerController::class, 'store'])->name('owners.store');
+        Route::get('/propietarios/{owner}/editar', [OwnerController::class, 'edit'])->name('owners.edit');
+        Route::put('/propietarios/{owner}', [OwnerController::class, 'update'])->name('owners.update');
     });
 
 Route::get('/dashboard', function () {
