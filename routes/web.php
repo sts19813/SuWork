@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\TenantController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LocaleController;
 
@@ -34,6 +35,11 @@ Route::middleware(['auth'])
         Route::post('/propietarios', [OwnerController::class, 'store'])->name('owners.store');
         Route::get('/propietarios/{owner}/editar', [OwnerController::class, 'edit'])->name('owners.edit');
         Route::put('/propietarios/{owner}', [OwnerController::class, 'update'])->name('owners.update');
+
+        Route::get('/inquilinos', [TenantController::class, 'index'])->name('tenants.index');
+        Route::post('/inquilinos', [TenantController::class, 'store'])->name('tenants.store');
+        Route::get('/inquilinos/{tenant}/editar', [TenantController::class, 'edit'])->name('tenants.edit');
+        Route::put('/inquilinos/{tenant}', [TenantController::class, 'update'])->name('tenants.update');
     });
 
 Route::get('/dashboard', function () {

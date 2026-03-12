@@ -177,6 +177,34 @@
     font-size: 18px;
 }
 
+#createOwnerModal .modal-dialog,
+#createTenantModal .modal-dialog {
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+#createOwnerModal .modal-content,
+#createTenantModal .modal-content {
+    max-height: calc(100vh - 3rem);
+    overflow: hidden;
+}
+
+#createOwnerModal .modal-body,
+#createTenantModal .modal-body {
+    overflow-y: auto;
+    max-height: calc(100vh - 230px);
+    padding-bottom: 1rem;
+}
+
+#createOwnerModal .modal-footer,
+#createTenantModal .modal-footer {
+    border-top: 1px solid #e4e6ef;
+    background: #fff;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+}
+
 @media (max-width: 991px) {
     .property-stepper {
         grid-template-columns: repeat(2, minmax(0, 1fr));

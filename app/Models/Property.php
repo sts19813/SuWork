@@ -17,6 +17,7 @@ class Property extends Model
     public const STATUS_AVAILABLE = 'available';
     public const STATUS_IN_PROCESS = 'in_process';
     public const STATUS_BLOCKED = 'blocked';
+    public const STATUS_OCCUPIED = 'occupied';
     public const STATUS_RENTED = 'rented';
 
     public const STATUS_LABELS = [
@@ -24,6 +25,7 @@ class Property extends Model
         self::STATUS_AVAILABLE => 'Disponible',
         self::STATUS_IN_PROCESS => 'En proceso',
         self::STATUS_BLOCKED => 'Bloqueada',
+        self::STATUS_OCCUPIED => 'Ocupada',
         self::STATUS_RENTED => 'Rentada',
     ];
 
@@ -32,6 +34,7 @@ class Property extends Model
         self::STATUS_AVAILABLE => 'badge-light-warning text-warning',
         self::STATUS_IN_PROCESS => 'badge-light-info text-info',
         self::STATUS_BLOCKED => 'badge-light-danger text-danger',
+        self::STATUS_OCCUPIED => 'badge-light-success text-success',
         self::STATUS_RENTED => 'badge-light-success text-success',
     ];
 
@@ -47,6 +50,7 @@ class Property extends Model
         'unit_number',
         'facade_photo_path',
         'status',
+        'tenant_id',
         'current_tenant_name',
         'contract_expires_at',
         'onboarding_step',
@@ -83,6 +87,11 @@ class Property extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
     }
 
     public function owners(): BelongsToMany

@@ -7,6 +7,7 @@ use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
 use App\Models\PropertyType;
+use App\Models\Tenant;
 use App\Models\Zone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -45,7 +46,7 @@ class PropertyController extends Controller
         $zones = $this->getZonesCatalog();
 
         $properties = Property::query()
-            ->with(['type', 'zone'])
+            ->with(['type', 'zone', 'tenant'])
             ->withCount([
                 'documents as incidents_count' => fn ($query) => $query->where('status', PropertyDocument::STATUS_PENDING),
             ])
@@ -86,6 +87,7 @@ class PropertyController extends Controller
             'documents',
             'inventoryAreas.items',
             'inventoryAreas.photos',
+            'tenant',
         ]);
 
         return view('properties.create', $this->formViewData($property, true));
@@ -109,6 +111,7 @@ class PropertyController extends Controller
             'documents',
             'inventoryAreas.items',
             'inventoryAreas.photos',
+            'tenant',
         ]);
 
         $documents = collect(PropertyDocument::REQUIRED_DOCUMENTS)
@@ -136,6 +139,7 @@ class PropertyController extends Controller
                 Property::STATUS_AVAILABLE => Property::STATUS_LABELS[Property::STATUS_AVAILABLE],
                 Property::STATUS_IN_PROCESS => Property::STATUS_LABELS[Property::STATUS_IN_PROCESS],
                 Property::STATUS_BLOCKED => Property::STATUS_LABELS[Property::STATUS_BLOCKED],
+                Property::STATUS_OCCUPIED => Property::STATUS_LABELS[Property::STATUS_OCCUPIED],
             ],
             'ownerTypes' => Owner::OWNER_TYPE_LABELS,
             'paymentMethods' => Owner::PAYMENT_METHOD_LABELS,
@@ -147,6 +151,7 @@ class PropertyController extends Controller
                 'Comedor',
             ],
             'availableOwners' => Owner::query()->where('is_active', true)->orderBy('name')->get(),
+            'availableTenants' => Tenant::query()->where('is_active', true)->orderBy('full_name')->get(),
             'property' => $property,
             'isEdit' => $isEdit,
         ];
@@ -158,6 +163,8 @@ class PropertyController extends Controller
 
         return DB::transaction(function () use ($request, $validated, $property) {
             $property = $property ?? new Property();
+            $tenantId = $validated['tenant_id'] ?? null;
+            $tenant = $tenantId ? Tenant::query()->find($tenantId) : null;
 
             $property->fill([
                 'internal_name' => $validated['internal_name'],
@@ -169,7 +176,8 @@ class PropertyController extends Controller
                 'official_number' => $validated['official_number'] ?? null,
                 'unit_number' => $validated['unit_number'] ?? null,
                 'status' => $validated['status'],
-                'current_tenant_name' => $validated['current_tenant_name'] ?? null,
+                'tenant_id' => $tenant?->id,
+                'current_tenant_name' => $tenant?->full_name ?? null,
                 'contract_expires_at' => $validated['contract_expires_at'] ?? null,
                 'onboarding_step' => 5,
             ]);

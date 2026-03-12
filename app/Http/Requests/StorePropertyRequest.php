@@ -36,6 +36,7 @@ class StorePropertyRequest extends FormRequest
             'unit_number' => ['nullable', 'string', 'max:100'],
             'facade_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'],
             'status' => ['required', Rule::in(array_keys(Property::STATUS_LABELS))],
+            'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
             'current_tenant_name' => ['nullable', 'string', 'max:255'],
             'contract_expires_at' => ['nullable', 'date'],
             'owner_ids' => ['nullable', 'array'],
@@ -83,6 +84,7 @@ class StorePropertyRequest extends FormRequest
             'property_type_id' => 'tipo de propiedad',
             'zone_id' => 'zona',
             'full_address' => 'direccion completa',
+            'tenant_id' => 'inquilino',
             'owner_ids' => 'propietarios',
             'new_owners.*.name' => 'nombre del propietario',
             'new_owners.*.phone' => 'telefono del propietario',
@@ -138,7 +140,11 @@ class StorePropertyRequest extends FormRequest
                     $validator->errors()->add("new_owners.$index.phone", 'El telefono del nuevo propietario es obligatorio.');
                 }
             }
+
+            $status = (string) $this->input('status');
+            if ($status === Property::STATUS_OCCUPIED && blank($this->input('tenant_id'))) {
+                $validator->errors()->add('tenant_id', 'Debes seleccionar un inquilino cuando la propiedad esta ocupada.');
+            }
         });
     }
 }
-

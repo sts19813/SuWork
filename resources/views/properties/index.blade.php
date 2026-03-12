@@ -109,7 +109,7 @@
                                     <td>
                                         <span class="badge {{ $property->status_badge_class }}">{{ $property->status_label }}</span>
                                     </td>
-                                    <td>{{ $property->current_tenant_name ?: '-' }}</td>
+                                    <td>{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}</td>
                                     <td>
                                         {{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}
                                     </td>

@@ -6,6 +6,7 @@ use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
 use App\Models\PropertyType;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -161,5 +162,68 @@ class PropertyModuleTest extends TestCase
             'owner_id' => $owner->id,
         ]);
     }
-}
 
+    public function test_occupied_status_requires_tenant_selection(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Playa', 'slug' => 'playa', 'is_active' => true]);
+
+        $response = $this
+            ->actingAs($user)
+            ->from(route('properties.create'))
+            ->post(route('properties.store'), [
+                'internal_name' => 'Casa Ocupada',
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle 10',
+                'status' => Property::STATUS_OCCUPIED,
+                'new_owners' => [
+                    [
+                        'name' => 'Owner Uno',
+                        'phone' => '9990001111',
+                    ],
+                ],
+            ]);
+
+        $response->assertRedirect(route('properties.create'));
+        $response->assertSessionHasErrors('tenant_id');
+    }
+
+    public function test_property_can_be_saved_as_occupied_with_tenant(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Playa', 'slug' => 'playa', 'is_active' => true]);
+        $tenant = Tenant::create([
+            'full_name' => 'Ana Lucia Torres',
+            'phone_primary' => '9991112233',
+            'dossier_status' => Tenant::DOSSIER_COMPLETE,
+            'is_active' => true,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->post(route('properties.store'), [
+                'internal_name' => 'Casa Ocupada 2',
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle 20',
+                'status' => Property::STATUS_OCCUPIED,
+                'tenant_id' => $tenant->id,
+                'new_owners' => [
+                    [
+                        'name' => 'Owner Dos',
+                        'phone' => '9991112222',
+                    ],
+                ],
+            ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('properties', [
+            'internal_name' => 'Casa Ocupada 2',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $tenant->id,
+        ]);
+    }
+}

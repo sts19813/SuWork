@@ -19,6 +19,7 @@
             \App\Models\Property::STATUS_AVAILABLE => 'La propiedad está lista para ser rentada.',
             \App\Models\Property::STATUS_IN_PROCESS => 'La propiedad está en preparación o trámite.',
             \App\Models\Property::STATUS_BLOCKED => 'La propiedad no está disponible temporalmente.',
+            \App\Models\Property::STATUS_OCCUPIED => 'La propiedad tiene inquilino activo.',
         ];
 
         $ownerDefaults = [
@@ -86,6 +87,7 @@
         $existingFacadePhoto = $isEdit && $property ? $property->facade_photo_path : null;
         $selectedType = (string) $fieldValue('property_type_id');
         $selectedZone = (string) $fieldValue('zone_id');
+        $selectedTenantId = (string) old('tenant_id', $isEdit && $property ? ($property->tenant_id ?: '') : '');
 
         $initialStep = (int) old('wizard_step', 1);
         if ($errors->isNotEmpty()) {
@@ -104,6 +106,10 @@
                     break;
                 }
                 if ($errorKey === 'status') {
+                    $initialStep = 5;
+                    break;
+                }
+                if ($errorKey === 'tenant_id') {
                     $initialStep = 5;
                     break;
                 }
@@ -575,9 +581,21 @@
                     </div>
                     <div class="row g-6">
                         <div class="col-lg-6">
-                            <label class="form-label">Inquilino actual (opcional)</label>
-                            <input type="text" name="current_tenant_name" class="form-control"
-                                value="{{ $fieldValue('current_tenant_name') }}" placeholder="Ej: María González">
+                            <label class="form-label">Inquilino (opcional)</label>
+                            <select name="tenant_id" class="form-select @error('tenant_id') is-invalid @enderror">
+                                <option value="">Sin asignar</option>
+                                @foreach ($availableTenants as $tenant)
+                                    <option value="{{ $tenant->id }}" {{ $selectedTenantId === (string) $tenant->id ? 'selected' : '' }}>
+                                        {{ $tenant->full_name }} {{ $tenant->phone_primary ? '- ' . $tenant->phone_primary : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('tenant_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <div class="text-muted fs-8 mt-2">
+                                ¿No aparece? <a href="{{ route('tenants.index') }}" target="_blank">Crear inquilino</a>
+                            </div>
                         </div>
                         <div class="col-lg-6">
                             <label class="form-label">Contrato vence (opcional)</label>

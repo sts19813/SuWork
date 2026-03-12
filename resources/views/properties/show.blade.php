@@ -71,7 +71,7 @@
                     </div>
                     <div class="col-lg-6">
                         <div class="text-muted mb-1">Inquilino actual</div>
-                        <div class="fw-semibold">{{ $property->current_tenant_name ?: '-' }}</div>
+                        <div class="fw-semibold">{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}</div>
                     </div>
                     <div class="col-lg-6">
                         <div class="text-muted mb-1">Contrato vence</div>
