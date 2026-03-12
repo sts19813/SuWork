@@ -44,6 +44,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link fw-semibold {{ request()->routeIs('documents.*') || request()->routeIs('dossiers.*') ? 'active text-primary' : 'text-gray-700' }}"
+                        href="{{ route('documents.index') }}">
+                        Documentos
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link fw-semibold {{ request()->routeIs('profile.*') ? 'active text-primary' : 'text-gray-700' }}"
                         href="{{ route('profile.index') }}">
                         Perfil

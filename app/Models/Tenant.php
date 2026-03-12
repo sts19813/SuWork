@@ -78,6 +78,16 @@ class Tenant extends Model
         return $this->hasMany(Property::class);
     }
 
+    public function documents(): HasMany
+    {
+        return $this->hasMany(TenantDocument::class);
+    }
+
+    public function pendingDocuments(): HasMany
+    {
+        return $this->documents()->where('status', TenantDocument::STATUS_PENDING);
+    }
+
     public function getDossierStatusLabelAttribute(): string
     {
         return self::DOSSIER_STATUS_LABELS[$this->dossier_status] ?? ucfirst(str_replace('_', ' ', $this->dossier_status));
@@ -93,4 +103,3 @@ class Tenant extends Model
         return 'uuid';
     }
 }
-

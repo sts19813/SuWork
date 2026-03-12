@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreTenantRequest;
 use App\Models\Tenant;
+use App\Models\TenantDocument;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class TenantController extends Controller
@@ -50,7 +52,7 @@ class TenantController extends Controller
     {
         $validated = $request->validated();
 
-        Tenant::create([
+        $tenant = Tenant::create([
             'full_name' => $validated['full_name'],
             'phone_primary' => $validated['phone_primary'],
             'phone_secondary' => $validated['phone_secondary'] ?? null,
@@ -74,6 +76,8 @@ class TenantController extends Controller
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
+        $this->ensureDossierDocuments($tenant);
+
         return redirect()
             ->route('tenants.index')
             ->with('success', 'El inquilino se creo correctamente.');
@@ -81,9 +85,16 @@ class TenantController extends Controller
 
     public function edit(Tenant $tenant): View
     {
+        $this->ensureDossierDocuments($tenant);
+
+        $tenant->load([
+            'documents.versions' => fn ($query) => $query->latest('version_number'),
+        ]);
+
         return view('tenants.edit', [
             'tenant' => $tenant,
             'dossierStatuses' => Tenant::DOSSIER_STATUS_LABELS,
+            'tenantDocuments' => $this->buildTenantDocumentsCollection($tenant),
         ]);
     }
 
@@ -115,9 +126,46 @@ class TenantController extends Controller
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
+        $this->ensureDossierDocuments($tenant);
+
         return redirect()
             ->route('tenants.index')
             ->with('success', 'El inquilino se actualizo correctamente.');
     }
-}
 
+    private function ensureDossierDocuments(Tenant $tenant): void
+    {
+        foreach (TenantDocument::REQUIRED_DOCUMENTS as $documentType => $label) {
+            $existingDocument = $tenant->documents()
+                ->where('document_type', $documentType)
+                ->first();
+
+            if ($existingDocument) {
+                $existingDocument->update(['label' => $label]);
+                continue;
+            }
+
+            $tenant->documents()->create([
+                'document_type' => $documentType,
+                'label' => $label,
+                'status' => TenantDocument::STATUS_PENDING,
+                'file_path' => null,
+                'uploaded_at' => null,
+                'expires_at' => null,
+            ]);
+        }
+    }
+
+    private function buildTenantDocumentsCollection(Tenant $tenant): Collection
+    {
+        return collect(TenantDocument::REQUIRED_DOCUMENTS)
+            ->map(function (string $label, string $documentType) use ($tenant) {
+                return $tenant->documents->firstWhere('document_type', $documentType)
+                    ?? new TenantDocument([
+                        'document_type' => $documentType,
+                        'label' => $label,
+                        'status' => TenantDocument::STATUS_PENDING,
+                    ]);
+            });
+    }
+}

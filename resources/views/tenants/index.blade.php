@@ -119,7 +119,8 @@
                                         </span>
                                     </td>
                                     <td class="text-end">
-                                        <a href="{{ route('tenants.edit', $tenant) }}" class="btn btn-sm btn-light-primary">Editar</a>
+                                        <a href="{{ route('dossiers.tenants.show', $tenant) }}" class="btn btn-sm btn-light-primary me-2">Expediente</a>
+                                        <a href="{{ route('tenants.edit', $tenant) }}" class="btn btn-sm btn-primary">Editar</a>
                                     </td>
                                 </tr>
                             @empty
@@ -175,4 +176,3 @@
         </script>
     @endif
 @endpush
-

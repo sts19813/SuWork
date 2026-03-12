@@ -447,9 +447,14 @@
                             <div class="border rounded p-6">
                                 <div class="d-flex justify-content-between align-items-center mb-4">
                                     <h4 class="mb-0">{{ $documentLabel }}</h4>
-                                    <span class="badge {{ $existingDocument?->status_badge_class ?? 'badge-light-secondary text-secondary' }}">
-                                        {{ $existingDocument?->status_label ?? 'Pendiente' }}
-                                    </span>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="badge {{ $existingDocument?->status_badge_class ?? 'badge-light-secondary text-secondary' }}">
+                                            {{ $existingDocument?->status_label ?? 'Pendiente' }}
+                                        </span>
+                                        @if ($existingDocument)
+                                            <span class="badge badge-light-info text-info">v{{ $existingDocument->versions->count() }}</span>
+                                        @endif
+                                    </div>
                                 </div>
                                 <label class="upload-box upload-box-sm">
                                     <input type="file" name="documents[{{ $documentKey }}]" accept=".pdf,.jpg,.jpeg,.png">

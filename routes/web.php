@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\TenantController;
@@ -30,6 +31,8 @@ Route::middleware(['auth'])
         Route::get('/propiedades/{property}/editar', [PropertyController::class, 'edit'])->name('properties.edit');
         Route::put('/propiedades/{property}', [PropertyController::class, 'update'])->name('properties.update');
         Route::get('/propiedades/{property}', [PropertyController::class, 'show'])->name('properties.show');
+        Route::get('/propiedades/{property}/expediente', [DocumentController::class, 'propertyDossier'])->name('dossiers.properties.show');
+        Route::post('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadPropertyDocument'])->name('dossiers.properties.documents.upload');
 
         Route::get('/propietarios', [OwnerController::class, 'index'])->name('owners.index');
         Route::post('/propietarios', [OwnerController::class, 'store'])->name('owners.store');
@@ -40,6 +43,10 @@ Route::middleware(['auth'])
         Route::post('/inquilinos', [TenantController::class, 'store'])->name('tenants.store');
         Route::get('/inquilinos/{tenant}/editar', [TenantController::class, 'edit'])->name('tenants.edit');
         Route::put('/inquilinos/{tenant}', [TenantController::class, 'update'])->name('tenants.update');
+        Route::get('/inquilinos/{tenant}/expediente', [DocumentController::class, 'tenantDossier'])->name('dossiers.tenants.show');
+        Route::post('/inquilinos/{tenant}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadTenantDocument'])->name('dossiers.tenants.documents.upload');
+
+        Route::get('/documentos', [DocumentController::class, 'index'])->name('documents.index');
     });
 
 Route::get('/dashboard', function () {

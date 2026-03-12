@@ -84,7 +84,7 @@ class PropertyController extends Controller
     {
         $property->load([
             'owners',
-            'documents',
+            'documents.versions',
             'inventoryAreas.items',
             'inventoryAreas.photos',
             'tenant',
@@ -108,7 +108,7 @@ class PropertyController extends Controller
             'type',
             'zone',
             'owners',
-            'documents',
+            'documents.versions',
             'inventoryAreas.items',
             'inventoryAreas.photos',
             'tenant',
@@ -242,46 +242,47 @@ class PropertyController extends Controller
 
     private function syncDocuments(Property $property, StorePropertyRequest $request): void
     {
-        $existingDocuments = $property->documents()->get()->keyBy('document_type');
+        $existingDocuments = $property->documents()->with('versions')->get()->keyBy('document_type');
 
         foreach (PropertyDocument::REQUIRED_DOCUMENTS as $documentType => $documentLabel) {
-            $document = $existingDocuments->get($documentType);
+            $document = $existingDocuments->get($documentType)
+                ?? $property->documents()->create([
+                    'document_type' => $documentType,
+                    'label' => $documentLabel,
+                    'status' => PropertyDocument::STATUS_PENDING,
+                    'uploaded_at' => null,
+                    'file_path' => null,
+                    'expires_at' => null,
+                ]);
 
-            if ($document) {
-                $updates = ['label' => $documentLabel];
+            $document->update([
+                'label' => $documentLabel,
+            ]);
 
-                if ($request->hasFile("documents.{$documentType}")) {
-                    $updates['file_path'] = $request->file("documents.{$documentType}")
-                        ->store("properties/{$property->id}/documents", 'public');
-                    $updates['status'] = PropertyDocument::STATUS_UPLOADED;
-                    $updates['uploaded_at'] = now();
-                }
-
-                $document->update($updates);
+            if (!$request->hasFile("documents.{$documentType}")) {
                 continue;
             }
 
-            $data = [
-                'document_type' => $documentType,
-                'label' => $documentLabel,
-                'status' => PropertyDocument::STATUS_PENDING,
-                'uploaded_at' => null,
-                'file_path' => null,
-            ];
+            $file = $request->file("documents.{$documentType}");
+            $storedPath = $file->store("properties/{$property->id}/documents", 'public');
+            $nextVersion = ((int) $document->versions()->max('version_number')) + 1;
 
-            if ($request->hasFile("documents.{$documentType}")) {
-                $data['file_path'] = $request->file("documents.{$documentType}")
-                    ->store("properties/{$property->id}/documents", 'public');
-                $data['status'] = PropertyDocument::STATUS_UPLOADED;
-                $data['uploaded_at'] = now();
-            }
+            $document->versions()->create([
+                'version_number' => $nextVersion,
+                'file_path' => $storedPath,
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'file_size' => $file->getSize(),
+                'uploaded_by' => $request->user()?->id,
+                'uploaded_at' => now(),
+            ]);
 
-            $property->documents()->create($data);
+            $document->update([
+                'file_path' => $storedPath,
+                'status' => PropertyDocument::STATUS_UPLOADED,
+                'uploaded_at' => now(),
+            ]);
         }
-
-        $property->documents()
-            ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
-            ->delete();
     }
 
     private function syncInventory(Property $property, array $inventoryAreas, StorePropertyRequest $request): void

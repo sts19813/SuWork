@@ -128,6 +128,10 @@
                                             class="btn btn-sm btn-light-primary me-2">
                                             Ver
                                         </a>
+                                        <a href="{{ route('dossiers.properties.show', $property) }}"
+                                            class="btn btn-sm btn-light-info me-2">
+                                            Expediente
+                                        </a>
                                         <a href="{{ route('properties.edit', $property) }}" class="btn btn-sm btn-primary">
                                             Editar
                                         </a>

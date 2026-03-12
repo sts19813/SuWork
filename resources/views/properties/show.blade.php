@@ -108,8 +108,11 @@
         </div>
 
         <div class="card mb-8">
-            <div class="card-header border-0 pt-6">
+            <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
                 <h3 class="card-title fw-bold">Documentos de la propiedad</h3>
+                <a href="{{ route('dossiers.properties.show', $property) }}" class="btn btn-sm btn-light-primary">
+                    Abrir expediente
+                </a>
             </div>
             <div class="card-body pt-0">
                 <div class="d-flex flex-column gap-4">
@@ -121,6 +124,7 @@
                             </div>
                             <div class="d-flex align-items-center gap-3">
                                 <span class="badge {{ $document->status_badge_class }}">{{ $document->status_label }}</span>
+                                <span class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
                                 @if ($document->file_path)
                                     <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}"
                                         class="btn btn-sm btn-light-primary" target="_blank">
