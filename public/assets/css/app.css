@@ -1,3 +1,129 @@
+:root {
+    --sw-primary: #a52800;
+    --sw-primary-hover: #8f2200;
+    --sw-primary-active: #7f1e00;
+    --sw-primary-rgb: 165, 40, 0;
+    --sw-primary-light: #f6e4dd;
+    --sw-primary-border: #7f1e00;
+
+    --bs-primary: var(--sw-primary);
+    --bs-primary-rgb: var(--sw-primary-rgb);
+    --bs-link-color: var(--sw-primary);
+    --bs-link-hover-color: var(--sw-primary-hover);
+
+    --kt-primary: var(--sw-primary);
+    --kt-primary-active: var(--sw-primary-active);
+    --kt-primary-light: var(--sw-primary-light);
+}
+
+a {
+    color: var(--sw-primary);
+}
+
+a:hover {
+    color: var(--sw-primary-hover);
+}
+
+.text-primary,
+.text-hover-primary:hover,
+.link-primary {
+    color: var(--sw-primary) !important;
+}
+
+.border-primary {
+    border-color: var(--sw-primary) !important;
+}
+
+.bg-primary {
+    background-color: var(--sw-primary) !important;
+}
+
+.btn-primary,
+.btn.btn-primary {
+    background-color: var(--sw-primary) !important;
+    border-color: var(--sw-primary-border) !important;
+    color: #fff !important;
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active,
+.btn-primary.active,
+.show>.btn-primary.dropdown-toggle,
+.btn-check:checked+.btn-primary {
+    background-color: var(--sw-primary-hover) !important;
+    border-color: var(--sw-primary-border) !important;
+    color: #fff !important;
+}
+
+.btn-light-primary {
+    color: var(--sw-primary) !important;
+    background-color: var(--sw-primary-light) !important;
+    border-color: #e5c6bc !important;
+}
+
+.btn-light-primary:hover,
+.btn-light-primary:focus,
+.btn-light-primary:active,
+.btn-light-primary.active {
+    color: #fff !important;
+    background-color: var(--sw-primary) !important;
+    border-color: var(--sw-primary-border) !important;
+}
+
+.btn-light-info {
+    color: var(--sw-primary) !important;
+    background-color: var(--sw-primary-light) !important;
+    border-color: #e5c6bc !important;
+}
+
+.btn-light-info:hover,
+.btn-light-info:focus,
+.btn-light-info:active {
+    color: #fff !important;
+    background-color: var(--sw-primary) !important;
+    border-color: var(--sw-primary-border) !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: rgba(var(--sw-primary-rgb), 0.6) !important;
+    box-shadow: 0 0 0 0.2rem rgba(var(--sw-primary-rgb), 0.15) !important;
+}
+
+.badge-light-primary {
+    background-color: var(--sw-primary-light) !important;
+    color: var(--sw-primary) !important;
+}
+
+.badge.badge-light-secondary.text-secondary,
+.badge-light-secondary.text-secondary,
+.badge-light-secondary {
+    background-color: #eceff3 !important;
+    color: #2b2f3a !important;
+    border: 1px solid #d8dde5;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: var(--sw-primary) !important;
+    border-color: var(--sw-primary-border) !important;
+    color: #fff !important;
+}
+
+.pagination .page-link {
+    color: var(--sw-primary);
+}
+
+.pagination .page-link:hover {
+    color: var(--sw-primary-hover);
+}
+
+.navbar .nav-link.active,
+.navbar .nav-link:focus,
+.navbar .nav-link:hover {
+    color: var(--sw-primary) !important;
+}
+
 .property-module .property-thumb {
     width: 72px;
     height: 56px;
@@ -25,7 +151,7 @@
 }
 
 .navbar .nav-link.active {
-    border-bottom-color: #1b84ff;
+    border-bottom-color: var(--sw-primary);
 }
 
 .property-stepper {
@@ -75,18 +201,18 @@
 
 .property-stepper .step-item.is-active .step-circle,
 .property-stepper .step-item.is-completed .step-circle {
-    border-color: #1b84ff;
-    color: #1b84ff;
+    border-color: var(--sw-primary);
+    color: var(--sw-primary);
 }
 
 .property-stepper .step-item.is-completed .step-circle {
-    background: #1b84ff;
+    background: var(--sw-primary);
     color: #fff;
 }
 
 .property-stepper .step-item.is-completed:not(:last-child)::after,
 .property-stepper .step-item.is-active:not(:last-child)::after {
-    background: #1b84ff;
+    background: var(--sw-primary);
 }
 
 .upload-box {
@@ -105,8 +231,8 @@
 }
 
 .upload-box:hover {
-    border-color: #1b84ff;
-    background: #f8fbff;
+    border-color: var(--sw-primary);
+    background: var(--sw-primary-light);
 }
 
 .upload-box input[type="file"] {
@@ -132,8 +258,8 @@
 }
 
 .status-option.is-selected {
-    border-color: #f49e36;
-    background: #fff6ed;
+    border-color: var(--sw-primary);
+    background: #fdf1ec;
 }
 
 .owner-option-card {
@@ -148,8 +274,8 @@
 }
 
 .owner-option-card.is-selected {
-    border-color: #1b84ff;
-    background: #f3f8ff;
+    border-color: var(--sw-primary);
+    background: #fdf1ec;
 }
 
 .owner-option-card .owner-option-checkbox {
