@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -101,9 +102,14 @@ class DocumentController extends Controller
                     ]);
             });
 
+        $customDocuments = $property->documents
+            ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
+            ->values();
+
         return view('documents.property-dossier', [
             'property' => $property,
             'documents' => $documents,
+            'customDocuments' => $customDocuments,
         ]);
     }
 
@@ -125,35 +131,47 @@ class DocumentController extends Controller
                     ]);
             });
 
+        $customDocuments = $tenant->documents
+            ->whereNotIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))
+            ->values();
+
         return view('documents.tenant-dossier', [
             'tenant' => $tenant,
             'documents' => $documents,
+            'customDocuments' => $customDocuments,
         ]);
     }
 
     public function uploadPropertyDocument(Request $request, Property $property, string $documentType): RedirectResponse
     {
-        abort_unless(array_key_exists($documentType, PropertyDocument::REQUIRED_DOCUMENTS), 404);
-
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
             'expires_at' => ['nullable', 'date'],
         ]);
 
-        $document = $property->documents()->firstOrCreate(
-            ['document_type' => $documentType],
-            [
+        $document = $property->documents()->where('document_type', $documentType)->first();
+        $isRequiredDocument = array_key_exists($documentType, PropertyDocument::REQUIRED_DOCUMENTS);
+
+        if (!$document && !$isRequiredDocument) {
+            abort(404);
+        }
+
+        if (!$document && $isRequiredDocument) {
+            $document = $property->documents()->create([
+                'document_type' => $documentType,
                 'label' => PropertyDocument::REQUIRED_DOCUMENTS[$documentType],
                 'status' => PropertyDocument::STATUS_PENDING,
                 'uploaded_at' => null,
                 'file_path' => null,
                 'expires_at' => null,
-            ],
-        );
+            ]);
+        }
 
-        $document->update([
-            'label' => PropertyDocument::REQUIRED_DOCUMENTS[$documentType],
-        ]);
+        if ($isRequiredDocument) {
+            $document->update([
+                'label' => PropertyDocument::REQUIRED_DOCUMENTS[$documentType],
+            ]);
+        }
 
         $file = $validated['file'];
         $storedPath = $file->store("properties/{$property->id}/documents", 'public');
@@ -181,27 +199,34 @@ class DocumentController extends Controller
 
     public function uploadTenantDocument(Request $request, Tenant $tenant, string $documentType): RedirectResponse
     {
-        abort_unless(array_key_exists($documentType, TenantDocument::REQUIRED_DOCUMENTS), 404);
-
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
             'expires_at' => ['nullable', 'date'],
         ]);
 
-        $document = $tenant->documents()->firstOrCreate(
-            ['document_type' => $documentType],
-            [
+        $document = $tenant->documents()->where('document_type', $documentType)->first();
+        $isRequiredDocument = array_key_exists($documentType, TenantDocument::REQUIRED_DOCUMENTS);
+
+        if (!$document && !$isRequiredDocument) {
+            abort(404);
+        }
+
+        if (!$document && $isRequiredDocument) {
+            $document = $tenant->documents()->create([
+                'document_type' => $documentType,
                 'label' => TenantDocument::REQUIRED_DOCUMENTS[$documentType],
                 'status' => TenantDocument::STATUS_PENDING,
                 'uploaded_at' => null,
                 'file_path' => null,
                 'expires_at' => null,
-            ],
-        );
+            ]);
+        }
 
-        $document->update([
-            'label' => TenantDocument::REQUIRED_DOCUMENTS[$documentType],
-        ]);
+        if ($isRequiredDocument) {
+            $document->update([
+                'label' => TenantDocument::REQUIRED_DOCUMENTS[$documentType],
+            ]);
+        }
 
         $file = $validated['file'];
         $storedPath = $file->store("tenants/{$tenant->id}/documents", 'public');
@@ -225,6 +250,82 @@ class DocumentController extends Controller
         ]);
 
         return back()->with('success', 'Documento de inquilino actualizado. Se genero una nueva version.');
+    }
+
+    public function storeCustomPropertyDocument(Request $request, Property $property): RedirectResponse
+    {
+        $validated = $request->validate([
+            'label' => ['required', 'string', 'max:150'],
+            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'expires_at' => ['nullable', 'date'],
+        ]);
+
+        $documentType = $this->buildCustomDocumentType(
+            existingTypes: $property->documents()->pluck('document_type')->all(),
+            label: $validated['label'],
+        );
+
+        $file = $validated['file'];
+        $storedPath = $file->store("properties/{$property->id}/documents", 'public');
+
+        $document = $property->documents()->create([
+            'document_type' => $documentType,
+            'label' => $validated['label'],
+            'file_path' => $storedPath,
+            'status' => PropertyDocument::STATUS_UPLOADED,
+            'uploaded_at' => now(),
+            'expires_at' => $validated['expires_at'] ?? null,
+        ]);
+
+        $document->versions()->create([
+            'version_number' => 1,
+            'file_path' => $storedPath,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'file_size' => $file->getSize(),
+            'uploaded_by' => $request->user()?->id,
+            'uploaded_at' => now(),
+        ]);
+
+        return back()->with('success', 'Documento personalizado agregado al expediente de la propiedad.');
+    }
+
+    public function storeCustomTenantDocument(Request $request, Tenant $tenant): RedirectResponse
+    {
+        $validated = $request->validate([
+            'label' => ['required', 'string', 'max:150'],
+            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'expires_at' => ['nullable', 'date'],
+        ]);
+
+        $documentType = $this->buildCustomDocumentType(
+            existingTypes: $tenant->documents()->pluck('document_type')->all(),
+            label: $validated['label'],
+        );
+
+        $file = $validated['file'];
+        $storedPath = $file->store("tenants/{$tenant->id}/documents", 'public');
+
+        $document = $tenant->documents()->create([
+            'document_type' => $documentType,
+            'label' => $validated['label'],
+            'file_path' => $storedPath,
+            'status' => TenantDocument::STATUS_UPLOADED,
+            'uploaded_at' => now(),
+            'expires_at' => $validated['expires_at'] ?? null,
+        ]);
+
+        $document->versions()->create([
+            'version_number' => 1,
+            'file_path' => $storedPath,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'file_size' => $file->getSize(),
+            'uploaded_by' => $request->user()?->id,
+            'uploaded_at' => now(),
+        ]);
+
+        return back()->with('success', 'Documento personalizado agregado al expediente del inquilino.');
     }
 
     private function buildDocumentsCollection(): Collection
@@ -355,5 +456,23 @@ class DocumentController extends Controller
                 'expires_at' => null,
             ]);
         }
+    }
+
+    private function buildCustomDocumentType(array $existingTypes, string $label): string
+    {
+        $base = 'custom_' . Str::slug($label, '_');
+        if ($base === 'custom_') {
+            $base = 'custom_documento';
+        }
+
+        $candidate = $base;
+        $counter = 2;
+
+        while (in_array($candidate, $existingTypes, true)) {
+            $candidate = $base . '_' . $counter;
+            $counter++;
+        }
+
+        return $candidate;
     }
 }

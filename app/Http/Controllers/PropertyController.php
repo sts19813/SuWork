@@ -124,9 +124,14 @@ class PropertyController extends Controller
                     ]);
             });
 
+        $customDocuments = $property->documents
+            ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
+            ->values();
+
         return view('properties.show', [
             'property' => $property,
             'documents' => $documents,
+            'customDocuments' => $customDocuments,
         ]);
     }
 
@@ -152,6 +157,11 @@ class PropertyController extends Controller
             ],
             'availableOwners' => Owner::query()->where('is_active', true)->orderBy('name')->get(),
             'availableTenants' => Tenant::query()->where('is_active', true)->orderBy('full_name')->get(),
+            'customPropertyDocuments' => $property
+                ? $property->documents
+                    ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
+                    ->values()
+                : collect(),
             'property' => $property,
             'isEdit' => $isEdit,
         ];
@@ -199,6 +209,7 @@ class PropertyController extends Controller
                 $validated['new_owners'] ?? [],
             );
             $this->syncDocuments($property, $request);
+            $this->syncCustomDocuments($property, $request);
             $this->syncInventory($property, $validated['inventory_areas'] ?? [], $request);
 
             return $property->fresh();
@@ -283,6 +294,119 @@ class PropertyController extends Controller
                 'uploaded_at' => now(),
             ]);
         }
+    }
+
+    private function syncCustomDocuments(Property $property, StorePropertyRequest $request): void
+    {
+        $requiredDocumentTypes = array_keys(PropertyDocument::REQUIRED_DOCUMENTS);
+        $existingCustomDocuments = $property->documents()
+            ->whereNotIn('document_type', $requiredDocumentTypes)
+            ->with('versions')
+            ->get()
+            ->keyBy('document_type');
+
+        foreach ((array) $request->input('existing_custom_documents', []) as $documentType => $documentData) {
+            if (!is_array($documentData)) {
+                continue;
+            }
+
+            $document = $existingCustomDocuments->get($documentType);
+            if (!$document) {
+                continue;
+            }
+
+            $label = trim((string) ($documentData['label'] ?? ''));
+            $expiresAt = $documentData['expires_at'] ?? null;
+
+            $updates = [];
+            if ($label !== '') {
+                $updates['label'] = $label;
+            }
+            if (filled($expiresAt)) {
+                $updates['expires_at'] = $expiresAt;
+            }
+            if (!empty($updates)) {
+                $document->update($updates);
+            }
+
+            if (!$request->hasFile("existing_custom_documents.$documentType.file")) {
+                continue;
+            }
+
+            $file = $request->file("existing_custom_documents.$documentType.file");
+            $storedPath = $file->store("properties/{$property->id}/documents", 'public');
+            $nextVersion = ((int) $document->versions()->max('version_number')) + 1;
+
+            $document->versions()->create([
+                'version_number' => $nextVersion,
+                'file_path' => $storedPath,
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'file_size' => $file->getSize(),
+                'uploaded_by' => $request->user()?->id,
+                'uploaded_at' => now(),
+            ]);
+
+            $document->update([
+                'file_path' => $storedPath,
+                'status' => PropertyDocument::STATUS_UPLOADED,
+                'uploaded_at' => now(),
+                'expires_at' => filled($expiresAt) ? $expiresAt : $document->expires_at,
+                'label' => $label !== '' ? $label : $document->label,
+            ]);
+        }
+
+        foreach ((array) $request->input('new_custom_documents', []) as $index => $documentData) {
+            if (!is_array($documentData)) {
+                continue;
+            }
+
+            $label = trim((string) ($documentData['label'] ?? ''));
+            if ($label === '' || !$request->hasFile("new_custom_documents.$index.file")) {
+                continue;
+            }
+
+            $documentType = $this->buildCustomDocumentType($property, $label);
+            $file = $request->file("new_custom_documents.$index.file");
+            $storedPath = $file->store("properties/{$property->id}/documents", 'public');
+
+            $document = $property->documents()->create([
+                'document_type' => $documentType,
+                'label' => $label,
+                'file_path' => $storedPath,
+                'status' => PropertyDocument::STATUS_UPLOADED,
+                'uploaded_at' => now(),
+                'expires_at' => $documentData['expires_at'] ?? null,
+            ]);
+
+            $document->versions()->create([
+                'version_number' => 1,
+                'file_path' => $storedPath,
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'file_size' => $file->getSize(),
+                'uploaded_by' => $request->user()?->id,
+                'uploaded_at' => now(),
+            ]);
+        }
+    }
+
+    private function buildCustomDocumentType(Property $property, string $label): string
+    {
+        $base = 'custom_' . Str::slug($label, '_');
+        if ($base === 'custom_') {
+            $base = 'custom_documento';
+        }
+
+        $candidate = $base;
+        $suffix = 2;
+
+        while ($property->documents()->where('document_type', $candidate)->exists()) {
+            $candidate = $base . '_' . $suffix;
+            $suffix++;
+        }
+
+        return $candidate;
     }
 
     private function syncInventory(Property $property, array $inventoryAreas, StorePropertyRequest $request): void

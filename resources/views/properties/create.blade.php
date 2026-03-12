@@ -84,6 +84,21 @@
         );
 
         $existingDocuments = $isEdit && $property ? $property->documents->keyBy('document_type') : collect();
+        $customPropertyDocuments = $customPropertyDocuments ?? collect();
+        $existingCustomDocuments = old(
+            'existing_custom_documents',
+            $isEdit
+                ? $customPropertyDocuments
+                    ->mapWithKeys(fn($document) => [
+                        $document->document_type => [
+                            'label' => $document->label,
+                            'expires_at' => $document->expires_at?->format('Y-m-d'),
+                        ],
+                    ])
+                    ->all()
+                : [],
+        );
+        $newCustomDocuments = old('new_custom_documents', []);
         $existingFacadePhoto = $isEdit && $property ? $property->facade_photo_path : null;
         $selectedType = (string) $fieldValue('property_type_id');
         $selectedZone = (string) $fieldValue('zone_id');
@@ -98,6 +113,10 @@
                     break;
                 }
                 if (str_starts_with($errorKey, 'documents.')) {
+                    $initialStep = 3;
+                    break;
+                }
+                if (str_starts_with($errorKey, 'existing_custom_documents.') || str_starts_with($errorKey, 'new_custom_documents.')) {
                     $initialStep = 3;
                     break;
                 }
@@ -474,6 +493,117 @@
                             </div>
                         @endforeach
                     </div>
+
+                    @if ($isEdit && $customPropertyDocuments->isNotEmpty())
+                        <div class="separator my-10"></div>
+                        <h4 class="mb-5 fw-bold">Otros documentos del expediente</h4>
+                        <div class="d-flex flex-column gap-6 mb-6">
+                            @foreach ($customPropertyDocuments as $customDocument)
+                                @php
+                                    $customOld = $existingCustomDocuments[$customDocument->document_type] ?? [];
+                                    $customLabel = $customOld['label'] ?? $customDocument->label;
+                                    $customExpiresAt = $customOld['expires_at'] ?? $customDocument->expires_at?->format('Y-m-d');
+                                @endphp
+                                <div class="border rounded p-6">
+                                    <div class="d-flex justify-content-between align-items-center mb-4">
+                                        <h5 class="mb-0">{{ $customDocument->label }}</h5>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="badge {{ $customDocument->status_badge_class }}">{{ $customDocument->status_label }}</span>
+                                            <span class="badge badge-light-info text-info">v{{ $customDocument->versions->count() }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="row g-4 align-items-end">
+                                        <div class="col-lg-5">
+                                            <label class="form-label">Nombre del documento</label>
+                                            <input type="text" name="existing_custom_documents[{{ $customDocument->document_type }}][label]"
+                                                value="{{ $customLabel }}"
+                                                class="form-control @error("existing_custom_documents.{$customDocument->document_type}.label") is-invalid @enderror">
+                                            @error("existing_custom_documents.{$customDocument->document_type}.label")
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <label class="form-label">Vence el (opcional)</label>
+                                            <input type="date" name="existing_custom_documents[{{ $customDocument->document_type }}][expires_at]"
+                                                value="{{ $customExpiresAt }}"
+                                                class="form-control @error("existing_custom_documents.{$customDocument->document_type}.expires_at") is-invalid @enderror">
+                                            @error("existing_custom_documents.{$customDocument->document_type}.expires_at")
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-lg-3">
+                                            @if ($customDocument->file_path)
+                                                <a href="{{ \Illuminate\Support\Facades\Storage::url($customDocument->file_path) }}" target="_blank"
+                                                    class="btn btn-light-primary w-100">
+                                                    Ver vigente
+                                                </a>
+                                            @endif
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Subir nueva version</label>
+                                            <input type="file" name="existing_custom_documents[{{ $customDocument->document_type }}][file]"
+                                                accept=".pdf,.jpg,.jpeg,.png"
+                                                class="form-control @error("existing_custom_documents.{$customDocument->document_type}.file") is-invalid @enderror">
+                                            @error("existing_custom_documents.{$customDocument->document_type}.file")
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    <div class="separator my-10"></div>
+                    <div class="d-flex justify-content-between align-items-center mb-5">
+                        <h4 class="mb-0 fw-bold">Agregar otros documentos</h4>
+                        <button type="button" id="add-custom-document-btn" class="btn btn-sm btn-light-primary">
+                            <i class="ki-outline ki-plus fs-5 me-1"></i> Agregar documento
+                        </button>
+                    </div>
+                    <p class="text-muted mb-6">Estos documentos se agregan al expediente y tambien quedaran disponibles al editar.</p>
+                    <div id="new-custom-documents-container" class="d-flex flex-column gap-5">
+                        @foreach ($newCustomDocuments as $customIndex => $customDocumentData)
+                            <div class="border rounded p-5 new-custom-document-row">
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <h5 class="mb-0">Documento adicional {{ $loop->iteration }}</h5>
+                                    <button type="button" class="btn btn-sm btn-light-danger btn-remove-custom-document">
+                                        Eliminar
+                                    </button>
+                                </div>
+                                <div class="row g-4">
+                                    <div class="col-lg-5">
+                                        <label class="form-label required">Nombre del documento</label>
+                                        <input type="text" name="new_custom_documents[{{ $customIndex }}][label]"
+                                            value="{{ $customDocumentData['label'] ?? '' }}"
+                                            class="form-control @error("new_custom_documents.$customIndex.label") is-invalid @enderror"
+                                            placeholder="Ej: Convenio adicional">
+                                        @error("new_custom_documents.$customIndex.label")
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                    <div class="col-lg-4">
+                                        <label class="form-label">Vence el (opcional)</label>
+                                        <input type="date" name="new_custom_documents[{{ $customIndex }}][expires_at]"
+                                            value="{{ $customDocumentData['expires_at'] ?? '' }}"
+                                            class="form-control @error("new_custom_documents.$customIndex.expires_at") is-invalid @enderror">
+                                        @error("new_custom_documents.$customIndex.expires_at")
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                    <div class="col-lg-3">
+                                        <label class="form-label required">Archivo</label>
+                                        <input type="file" name="new_custom_documents[{{ $customIndex }}][file]"
+                                            accept=".pdf,.jpg,.jpeg,.png"
+                                            class="form-control @error("new_custom_documents.$customIndex.file") is-invalid @enderror">
+                                        @error("new_custom_documents.$customIndex.file")
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             </div>
 
@@ -749,6 +879,31 @@
     </div>
 </template>
 
+<template id="new-custom-document-template">
+    <div class="border rounded p-5 new-custom-document-row">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="mb-0">Documento adicional __NUMBER__</h5>
+            <button type="button" class="btn btn-sm btn-light-danger btn-remove-custom-document">Eliminar</button>
+        </div>
+        <div class="row g-4">
+            <div class="col-lg-5">
+                <label class="form-label required">Nombre del documento</label>
+                <input type="text" name="new_custom_documents[__INDEX__][label]" class="form-control"
+                    placeholder="Ej: Convenio adicional">
+            </div>
+            <div class="col-lg-4">
+                <label class="form-label">Vence el (opcional)</label>
+                <input type="date" name="new_custom_documents[__INDEX__][expires_at]" class="form-control">
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label required">Archivo</label>
+                <input type="file" name="new_custom_documents[__INDEX__][file]" accept=".pdf,.jpg,.jpeg,.png"
+                    class="form-control">
+            </div>
+        </div>
+    </div>
+</template>
+
 @endsection
 
 @push('scripts')
@@ -858,6 +1013,41 @@
                 refreshInlineOwners();
             });
 
+            const customDocumentsContainer = document.getElementById('new-custom-documents-container');
+            const addCustomDocumentBtn = document.getElementById('add-custom-document-btn');
+            const customDocumentTemplate = document.getElementById('new-custom-document-template')?.innerHTML || '';
+            let customDocumentIndex = customDocumentsContainer?.querySelectorAll('.new-custom-document-row').length || 0;
+
+            const refreshCustomDocumentTitles = () => {
+                const rows = customDocumentsContainer?.querySelectorAll('.new-custom-document-row') || [];
+                rows.forEach((row, index) => {
+                    const title = row.querySelector('h5');
+                    if (title) {
+                        title.textContent = `Documento adicional ${index + 1}`;
+                    }
+                });
+            };
+
+            addCustomDocumentBtn?.addEventListener('click', () => {
+                const html = customDocumentTemplate
+                    .replaceAll('__INDEX__', customDocumentIndex.toString())
+                    .replaceAll('__NUMBER__', (customDocumentIndex + 1).toString());
+
+                customDocumentsContainer?.insertAdjacentHTML('beforeend', html);
+                customDocumentIndex++;
+                refreshCustomDocumentTitles();
+            });
+
+            customDocumentsContainer?.addEventListener('click', (event) => {
+                const removeBtn = event.target.closest('.btn-remove-custom-document');
+                if (!removeBtn) {
+                    return;
+                }
+
+                removeBtn.closest('.new-custom-document-row')?.remove();
+                refreshCustomDocumentTitles();
+            });
+
             const areasContainer = document.getElementById('inventory-areas-container');
             const areaTemplate = document.getElementById('inventory-area-template').innerHTML;
             const addAreaBtn = document.getElementById('add-area-btn');
@@ -945,6 +1135,7 @@
             });
 
             refreshInlineOwners();
+            refreshCustomDocumentTitles();
             refreshAreaButtons();
             renderWizard();
         })();

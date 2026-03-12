@@ -60,6 +60,14 @@ class StorePropertyRequest extends FormRequest
             'documents.cfe_receipt' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
             'documents.water_receipt' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
             'documents.cadastral_id' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'existing_custom_documents' => ['nullable', 'array'],
+            'existing_custom_documents.*.label' => ['nullable', 'string', 'max:150'],
+            'existing_custom_documents.*.file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'existing_custom_documents.*.expires_at' => ['nullable', 'date'],
+            'new_custom_documents' => ['nullable', 'array'],
+            'new_custom_documents.*.label' => ['nullable', 'string', 'max:150'],
+            'new_custom_documents.*.file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'new_custom_documents.*.expires_at' => ['nullable', 'date'],
             'inventory_areas' => ['nullable', 'array'],
             'inventory_areas.*.name' => ['nullable', 'string', 'max:120'],
             'inventory_areas.*.notes' => ['nullable', 'string', 'max:1500'],
@@ -91,6 +99,10 @@ class StorePropertyRequest extends FormRequest
             'new_owners.*.email' => 'correo del propietario',
             'new_owners.*.owner_type' => 'tipo de titular',
             'new_owners.*.clabe' => 'CLABE',
+            'existing_custom_documents.*.label' => 'nombre del documento personalizado',
+            'existing_custom_documents.*.file' => 'archivo del documento personalizado',
+            'new_custom_documents.*.label' => 'nombre del nuevo documento',
+            'new_custom_documents.*.file' => 'archivo del nuevo documento',
         ];
     }
 
@@ -144,6 +156,29 @@ class StorePropertyRequest extends FormRequest
             $status = (string) $this->input('status');
             if ($status === Property::STATUS_OCCUPIED && blank($this->input('tenant_id'))) {
                 $validator->errors()->add('tenant_id', 'Debes seleccionar un inquilino cuando la propiedad esta ocupada.');
+            }
+
+            foreach ((array) $this->input('new_custom_documents', []) as $index => $documentData) {
+                if (!is_array($documentData)) {
+                    continue;
+                }
+
+                $hasLabel = filled($documentData['label'] ?? null);
+                $hasFile = $this->hasFile("new_custom_documents.$index.file");
+
+                if ($hasLabel && !$hasFile) {
+                    $validator->errors()->add(
+                        "new_custom_documents.$index.file",
+                        'Debes cargar el archivo del nuevo documento personalizado.',
+                    );
+                }
+
+                if (!$hasLabel && $hasFile) {
+                    $validator->errors()->add(
+                        "new_custom_documents.$index.label",
+                        'Debes capturar el nombre del nuevo documento personalizado.',
+                    );
+                }
             }
         });
     }

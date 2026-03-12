@@ -33,6 +33,7 @@ Route::middleware(['auth'])
         Route::get('/propiedades/{property}', [PropertyController::class, 'show'])->name('properties.show');
         Route::get('/propiedades/{property}/expediente', [DocumentController::class, 'propertyDossier'])->name('dossiers.properties.show');
         Route::post('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadPropertyDocument'])->name('dossiers.properties.documents.upload');
+        Route::post('/propiedades/{property}/expediente/documentos', [DocumentController::class, 'storeCustomPropertyDocument'])->name('dossiers.properties.documents.store');
 
         Route::get('/propietarios', [OwnerController::class, 'index'])->name('owners.index');
         Route::post('/propietarios', [OwnerController::class, 'store'])->name('owners.store');
@@ -45,6 +46,7 @@ Route::middleware(['auth'])
         Route::put('/inquilinos/{tenant}', [TenantController::class, 'update'])->name('tenants.update');
         Route::get('/inquilinos/{tenant}/expediente', [DocumentController::class, 'tenantDossier'])->name('dossiers.tenants.show');
         Route::post('/inquilinos/{tenant}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadTenantDocument'])->name('dossiers.tenants.documents.upload');
+        Route::post('/inquilinos/{tenant}/expediente/documentos', [DocumentController::class, 'storeCustomTenantDocument'])->name('dossiers.tenants.documents.store');
 
         Route::get('/documentos', [DocumentController::class, 'index'])->name('documents.index');
     });

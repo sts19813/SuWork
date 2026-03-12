@@ -158,7 +158,7 @@ class TenantController extends Controller
 
     private function buildTenantDocumentsCollection(Tenant $tenant): Collection
     {
-        return collect(TenantDocument::REQUIRED_DOCUMENTS)
+        $requiredDocuments = collect(TenantDocument::REQUIRED_DOCUMENTS)
             ->map(function (string $label, string $documentType) use ($tenant) {
                 return $tenant->documents->firstWhere('document_type', $documentType)
                     ?? new TenantDocument([
@@ -167,5 +167,11 @@ class TenantController extends Controller
                         'status' => TenantDocument::STATUS_PENDING,
                     ]);
             });
+
+        $customDocuments = $tenant->documents
+            ->whereNotIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))
+            ->values();
+
+        return $requiredDocuments->concat($customDocuments)->values();
     }
 }

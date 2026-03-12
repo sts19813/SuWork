@@ -135,6 +135,31 @@
                         </div>
                     @endforeach
                 </div>
+
+                @if ($customDocuments->isNotEmpty())
+                    <div class="separator my-6"></div>
+                    <h4 class="fw-bold mb-4">Otros documentos</h4>
+                    <div class="d-flex flex-column gap-4">
+                        @foreach ($customDocuments as $document)
+                            <div class="border rounded px-5 py-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                <div class="d-flex align-items-center gap-3">
+                                    <i class="ki-outline ki-document text-gray-500 fs-2"></i>
+                                    <span class="fw-semibold">{{ $document->label }}</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-3">
+                                    <span class="badge {{ $document->status_badge_class }}">{{ $document->status_label }}</span>
+                                    <span class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
+                                    @if ($document->file_path)
+                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}"
+                                            class="btn btn-sm btn-light-primary" target="_blank">
+                                            Ver archivo
+                                        </a>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             </div>
         </div>
 

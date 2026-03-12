@@ -17,6 +17,17 @@
             </div>
         @endif
 
+        @if ($errors->any())
+            <div class="alert alert-danger mb-8">
+                <div class="fw-bold mb-2">Hay errores en el formulario:</div>
+                <ul class="mb-0 ps-5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         <div class="card">
             <div class="card-header border-0 pt-6">
                 <h3 class="card-title fw-bold">Editar inquilino</h3>
@@ -43,6 +54,29 @@
                 </a>
             </div>
             <div class="card-body pt-0 d-flex flex-column gap-5">
+                <div class="border rounded p-5">
+                    <h5 class="mb-4">Agregar documento personalizado</h5>
+                    <form method="POST" action="{{ route('dossiers.tenants.documents.store', $tenant) }}" enctype="multipart/form-data"
+                        class="row g-4 align-items-end">
+                        @csrf
+                        <div class="col-lg-5">
+                            <label class="form-label required">Nombre del documento</label>
+                            <input type="text" name="label" class="form-control" placeholder="Ej: Garantia adicional">
+                        </div>
+                        <div class="col-lg-4">
+                            <label class="form-label">Vence el (opcional)</label>
+                            <input type="date" name="expires_at" class="form-control">
+                        </div>
+                        <div class="col-lg-3">
+                            <label class="form-label required">Archivo</label>
+                            <input type="file" name="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
+                        </div>
+                        <div class="col-12 d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary">Agregar documento</button>
+                        </div>
+                    </form>
+                </div>
+
                 @foreach ($tenantDocuments as $document)
                     <div class="border rounded p-5">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
