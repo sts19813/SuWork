@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Owner;
+use App\Models\OwnerDocument;
 use App\Models\Property;
-use App\Models\PropertyDocument;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
 use Illuminate\Http\RedirectResponse;
@@ -28,7 +29,7 @@ class DocumentController extends Controller
     {
         $filters = $request->validate([
             'q' => ['nullable', 'string', 'max:120'],
-            'entity' => ['nullable', Rule::in(['property', 'tenant'])],
+            'entity' => ['nullable', Rule::in(['property', 'tenant', 'owner'])],
             'status' => ['nullable', Rule::in(array_keys(self::STATUS_FILTERS))],
         ]);
 
@@ -137,6 +138,35 @@ class DocumentController extends Controller
 
         return view('documents.tenant-dossier', [
             'tenant' => $tenant,
+            'documents' => $documents,
+            'customDocuments' => $customDocuments,
+        ]);
+    }
+
+    public function ownerDossier(Owner $owner): View
+    {
+        $this->ensureOwnerDocuments($owner);
+
+        $owner->load([
+            'documents.versions' => fn ($query) => $query->orderByDesc('version_number'),
+        ]);
+
+        $documents = collect(OwnerDocument::REQUIRED_DOCUMENTS)
+            ->map(function (string $label, string $documentType) use ($owner) {
+                return $owner->documents->firstWhere('document_type', $documentType)
+                    ?? new OwnerDocument([
+                        'document_type' => $documentType,
+                        'label' => $label,
+                        'status' => OwnerDocument::STATUS_PENDING,
+                    ]);
+            });
+
+        $customDocuments = $owner->documents
+            ->whereNotIn('document_type', array_keys(OwnerDocument::REQUIRED_DOCUMENTS))
+            ->values();
+
+        return view('documents.owner-dossier', [
+            'owner' => $owner,
             'documents' => $documents,
             'customDocuments' => $customDocuments,
         ]);
@@ -252,6 +282,61 @@ class DocumentController extends Controller
         return back()->with('success', 'Documento de inquilino actualizado. Se genero una nueva version.');
     }
 
+    public function uploadOwnerDocument(Request $request, Owner $owner, string $documentType): RedirectResponse
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'expires_at' => ['nullable', 'date'],
+        ]);
+
+        $document = $owner->documents()->where('document_type', $documentType)->first();
+        $isRequiredDocument = array_key_exists($documentType, OwnerDocument::REQUIRED_DOCUMENTS);
+
+        if (!$document && !$isRequiredDocument) {
+            abort(404);
+        }
+
+        if (!$document && $isRequiredDocument) {
+            $document = $owner->documents()->create([
+                'document_type' => $documentType,
+                'label' => OwnerDocument::REQUIRED_DOCUMENTS[$documentType],
+                'status' => OwnerDocument::STATUS_PENDING,
+                'uploaded_at' => null,
+                'file_path' => null,
+                'expires_at' => null,
+            ]);
+        }
+
+        if ($isRequiredDocument) {
+            $document->update([
+                'label' => OwnerDocument::REQUIRED_DOCUMENTS[$documentType],
+            ]);
+        }
+
+        $file = $validated['file'];
+        $storedPath = $file->store("owners/{$owner->id}/documents", 'public');
+        $nextVersion = ((int) $document->versions()->max('version_number')) + 1;
+
+        $document->versions()->create([
+            'version_number' => $nextVersion,
+            'file_path' => $storedPath,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'file_size' => $file->getSize(),
+            'uploaded_by' => $request->user()?->id,
+            'uploaded_at' => now(),
+        ]);
+
+        $document->update([
+            'file_path' => $storedPath,
+            'status' => OwnerDocument::STATUS_UPLOADED,
+            'uploaded_at' => now(),
+            'expires_at' => $validated['expires_at'] ?? $document->expires_at,
+        ]);
+
+        return back()->with('success', 'Documento de propietario actualizado. Se genero una nueva version.');
+    }
+
     public function storeCustomPropertyDocument(Request $request, Property $property): RedirectResponse
     {
         $validated = $request->validate([
@@ -328,6 +413,44 @@ class DocumentController extends Controller
         return back()->with('success', 'Documento personalizado agregado al expediente del inquilino.');
     }
 
+    public function storeCustomOwnerDocument(Request $request, Owner $owner): RedirectResponse
+    {
+        $validated = $request->validate([
+            'label' => ['required', 'string', 'max:150'],
+            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'expires_at' => ['nullable', 'date'],
+        ]);
+
+        $documentType = $this->buildCustomDocumentType(
+            existingTypes: $owner->documents()->pluck('document_type')->all(),
+            label: $validated['label'],
+        );
+
+        $file = $validated['file'];
+        $storedPath = $file->store("owners/{$owner->id}/documents", 'public');
+
+        $document = $owner->documents()->create([
+            'document_type' => $documentType,
+            'label' => $validated['label'],
+            'file_path' => $storedPath,
+            'status' => OwnerDocument::STATUS_UPLOADED,
+            'uploaded_at' => now(),
+            'expires_at' => $validated['expires_at'] ?? null,
+        ]);
+
+        $document->versions()->create([
+            'version_number' => 1,
+            'file_path' => $storedPath,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'file_size' => $file->getSize(),
+            'uploaded_by' => $request->user()?->id,
+            'uploaded_at' => now(),
+        ]);
+
+        return back()->with('success', 'Documento personalizado agregado al expediente del propietario.');
+    }
+
     private function buildDocumentsCollection(): Collection
     {
         $propertyDocuments = PropertyDocument::query()
@@ -342,7 +465,13 @@ class DocumentController extends Controller
             ->get()
             ->map(fn (TenantDocument $document) => $this->mapTenantDocument($document));
 
-        return $propertyDocuments->concat($tenantDocuments)->values();
+        $ownerDocuments = OwnerDocument::query()
+            ->with(['owner:id,uuid,name', 'latestVersion'])
+            ->withCount('versions')
+            ->get()
+            ->map(fn (OwnerDocument $document) => $this->mapOwnerDocument($document));
+
+        return $propertyDocuments->concat($tenantDocuments)->concat($ownerDocuments)->values();
     }
 
     private function mapPropertyDocument(PropertyDocument $document): array
@@ -376,6 +505,27 @@ class DocumentController extends Controller
             'entity_type_label' => 'Inquilino',
             'entity_name' => $document->tenant?->full_name ?? 'Inquilino eliminado',
             'entity_url' => $document->tenant ? route('dossiers.tenants.show', $document->tenant) : null,
+            'status' => $document->status,
+            'status_label' => $document->status_label,
+            'status_badge_class' => $document->status_badge_class,
+            'expires_at' => $document->expires_at,
+            'file_name' => $document->latestVersion?->original_name,
+            'file_url' => $document->file_path ? Storage::url($document->file_path) : null,
+            'versions_count' => $document->versions_count,
+            'updated_at' => $document->updated_at,
+        ];
+    }
+
+    private function mapOwnerDocument(OwnerDocument $document): array
+    {
+        return [
+            'id' => 'owner-' . $document->id,
+            'label' => $document->label,
+            'document_type' => $document->document_type,
+            'entity_type' => 'owner',
+            'entity_type_label' => 'Propietario',
+            'entity_name' => $document->owner?->name ?? 'Propietario eliminado',
+            'entity_url' => $document->owner ? route('dossiers.owners.show', $document->owner) : null,
             'status' => $document->status,
             'status_label' => $document->status_label,
             'status_badge_class' => $document->status_badge_class,
@@ -451,6 +601,27 @@ class DocumentController extends Controller
                 'document_type' => $documentType,
                 'label' => $label,
                 'status' => TenantDocument::STATUS_PENDING,
+                'uploaded_at' => null,
+                'file_path' => null,
+                'expires_at' => null,
+            ]);
+        }
+    }
+
+    private function ensureOwnerDocuments(Owner $owner): void
+    {
+        foreach (OwnerDocument::REQUIRED_DOCUMENTS as $documentType => $label) {
+            $existingDocument = $owner->documents()->where('document_type', $documentType)->first();
+
+            if ($existingDocument) {
+                $existingDocument->update(['label' => $label]);
+                continue;
+            }
+
+            $owner->documents()->create([
+                'document_type' => $documentType,
+                'label' => $label,
+                'status' => OwnerDocument::STATUS_PENDING,
                 'uploaded_at' => null,
                 'file_path' => null,
                 'expires_at' => null,

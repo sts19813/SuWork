@@ -45,7 +45,10 @@
                                         <div class="text-muted fs-7">RFC: {{ $owner->rfc ?: '-' }}</div>
                                     </div>
                                 </div>
-                                <a href="{{ route('owners.edit', $owner) }}" class="btn btn-sm btn-light-primary">Editar</a>
+                                <div class="d-flex gap-2">
+                                    <a href="{{ route('dossiers.owners.show', $owner) }}" class="btn btn-sm btn-light-info">Expediente</a>
+                                    <a href="{{ route('owners.edit', $owner) }}" class="btn btn-sm btn-light-primary">Editar</a>
+                                </div>
                             </div>
 
                             <div class="text-gray-700 mb-1">{{ $owner->phone }}</div>
