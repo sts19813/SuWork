@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Owner;
 use App\Models\OwnerDocument;
 use App\Models\Property;
+use App\Models\PropertyDocument;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
 use Illuminate\Http\RedirectResponse;
