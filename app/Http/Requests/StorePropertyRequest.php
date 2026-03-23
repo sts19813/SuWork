@@ -29,12 +29,18 @@ class StorePropertyRequest extends FormRequest
             'internal_name' => ['required', 'string', 'max:150'],
             'internal_reference' => ['nullable', 'string', 'max:100'],
             'property_type_id' => ['required', 'exists:property_types,id'],
-            'zone_id' => ['required', 'exists:zones,id'],
+            'zone_id' => ['nullable', 'exists:zones,id'],
+            'zone_text' => ['nullable', 'string', 'max:100'],
             'full_address' => ['required', 'string', 'max:255'],
+            'map_url' => ['nullable', 'url', 'max:500'],
             'complex_name' => ['nullable', 'string', 'max:255'],
             'official_number' => ['nullable', 'string', 'max:100'],
             'unit_number' => ['nullable', 'string', 'max:100'],
-            'facade_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'],
+            'facade_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'details' => ['nullable', 'string'],
+            'description' => ['nullable', 'string'],
+            'rental_requirements' => ['nullable', 'string'],
+            'amenities' => ['nullable', 'string'],
             'status' => ['required', Rule::in(array_keys(Property::STATUS_LABELS))],
             'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
             'current_tenant_name' => ['nullable', 'string', 'max:255'],
@@ -156,6 +162,13 @@ class StorePropertyRequest extends FormRequest
             $status = (string) $this->input('status');
             if ($status === Property::STATUS_OCCUPIED && blank($this->input('tenant_id'))) {
                 $validator->errors()->add('tenant_id', 'Debes seleccionar un inquilino cuando la propiedad esta ocupada.');
+            }
+
+            // Validate zone: either zone_id or zone_text must be provided
+            $zoneId = $this->input('zone_id');
+            $zoneText = $this->input('zone_text');
+            if (blank($zoneId) && blank($zoneText)) {
+                $validator->errors()->add('zone_text', 'Debes seleccionar una zona del listado o capturar una zona personalizada.');
             }
 
             foreach ((array) $this->input('new_custom_documents', []) as $index => $documentData) {

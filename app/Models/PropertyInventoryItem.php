@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PropertyInventoryItem extends Model
 {
@@ -20,6 +21,11 @@ class PropertyInventoryItem extends Model
     public function area(): BelongsTo
     {
         return $this->belongsTo(PropertyInventoryArea::class, 'property_inventory_area_id');
+    }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(PropertyInventoryItemPhoto::class);
     }
 }
 

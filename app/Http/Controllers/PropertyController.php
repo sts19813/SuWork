@@ -6,6 +6,7 @@ use App\Http\Requests\StorePropertyRequest;
 use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
+use App\Models\PropertyInventoryItemPhoto;
 use App\Models\PropertyType;
 use App\Models\Tenant;
 use App\Models\Zone;
@@ -150,10 +151,7 @@ class PropertyController extends Controller
             'paymentMethods' => Owner::PAYMENT_METHOD_LABELS,
             'requiredDocuments' => PropertyDocument::REQUIRED_DOCUMENTS,
             'defaultAreas' => [
-                'Cocina',
-                'Recamara principal',
-                'Sala',
-                'Comedor',
+                'Area 1',
             ],
             'availableOwners' => Owner::query()->where('is_active', true)->orderBy('name')->get(),
             'availableTenants' => Tenant::query()->where('is_active', true)->orderBy('full_name')->get(),
@@ -180,11 +178,17 @@ class PropertyController extends Controller
                 'internal_name' => $validated['internal_name'],
                 'internal_reference' => $validated['internal_reference'] ?? null,
                 'property_type_id' => $validated['property_type_id'],
-                'zone_id' => $validated['zone_id'],
+                'zone_id' => $validated['zone_id'] ?? null,
+                'zone_text' => $validated['zone_text'] ?? null,
                 'full_address' => $validated['full_address'],
+                'map_url' => $validated['map_url'] ?? null,
                 'complex_name' => $validated['complex_name'] ?? null,
                 'official_number' => $validated['official_number'] ?? null,
                 'unit_number' => $validated['unit_number'] ?? null,
+                'details' => $validated['details'] ?? null,
+                'description' => $validated['description'] ?? null,
+                'rental_requirements' => $validated['rental_requirements'] ?? null,
+                'amenities' => $validated['amenities'] ?? null,
                 'status' => $validated['status'],
                 'tenant_id' => $tenant?->id,
                 'current_tenant_name' => $tenant?->full_name ?? null,
@@ -427,16 +431,33 @@ class PropertyController extends Controller
                 'notes' => $areaData['notes'] ?? null,
             ]);
 
-            foreach ($areaData['items'] ?? [] as $itemData) {
+            foreach ($areaData['items'] ?? [] as $itemIndex => $itemData) {
                 if (blank($itemData['name'] ?? null)) {
                     continue;
                 }
 
-                $area->items()->create([
+                $item = $area->items()->create([
                     'name' => $itemData['name'],
                     'condition' => $itemData['condition'] ?? null,
                     'notes' => $itemData['notes'] ?? null,
                 ]);
+
+                foreach ($request->file("inventory_areas.{$areaIndex}.items.{$itemIndex}.photos", []) as $photo) {
+                    $photoRecord = $item->photos()->create([
+                        'name' => 'Photo for ' . $item->name,
+                        'status' => PropertyInventoryItemPhoto::STATUS_ACTIVE,
+                    ]);
+
+                    $filePath = $photo->store("properties/{$property->id}/inventory/items/{$item->id}", 'public');
+
+                    $photoRecord->versions()->create([
+                        'file_path' => $filePath,
+                        'file_name' => $photo->getClientOriginalName(),
+                        'mime_type' => $photo->getClientMimeType(),
+                        'file_size' => $photo->getSize(),
+                        'uploaded_by' => $request->user()->id,
+                    ]);
+                }
             }
 
             foreach ($request->file("inventory_areas.{$areaIndex}.photos", []) as $photoIndex => $photo) {

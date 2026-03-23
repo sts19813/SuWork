@@ -9,10 +9,11 @@
 
         $steps = [
             1 => 'Datos de la propiedad',
-            2 => 'Propietarios',
-            3 => 'Documentos',
-            4 => 'Inventario',
-            5 => 'Estado inicial',
+            2 => 'Datos adicionales',
+            3 => 'Propietarios',
+            4 => 'Documentos',
+            5 => 'Inventario',
+            6 => 'Estado inicial',
         ];
 
         $statusDescriptions = [
@@ -108,28 +109,32 @@
         if ($errors->isNotEmpty()) {
             $initialStep = 1;
             foreach ($errors->keys() as $errorKey) {
-                if (str_starts_with($errorKey, 'owner_ids') || str_starts_with($errorKey, 'new_owners.')) {
+                if (str_starts_with($errorKey, 'details') || str_starts_with($errorKey, 'description') || str_starts_with($errorKey, 'rental_requirements') || str_starts_with($errorKey, 'amenities')) {
                     $initialStep = 2;
                     break;
                 }
-                if (str_starts_with($errorKey, 'documents.')) {
-                    $initialStep = 3;
-                    break;
-                }
-                if (str_starts_with($errorKey, 'existing_custom_documents.') || str_starts_with($errorKey, 'new_custom_documents.')) {
-                    $initialStep = 3;
-                    break;
-                }
-                if (str_starts_with($errorKey, 'inventory_areas.')) {
+                if (str_starts_with($errorKey, 'owner_ids') || str_starts_with($errorKey, 'new_owners.')) {
                     $initialStep = 4;
                     break;
                 }
-                if ($errorKey === 'status') {
+                if (str_starts_with($errorKey, 'documents.')) {
                     $initialStep = 5;
                     break;
                 }
-                if ($errorKey === 'tenant_id') {
+                if (str_starts_with($errorKey, 'existing_custom_documents.') || str_starts_with($errorKey, 'new_custom_documents.')) {
                     $initialStep = 5;
+                    break;
+                }
+                if (str_starts_with($errorKey, 'inventory_areas.')) {
+                    $initialStep = 6;
+                    break;
+                }
+                if ($errorKey === 'status') {
+                    $initialStep = 7;
+                    break;
+                }
+                if ($errorKey === 'tenant_id') {
+                    $initialStep = 7;
                     break;
                 }
             }
@@ -228,17 +233,12 @@
 
                         <div class="col-lg-6">
                             <label class="form-label required">Zona</label>
-                            <select name="zone_id" required class="form-select @error('zone_id') is-invalid @enderror">
-                                <option value="" disabled {{ $selectedZone ? '' : 'selected' }}>Seleccionar zona</option>
-                                @foreach ($zones as $zone)
-                                    <option value="{{ $zone->id }}" {{ $selectedZone === (string) $zone->id ? 'selected' : '' }}>
-                                        {{ $zone->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('zone_id')
+                            <input type="text" name="zone_text" class="form-control @error('zone_text') is-invalid @enderror"
+                                value="{{ $fieldValue('zone_text') }}" placeholder="Ej: Montebello, Temozon, etc.">
+                            @error('zone_text')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
+                            <div class="form-text">Puedes seleccionar una zona existente o escribir una personalizada</div>
                         </div>
 
                         <div class="col-12">
@@ -246,6 +246,15 @@
                             <input type="text" name="full_address" class="form-control @error('full_address') is-invalid @enderror"
                                 value="{{ $fieldValue('full_address') }}" placeholder="Calle, número, colonia, CP">
                             @error('full_address')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">URL del mapa (opcional)</label>
+                            <input type="url" name="map_url" class="form-control @error('map_url') is-invalid @enderror"
+                                value="{{ $fieldValue('map_url') }}" placeholder="https://maps.google.com/...">
+                            @error('map_url')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
@@ -269,18 +278,21 @@
 
                         <div class="col-12">
                             <label class="form-label">Foto de fachada de la propiedad</label>
+                            <div id="facade-photo-dropzone" class="dropzone">
+                                <div class="dz-message" data-dz-message>
+                                    <i class="ki-outline ki-cloud-add fs-2x text-muted mb-2"></i>
+                                    <span class="fw-semibold text-gray-700">Arrastra y suelta la imagen aquí</span>
+                                    <span class="text-muted fs-8">o haz clic para seleccionar</span>
+                                    <span class="text-muted fs-8 d-block">PNG, JPG, WEBP hasta 10MB</span>
+                                </div>
+                            </div>
                             @if ($existingFacadePhoto)
-                                <div class="mb-4">
+                                <div class="mt-3">
                                     <img src="{{ \Illuminate\Support\Facades\Storage::url($existingFacadePhoto) }}" alt="Fachada actual"
                                         class="property-cover">
+                                    <p class="text-muted fs-8 mt-2">Imagen actual. Sube una nueva para reemplazarla.</p>
                                 </div>
                             @endif
-                            <label class="upload-box">
-                                <input type="file" name="facade_photo" accept=".jpg,.jpeg,.png">
-                                <i class="ki-outline ki-cloud-add fs-2x text-muted mb-2"></i>
-                                <span class="fw-semibold text-gray-700">Haz clic para subir una imagen</span>
-                                <span class="text-muted fs-8">PNG, JPG hasta 10MB</span>
-                            </label>
                             @error('facade_photo')
                                 <div class="text-danger fs-8 mt-2">{{ $message }}</div>
                             @enderror
@@ -291,6 +303,56 @@
 
             {{-- STEP 2 --}}
             <div class="card mb-8 wizard-step d-none" data-step-panel="2">
+                <div class="card-body p-lg-10">
+                    <h3 class="mb-6 fw-bold">Datos adicionales</h3>
+
+                    <div class="row g-6">
+                        <div class="col-12">
+                            <label class="form-label">Detalles</label>
+                            <textarea name="details" id="details-editor" class="form-control" rows="4"
+                                placeholder="Describe los detalles de la propiedad...">{{ $fieldValue('details') }}</textarea>
+                            @error('details')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Campo con formato enriquecido (negrita, cursiva, listas, etc.)</div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Descripción</label>
+                            <textarea name="description" id="description-editor" class="form-control" rows="4"
+                                placeholder="Describe la propiedad para los anuncios...">{{ $fieldValue('description') }}</textarea>
+                            @error('description')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Campo con formato enriquecido para la descripción pública</div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Requisitos de renta</label>
+                            <textarea name="rental_requirements" id="rental-requirements-editor" class="form-control" rows="6">{{ $fieldValue('rental_requirements', '-1 Mes x adelantado para apartado
+-Aval más un deposito o doble deposito
+-Costo del convenio notariado mínimo 1 año') }}</textarea>
+                            @error('rental_requirements')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Campo con formato enriquecido para los requisitos de renta</div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Amenidades</label>
+                            <textarea name="amenities" id="amenities-editor" class="form-control" rows="4"
+                                placeholder="Lista las amenidades de la propiedad...">{{ $fieldValue('amenities') }}</textarea>
+                            @error('amenities')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Campo con formato enriquecido para las amenidades</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- STEP 3 --}}
+            <div class="card mb-8 wizard-step d-none" data-step-panel="3">
                 <div class="card-body p-lg-10">
                     <h3 class="mb-3 fw-bold">Propietarios</h3>
                     <p class="text-muted mb-8">Selecciona propietarios registrados o crea uno nuevo desde este paso.</p>
@@ -444,8 +506,8 @@
                 </div>
             </div>
 
-            {{-- STEP 3 --}}
-            <div class="card mb-8 wizard-step d-none" data-step-panel="3">
+            {{-- STEP 4 --}}
+            <div class="card mb-8 wizard-step d-none" data-step-panel="4">
                 <div class="card-body p-lg-10">
                     <h3 class="mb-3 fw-bold">Documentos de la propiedad</h3>
                     <p class="text-muted mb-8">Sube los documentos obligatorios para completar el expediente de la propiedad.</p>
@@ -607,8 +669,8 @@
                 </div>
             </div>
 
-            {{-- STEP 4 --}}
-            <div class="card mb-8 wizard-step d-none" data-step-panel="4">
+            {{-- STEP 5 --}}
+            <div class="card mb-8 wizard-step d-none" data-step-panel="5">
                 <div class="card-body p-lg-10">
                     <h3 class="mb-3 fw-bold">Inventario de la propiedad</h3>
                     <p class="text-muted mb-8">Documenta espacios y elementos. Este paso también puede completarse posteriormente.</p>
@@ -647,22 +709,30 @@
                                 <div class="items-container d-flex flex-column gap-4">
                                     @foreach ($items as $itemIndex => $item)
                                         <div class="row g-4 inventory-item">
-                                            <div class="col-lg-4">
+                                            <div class="col-lg-3">
                                                 <input type="text"
                                                     name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][name]"
                                                     class="form-control" value="{{ $item['name'] ?? '' }}"
                                                     placeholder="Elemento (Ej: Parrilla)">
                                             </div>
-                                            <div class="col-lg-3">
-                                                <input type="text"
-                                                    name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][condition]"
-                                                    class="form-control" value="{{ $item['condition'] ?? '' }}"
-                                                    placeholder="Estado (Ej: Bueno)">
+                                            <div class="col-lg-2">
+                                                <select name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][condition]"
+                                                    class="form-select">
+                                                    <option value="">Seleccionar estado</option>
+                                                    <option value="bueno" {{ ($item['condition'] ?? '') === 'bueno' ? 'selected' : '' }}>Bueno</option>
+                                                    <option value="regular" {{ ($item['condition'] ?? '') === 'regular' ? 'selected' : '' }}>Regular</option>
+                                                    <option value="malo" {{ ($item['condition'] ?? '') === 'malo' ? 'selected' : '' }}>Malo</option>
+                                                </select>
                                             </div>
-                                            <div class="col-lg-4">
+                                            <div class="col-lg-3">
                                                 <input type="text"
                                                     name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][notes]"
                                                     class="form-control" value="{{ $item['notes'] ?? '' }}" placeholder="Notas">
+                                            </div>
+                                            <div class="col-lg-3">
+                                                <input type="file"
+                                                    name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][photos][]"
+                                                    class="form-control" accept=".jpg,.jpeg,.png,.webp" multiple>
                                             </div>
                                             <div class="col-lg-1">
                                                 <button type="button" class="btn btn-icon btn-light-danger btn-remove-item">
@@ -685,8 +755,8 @@
                 </div>
             </div>
 
-            {{-- STEP 5 --}}
-            <div class="card mb-8 wizard-step d-none" data-step-panel="5">
+            {{-- STEP 6 --}}
+            <div class="card mb-8 wizard-step d-none" data-step-panel="6">
                 <div class="card-body p-lg-10">
                     <h3 class="mb-3 fw-bold">Estado inicial de la propiedad</h3>
                     <p class="text-muted mb-8">Selecciona el estado inicial con el que se registrará esta propiedad en el sistema.</p>
@@ -909,7 +979,7 @@
 @push('scripts')
     <script>
         (() => {
-            const totalSteps = 5;
+            const totalSteps = 6;
             const stepper = document.getElementById('property-stepper');
             const panels = [...document.querySelectorAll('.wizard-step')];
             const prevBtn = document.getElementById('wizard-prev');
@@ -1073,7 +1143,12 @@
                         <input type="text" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][name]" class="form-control" placeholder="Elemento (Ej: Parrilla)">
                     </div>
                     <div class="col-lg-3">
-                        <input type="text" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][condition]" class="form-control" placeholder="Estado (Ej: Bueno)">
+                        <select name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][condition]" class="form-select">
+                            <option value="">Seleccionar estado</option>
+                            <option value="bueno">Bueno</option>
+                            <option value="regular">Regular</option>
+                            <option value="malo">Malo</option>
+                        </select>
                     </div>
                     <div class="col-lg-4">
                         <input type="text" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][notes]" class="form-control" placeholder="Notas">
@@ -1138,6 +1213,55 @@
             refreshCustomDocumentTitles();
             refreshAreaButtons();
             renderWizard();
+
+            // Initialize rich text editors
+            if (typeof ClassicEditor !== 'undefined') {
+                const editors = ['#details-editor', '#description-editor', '#rental-requirements-editor', '#amenities-editor'];
+                editors.forEach(selector => {
+                    const element = document.querySelector(selector);
+                    if (element) {
+                        ClassicEditor
+                            .create(element, {
+                                toolbar: ['bold', 'italic', 'underline', '|', 'bulletedList', 'numberedList', '|', 'link', '|', 'undo', 'redo']
+                            })
+                            .catch(error => {
+                                console.error(error);
+                            });
+                    }
+                });
+            }
+
+            // Initialize Dropzone for facade photo
+            if (typeof Dropzone !== 'undefined') {
+                const facadeDropzone = new Dropzone('#facade-photo-dropzone', {
+                    url: '{{ route("properties.store") }}', // This will be overridden by form submission
+                    autoProcessQueue: false,
+                    maxFiles: 1,
+                    acceptedFiles: '.jpg,.jpeg,.png,.webp',
+                    maxFilesize: 10, // MB
+                    addRemoveLinks: true,
+                    dictDefaultMessage: 'Arrastra y suelta la imagen aquí o haz clic para seleccionar',
+                    dictRemoveFile: 'Remover archivo',
+dictFileTooBig: 'El archivo es demasiado grande (\{\{filesize\}\}MB). Tamaño máximo: \{\{maxFilesize\}\}MB.',                    dictInvalidFileType: 'Tipo de archivo no válido. Solo se permiten imágenes.',
+                    init: function() {
+                        this.on('addedfile', function(file) {
+                            // Create a hidden input to store the file
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.name = 'facade_photo';
+                            input.style.display = 'none';
+                            input.files = this.files;
+                            document.getElementById('property-wizard-form').appendChild(input);
+                        });
+
+                        this.on('removedfile', function(file) {
+                            // Remove the hidden input
+                            const inputs = document.querySelectorAll('input[name="facade_photo"]');
+                            inputs.forEach(input => input.remove());
+                        });
+                    }
+                });
+            }
         })();
     </script>
 @endpush
