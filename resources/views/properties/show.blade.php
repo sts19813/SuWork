@@ -3,6 +3,23 @@
 @section('title', $property->internal_name . ' | SuWork')
 
 @section('content')
+
+<style>
+    .ck-content table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.ck-content table td,
+.ck-content table th {
+    border: 1px solid #ddd;
+    padding: 8px;
+}
+
+.ck-content table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+</style>
     @php
         $photoUrl = $property->facade_photo_path
             ? \Illuminate\Support\Facades\Storage::url($property->facade_photo_path)
@@ -37,7 +54,36 @@
                         <a href="{{ route('properties.edit', $property) }}" class="btn btn-sm btn-light-primary">
                             Editar propiedad
                         </a>
-                        <button type="button" class="btn btn-sm btn-primary disabled" disabled>Asignar inquilino</button>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                Asignar inquilino
+                            </button>
+                            <ul class="dropdown-menu">
+                                @foreach($tenants as $tenant)
+                                    <li>
+                                        <form method="POST" action="{{ route('properties.update.tenant', $property) }}" class="d-inline">
+                                            @csrf
+                                            @method('PUT')
+                                            <input type="hidden" name="tenant_id" value="{{ $tenant->id }}">
+                                            <button type="submit" class="dropdown-item">
+                                                {{ $tenant->full_name }}
+                                            </button>
+                                        </form>
+                                    </li>
+                                @endforeach
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <form method="POST" action="{{ route('properties.update.tenant', $property) }}" class="d-inline">
+                                        @csrf
+                                        @method('PUT')
+                                        <input type="hidden" name="tenant_id" value="">
+                                        <button type="submit" class="dropdown-item text-danger">
+                                            Remover inquilino
+                                        </button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -69,6 +115,20 @@
                         <div class="text-muted mb-1">Unidad</div>
                         <div class="fw-semibold">{{ $property->unit_number ?: '-' }}</div>
                     </div>
+                    <div class="col-lg-4">
+                        <div class="text-muted mb-1">Precio renta mensual</div>
+                        <div class="fw-semibold">{{ $property->monthly_rent_price ? '$' . number_format($property->monthly_rent_price, 2) : '-' }}</div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="text-muted mb-1">Cuota mantenimiento</div>
+                        <div class="fw-semibold">{{ $property->maintenance_fee ? '$' . number_format($property->maintenance_fee, 2) : '-' }}</div>
+                    </div>
+                    @if ($property->map_url)
+                        <div class="col-12">
+                            <div class="text-muted mb-1">URL del mapa</div>
+                            <div class="fw-semibold"><a href="{{ $property->map_url }}" target="_blank">{{ $property->map_url }}</a></div>
+                        </div>
+                    @endif
                     <div class="col-lg-6">
                         <div class="text-muted mb-1">Inquilino actual</div>
                         <div class="fw-semibold">{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}</div>
@@ -163,6 +223,58 @@
             </div>
         </div>
 
+       @if ($property->details || $property->description || $property->rental_requirements || $property->amenities)
+            <div class="card mb-8">
+                <div class="card-header border-0 pt-6">
+                    <h3 class="card-title fw-bold">Datos adicionales</h3>
+                </div>
+                <div class="card-body pt-0">
+                    <div class="row g-6">
+
+                        @if ($property->details)
+                            <div class="col-lg-6 col-12">
+                                <div class="text-muted mb-1">Detalles</div>
+
+                                <div class="ck-content">
+                                    {!! $property->details !!}
+                                </div>
+                           
+                            </div>
+                        @endif
+
+                        @if ($property->description)
+                            <div class="col-lg-6 col-12">
+                                <div class="text-muted mb-1">Descripción</div>
+
+                                 <div class="ck-content">
+                                    <div class="fw-semibold">{!! $property->description !!}</div>
+                                </div>
+                            </div>
+                        @endif
+
+                        @if ($property->rental_requirements)
+                            <div class="col-lg-6 col-12">
+                                <div class="text-muted mb-1">Requisitos de renta</div>
+                                 <div class="ck-content">
+                                    <div class="fw-semibold">{!! $property->rental_requirements !!}</div>
+                                </div>
+                            </div>
+                        @endif
+
+                        @if ($property->amenities)
+                            <div class="col-lg-6 col-12">
+                                <div class="text-muted mb-1">Amenidades</div>
+                                <div class="ck-content">
+                                    <div class="fw-semibold">{!! $property->amenities !!}</div>
+                                </div>
+                            </div>
+                        @endif
+
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div class="card">
             <div class="card-header border-0 pt-6">
                 <h3 class="card-title fw-bold">Inventario</h3>
@@ -200,6 +312,7 @@
                                                     <th>Elemento</th>
                                                     <th>Estado</th>
                                                     <th>Notas</th>
+                                                    <th>Fotos</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -208,6 +321,17 @@
                                                         <td>{{ $item->name }}</td>
                                                         <td>{{ $item->condition ?: '-' }}</td>
                                                         <td>{{ $item->notes ?: '-' }}</td>
+                                                        <td>
+                                                            @if ($item->photos->isNotEmpty())
+                                                                <div class="d-flex gap-2">
+                                                                    @foreach ($item->photos as $photo)
+                                                                        <img src="{{ \Illuminate\Support\Facades\Storage::url($photo->latestVersion->file_path) }}" class="property-thumb" alt="Foto {{ $item->name }}">
+                                                                    @endforeach
+                                                                </div>
+                                                            @else
+                                                                -
+                                                            @endif
+                                                        </td>
                                                     </tr>
                                                 @endforeach
                                             </tbody>

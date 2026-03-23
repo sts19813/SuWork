@@ -276,8 +276,26 @@
                                 value="{{ $fieldValue('unit_number') }}" placeholder="Ej: A-302">
                         </div>
 
+                        <div class="col-lg-6">
+                            <label class="form-label">Precio de renta mensual</label>
+                            <input type="number" name="monthly_rent_price" class="form-control @error('monthly_rent_price') is-invalid @enderror"
+                                value="{{ $fieldValue('monthly_rent_price') }}" placeholder="0.00" step="0.01">
+                            @error('monthly_rent_price')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-lg-6">
+                            <label class="form-label">Cuota de mantenimiento</label>
+                            <input type="number" name="maintenance_fee" class="form-control @error('maintenance_fee') is-invalid @enderror"
+                                value="{{ $fieldValue('maintenance_fee') }}" placeholder="0.00" step="0.01">
+                            @error('maintenance_fee')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
                         <div class="col-12">
-                            <label class="form-label">Foto de fachada de la propiedad</label>
+                            <label class="form-label required">Foto de fachada de la propiedad</label>
                             <div id="facade-photo-dropzone" class="dropzone">
                                 <div class="dz-message" data-dz-message>
                                     <i class="ki-outline ki-cloud-add fs-2x text-muted mb-2"></i>
@@ -924,17 +942,21 @@
         </div>
         <div class="items-container d-flex flex-column gap-4">
             <div class="row g-4 inventory-item">
-                <div class="col-lg-4">
+                <div class="col-lg-3">
                     <input type="text" name="inventory_areas[__AREA_INDEX__][items][0][name]" class="form-control"
                         placeholder="Elemento (Ej: Parrilla)">
                 </div>
-                <div class="col-lg-3">
+                <div class="col-lg-2">
                     <input type="text" name="inventory_areas[__AREA_INDEX__][items][0][condition]" class="form-control"
                         placeholder="Estado (Ej: Bueno)">
                 </div>
-                <div class="col-lg-4">
+                <div class="col-lg-3">
                     <input type="text" name="inventory_areas[__AREA_INDEX__][items][0][notes]" class="form-control"
                         placeholder="Notas">
+                </div>
+                <div class="col-lg-3">
+                    <input type="file" name="inventory_areas[__AREA_INDEX__][items][0][photos][]" class="form-control"
+                        accept=".jpg,.jpeg,.png,.webp" multiple>
                 </div>
                 <div class="col-lg-1">
                     <button type="button" class="btn btn-icon btn-light-danger btn-remove-item">
@@ -1010,6 +1032,19 @@
                 submitBtn.classList.toggle('d-none', currentStep !== totalSteps);
                 stepInput.value = currentStep.toString();
             };
+
+            // Add click event listeners to step circles
+            stepper.querySelectorAll('.step-circle').forEach((circle) => {
+                circle.addEventListener('click', () => {
+                    const stepItem = circle.closest('.step-item');
+                    const targetStep = parseInt(stepItem.dataset.step, 10);
+                    if (targetStep >= 1 && targetStep <= totalSteps) {
+                        currentStep = targetStep;
+                        renderWizard();
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                });
+            });
 
             prevBtn.addEventListener('click', () => {
                 if (currentStep > 1) {
@@ -1139,10 +1174,10 @@
 
             const itemTemplate = (currentAreaIndex, itemIndex) => `
                 <div class="row g-4 inventory-item">
-                    <div class="col-lg-4">
+                    <div class="col-lg-3">
                         <input type="text" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][name]" class="form-control" placeholder="Elemento (Ej: Parrilla)">
                     </div>
-                    <div class="col-lg-3">
+                    <div class="col-lg-2">
                         <select name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][condition]" class="form-select">
                             <option value="">Seleccionar estado</option>
                             <option value="bueno">Bueno</option>
@@ -1150,8 +1185,11 @@
                             <option value="malo">Malo</option>
                         </select>
                     </div>
-                    <div class="col-lg-4">
+                    <div class="col-lg-3">
                         <input type="text" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][notes]" class="form-control" placeholder="Notas">
+                    </div>
+                    <div class="col-lg-3">
+                        <input type="file" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][photos][]" class="form-control" accept=".jpg,.jpeg,.png,.webp" multiple>
                     </div>
                     <div class="col-lg-1">
                         <button type="button" class="btn btn-icon btn-light-danger btn-remove-item">
@@ -1250,7 +1288,9 @@ dictFileTooBig: 'El archivo es demasiado grande (\{\{filesize\}\}MB). Tama√±o m√
                             input.type = 'file';
                             input.name = 'facade_photo';
                             input.style.display = 'none';
-                            input.files = this.files;
+                            const dt = new DataTransfer();
+                            dt.items.add(file);
+                            input.files = dt.files;
                             document.getElementById('property-wizard-form').appendChild(input);
                         });
 

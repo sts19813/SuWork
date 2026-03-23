@@ -103,6 +103,23 @@ class PropertyController extends Controller
             ->with('success', 'La propiedad se actualizó correctamente.');
     }
 
+    public function updateTenant(Request $request, Property $property): RedirectResponse
+    {
+        $request->validate([
+            'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
+        ]);
+
+        $tenantId = $request->input('tenant_id');
+        $tenant = $tenantId ? Tenant::query()->find($tenantId) : null;
+
+        $property->update([
+            'tenant_id' => $tenant?->id,
+            'current_tenant_name' => $tenant?->full_name,
+        ]);
+
+        return redirect()->back()->with('success', 'Inquilino actualizado correctamente.');
+    }
+
     public function show(Property $property): View
     {
         $property->load([
@@ -110,7 +127,7 @@ class PropertyController extends Controller
             'zone',
             'owners',
             'documents.versions',
-            'inventoryAreas.items',
+            'inventoryAreas.items.photos',
             'inventoryAreas.photos',
             'tenant',
         ]);
@@ -129,10 +146,15 @@ class PropertyController extends Controller
             ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
             ->values();
 
+        $tenants = Tenant::query()
+            ->orderBy('full_name')
+            ->get();
+
         return view('properties.show', [
             'property' => $property,
             'documents' => $documents,
             'customDocuments' => $customDocuments,
+            'tenants' => $tenants,
         ]);
     }
 
@@ -160,6 +182,7 @@ class PropertyController extends Controller
                     ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
                     ->values()
                 : collect(),
+            'existingFacadePhoto' => $property ? $property->facade_photo_path : null,
             'property' => $property,
             'isEdit' => $isEdit,
         ];

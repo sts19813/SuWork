@@ -50,6 +50,8 @@ class Property extends Model
         'complex_name',
         'official_number',
         'unit_number',
+        'monthly_rent_price',
+        'maintenance_fee',
         'facade_photo_path',
         'details',
         'description',
@@ -68,6 +70,8 @@ class Property extends Model
         return [
             'contract_expires_at' => 'date',
             'onboarding_step' => 'integer',
+            'monthly_rent_price' => 'decimal:2',
+            'maintenance_fee' => 'decimal:2',
         ];
     }
 

@@ -36,6 +36,8 @@ class StorePropertyRequest extends FormRequest
             'complex_name' => ['nullable', 'string', 'max:255'],
             'official_number' => ['nullable', 'string', 'max:100'],
             'unit_number' => ['nullable', 'string', 'max:100'],
+            'monthly_rent_price' => ['nullable', 'numeric', 'min:0'],
+            'maintenance_fee' => ['nullable', 'numeric', 'min:0'],
             'facade_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'details' => ['nullable', 'string'],
             'description' => ['nullable', 'string'],
@@ -192,6 +194,15 @@ class StorePropertyRequest extends FormRequest
                         'Debes capturar el nombre del nuevo documento personalizado.',
                     );
                 }
+            }
+
+            // Validate facade photo: required for new properties, optional for updates if already exists
+            $hasNewFacadePhoto = $this->hasFile('facade_photo');
+            $propertyId = $this->route('property')?->id ?? null;
+            $existingFacadePhoto = $propertyId ? Property::find($propertyId)?->facade_photo_path : null;
+
+            if (!$hasNewFacadePhoto && !$existingFacadePhoto) {
+                $validator->errors()->add('facade_photo', 'La foto de fachada es obligatoria.');
             }
         });
     }

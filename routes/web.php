@@ -30,6 +30,7 @@ Route::middleware(['auth'])
         Route::post('/propiedades', [PropertyController::class, 'store'])->name('properties.store');
         Route::get('/propiedades/{property}/editar', [PropertyController::class, 'edit'])->name('properties.edit');
         Route::put('/propiedades/{property}', [PropertyController::class, 'update'])->name('properties.update');
+        Route::put('/propiedades/{property}/inquilino', [PropertyController::class, 'updateTenant'])->name('properties.update.tenant');
         Route::get('/propiedades/{property}', [PropertyController::class, 'show'])->name('properties.show');
         Route::get('/propiedades/{property}/expediente', [DocumentController::class, 'propertyDossier'])->name('dossiers.properties.show');
         Route::post('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadPropertyDocument'])->name('dossiers.properties.documents.upload');
