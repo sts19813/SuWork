@@ -62,7 +62,7 @@
                         <div class="fw-semibold">{{ $property->complex_name ?: '-' }}</div>
                     </div>
                     <div class="col-lg-4">
-                        <div class="text-muted mb-1">Número oficial</div>
+                        <div class="text-muted mb-1">Número</div>
                         <div class="fw-semibold">{{ $property->official_number ?: '-' }}</div>
                     </div>
                     <div class="col-lg-4">

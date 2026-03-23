@@ -256,7 +256,7 @@
                                 value="{{ $fieldValue('complex_name') }}" placeholder="Nombre del complejo">
                         </div>
                         <div class="col-lg-6">
-                            <label class="form-label">Número oficial</label>
+                            <label class="form-label">Número</label>
                             <input type="text" name="official_number"
                                 class="form-control @error('official_number') is-invalid @enderror"
                                 value="{{ $fieldValue('official_number') }}" placeholder="Número">
