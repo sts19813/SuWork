@@ -49,11 +49,11 @@ class PropertyController extends Controller
         $properties = Property::query()
             ->with(['type', 'zone', 'tenant'])
             ->withCount([
-                'documents as incidents_count' => fn ($query) => $query->where('status', PropertyDocument::STATUS_PENDING),
+                'documents as incidents_count' => fn($query) => $query->where('status', PropertyDocument::STATUS_PENDING),
             ])
-            ->when($request->filled('zone_id'), fn ($query) => $query->where('zone_id', $request->integer('zone_id')))
-            ->when($request->filled('property_type_id'), fn ($query) => $query->where('property_type_id', $request->integer('property_type_id')))
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')->value()))
+            ->when($request->filled('zone_id'), fn($query) => $query->where('zone_id', $request->integer('zone_id')))
+            ->when($request->filled('property_type_id'), fn($query) => $query->where('property_type_id', $request->integer('property_type_id')))
+            ->when($request->filled('status'), fn($query) => $query->where('status', $request->string('status')->value()))
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -248,12 +248,12 @@ class PropertyController extends Controller
     private function syncOwners(Property $property, array $ownerIds, array $newOwners): void
     {
         $selectedOwnerIds = collect($ownerIds)
-            ->filter(fn ($ownerId) => filled($ownerId))
-            ->map(fn ($ownerId) => (int) $ownerId)
+            ->filter(fn($ownerId) => filled($ownerId))
+            ->map(fn($ownerId) => (int) $ownerId)
             ->values();
 
         foreach ($newOwners as $ownerData) {
-            $hasAnyData = collect($ownerData)->contains(fn ($value) => filled($value));
+            $hasAnyData = collect($ownerData)->contains(fn($value) => filled($value));
             if (!$hasAnyData) {
                 continue;
             }
@@ -440,34 +440,44 @@ class PropertyController extends Controller
 
     private function syncInventory(Property $property, array $inventoryAreas, StorePropertyRequest $request): void
     {
-        $property->inventoryAreas()->delete();
+        $existingAreaIds = $property->inventoryAreas()->pluck('id')->toArray();
+        $processedAreaIds = [];
 
         foreach ($inventoryAreas as $areaIndex => $areaData) {
-            $hasItems = collect($areaData['items'] ?? [])->contains(fn ($item) => filled($item['name'] ?? null));
-            $hasPhotos = $request->hasFile("inventory_areas.{$areaIndex}.photos");
-            $hasContent = filled($areaData['name'] ?? null) || filled($areaData['notes'] ?? null) || $hasItems || $hasPhotos;
 
-            if (!$hasContent) {
-                continue;
-            }
+            $area = $property->inventoryAreas()->updateOrCreate(
+                ['id' => $areaData['id'] ?? null],
+                [
+                    'name' => $areaData['name'] ?? 'Area ' . ($areaIndex + 1),
+                    'notes' => $areaData['notes'] ?? null,
+                ]
+            );
 
-            $area = $property->inventoryAreas()->create([
-                'name' => $areaData['name'] ?? 'Area ' . ($areaIndex + 1),
-                'notes' => $areaData['notes'] ?? null,
-            ]);
+            $processedAreaIds[] = $area->id;
+
+            $existingItemIds = $area->items()->pluck('id')->toArray();
+            $processedItemIds = [];
 
             foreach ($areaData['items'] ?? [] as $itemIndex => $itemData) {
-                if (blank($itemData['name'] ?? null)) {
+
+                if (empty($itemData['id']) && blank($itemData['name'] ?? null)) {
                     continue;
                 }
 
-                $item = $area->items()->create([
-                    'name' => $itemData['name'],
-                    'condition' => $itemData['condition'] ?? null,
-                    'notes' => $itemData['notes'] ?? null,
-                ]);
+                $item = $area->items()->updateOrCreate(
+                    ['id' => $itemData['id'] ?? null],
+                    [
+                        'name' => $itemData['name'],
+                        'condition' => $itemData['condition'] ?? null,
+                        'notes' => $itemData['notes'] ?? null,
+                    ]
+                );
 
+                $processedItemIds[] = $item->id;
+
+                // NUEVAS FOTOS (NO BORRA LAS EXISTENTES)
                 foreach ($request->file("inventory_areas.{$areaIndex}.items.{$itemIndex}.photos", []) as $photo) {
+
                     $photoRecord = $item->photos()->create([
                         'name' => 'Photo for ' . $item->name,
                         'status' => PropertyInventoryItemPhoto::STATUS_ACTIVE,
@@ -485,6 +495,12 @@ class PropertyController extends Controller
                 }
             }
 
+            if (!empty($areaData['items'])) {
+                $area->items()
+                    ->whereNotIn('id', $processedItemIds)
+                    ->delete();
+            }
+            // FOTOS DEL ÁREA
             foreach ($request->file("inventory_areas.{$areaIndex}.photos", []) as $photoIndex => $photo) {
                 $filePath = $photo->store("properties/{$property->id}/inventory/{$area->id}", 'public');
 
@@ -494,6 +510,8 @@ class PropertyController extends Controller
                 ]);
             }
         }
+
+        $property->inventoryAreas()->whereNotIn('id', $processedAreaIds)->delete();
     }
 
     private function getPropertyTypesCatalog(): Collection
@@ -506,13 +524,13 @@ class PropertyController extends Controller
         }
 
         $order = collect(self::DEFAULT_PROPERTY_TYPES)
-            ->mapWithKeys(fn (string $name, int $index) => [Str::slug($name) => $index]);
+            ->mapWithKeys(fn(string $name, int $index) => [Str::slug($name) => $index]);
 
         return PropertyType::query()
             ->where('is_active', true)
             ->whereIn('slug', $order->keys()->all())
             ->get()
-            ->sortBy(fn (PropertyType $type) => $order[$type->slug] ?? 999)
+            ->sortBy(fn(PropertyType $type) => $order[$type->slug] ?? 999)
             ->values();
     }
 
@@ -526,13 +544,13 @@ class PropertyController extends Controller
         }
 
         $order = collect(self::DEFAULT_ZONES)
-            ->mapWithKeys(fn (string $name, int $index) => [Str::slug($name) => $index]);
+            ->mapWithKeys(fn(string $name, int $index) => [Str::slug($name) => $index]);
 
         return Zone::query()
             ->where('is_active', true)
             ->whereIn('slug', $order->keys()->all())
             ->get()
-            ->sortBy(fn (Zone $zone) => $order[$zone->slug] ?? 999)
+            ->sortBy(fn(Zone $zone) => $order[$zone->slug] ?? 999)
             ->values();
     }
 }

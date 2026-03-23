@@ -327,12 +327,26 @@
                     <div class="row g-6">
                         <div class="col-12">
                             <label class="form-label">Detalles</label>
-                            <textarea name="details" id="details-editor" class="form-control" rows="4"
-                                placeholder="Describe los detalles de la propiedad...">{{ $fieldValue('details') }}</textarea>
+
+                            <textarea name="details" id="details-editor" class="form-control" rows="4">
+                                {!! $fieldValue('details', '
+                                <table>
+                                    <tbody>
+                                        <tr><td><strong>ID:</strong></td><td>EB-OH8626</td></tr>
+                                        <tr><td><strong>Clave interna:</strong></td><td>NOCAC2</td></tr>
+                                        <tr><td><strong>Terreno:</strong></td><td>10,623 m²</td></tr>
+                                        <tr><td><strong>Fondo del terreno:</strong></td><td>254 m</td></tr>
+                                        <tr><td><strong>Frente del terreno:</strong></td><td>40 m</td></tr>
+                                    </tbody>
+                                </table>
+                                ') !!}
+                            </textarea>
+
                             @error('details')
                                 <div class="invalid-feedback d-block">{{ $message }}</div>
                             @enderror
-                            <div class="form-text">Campo con formato enriquecido (negrita, cursiva, listas, etc.)</div>
+
+                            <div class="form-text">Campo con formato enriquecido</div>
                         </div>
 
                         <div class="col-12">
@@ -347,13 +361,22 @@
 
                         <div class="col-12">
                             <label class="form-label">Requisitos de renta</label>
-                            <textarea name="rental_requirements" id="rental-requirements-editor" class="form-control" rows="6">{{ $fieldValue('rental_requirements', '-1 Mes x adelantado para apartado
--Aval más un deposito o doble deposito
--Costo del convenio notariado mínimo 1 año') }}</textarea>
+
+                            <textarea name="rental_requirements" id="rental-requirements-editor" class="form-control" rows="6">
+                                {!! $fieldValue('rental_requirements', '
+                                <ul>
+                                    <li>1 mes por adelantado para apartado</li>
+                                    <li>Aval más un depósito o doble depósito</li>
+                                    <li>Costo del convenio notariado mínimo 1 año</li>
+                                </ul>
+                                ') !!}
+                            </textarea>
+
                             @error('rental_requirements')
                                 <div class="invalid-feedback d-block">{{ $message }}</div>
                             @enderror
-                            <div class="form-text">Campo con formato enriquecido para los requisitos de renta</div>
+
+                            <div class="form-text">Campo con formato enriquecido</div>
                         </div>
 
                         <div class="col-12">
@@ -698,8 +721,14 @@
                             @php
                                 $items = $area['items'] ?? [['name' => '', 'condition' => '', 'notes' => '']];
                             @endphp
-                            <div class="border rounded p-6 inventory-area" data-area-index="{{ $areaIndex }}"
+
+                            <div class="border rounded p-6 inventory-area"
+                                data-area-index="{{ $areaIndex }}"
                                 data-next-item-index="{{ count($items) }}">
+
+                                {{-- 🔴 ID DEL AREA --}}
+                                <input type="hidden" name="inventory_areas[{{ $areaIndex }}][id]" value="{{ $area['id'] ?? '' }}">
+
                                 <div class="d-flex justify-content-between align-items-center mb-5">
                                     <h4 class="mb-0">Área {{ $loop->iteration }}</h4>
                                     <button type="button"
@@ -707,32 +736,54 @@
                                         Eliminar área
                                     </button>
                                 </div>
+
                                 <div class="row g-5 mb-6">
                                     <div class="col-lg-6">
                                         <label class="form-label">Nombre del área</label>
-                                        <input type="text" name="inventory_areas[{{ $areaIndex }}][name]" class="form-control"
-                                            value="{{ $area['name'] ?? '' }}" placeholder="Ej: Cocina">
+                                        <input type="text"
+                                            name="inventory_areas[{{ $areaIndex }}][name]"
+                                            class="form-control"
+                                            value="{{ $area['name'] ?? '' }}"
+                                            placeholder="Ej: Cocina">
                                     </div>
+
                                     <div class="col-lg-6">
                                         <label class="form-label">Notas del área</label>
-                                        <input type="text" name="inventory_areas[{{ $areaIndex }}][notes]" class="form-control"
-                                            value="{{ $area['notes'] ?? '' }}" placeholder="Observaciones">
+                                        <input type="text"
+                                            name="inventory_areas[{{ $areaIndex }}][notes]"
+                                            class="form-control"
+                                            value="{{ $area['notes'] ?? '' }}"
+                                            placeholder="Observaciones">
                                     </div>
+
                                     <div class="col-12">
                                         <label class="form-label">Fotos generales del área (hasta 3)</label>
-                                        <input type="file" name="inventory_areas[{{ $areaIndex }}][photos][]" class="form-control"
-                                            accept=".jpg,.jpeg,.png" multiple>
+                                        <input type="file"
+                                            name="inventory_areas[{{ $areaIndex }}][photos][]"
+                                            class="form-control"
+                                            accept=".jpg,.jpeg,.png"
+                                            multiple>
                                     </div>
                                 </div>
+
+                                {{-- ITEMS --}}
                                 <div class="items-container d-flex flex-column gap-4">
                                     @foreach ($items as $itemIndex => $item)
                                         <div class="row g-4 inventory-item">
+
+                                            {{-- 🔴 ID DEL ITEM --}}
+                                            <input type="hidden"
+                                                name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][id]"
+                                                value="{{ $item['id'] ?? '' }}">
+
                                             <div class="col-lg-3">
                                                 <input type="text"
                                                     name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][name]"
-                                                    class="form-control" value="{{ $item['name'] ?? '' }}"
+                                                    class="form-control"
+                                                    value="{{ $item['name'] ?? '' }}"
                                                     placeholder="Elemento (Ej: Parrilla)">
                                             </div>
+
                                             <div class="col-lg-2">
                                                 <select name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][condition]"
                                                     class="form-select">
@@ -742,16 +793,23 @@
                                                     <option value="malo" {{ ($item['condition'] ?? '') === 'malo' ? 'selected' : '' }}>Malo</option>
                                                 </select>
                                             </div>
+
                                             <div class="col-lg-3">
                                                 <input type="text"
                                                     name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][notes]"
-                                                    class="form-control" value="{{ $item['notes'] ?? '' }}" placeholder="Notas">
+                                                    class="form-control"
+                                                    value="{{ $item['notes'] ?? '' }}"
+                                                    placeholder="Notas">
                                             </div>
+
                                             <div class="col-lg-3">
                                                 <input type="file"
                                                     name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][photos][]"
-                                                    class="form-control" accept=".jpg,.jpeg,.png,.webp" multiple>
+                                                    class="form-control"
+                                                    accept=".jpg,.jpeg,.png,.webp"
+                                                    multiple>
                                             </div>
+
                                             <div class="col-lg-1">
                                                 <button type="button" class="btn btn-icon btn-light-danger btn-remove-item">
                                                     <i class="ki-outline ki-trash fs-5"></i>
@@ -760,14 +818,18 @@
                                         </div>
                                     @endforeach
                                 </div>
-                                <button type="button" class="btn btn-light-primary border-dashed w-100 mt-5 btn-add-item">
+
+                                <button type="button"
+                                    class="btn btn-light-primary border-dashed w-100 mt-5 btn-add-item">
                                     <i class="ki-outline ki-plus fs-4 me-1"></i> Agregar elemento
                                 </button>
                             </div>
                         @endforeach
                     </div>
 
-                    <button type="button" id="add-area-btn" class="btn btn-light-primary w-100 mt-6 border-dashed">
+                    <button type="button"
+                        id="add-area-btn"
+                        class="btn btn-light-primary w-100 mt-6 border-dashed">
                         <i class="ki-outline ki-plus fs-4 me-1"></i> Agregar otra área
                     </button>
                 </div>
