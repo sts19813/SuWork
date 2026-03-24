@@ -72,8 +72,6 @@
                                 'name' => $item->name,
                                 'condition' => $item->condition,
                                 'notes' => $item->notes,
-                                'entry_checklist' => $item->entry_checklist ?? null,
-                                'exit_checklist' => $item->exit_checklist ?? null,
                                 'existing_photos' => $item->photos->map(
                                     fn($photo) => [
                                         'id' => $photo->id,
@@ -83,7 +81,7 @@
                             ],
                         )
                             ->values()
-                            ->all() ?: [['id' => null, 'name' => '', 'condition' => '', 'notes' => '', 'entry_checklist' => '', 'exit_checklist' => '', 'existing_photos' => []]],
+                            ->all() ?: [['id' => null, 'name' => '', 'condition' => '', 'notes' => '', 'existing_photos' => []]],
                     ],
                 )
                 ->values()
@@ -786,7 +784,7 @@
                                                 @endforeach
                                             </div>
                                         @endif
-                                        <label class="form-label">Fotos generales del área (hasta 3)</label>
+                                        <label class="form-label">Fotos generales del área (hasta 6)</label>
                                         <input type="file"
                                             name="inventory_areas[{{ $areaIndex }}][photos][]"
                                             class="form-control"
@@ -794,8 +792,6 @@
                                             multiple>
                                     </div>
                                 </div>
-
-                                {{-- ITEMS --}}
                                 <div class="items-container d-flex flex-column gap-4">
                                     @foreach ($items as $itemIndex => $item)
                                         <div class="row g-4 inventory-item">
@@ -843,17 +839,6 @@
                                                 <button type="button" class="btn btn-icon btn-light-danger btn-remove-item">
                                                     <i class="ki-outline ki-trash fs-5"></i>
                                                 </button>
-                                            </div>
-                                        </div>
-
-                                        <div class="row g-4 mb-3">
-                                            <div class="col-lg-6">
-                                                <label class="form-label">Checklist de entrada</label>
-                                                <textarea name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][entry_checklist]" class="form-control" rows="2">{{ $item['entry_checklist'] ?? '' }}</textarea>
-                                            </div>
-                                            <div class="col-lg-6">
-                                                <label class="form-label">Checklist de salida</label>
-                                                <textarea name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][exit_checklist]" class="form-control" rows="2">{{ $item['exit_checklist'] ?? '' }}</textarea>
                                             </div>
                                         </div>
 
@@ -1307,16 +1292,6 @@
                         <button type="button" class="btn btn-icon btn-light-danger btn-remove-item">
                             <i class="ki-outline ki-trash fs-5"></i>
                         </button>
-                    </div>
-                </div>
-                <div class="row g-4 mb-3">
-                    <div class="col-lg-6">
-                        <label class="form-label">Checklist de entrada</label>
-                        <textarea name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][entry_checklist]" class="form-control" rows="2"></textarea>
-                    </div>
-                    <div class="col-lg-6">
-                        <label class="form-label">Checklist de salida</label>
-                        <textarea name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][exit_checklist]" class="form-control" rows="2"></textarea>
                     </div>
                 </div>
             `;

@@ -85,9 +85,7 @@ class StorePropertyRequest extends FormRequest
             'inventory_areas.*.items.*.name' => ['nullable', 'string', 'max:120'],
             'inventory_areas.*.items.*.condition' => ['nullable', 'string', 'max:120'],
             'inventory_areas.*.items.*.notes' => ['nullable', 'string', 'max:500'],
-            'inventory_areas.*.items.*.entry_checklist' => ['nullable', 'string', 'max:2000'],
-            'inventory_areas.*.items.*.exit_checklist' => ['nullable', 'string', 'max:2000'],
-            'inventory_areas.*.photos' => ['nullable', 'array', 'max:3'],
+            'inventory_areas.*.photos' => ['nullable', 'array', 'max:6'],
             'inventory_areas.*.photos.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'],
         ];
     }

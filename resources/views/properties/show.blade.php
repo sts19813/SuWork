@@ -312,8 +312,6 @@
                                                     <th>Elemento</th>
                                                     <th>Estado</th>
                                                     <th>Notas</th>
-                                                    <th>Checklist entrada</th>
-                                                    <th>Checklist salida</th>
                                                     <th>Fotos</th>
                                                 </tr>
                                             </thead>
@@ -323,8 +321,6 @@
                                                         <td>{{ $item->name }}</td>
                                                         <td>{{ $item->condition ?: '-' }}</td>
                                                         <td>{{ $item->notes ?: '-' }}</td>
-                                                        <td>{{ $item->entry_checklist ?: '-' }}</td>
-                                                        <td>{{ $item->exit_checklist ?: '-' }}</td>
                                                         <td>
                                                             @if ($item->photos->isNotEmpty())
                                                                 <div class="d-flex gap-2">

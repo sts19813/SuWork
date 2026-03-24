@@ -124,6 +124,11 @@ class Property extends Model
         return $this->hasMany(PropertyInventoryArea::class);
     }
 
+    public function inventoryChecks(): HasMany
+    {
+        return $this->hasMany(InventoryCheck::class);
+    }
+
     public function getStatusLabelAttribute(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucfirst(str_replace('_', ' ', $this->status));

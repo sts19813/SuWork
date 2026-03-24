@@ -470,8 +470,6 @@ class PropertyController extends Controller
                         'name' => $itemData['name'],
                         'condition' => $itemData['condition'] ?? null,
                         'notes' => $itemData['notes'] ?? null,
-                        'entry_checklist' => $itemData['entry_checklist'] ?? null,
-                        'exit_checklist' => $itemData['exit_checklist'] ?? null,
                     ]
                 );
 

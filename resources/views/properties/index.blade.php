@@ -132,6 +132,10 @@
                                             class="btn btn-sm btn-light-info me-2">
                                             Expediente
                                         </a>
+                                        <a href="{{ route('inventory-checks.index', $property) }}"
+                                            class="btn btn-sm btn-light-warning me-2">
+                                            Inventario
+                                        </a>
                                         <a href="{{ route('properties.edit', $property) }}" class="btn btn-sm btn-primary">
                                             Editar
                                         </a>
