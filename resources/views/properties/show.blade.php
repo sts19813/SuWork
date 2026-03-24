@@ -108,11 +108,11 @@
                         <div class="fw-semibold">{{ $property->complex_name ?: '-' }}</div>
                     </div>
                     <div class="col-lg-4">
-                        <div class="text-muted mb-1">Número</div>
+                        <div class="text-muted mb-1">Número Interior</div>
                         <div class="fw-semibold">{{ $property->official_number ?: '-' }}</div>
                     </div>
                     <div class="col-lg-4">
-                        <div class="text-muted mb-1">Unidad</div>
+                        <div class="text-muted mb-1">Número Exterior</div>
                         <div class="fw-semibold">{{ $property->unit_number ?: '-' }}</div>
                     </div>
                     <div class="col-lg-4">

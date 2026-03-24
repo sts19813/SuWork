@@ -84,7 +84,7 @@
                                 <th class="min-w-150px">Inquilino</th>
                                 <th class="min-w-130px">Contrato vence</th>
                                 <th class="min-w-110px">Incidencias</th>
-                                <th class="min-w-160px text-end">Opciones</th>
+                                <th class="min-w-250px text-end">Opciones</th>
                             </tr>
                         </thead>
                         <tbody class="fw-semibold text-gray-700">

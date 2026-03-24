@@ -265,13 +265,13 @@
                                 value="{{ $fieldValue('complex_name') }}" placeholder="Nombre del complejo">
                         </div>
                         <div class="col-lg-6">
-                            <label class="form-label">Número</label>
+                            <label class="form-label">Número Interior</label>
                             <input type="text" name="official_number"
                                 class="form-control @error('official_number') is-invalid @enderror"
                                 value="{{ $fieldValue('official_number') }}" placeholder="Número">
                         </div>
                         <div class="col-lg-6">
-                            <label class="form-label">Unidad o departamento</label>
+                            <label class="form-label">Número Exterior</label>
                             <input type="text" name="unit_number" class="form-control @error('unit_number') is-invalid @enderror"
                                 value="{{ $fieldValue('unit_number') }}" placeholder="Ej: A-302">
                         </div>
