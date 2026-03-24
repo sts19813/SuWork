@@ -40,6 +40,14 @@
                             <textarea name="notes" class="form-control" rows="2" placeholder="Observaciones generales..."></textarea>
                         </div>
                     </div>
+                    
+                    <div class="d-flex justify-content-end gap-3 mt-4">
+                        <a href="{{ route('inventory-checks.index', $property) }}" class="btn btn-light">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="ki-outline ki-check-circle fs-4 me-2"></i>
+                            Comenzar {{ $type === 'entry' ? 'Check de Entrada' : 'Check de Salida' }}
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -103,14 +111,6 @@
                         </div>
                     @endif
                 </div>
-            </div>
-
-            <div class="d-flex justify-content-between align-items-center mt-8">
-                <a href="{{ route('inventory-checks.index', $property) }}" class="btn btn-light">Cancelar</a>
-                <button type="submit" class="btn btn-primary">
-                    <i class="ki-outline ki-check-circle fs-4 me-2"></i>
-                    Comenzar {{ $type === 'entry' ? 'Check de Entrada' : 'Check de Salida' }}
-                </button>
             </div>
         </form>
     </div>

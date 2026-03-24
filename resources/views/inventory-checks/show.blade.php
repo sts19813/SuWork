@@ -15,6 +15,10 @@
                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
                 gap: 1rem;
             }
+            .unsaved-changes {
+                border-color: #ffc107 !important;
+                box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25) !important;
+            }
         </style>
         <div class="mb-8">
             <a href="{{ route('inventory-checks.index', $property) }}" class="text-gray-600 text-hover-primary fw-semibold">
@@ -78,7 +82,7 @@
 
                         <div class="d-flex flex-column gap-4">
                             @foreach ($items as $checkItem)
-                                <div class="border rounded p-4 {{ $checkItem->status !== 'pending' ? 'bg-light-' . ($checkItem->status === 'ok' ? 'success' : ($checkItem->status === 'damaged' ? 'danger' : 'warning')) : '' }}">
+                                <div class="border rounded p-4 {{ $checkItem->status !== 'pending' ? 'bg-light-' . ($checkItem->status === 'ok' ? 'success' : ($checkItem->status === 'damaged' ? 'danger' : 'warning')) : '' }}" id="item-{{ $checkItem->id }}">
                                     <div class="row g-4">
                                         <div class="col-lg-auto">
                                             @if ($checkItem->photo_path)
@@ -170,41 +174,6 @@
                 @empty
                     <div class="alert alert-light-warning mb-0">No hay elementos en este check.</div>
                 @endforelse
-
-                @if ($check->status === 'draft' && (auth()->id() === $check->created_by))
-                    <hr class="my-8">
-                    <h5 class="mb-4 fw-bold">Agregar elementos</h5>
-                    <form method="POST" action="{{ route('inventory-checks.add-item', [$property, $check]) }}" class="row g-3">
-                        @csrf
-                        <div class="col-lg-8">
-                            <select name="property_inventory_item_id" class="form-select" required>
-                                <option value="">-- Seleccionar elemento --</option>
-                                @php
-                                    $allItems = $property->inventoryAreas
-                                        ->flatMap(fn($area) => $area->items)
-                                        ->filter(fn($item) => !$check->items->contains('property_inventory_item_id', $item->id));
-                                @endphp
-                                @foreach ($property->inventoryAreas as $area)
-                                    @php
-                                        $areaItems = $area->items->filter(fn($item) => !$check->items->contains('property_inventory_item_id', $item->id));
-                                    @endphp
-                                    @if ($areaItems->isNotEmpty())
-                                        <optgroup label="{{ $area->name }}">
-                                            @foreach ($areaItems as $item)
-                                                <option value="{{ $item->id }}">{{ $item->name }}</option>
-                                            @endforeach
-                                        </optgroup>
-                                    @endif
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-lg-4">
-                            <button type="submit" class="btn btn-light-primary w-100">
-                                <i class="ki-outline ki-plus fs-4 me-1"></i> Agregar
-                            </button>
-                        </div>
-                    </form>
-                @endif
             </div>
         </div>
 
@@ -230,3 +199,99 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        // Auto-guardado cuando cambia el estado
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('select[name="status"]').forEach(select => {
+                select.addEventListener('change', function() {
+                    const form = this.closest('form');
+                    const itemDiv = this.closest('.border.rounded.p-4');
+                    if (form && itemDiv) {
+                        // Agregar indicador visual de cambios no guardados
+                        itemDiv.classList.add('unsaved-changes');
+                        
+                        // Mostrar indicador de guardado
+                        const originalText = this.nextElementSibling?.textContent || 'Guardar';
+                        if (this.nextElementSibling) {
+                            this.nextElementSibling.textContent = 'Guardando...';
+                            this.nextElementSibling.disabled = true;
+                        }
+                        
+                        // Enviar formulario
+                        const formData = new FormData(form);
+                        fetch(form.action, {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            // Remover indicador visual de cambios
+                            itemDiv.classList.remove('unsaved-changes');
+                            
+                            // Mostrar mensaje de éxito temporal
+                            if (this.nextElementSibling) {
+                                this.nextElementSibling.textContent = '✓ Guardado';
+                                this.nextElementSibling.classList.add('btn-success');
+                                setTimeout(() => {
+                                    this.nextElementSibling.textContent = originalText;
+                                    this.nextElementSibling.classList.remove('btn-success');
+                                    this.nextElementSibling.disabled = false;
+                                }, 2000);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error al guardar:', error);
+                            if (this.nextElementSibling) {
+                                this.nextElementSibling.textContent = 'Error al guardar';
+                                this.nextElementSibling.classList.add('btn-danger');
+                                setTimeout(() => {
+                                    this.nextElementSibling.textContent = originalText;
+                                    this.nextElementSibling.classList.remove('btn-danger');
+                                    this.nextElementSibling.disabled = false;
+                                }, 3000);
+                            }
+                        });
+                    }
+                });
+            });
+            
+            // Auto-guardado cuando cambia el campo de notas
+            document.querySelectorAll('input[name="notes"]').forEach(input => {
+                let timeout;
+                input.addEventListener('input', function() {
+                    clearTimeout(timeout);
+                    const itemDiv = this.closest('.border.rounded.p-4');
+                    if (itemDiv) {
+                        itemDiv.classList.add('unsaved-changes');
+                    }
+                    timeout = setTimeout(() => {
+                        const form = this.closest('form');
+                        if (form) {
+                            const formData = new FormData(form);
+                            fetch(form.action, {
+                                method: 'POST',
+                                body: formData,
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                }
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                // Remover indicador visual de cambios
+                                if (itemDiv) {
+                                    itemDiv.classList.remove('unsaved-changes');
+                                }
+                            })
+                            .catch(error => console.error('Error al guardar notas:', error));
+                        }
+                    }, 1000); // Guardar después de 1 segundo sin escribir
+                });
+            });
+        });
+    </script>
+@endpush

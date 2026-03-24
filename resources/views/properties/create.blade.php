@@ -346,11 +346,11 @@
                                 {!! $fieldValue('details', '
                                 <table>
                                     <tbody>
-                                        <tr><td><strong>ID:</strong></td><td>EB-OH8626</td></tr>
-                                        <tr><td><strong>Clave interna:</strong></td><td>NOCAC2</td></tr>
-                                        <tr><td><strong>Terreno:</strong></td><td>10,623 m²</td></tr>
-                                        <tr><td><strong>Fondo del terreno:</strong></td><td>254 m</td></tr>
-                                        <tr><td><strong>Frente del terreno:</strong></td><td>40 m</td></tr>
+                                        <tr><td><strong>ID:</strong></td><td>000</td></tr>
+                                        <tr><td><strong>Clave interna:</strong></td><td>A-00</td></tr>
+                                        <tr><td><strong>Terreno:</strong></td><td>0m²</td></tr>
+                                        <tr><td><strong>Fondo del terreno:</strong></td><td>0 m</td></tr>
+                                        <tr><td><strong>Frente del terreno:</strong></td><td>0 m</td></tr>
                                     </tbody>
                                 </table>
                                 ') !!}
@@ -864,7 +864,7 @@
 
                     <button type="button"
                         id="add-area-btn"
-                        class="btn btn-light-primary w-100 mt-6 border-dashed">
+                        class="btn btn-primary w-100 mt-6 border-dashed">
                         <i class="ki-outline ki-plus fs-4 me-1"></i> Agregar otra área
                     </button>
                 </div>
@@ -1044,8 +1044,12 @@
                         placeholder="Elemento (Ej: Parrilla)">
                 </div>
                 <div class="col-lg-2">
-                    <input type="text" name="inventory_areas[__AREA_INDEX__][items][0][condition]" class="form-control"
-                        placeholder="Estado (Ej: Bueno)">
+                    <select name="inventory_areas[__AREA_INDEX__][items][0][condition]" class="form-select">
+                        <option value="">Seleccionar estado</option>
+                        <option value="bueno">Bueno</option>
+                        <option value="regular">Regular</option>
+                        <option value="malo">Malo</option>
+                    </select>
                 </div>
                 <div class="col-lg-3">
                     <input type="text" name="inventory_areas[__AREA_INDEX__][items][0][notes]" class="form-control"
@@ -1106,7 +1110,10 @@
             const submitBtn = document.getElementById('wizard-submit');
             const stepInput = document.getElementById('wizard-step-input');
             const form = document.getElementById('property-wizard-form');
-            let currentStep = parseInt(stepInput.value || '1', 10);
+            const urlParams = new URLSearchParams(window.location.search);
+            const stepFromUrl = parseInt(urlParams.get('step'));
+
+            let currentStep = stepFromUrl || parseInt(stepInput.value || '1', 10);
 
             if (Number.isNaN(currentStep) || currentStep < 1 || currentStep > totalSteps) {
                 currentStep = 1;

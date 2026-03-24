@@ -46,6 +46,16 @@ Route::middleware(['auth'])
         Route::post('/propiedades/{property}/inventario/{check}/items', [InventoryCheckController::class, 'addItem'])->name('inventory-checks.add-item');
         Route::delete('/propiedades/{property}/inventario/{check}/items/{item}', [InventoryCheckController::class, 'removeItem'])->name('inventory-checks.remove-item');
         Route::patch('/propiedades/{property}/inventario/{check}/completar', [InventoryCheckController::class, 'complete'])->name('inventory-checks.complete');
+        Route::get('/propiedades/{property}/inventario/items/{itemId}/historial', [InventoryCheckController::class, 'getItemHistory'])->name('inventory-checks.item-history');
+        Route::post('/propiedades/{property}/inventario/{check}/nuevo-elemento', [InventoryCheckController::class, 'addNewItem'])->name('inventory-checks.add-new-item');
+
+        // Inventory management routes
+        Route::post('/propiedades/{property}/inventario/areas', [InventoryCheckController::class, 'storeArea'])->name('inventory.areas.store');
+        Route::patch('/propiedades/{property}/inventario/areas/{area}', [InventoryCheckController::class, 'updateArea'])->name('inventory.areas.update');
+        Route::delete('/propiedades/{property}/inventario/areas/{area}', [InventoryCheckController::class, 'destroyArea'])->name('inventory.areas.destroy');
+        Route::post('/propiedades/{property}/inventario/areas/{area}/items', [InventoryCheckController::class, 'storeItem'])->name('inventory.items.store');
+        Route::patch('/propiedades/{property}/inventario/areas/{area}/items/{item}', [InventoryCheckController::class, 'updateInventoryItem'])->name('inventory.items.update');
+        Route::delete('/propiedades/{property}/inventario/areas/{area}/items/{item}', [InventoryCheckController::class, 'destroyInventoryItem'])->name('inventory.items.destroy');
 
         Route::get('/propietarios', [OwnerController::class, 'index'])->name('owners.index');
         Route::post('/propietarios', [OwnerController::class, 'store'])->name('owners.store');
