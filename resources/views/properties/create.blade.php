@@ -57,17 +57,33 @@
             ? $property->inventoryAreas
                 ->map(
                     fn($area) => [
+                        'id' => $area->id,
                         'name' => $area->name,
                         'notes' => $area->notes,
+                        'existing_photos' => $area->photos->map(
+                            fn($photo) => [
+                                'id' => $photo->id,
+                                'url' => \Illuminate\Support\Facades\Storage::url($photo->file_path),
+                            ],
+                        )->values()->all(),
                         'items' => $area->items->map(
                             fn($item) => [
+                                'id' => $item->id,
                                 'name' => $item->name,
                                 'condition' => $item->condition,
                                 'notes' => $item->notes,
+                                'entry_checklist' => $item->entry_checklist ?? null,
+                                'exit_checklist' => $item->exit_checklist ?? null,
+                                'existing_photos' => $item->photos->map(
+                                    fn($photo) => [
+                                        'id' => $photo->id,
+                                        'url' => \Illuminate\Support\Facades\Storage::url($photo->latestVersion?->file_path ?? ''),
+                                    ],
+                                )->filter(fn($photo) => filled($photo['url']))->values()->all(),
                             ],
                         )
                             ->values()
-                            ->all() ?: [['name' => '', 'condition' => '', 'notes' => '']],
+                            ->all() ?: [['id' => null, 'name' => '', 'condition' => '', 'notes' => '', 'entry_checklist' => '', 'exit_checklist' => '', 'existing_photos' => []]],
                     ],
                 )
                 ->values()
@@ -716,6 +732,10 @@
                     <h3 class="mb-3 fw-bold">Inventario de la propiedad</h3>
                     <p class="text-muted mb-8">Documenta espacios y elementos. Este paso también puede completarse posteriormente.</p>
 
+                    <button type="button" id="clear-inventory-btn" class="btn btn-light-secondary mb-4">
+                        <i class="ki-outline ki-trash fs-4 me-1"></i> Limpiar inventario
+                    </button>
+
                     <div id="inventory-areas-container" class="d-flex flex-column gap-6">
                         @foreach ($oldAreas as $areaIndex => $area)
                             @php
@@ -757,6 +777,15 @@
                                     </div>
 
                                     <div class="col-12">
+                                        @if (!empty($area['existing_photos']))
+                                            <div class="mb-3 d-flex flex-wrap gap-3">
+                                                @foreach ($area['existing_photos'] as $photo)
+                                                    <div class="inventory-thumb-item">
+                                                        <img src="{{ $photo['url'] }}" class="inventory-thumb" alt="Foto área">
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        @endif
                                         <label class="form-label">Fotos generales del área (hasta 3)</label>
                                         <input type="file"
                                             name="inventory_areas[{{ $areaIndex }}][photos][]"
@@ -816,6 +845,27 @@
                                                 </button>
                                             </div>
                                         </div>
+
+                                        <div class="row g-4 mb-3">
+                                            <div class="col-lg-6">
+                                                <label class="form-label">Checklist de entrada</label>
+                                                <textarea name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][entry_checklist]" class="form-control" rows="2">{{ $item['entry_checklist'] ?? '' }}</textarea>
+                                            </div>
+                                            <div class="col-lg-6">
+                                                <label class="form-label">Checklist de salida</label>
+                                                <textarea name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][exit_checklist]" class="form-control" rows="2">{{ $item['exit_checklist'] ?? '' }}</textarea>
+                                            </div>
+                                        </div>
+
+                                        @if (!empty($item['existing_photos']))
+                                            <div class="mb-3 d-flex flex-wrap gap-3">
+                                                @foreach ($item['existing_photos'] as $photo)
+                                                    <div class="inventory-thumb-item">
+                                                        <img src="{{ $photo['url'] }}" class="inventory-thumb" alt="Foto ítem">
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        @endif
                                     @endforeach
                                 </div>
 
@@ -1259,6 +1309,16 @@
                         </button>
                     </div>
                 </div>
+                <div class="row g-4 mb-3">
+                    <div class="col-lg-6">
+                        <label class="form-label">Checklist de entrada</label>
+                        <textarea name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][entry_checklist]" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="col-lg-6">
+                        <label class="form-label">Checklist de salida</label>
+                        <textarea name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][exit_checklist]" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
             `;
 
             addAreaBtn.addEventListener('click', () => {
@@ -1267,6 +1327,18 @@
                     .replaceAll('__AREA_NUMBER__', (areaIndex + 1).toString());
                 areasContainer.insertAdjacentHTML('beforeend', html);
                 areaIndex++;
+                refreshAreaButtons();
+            });
+
+            const clearInventoryBtn = document.getElementById('clear-inventory-btn');
+            clearInventoryBtn?.addEventListener('click', () => {
+                areasContainer.innerHTML = '';
+                areaIndex = 0;
+                const html = areaTemplate
+                    .replaceAll('__AREA_INDEX__', '0')
+                    .replaceAll('__AREA_NUMBER__', '1');
+                areasContainer.insertAdjacentHTML('beforeend', html);
+                areaIndex = 1;
                 refreshAreaButtons();
             });
 

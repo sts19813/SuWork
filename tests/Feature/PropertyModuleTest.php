@@ -10,6 +10,8 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PropertyModuleTest extends TestCase
@@ -56,6 +58,8 @@ class PropertyModuleTest extends TestCase
 
     public function test_property_can_be_created_with_new_owner(): void
     {
+        Storage::fake('public');
+
         $user = User::factory()->create();
         $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
         $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
@@ -69,6 +73,7 @@ class PropertyModuleTest extends TestCase
                 'zone_id' => $zone->id,
                 'full_address' => 'Calle 20 #201',
                 'status' => Property::STATUS_AVAILABLE,
+                'facade_photo' => UploadedFile::fake()->image('facade.jpg'),
                 'new_owners' => [
                     [
                         'name' => 'Juan Perez',
@@ -114,6 +119,8 @@ class PropertyModuleTest extends TestCase
 
     public function test_property_can_be_updated_from_edit_flow(): void
     {
+        Storage::fake('public');
+
         $user = User::factory()->create();
         $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
         $type2 = PropertyType::create(['name' => 'Local', 'slug' => 'local', 'is_active' => true]);
@@ -147,6 +154,7 @@ class PropertyModuleTest extends TestCase
                 'zone_id' => $zone2->id,
                 'full_address' => 'Calle 20',
                 'status' => Property::STATUS_BLOCKED,
+                'facade_photo' => UploadedFile::fake()->image('facade.jpg'),
                 'owner_ids' => [$owner->id],
             ]);
 
@@ -161,6 +169,94 @@ class PropertyModuleTest extends TestCase
             'property_id' => $property->id,
             'owner_id' => $owner->id,
         ]);
+    }
+
+    public function test_inventory_area_and_item_ids_are_preserved_in_property_update(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Playa', 'slug' => 'playa', 'is_active' => true]);
+
+        $property = Property::create([
+            'internal_name' => 'Casa Bug 23',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 23',
+            'status' => Property::STATUS_AVAILABLE,
+            'onboarding_step' => 5,
+            'created_by' => $user->id,
+        ]);
+
+        $owner = Owner::create([
+            'name' => 'Laura Gomez',
+            'phone' => '9993332211',
+            'email' => 'laura@example.com',
+            'owner_type' => Owner::OWNER_INDIVIDUAL,
+            'payment_method' => Owner::PAYMENT_METHOD_TRANSFER,
+            'is_active' => true,
+        ]);
+
+        $area = $property->inventoryAreas()->create([
+            'name' => 'Sala',
+            'notes' => 'Principal',
+        ]);
+
+        $item = $area->items()->create([
+            'name' => 'Sillon',
+            'condition' => 'bueno',
+            'notes' => 'Ninguna',
+            'entry_checklist' => 'OK',
+            'exit_checklist' => 'OK',
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->put(route('properties.update', $property), [
+                'internal_name' => 'Casa Bug 23 Editada',
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle 23',
+                'status' => Property::STATUS_AVAILABLE,
+                'facade_photo' => UploadedFile::fake()->image('facade.jpg'),
+                'owner_ids' => [$owner->id],
+                'inventory_areas' => [
+                    [
+                        'id' => $area->id,
+                        'name' => 'Sala',
+                        'notes' => 'Principal actualizado',
+                        'items' => [
+                            [
+                                'id' => $item->id,
+                                'name' => 'Sillon',
+                                'condition' => 'bueno',
+                                'notes' => 'Ninguna',
+                                'entry_checklist' => 'OK',
+                                'exit_checklist' => 'OK',
+                            ],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $response->assertRedirect(route('properties.show', $property));
+
+        $this->assertDatabaseHas('property_inventory_areas', [
+            'id' => $area->id,
+            'name' => 'Sala',
+            'notes' => 'Principal actualizado',
+        ]);
+
+        $this->assertDatabaseHas('property_inventory_items', [
+            'id' => $item->id,
+            'name' => 'Sillon',
+            'entry_checklist' => 'OK',
+            'exit_checklist' => 'OK',
+        ]);
+
+        $this->assertEquals(1, $property->fresh()->inventoryAreas()->count());
+        $this->assertEquals(1, $property->fresh()->inventoryAreas->first()->items->count());
     }
 
     public function test_occupied_status_requires_tenant_selection(): void
@@ -192,6 +288,8 @@ class PropertyModuleTest extends TestCase
 
     public function test_property_can_be_saved_as_occupied_with_tenant(): void
     {
+        Storage::fake('public');
+
         $user = User::factory()->create();
         $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
         $zone = Zone::create(['name' => 'Playa', 'slug' => 'playa', 'is_active' => true]);
@@ -210,6 +308,7 @@ class PropertyModuleTest extends TestCase
                 'zone_id' => $zone->id,
                 'full_address' => 'Calle 20',
                 'status' => Property::STATUS_OCCUPIED,
+                'facade_photo' => UploadedFile::fake()->image('facade.jpg'),
                 'tenant_id' => $tenant->id,
                 'new_owners' => [
                     [
