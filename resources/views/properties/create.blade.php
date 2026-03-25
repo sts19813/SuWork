@@ -128,27 +128,27 @@
                     break;
                 }
                 if (str_starts_with($errorKey, 'owner_ids') || str_starts_with($errorKey, 'new_owners.')) {
-                    $initialStep = 4;
+                    $initialStep = 3;
                     break;
                 }
                 if (str_starts_with($errorKey, 'documents.')) {
-                    $initialStep = 5;
+                    $initialStep = 4;
                     break;
                 }
                 if (str_starts_with($errorKey, 'existing_custom_documents.') || str_starts_with($errorKey, 'new_custom_documents.')) {
-                    $initialStep = 5;
+                    $initialStep = 4;
                     break;
                 }
                 if (str_starts_with($errorKey, 'inventory_areas.')) {
-                    $initialStep = 6;
+                    $initialStep = 5;
                     break;
                 }
                 if ($errorKey === 'status') {
-                    $initialStep = 7;
+                    $initialStep = 6;
                     break;
                 }
                 if ($errorKey === 'tenant_id') {
-                    $initialStep = 7;
+                    $initialStep = 6;
                     break;
                 }
             }
@@ -310,14 +310,15 @@
 
                         <div class="col-12">
                             <label class="form-label required">Foto de fachada de la propiedad</label>
-                            <div id="facade-photo-dropzone" class="dropzone">
-                                <div class="dz-message" data-dz-message>
-                                    <i class="ki-outline ki-cloud-add fs-2x text-muted mb-2"></i>
-                                    <span class="fw-semibold text-gray-700">Arrastra y suelta la imagen aquí</span>
-                                    <span class="text-muted fs-8">o haz clic para seleccionar</span>
-                                    <span class="text-muted fs-8 d-block">PNG, JPG, WEBP hasta 10MB</span>
-                                </div>
-                            </div>
+                            <label class="upload-box upload-box-sm">
+                                <input type="file" name="facade_photo" id="facade-photo-input"
+                                    accept=".jpg,.jpeg,.png,.webp" class="js-drop-input">
+                                <i class="ki-outline ki-cloud-add fs-2x text-muted mb-2"></i>
+                                <span class="fw-semibold text-gray-700">Arrastra y suelta la imagen aqui</span>
+                                <span class="text-muted fs-8">o haz clic para seleccionar</span>
+                                <span class="text-muted fs-8 d-block">PNG, JPG, WEBP hasta 10MB</span>
+                                <span class="file-selected-label text-success fs-8 d-none"></span>
+                            </label>
                             @if ($existingFacadePhoto)
                                 <div class="mt-3">
                                     <img src="{{ \Illuminate\Support\Facades\Storage::url($existingFacadePhoto) }}" alt="Fachada actual"
@@ -593,10 +594,11 @@
                                     </div>
                                 </div>
                                 <label class="upload-box upload-box-sm">
-                                    <input type="file" name="documents[{{ $documentKey }}]" accept=".pdf,.jpg,.jpeg,.png">
+                                    <input type="file" name="documents[{{ $documentKey }}]" accept=".pdf,.jpg,.jpeg,.png" class="js-drop-input">
                                     <i class="ki-outline ki-cloud-add fs-2x text-muted mb-2"></i>
                                     <span class="fw-semibold text-gray-700">Haz clic para subir documento</span>
                                     <span class="text-muted fs-8">PDF, JPG, PNG hasta 10MB</span>
+                                    <span class="file-selected-label text-success fs-8 d-none"></span>
                                 </label>
                                 @if ($existingDocument?->file_path)
                                     <a href="{{ \Illuminate\Support\Facades\Storage::url($existingDocument->file_path) }}"
@@ -658,9 +660,15 @@
                                         </div>
                                         <div class="col-12">
                                             <label class="form-label">Subir nueva version</label>
-                                            <input type="file" name="existing_custom_documents[{{ $customDocument->document_type }}][file]"
-                                                accept=".pdf,.jpg,.jpeg,.png"
-                                                class="form-control @error("existing_custom_documents.{$customDocument->document_type}.file") is-invalid @enderror">
+                                            <label class="upload-box upload-box-sm">
+                                                <input type="file" name="existing_custom_documents[{{ $customDocument->document_type }}][file]"
+                                                    accept=".pdf,.jpg,.jpeg,.png"
+                                                    class="js-drop-input @error("existing_custom_documents.{$customDocument->document_type}.file") is-invalid @enderror">
+                                                <i class="ki-outline ki-cloud-add fs-2x text-muted mb-2"></i>
+                                                <span class="fw-semibold text-gray-700">Arrastra o selecciona un archivo</span>
+                                                <span class="text-muted fs-8">PDF, JPG, PNG hasta 10MB</span>
+                                                <span class="file-selected-label text-success fs-8 d-none"></span>
+                                            </label>
                                             @error("existing_custom_documents.{$customDocument->document_type}.file")
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
@@ -710,9 +718,15 @@
                                     </div>
                                     <div class="col-lg-3">
                                         <label class="form-label required">Archivo</label>
-                                        <input type="file" name="new_custom_documents[{{ $customIndex }}][file]"
-                                            accept=".pdf,.jpg,.jpeg,.png"
-                                            class="form-control @error("new_custom_documents.$customIndex.file") is-invalid @enderror">
+                                        <label class="upload-box upload-box-sm">
+                                            <input type="file" name="new_custom_documents[{{ $customIndex }}][file]"
+                                                accept=".pdf,.jpg,.jpeg,.png"
+                                                class="js-drop-input @error("new_custom_documents.$customIndex.file") is-invalid @enderror">
+                                            <i class="ki-outline ki-cloud-add fs-2x text-muted mb-2"></i>
+                                            <span class="fw-semibold text-gray-700">Arrastra o selecciona</span>
+                                            <span class="text-muted fs-8">PDF, JPG, PNG hasta 10MB</span>
+                                            <span class="file-selected-label text-success fs-8 d-none"></span>
+                                        </label>
                                         @error("new_custom_documents.$customIndex.file")
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
@@ -787,7 +801,7 @@
                                         <label class="form-label">Fotos generales del área (hasta 6)</label>
                                         <input type="file"
                                             name="inventory_areas[{{ $areaIndex }}][photos][]"
-                                            class="form-control"
+                                            class="form-control js-drop-input"
                                             accept=".jpg,.jpeg,.png"
                                             multiple>
                                     </div>
@@ -830,7 +844,7 @@
                                             <div class="col-lg-3">
                                                 <input type="file"
                                                     name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][photos][]"
-                                                    class="form-control"
+                                                    class="form-control js-drop-input"
                                                     accept=".jpg,.jpeg,.png,.webp"
                                                     multiple>
                                             </div>
@@ -1033,7 +1047,7 @@
             </div>
             <div class="col-12">
                 <label class="form-label">Fotos generales del área (hasta 3)</label>
-                <input type="file" name="inventory_areas[__AREA_INDEX__][photos][]" class="form-control"
+                <input type="file" name="inventory_areas[__AREA_INDEX__][photos][]" class="form-control js-drop-input"
                     accept=".jpg,.jpeg,.png" multiple>
             </div>
         </div>
@@ -1056,7 +1070,7 @@
                         placeholder="Notas">
                 </div>
                 <div class="col-lg-3">
-                    <input type="file" name="inventory_areas[__AREA_INDEX__][items][0][photos][]" class="form-control"
+                    <input type="file" name="inventory_areas[__AREA_INDEX__][items][0][photos][]" class="form-control js-drop-input"
                         accept=".jpg,.jpeg,.png,.webp" multiple>
                 </div>
                 <div class="col-lg-1">
@@ -1090,8 +1104,14 @@
             </div>
             <div class="col-lg-3">
                 <label class="form-label required">Archivo</label>
-                <input type="file" name="new_custom_documents[__INDEX__][file]" accept=".pdf,.jpg,.jpeg,.png"
-                    class="form-control">
+                <label class="upload-box upload-box-sm">
+                    <input type="file" name="new_custom_documents[__INDEX__][file]" accept=".pdf,.jpg,.jpeg,.png"
+                        class="js-drop-input">
+                    <i class="ki-outline ki-cloud-add fs-2x text-muted mb-2"></i>
+                    <span class="fw-semibold text-gray-700">Arrastra o selecciona</span>
+                    <span class="text-muted fs-8">PDF, JPG, PNG hasta 10MB</span>
+                    <span class="file-selected-label text-success fs-8 d-none"></span>
+                </label>
             </div>
         </div>
     </div>
@@ -1112,12 +1132,63 @@
             const form = document.getElementById('property-wizard-form');
             const urlParams = new URLSearchParams(window.location.search);
             const stepFromUrl = parseInt(urlParams.get('step'));
+            const editorInstances = [];
 
             let currentStep = stepFromUrl || parseInt(stepInput.value || '1', 10);
 
             if (Number.isNaN(currentStep) || currentStep < 1 || currentStep > totalSteps) {
                 currentStep = 1;
             }
+
+            const showToast = (type, message) => {
+                if (window.toastr) {
+                    toastr[type](message);
+                    return;
+                }
+
+                if (type === 'error') {
+                    alert(message);
+                }
+            };
+
+            const determineStepFromErrorKey = (errorKey = '') => {
+                if (
+                    errorKey.startsWith('details') ||
+                    errorKey.startsWith('description') ||
+                    errorKey.startsWith('rental_requirements') ||
+                    errorKey.startsWith('amenities')
+                ) {
+                    return 2;
+                }
+
+                if (errorKey.startsWith('owner_ids') || errorKey.startsWith('new_owners.')) {
+                    return 3;
+                }
+
+                if (
+                    errorKey.startsWith('documents.') ||
+                    errorKey.startsWith('existing_custom_documents.') ||
+                    errorKey.startsWith('new_custom_documents.')
+                ) {
+                    return 4;
+                }
+
+                if (errorKey.startsWith('inventory_areas.')) {
+                    return 5;
+                }
+
+                if (errorKey === 'status' || errorKey === 'tenant_id' || errorKey === 'contract_expires_at') {
+                    return 6;
+                }
+
+                return 1;
+            };
+
+            const goToStep = (step) => {
+                currentStep = Math.max(1, Math.min(totalSteps, step));
+                renderWizard();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
 
             const renderWizard = () => {
                 const stepNodes = [...stepper.querySelectorAll('.step-item')];
@@ -1143,33 +1214,176 @@
                     const stepItem = circle.closest('.step-item');
                     const targetStep = parseInt(stepItem.dataset.step, 10);
                     if (targetStep >= 1 && targetStep <= totalSteps) {
-                        currentStep = targetStep;
-                        renderWizard();
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        goToStep(targetStep);
                     }
                 });
             });
 
             prevBtn.addEventListener('click', () => {
                 if (currentStep > 1) {
-                    currentStep--;
-                    renderWizard();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    goToStep(currentStep - 1);
                 }
             });
 
             nextBtn.addEventListener('click', () => {
                 if (currentStep < totalSteps) {
-                    currentStep++;
-                    renderWizard();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    goToStep(currentStep + 1);
                 }
             });
 
-            form.addEventListener('submit', () => {
-                currentStep = totalSteps;
-                stepInput.value = totalSteps.toString();
-            });
+            const clearAjaxErrors = () => {
+                form.querySelectorAll('.is-invalid').forEach((field) => field.classList.remove('is-invalid'));
+                form.querySelectorAll('[data-ajax-error="1"]').forEach((node) => node.remove());
+            };
+
+            const errorKeyToBracketName = (errorKey) => {
+                const segments = errorKey.split('.');
+                if (segments.length === 1) {
+                    return errorKey;
+                }
+
+                return segments.reduce((name, segment, index) => {
+                    if (index === 0) {
+                        return segment;
+                    }
+
+                    return `${name}[${segment}]`;
+                }, '');
+            };
+
+            const findFieldByErrorKey = (errorKey) => {
+                const names = [errorKey, errorKeyToBracketName(errorKey)];
+                const elements = [...form.elements];
+
+                for (const element of elements) {
+                    if (element.name && names.includes(element.name)) {
+                        return element;
+                    }
+                }
+
+                return null;
+            };
+
+            const appendInlineError = (field, message) => {
+                const host = field.closest('.upload-box') || field;
+                const feedback = document.createElement('div');
+                feedback.className = 'invalid-feedback d-block';
+                feedback.dataset.ajaxError = '1';
+                feedback.textContent = message;
+                host.insertAdjacentElement('afterend', feedback);
+            };
+
+            const handleValidationErrors = (errors = {}) => {
+                clearAjaxErrors();
+
+                const keys = Object.keys(errors);
+                if (!keys.length) {
+                    showToast('error', 'No fue posible validar el formulario.');
+                    return;
+                }
+
+                const firstKey = keys[0];
+                goToStep(determineStepFromErrorKey(firstKey));
+
+                let firstField = null;
+                keys.forEach((key) => {
+                    const field = findFieldByErrorKey(key);
+                    const messages = Array.isArray(errors[key]) ? errors[key] : [];
+                    if (!field) {
+                        return;
+                    }
+
+                    if (!firstField) {
+                        firstField = field;
+                    }
+
+                    field.classList.add('is-invalid');
+                    messages.forEach((message) => appendInlineError(field, message));
+                });
+
+                const firstMessage = (errors[firstKey] || [])[0] || 'Hay errores en el formulario.';
+                showToast('error', firstMessage);
+
+                if (firstField) {
+                    const target = firstField.closest('.upload-box') || firstField;
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            };
+
+            const syncEditors = () => {
+                editorInstances.forEach((editor) => {
+                    if (typeof editor.updateSourceElement === 'function') {
+                        editor.updateSourceElement();
+                    }
+                });
+            };
+
+            const setSubmittingState = (isSubmitting) => {
+                submitBtn.disabled = isSubmitting;
+                prevBtn.disabled = isSubmitting || currentStep === 1;
+                nextBtn.disabled = isSubmitting;
+                submitBtn.innerHTML = isSubmitting
+                    ? '<i class="ki-outline ki-loading fs-4 me-1"></i> Guardando...'
+                    : '<i class="ki-outline ki-check fs-4 me-1"></i> {{ $isEdit ? 'Actualizar propiedad' : 'Guardar propiedad' }}';
+            };
+
+            const initDropInputs = (root = document) => {
+                const inputs = root.querySelectorAll('input[type="file"].js-drop-input:not([data-drop-ready])');
+                inputs.forEach((input) => {
+                    input.dataset.dropReady = '1';
+                    const box = input.closest('.upload-box');
+                    if (!box) {
+                        return;
+                    }
+
+                    let label = box.querySelector('.file-selected-label');
+                    if (!label) {
+                        label = document.createElement('span');
+                        label.className = 'file-selected-label text-success fs-8 d-none';
+                        box.appendChild(label);
+                    }
+
+                    const renderSelected = () => {
+                        if (!input.files || !input.files.length) {
+                            label.textContent = '';
+                            label.classList.add('d-none');
+                            return;
+                        }
+
+                        label.textContent = input.files.length === 1
+                            ? `Archivo seleccionado: ${input.files[0].name}`
+                            : `${input.files.length} archivos seleccionados`;
+                        label.classList.remove('d-none');
+                    };
+
+                    input.addEventListener('change', renderSelected);
+
+                    ['dragenter', 'dragover'].forEach((eventName) => {
+                        box.addEventListener(eventName, (event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            box.classList.add('is-dragover');
+                        });
+                    });
+
+                    ['dragleave', 'drop'].forEach((eventName) => {
+                        box.addEventListener(eventName, (event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            box.classList.remove('is-dragover');
+                        });
+                    });
+
+                    box.addEventListener('drop', (event) => {
+                        if (!event.dataTransfer?.files?.length) {
+                            return;
+                        }
+
+                        input.files = event.dataTransfer.files;
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                });
+            };
 
             const ownersSearchInput = document.getElementById('owners-search-input');
             const ownerOptionItems = [...document.querySelectorAll('.owner-option-item')];
@@ -1245,6 +1459,7 @@
                 customDocumentsContainer?.insertAdjacentHTML('beforeend', html);
                 customDocumentIndex++;
                 refreshCustomDocumentTitles();
+                initDropInputs(customDocumentsContainer);
             });
 
             customDocumentsContainer?.addEventListener('click', (event) => {
@@ -1293,7 +1508,7 @@
                         <input type="text" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][notes]" class="form-control" placeholder="Notas">
                     </div>
                     <div class="col-lg-3">
-                        <input type="file" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][photos][]" class="form-control" accept=".jpg,.jpeg,.png,.webp" multiple>
+                        <input type="file" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][photos][]" class="form-control js-drop-input" accept=".jpg,.jpeg,.png,.webp" multiple>
                     </div>
                     <div class="col-lg-1">
                         <button type="button" class="btn btn-icon btn-light-danger btn-remove-item">
@@ -1310,6 +1525,7 @@
                 areasContainer.insertAdjacentHTML('beforeend', html);
                 areaIndex++;
                 refreshAreaButtons();
+                initDropInputs(areasContainer);
             });
 
             const clearInventoryBtn = document.getElementById('clear-inventory-btn');
@@ -1322,6 +1538,7 @@
                 areasContainer.insertAdjacentHTML('beforeend', html);
                 areaIndex = 1;
                 refreshAreaButtons();
+                initDropInputs(areasContainer);
             });
 
             areasContainer.addEventListener('click', (event) => {
@@ -1333,6 +1550,7 @@
                     const nextItemIndex = parseInt(area.dataset.nextItemIndex || '0', 10);
                     itemsContainer.insertAdjacentHTML('beforeend', itemTemplate(currentAreaIndex, nextItemIndex));
                     area.dataset.nextItemIndex = (nextItemIndex + 1).toString();
+                    initDropInputs(area);
                     return;
                 }
 
@@ -1367,6 +1585,7 @@
             refreshCustomDocumentTitles();
             refreshAreaButtons();
             renderWizard();
+            initDropInputs();
 
             // Initialize rich text editors
             if (typeof ClassicEditor !== 'undefined') {
@@ -1378,6 +1597,9 @@
                             .create(element, {
                                 toolbar: ['bold', 'italic', 'underline', '|', 'bulletedList', 'numberedList', '|', 'link', '|', 'undo', 'redo']
                             })
+                            .then((editor) => {
+                                editorInstances.push(editor);
+                            })
                             .catch(error => {
                                 console.error(error);
                             });
@@ -1385,8 +1607,7 @@
                 });
             }
 
-            // Initialize Dropzone for facade photo
-            if (typeof Dropzone !== 'undefined') {
+            if (false) {
                 const facadeDropzone = new Dropzone('#facade-photo-dropzone', {
                     url: '{{ route("properties.store") }}', // This will be overridden by form submission
                     autoProcessQueue: false,
@@ -1396,7 +1617,8 @@
                     addRemoveLinks: true,
                     dictDefaultMessage: 'Arrastra y suelta la imagen aquí o haz clic para seleccionar',
                     dictRemoveFile: 'Remover archivo',
-dictFileTooBig: 'El archivo es demasiado grande (\{\{filesize\}\}MB). Tamaño máximo: \{\{maxFilesize\}\}MB.',                    dictInvalidFileType: 'Tipo de archivo no válido. Solo se permiten imágenes.',
+                    dictFileTooBig: 'El archivo es demasiado grande (@{{filesize}}MB). Tamano maximo: @{{maxFilesize}}MB.',
+                    dictInvalidFileType: 'Tipo de archivo no valido. Solo se permiten imagenes.',
                     init: function() {
                         this.on('addedfile', function(file) {
                             // Create a hidden input to store the file
@@ -1418,6 +1640,47 @@ dictFileTooBig: 'El archivo es demasiado grande (\{\{filesize\}\}MB). Tamaño m�
                     }
                 });
             }
+
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                syncEditors();
+                clearAjaxErrors();
+                setSubmittingState(true);
+
+                try {
+                    const formData = new FormData(form);
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                    });
+
+                    const payload = await response.json().catch(() => ({}));
+                    if (response.status === 422) {
+                        setSubmittingState(false);
+                        handleValidationErrors(payload.errors || {});
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'No fue posible guardar la propiedad.');
+                    }
+
+                    showToast('success', payload.message || 'Propiedad guardada correctamente.');
+                    if (payload.redirect) {
+                        window.location.href = payload.redirect;
+                        return;
+                    }
+
+                    window.location.reload();
+                } catch (error) {
+                    setSubmittingState(false);
+                    showToast('error', error.message || 'No fue posible guardar la propiedad.');
+                }
+            });
         })();
     </script>
 @endpush

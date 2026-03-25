@@ -235,6 +235,11 @@ a:hover {
     background: var(--sw-primary-light);
 }
 
+.upload-box.is-dragover {
+    border-color: var(--sw-primary);
+    background: #fdf1ec;
+}
+
 .upload-box input[type="file"] {
     display: none;
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\InventoryCheck;
 use App\Models\InventoryCheckItem;
 use App\Models\Property;
@@ -11,6 +12,8 @@ use Illuminate\Http\Request;
 use Illuminate\View\View;
 use App\Models\PropertyInventoryItem;
 use App\Models\PropertyInventoryItemPhoto;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class InventoryCheckController extends Controller
 {
@@ -141,6 +144,52 @@ class InventoryCheckController extends Controller
         }
 
         return back()->with('success', 'Elemento actualizado correctamente.');
+    }
+
+    public function bulkUpdateItems(Request $request, Property $property, InventoryCheck $check): RedirectResponse|JsonResponse
+    {
+        if ($check->property_id !== $property->id) {
+            abort(403, 'No autorizado');
+        }
+
+        $validated = $request->validate([
+            'items' => ['required', 'array'],
+            'items.*.status' => ['required', 'in:pending,ok,damaged,missing'],
+            'items.*.notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $items = $check->items()->get()->keyBy('id');
+        $updatedItems = [];
+
+        DB::transaction(function () use ($validated, $items, &$updatedItems): void {
+            foreach ($validated['items'] as $itemId => $itemData) {
+                $inventoryCheckItem = $items->get((int) $itemId);
+                if (!$inventoryCheckItem) {
+                    continue;
+                }
+
+                $inventoryCheckItem->update([
+                    'status' => $itemData['status'],
+                    'notes' => $itemData['notes'] ?? null,
+                ]);
+
+                $updatedItems[] = [
+                    'id' => $inventoryCheckItem->id,
+                    'status' => $inventoryCheckItem->status,
+                    'notes' => $inventoryCheckItem->notes,
+                ];
+            }
+        });
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Checklist actualizado correctamente.',
+                'items' => $updatedItems,
+            ]);
+        }
+
+        return back()->with('success', 'Checklist actualizado correctamente.');
     }
 
     public function addItem(Request $request, Property $property, InventoryCheck $check)
@@ -281,6 +330,43 @@ class InventoryCheckController extends Controller
         }
 
         return response()->json($history);
+    }
+
+    public function exportPdf(Property $property)
+    {
+        $property->load([
+            'inventoryAreas.photos',
+            'inventoryAreas.items.photos.versions',
+            'inventoryChecks.items',
+            'tenant',
+        ]);
+
+        $itemIds = $property->inventoryAreas
+            ->flatMap(fn(PropertyInventoryArea $area) => $area->items->pluck('id'))
+            ->filter()
+            ->values();
+
+        $latestStatuses = collect();
+        if ($itemIds->isNotEmpty()) {
+            $latestStatuses = InventoryCheckItem::query()
+                ->whereIn('property_inventory_item_id', $itemIds)
+                ->whereHas('check', fn($query) => $query->where('property_id', $property->id))
+                ->with('check:id,type,status,completed_at,created_at')
+                ->orderByDesc('updated_at')
+                ->get()
+                ->groupBy('property_inventory_item_id')
+                ->map(fn($rows) => $rows->first());
+        }
+
+        $pdf = Pdf::loadView('inventory-checks.export-pdf', [
+            'property' => $property,
+            'latestStatuses' => $latestStatuses,
+            'generatedAt' => now(),
+        ])->setPaper('a4', 'portrait');
+
+        $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $property->internal_name ?: 'propiedad');
+
+        return $pdf->download('inventario_' . $safeName . '_' . now()->format('Ymd_His') . '.pdf');
     }
 
     public function addNewItem(Request $request, Property $property, InventoryCheck $check)

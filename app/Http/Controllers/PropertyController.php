@@ -10,6 +10,7 @@ use App\Models\PropertyInventoryItemPhoto;
 use App\Models\PropertyType;
 use App\Models\Tenant;
 use App\Models\Zone;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -72,9 +73,16 @@ class PropertyController extends Controller
         return view('properties.create', $this->formViewData());
     }
 
-    public function store(StorePropertyRequest $request): RedirectResponse
+    public function store(StorePropertyRequest $request): RedirectResponse|JsonResponse
     {
         $property = $this->saveProperty($request);
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'La propiedad se registro correctamente.',
+                'redirect' => route('properties.show', $property),
+            ]);
+        }
 
         return redirect()
             ->route('properties.show', $property)
@@ -94,13 +102,28 @@ class PropertyController extends Controller
         return view('properties.create', $this->formViewData($property, true));
     }
 
-    public function update(StorePropertyRequest $request, Property $property): RedirectResponse
+    public function update(StorePropertyRequest $request, Property $property): RedirectResponse|JsonResponse
     {
         $property = $this->saveProperty($request, $property);
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'La propiedad se actualizo correctamente.',
+                'redirect' => route('properties.show', $property),
+            ]);
+        }
 
         return redirect()
             ->route('properties.show', $property)
             ->with('success', 'La propiedad se actualizó correctamente.');
+    }
+
+    public function editInventory(Property $property): RedirectResponse
+    {
+        return redirect()->route('properties.edit', [
+            'property' => $property,
+            'step' => 5,
+        ]);
     }
 
     public function updateTenant(Request $request, Property $property): RedirectResponse
@@ -126,7 +149,7 @@ class PropertyController extends Controller
             'type',
             'zone',
             'owners',
-            'documents.versions',
+            'documents.versions', 
             'inventoryAreas.items.photos',
             'inventoryAreas.photos',
             'tenant',
@@ -470,6 +493,8 @@ class PropertyController extends Controller
                         'name' => $itemData['name'],
                         'condition' => $itemData['condition'] ?? null,
                         'notes' => $itemData['notes'] ?? null,
+                        'entry_checklist' => $itemData['entry_checklist'] ?? null,
+                        'exit_checklist' => $itemData['exit_checklist'] ?? null,
                     ]
                 );
 

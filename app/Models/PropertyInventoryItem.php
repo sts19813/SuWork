@@ -16,6 +16,8 @@ class PropertyInventoryItem extends Model
         'name',
         'condition',
         'notes',
+        'entry_checklist',
+        'exit_checklist',
     ];
 
     public function area(): BelongsTo
@@ -28,4 +30,3 @@ class PropertyInventoryItem extends Model
         return $this->hasMany(PropertyInventoryItemPhoto::class);
     }
 }
-

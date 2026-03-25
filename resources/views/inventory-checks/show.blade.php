@@ -10,14 +10,43 @@
                 max-height: 150px !important;
                 object-fit: cover;
             }
+
             .inventory-photo-grid {
                 display: grid;
                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
                 gap: 1rem;
             }
-            .unsaved-changes {
-                border-color: #ffc107 !important;
-                box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25) !important;
+
+            .check-item-card {
+                border-width: 1px;
+                border-style: solid;
+                border-color: #e4e6ef;
+                transition: all 0.2s ease;
+            }
+
+            .check-item-card.item-pending-save {
+                border-color: #ffc700 !important;
+                box-shadow: 0 0 0 0.2rem rgba(255, 199, 0, 0.2) !important;
+            }
+
+            .status-buttons .btn.active {
+                color: #fff !important;
+            }
+
+            .status-buttons .btn[data-status="ok"].active {
+                background: #17c653 !important;
+                border-color: #17c653 !important;
+            }
+
+            .status-buttons .btn[data-status="damaged"].active {
+                background: #f1416c !important;
+                border-color: #f1416c !important;
+            }
+
+            .status-buttons .btn[data-status="missing"].active {
+                background: #ffc700 !important;
+                border-color: #ffc700 !important;
+                color: #1e1e2d !important;
             }
         </style>
         <div class="mb-8">
@@ -29,7 +58,7 @@
         <div class="row g-6 mb-8">
             <div class="col-lg-8">
                 <h1 class="mb-1 fw-bold">
-                    {{ $check->type === 'entry' ? '✓ Check de Entrada' : '✕ Check de Salida' }}
+                    {{ $check->type === 'entry' ? 'Check de Entrada' : 'Check de Salida' }}
                 </h1>
                 <div class="d-flex gap-3 align-items-center">
                     <span class="badge {{ $check->status === 'completed' ? 'badge-success' : 'badge-warning' }}">
@@ -43,8 +72,8 @@
             </div>
             <div class="col-lg-4 text-end">
                 @if ($check->status === 'draft')
-                    <form method="POST" action="{{ route('inventory-checks.complete', [$property, $check]) }}" 
-                          style="display: inline;" onsubmit="return confirm('¿Confirmar que el check está completo?')">
+                    <form method="POST" action="{{ route('inventory-checks.complete', [$property, $check]) }}"
+                        style="display: inline;" onsubmit="return confirm('Confirmar que el check esta completo?')">
                         @csrf
                         @method('PATCH')
                         <button type="submit" class="btn btn-success">
@@ -64,25 +93,43 @@
             </div>
         @endif
 
-        <!-- Items de Check -->
         <div class="card">
-            <div class="card-header border-0 pt-6">
-                <h3 class="card-title fw-bold">
+            <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
+                <h3 class="card-title fw-bold mb-0">
                     Elementos ({{ $check->items->count() }})
-                    <span class="badge badge-success ms-2">{{ $check->items->where('status', 'ok')->count() }} ✓</span>
-                    <span class="badge badge-danger ms-1">{{ $check->items->where('status', 'damaged')->count() }} ✗</span>
-                    <span class="badge badge-warning ms-1">{{ $check->items->where('status', 'missing')->count() }} ⊘</span>
-                    <span class="badge badge-secondary ms-1">{{ $check->items->where('status', 'pending')->count() }} ⏳</span>
+                    <span class="badge badge-success ms-2" id="count-ok">{{ $check->items->where('status', 'ok')->count() }} OK</span>
+                    <span class="badge badge-danger ms-1" id="count-damaged">{{ $check->items->where('status', 'damaged')->count() }} Danado</span>
+                    <span class="badge badge-warning ms-1" id="count-missing">{{ $check->items->where('status', 'missing')->count() }} Faltante</span>
+                    <span class="badge badge-secondary ms-1" id="count-pending">{{ $check->items->where('status', 'pending')->count() }} Pendiente</span>
                 </h3>
+                @if ($check->status === 'draft')
+                    <button type="button" class="btn btn-primary" id="save-all-items-btn">
+                        <i class="ki-outline ki-check fs-4 me-1"></i> Guardar cambios del check
+                    </button>
+                @endif
             </div>
             <div class="card-body pt-0">
-                @forelse ($check->items->groupBy(fn($item) => $item->inventoryItem?->area->name ?? 'Sin área') as $areaName => $items)
+                @if ($check->status === 'draft')
+                    <form id="bulk-items-form" method="POST" action="{{ route('inventory-checks.update-items', [$property, $check]) }}">
+                        @csrf
+                        @method('PATCH')
+                @endif
+
+                @forelse ($check->items->groupBy(fn($item) => $item->inventoryItem?->area->name ?? 'Sin area') as $areaName => $items)
                     <div class="mb-8">
                         <h5 class="mb-4 fw-bold text-primary">{{ $areaName }}</h5>
 
                         <div class="d-flex flex-column gap-4">
                             @foreach ($items as $checkItem)
-                                <div class="border rounded p-4 {{ $checkItem->status !== 'pending' ? 'bg-light-' . ($checkItem->status === 'ok' ? 'success' : ($checkItem->status === 'damaged' ? 'danger' : 'warning')) : '' }}" id="item-{{ $checkItem->id }}">
+                                @php
+                                    $statusBgClass = match ($checkItem->status) {
+                                        'ok' => 'bg-light-success border-success',
+                                        'damaged' => 'bg-light-danger border-danger',
+                                        'missing' => 'bg-light-warning border-warning',
+                                        default => '',
+                                    };
+                                @endphp
+                                <div class="rounded p-4 check-item-card {{ $statusBgClass }}" id="item-{{ $checkItem->id }}">
                                     <div class="row g-4">
                                         <div class="col-lg-auto">
                                             @if ($checkItem->photo_path)
@@ -108,65 +155,55 @@
                                         </div>
 
                                         <div class="col-lg">
-                                            <div class="row g-3">
-                                                <div class="col-lg-4">
+                                            <div class="row g-3 align-items-center">
+                                                <div class="col-lg-3">
                                                     <strong>{{ $checkItem->item_name }}</strong>
                                                 </div>
+
                                                 @if ($check->status === 'draft')
-                                                    <div class="col-lg-8">
-                                                        <form method="POST" action="{{ route('inventory-checks.update-item', [$property, $check, $checkItem]) }}" class="row g-2">
-                                                            @csrf
-                                                            @method('PATCH')
-                                                            <div class="col-lg-5">
-                                                                <select name="status" class="form-select form-select-sm" required>
-                                                                    <option value="pending" {{ $checkItem->status === 'pending' ? 'selected' : '' }}>Pendiente</option>
-                                                                    <option value="ok" {{ $checkItem->status === 'ok' ? 'selected' : '' }}>✓ OK</option>
-                                                                    <option value="damaged" {{ $checkItem->status === 'damaged' ? 'selected' : '' }}>✗ Dañado</option>
-                                                                    <option value="missing" {{ $checkItem->status === 'missing' ? 'selected' : '' }}>⊘ Faltante</option>
-                                                                </select>
-                                                            </div>
-                                                            <div class="col-lg-7">
-                                                                <input type="text" name="notes" class="form-control form-control-sm"
-                                                                    placeholder="Notas"
-                                                                    value="{{ $checkItem->notes ?? '' }}">
-                                                            </div>
-                                                            <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
-                                                        </form>
+                                                    <div class="col-lg-5">
+                                                        <div class="btn-group status-buttons w-100" role="group">
+                                                            <button type="button"
+                                                                class="btn btn-sm btn-light-success js-status-btn {{ $checkItem->status === 'ok' ? 'active' : '' }}"
+                                                                data-item-id="{{ $checkItem->id }}" data-status="ok">
+                                                                OK
+                                                            </button>
+                                                            <button type="button"
+                                                                class="btn btn-sm btn-light-danger js-status-btn {{ $checkItem->status === 'damaged' ? 'active' : '' }}"
+                                                                data-item-id="{{ $checkItem->id }}" data-status="damaged">
+                                                                Danado
+                                                            </button>
+                                                            <button type="button"
+                                                                class="btn btn-sm btn-light-warning js-status-btn {{ $checkItem->status === 'missing' ? 'active' : '' }}"
+                                                                data-item-id="{{ $checkItem->id }}" data-status="missing">
+                                                                Faltante
+                                                            </button>
+                                                        </div>
+                                                        <input type="hidden" name="items[{{ $checkItem->id }}][status]"
+                                                            id="status-input-{{ $checkItem->id }}" value="{{ $checkItem->status }}">
+                                                    </div>
+                                                    <div class="col-lg-4">
+                                                        <input type="text" name="items[{{ $checkItem->id }}][notes]"
+                                                            class="form-control form-control-sm js-notes-input"
+                                                            data-item-id="{{ $checkItem->id }}" placeholder="Notas"
+                                                            value="{{ $checkItem->notes ?? '' }}">
                                                     </div>
                                                 @else
-                                                    <div class="col-lg-8">
-                                                        <div class="row g-2">
-                                                            <div class="col-lg-5">
-                                                                <span class="badge {{ $checkItem->status === 'ok' ? 'badge-success' : ($checkItem->status === 'damaged' ? 'badge-danger' : 'badge-warning') }}">
-                                                                    {{ $checkItem->status === 'ok' ? '✓ OK' : ($checkItem->status === 'damaged' ? '✗ Dañado' : '⊘ Faltante') }}
-                                                                </span>
-                                                            </div>
-                                                            <div class="col-lg-7">
-                                                                @if ($checkItem->notes)
-                                                                    <small class="text-muted">{{ $checkItem->notes }}</small>
-                                                                @endif
-                                                            </div>
-                                                        </div>
+                                                    <div class="col-lg-4">
+                                                        <span class="badge {{ $checkItem->status === 'ok' ? 'badge-success' : ($checkItem->status === 'damaged' ? 'badge-danger' : ($checkItem->status === 'missing' ? 'badge-warning' : 'badge-secondary')) }}">
+                                                            {{ $checkItem->status === 'ok' ? 'OK' : ($checkItem->status === 'damaged' ? 'Danado' : ($checkItem->status === 'missing' ? 'Faltante' : 'Pendiente')) }}
+                                                        </span>
+                                                    </div>
+                                                    <div class="col-lg-5">
+                                                        @if ($checkItem->notes)
+                                                            <small class="text-muted">{{ $checkItem->notes }}</small>
+                                                        @endif
                                                     </div>
                                                 @endif
                                             </div>
                                         </div>
                                     </div>
 
-                                    @if ($check->status === 'draft' && (auth()->id() === $check->created_by))
-                                        <div class="row g-2 mt-3">
-                                            <div class="col">
-                                                <form method="POST" action="{{ route('inventory-checks.remove-item', [$property, $check, $checkItem]) }}" style="display: inline;">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-light-danger"
-                                                        onclick="return confirm('¿Remover este elemento del check?')">
-                                                        <i class="ki-outline ki-trash fs-7"></i> Remover
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    @endif
                                 </div>
                             @endforeach
                         </div>
@@ -174,17 +211,20 @@
                 @empty
                     <div class="alert alert-light-warning mb-0">No hay elementos en este check.</div>
                 @endforelse
+
+                @if ($check->status === 'draft')
+                    </form>
+                @endif
             </div>
         </div>
 
-        <div class="mt-8">
+        <div class="mt-8 d-flex gap-3">
             <a href="{{ route('inventory-checks.index', $property) }}" class="btn btn-light">
                 Volver al inventario
             </a>
         </div>
     </div>
 
-    <!-- Photo Modal -->
     <div class="modal fade" id="photoModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -202,96 +242,144 @@
 
 @push('scripts')
     <script>
-        // Auto-guardado cuando cambia el estado
         document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('select[name="status"]').forEach(select => {
-                select.addEventListener('change', function() {
-                    const form = this.closest('form');
-                    const itemDiv = this.closest('.border.rounded.p-4');
-                    if (form && itemDiv) {
-                        // Agregar indicador visual de cambios no guardados
-                        itemDiv.classList.add('unsaved-changes');
-                        
-                        // Mostrar indicador de guardado
-                        const originalText = this.nextElementSibling?.textContent || 'Guardar';
-                        if (this.nextElementSibling) {
-                            this.nextElementSibling.textContent = 'Guardando...';
-                            this.nextElementSibling.disabled = true;
-                        }
-                        
-                        // Enviar formulario
-                        const formData = new FormData(form);
-                        fetch(form.action, {
-                            method: 'POST',
-                            body: formData,
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest',
-                            }
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            // Remover indicador visual de cambios
-                            itemDiv.classList.remove('unsaved-changes');
-                            
-                            // Mostrar mensaje de éxito temporal
-                            if (this.nextElementSibling) {
-                                this.nextElementSibling.textContent = '✓ Guardado';
-                                this.nextElementSibling.classList.add('btn-success');
-                                setTimeout(() => {
-                                    this.nextElementSibling.textContent = originalText;
-                                    this.nextElementSibling.classList.remove('btn-success');
-                                    this.nextElementSibling.disabled = false;
-                                }, 2000);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error al guardar:', error);
-                            if (this.nextElementSibling) {
-                                this.nextElementSibling.textContent = 'Error al guardar';
-                                this.nextElementSibling.classList.add('btn-danger');
-                                setTimeout(() => {
-                                    this.nextElementSibling.textContent = originalText;
-                                    this.nextElementSibling.classList.remove('btn-danger');
-                                    this.nextElementSibling.disabled = false;
-                                }, 3000);
-                            }
-                        });
+            const form = document.getElementById('bulk-items-form');
+            if (!form) {
+                return;
+            }
+
+            const topSaveBtn = document.getElementById('save-all-items-btn');
+
+            const statusClassMap = {
+                ok: ['bg-light-success', 'border-success'],
+                damaged: ['bg-light-danger', 'border-danger'],
+                missing: ['bg-light-warning', 'border-warning'],
+                pending: []
+            };
+
+            const showToast = (type, message) => {
+                if (window.toastr) {
+                    toastr[type](message);
+                    return;
+                }
+                alert(message);
+            };
+
+            const getCard = (itemId) => document.getElementById(`item-${itemId}`);
+
+            const clearStatusClasses = (card) => {
+                card.classList.remove(
+                    'bg-light-success',
+                    'border-success',
+                    'bg-light-danger',
+                    'border-danger',
+                    'bg-light-warning',
+                    'border-warning'
+                );
+            };
+
+            const applySavedStyle = (itemId, status) => {
+                const card = getCard(itemId);
+                if (!card) {
+                    return;
+                }
+                clearStatusClasses(card);
+                (statusClassMap[status] || []).forEach((className) => card.classList.add(className));
+                card.classList.remove('item-pending-save');
+            };
+
+            const markPendingSave = (itemId) => {
+                const card = getCard(itemId);
+                if (!card) {
+                    return;
+                }
+                card.classList.add('item-pending-save');
+            };
+
+            const updateCounters = () => {
+                const statuses = [...form.querySelectorAll('input[id^="status-input-"]')].map((input) => input.value);
+                const count = (value) => statuses.filter((status) => status === value).length;
+
+                const countOk = document.getElementById('count-ok');
+                const countDamaged = document.getElementById('count-damaged');
+                const countMissing = document.getElementById('count-missing');
+                const countPending = document.getElementById('count-pending');
+
+                if (countOk) countOk.textContent = `${count('ok')} OK`;
+                if (countDamaged) countDamaged.textContent = `${count('damaged')} Danado`;
+                if (countMissing) countMissing.textContent = `${count('missing')} Faltante`;
+                if (countPending) countPending.textContent = `${count('pending')} Pendiente`;
+            };
+
+            document.querySelectorAll('.js-status-btn').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const itemId = button.dataset.itemId;
+                    const status = button.dataset.status;
+                    const input = document.getElementById(`status-input-${itemId}`);
+                    if (!input) {
+                        return;
                     }
+
+                    input.value = status;
+                    const group = button.closest('.status-buttons');
+                    group?.querySelectorAll('.js-status-btn').forEach((btn) => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    markPendingSave(itemId);
+                    updateCounters();
                 });
             });
-            
-            // Auto-guardado cuando cambia el campo de notas
-            document.querySelectorAll('input[name="notes"]').forEach(input => {
-                let timeout;
-                input.addEventListener('input', function() {
-                    clearTimeout(timeout);
-                    const itemDiv = this.closest('.border.rounded.p-4');
-                    if (itemDiv) {
-                        itemDiv.classList.add('unsaved-changes');
-                    }
-                    timeout = setTimeout(() => {
-                        const form = this.closest('form');
-                        if (form) {
-                            const formData = new FormData(form);
-                            fetch(form.action, {
-                                method: 'POST',
-                                body: formData,
-                                headers: {
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                }
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                // Remover indicador visual de cambios
-                                if (itemDiv) {
-                                    itemDiv.classList.remove('unsaved-changes');
-                                }
-                            })
-                            .catch(error => console.error('Error al guardar notas:', error));
-                        }
-                    }, 1000); // Guardar después de 1 segundo sin escribir
+
+            document.querySelectorAll('.js-notes-input').forEach((input) => {
+                input.addEventListener('input', () => {
+                    markPendingSave(input.dataset.itemId);
                 });
             });
+
+            const setSaveButtonsState = (disabled, text = 'Guardar cambios del check') => {
+                [topSaveBtn].forEach((btn) => {
+                    if (!btn) {
+                        return;
+                    }
+                    btn.disabled = disabled;
+                    btn.textContent = text;
+                });
+            };
+
+            const submitBulkSave = async () => {
+                setSaveButtonsState(true, 'Guardando...');
+                const formData = new FormData(form);
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    const payload = await response.json();
+                    if (!response.ok || !payload.success) {
+                        throw new Error(payload.message || 'No fue posible guardar el check.');
+                    }
+
+                    (payload.items || []).forEach((item) => {
+                        applySavedStyle(item.id, item.status);
+                    });
+
+                    updateCounters();
+                    showToast('success', payload.message || 'Check guardado correctamente.');
+                    setSaveButtonsState(false);
+                } catch (error) {
+                    setSaveButtonsState(false);
+                    showToast('error', error.message || 'No fue posible guardar el check.');
+                }
+            };
+
+            topSaveBtn?.addEventListener('click', submitBulkSave);
+
+            updateCounters();
         });
     </script>
 @endpush
