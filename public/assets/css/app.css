@@ -331,6 +331,16 @@ a:hover {
     z-index: 2;
 }
 
+.btn-xs {
+    padding: 2px 6px;
+    font-size: 11px;
+    line-height: 1.2;
+}
+
+td .btn {
+    white-space: nowrap;
+}
+
 @media (max-width: 991px) {
     .property-stepper {
         grid-template-columns: repeat(2, minmax(0, 1fr));

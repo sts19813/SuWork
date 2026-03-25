@@ -31,8 +31,7 @@
                         <select name="zone_id" class="form-select">
                             <option value="">Todas las zonas</option>
                             @foreach ($zones as $zone)
-                                <option value="{{ $zone->id }}"
-                                    {{ (string) ($filters['zone_id'] ?? '') === (string) $zone->id ? 'selected' : '' }}>
+                                <option value="{{ $zone->id }}" {{ (string) ($filters['zone_id'] ?? '') === (string) $zone->id ? 'selected' : '' }}>
                                     {{ $zone->name }}
                                 </option>
                             @endforeach
@@ -43,8 +42,7 @@
                         <select name="property_type_id" class="form-select">
                             <option value="">Todos los tipos</option>
                             @foreach ($propertyTypes as $type)
-                                <option value="{{ $type->id }}"
-                                    {{ (string) ($filters['property_type_id'] ?? '') === (string) $type->id ? 'selected' : '' }}>
+                                <option value="{{ $type->id }}" {{ (string) ($filters['property_type_id'] ?? '') === (string) $type->id ? 'selected' : '' }}>
                                     {{ $type->name }}
                                 </option>
                             @endforeach
@@ -55,8 +53,7 @@
                         <select name="status" class="form-select">
                             <option value="">Todos los estados</option>
                             @foreach ($statusOptions as $statusValue => $statusLabel)
-                                <option value="{{ $statusValue }}"
-                                    {{ (string) ($filters['status'] ?? '') === (string) $statusValue ? 'selected' : '' }}>
+                                <option value="{{ $statusValue }}" {{ (string) ($filters['status'] ?? '') === (string) $statusValue ? 'selected' : '' }}>
                                     {{ $statusLabel }}
                                 </option>
                             @endforeach
@@ -107,7 +104,8 @@
                                     <td>{{ $property->type?->name ?? '-' }}</td>
                                     <td>{{ $property->zone?->name ?? '-' }}</td>
                                     <td>
-                                        <span class="badge {{ $property->status_badge_class }}">{{ $property->status_label }}</span>
+                                        <span
+                                            class="badge {{ $property->status_badge_class }}">{{ $property->status_label }}</span>
                                     </td>
                                     <td>{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}</td>
                                     <td>
@@ -123,22 +121,24 @@
                                             <span class="text-muted">0</span>
                                         @endif
                                     </td>
-                                    <td class="text-end">
-                                        <a href="{{ route('properties.show', $property) }}"
-                                            class="btn btn-sm btn-light-primary me-2">
-                                            Ver
-                                        </a>
-                                        <a href="{{ route('dossiers.properties.show', $property) }}"
-                                            class="btn btn-sm btn-light-info me-2">
-                                            Expediente
-                                        </a>
-                                        <a href="{{ route('inventory-checks.index', $property) }}"
-                                            class="btn btn-sm btn-light-warning me-2">
-                                            Inventario
-                                        </a>
-                                        <a href="{{ route('properties.edit', $property) }}" class="btn btn-sm btn-primary">
-                                            Editar
-                                        </a>
+                                    <td class="text-end" style="max-width:250px;">
+                                        <div class="d-flex flex-wrap justify-content-end gap-1">
+                                            <a href="{{ route('properties.show', $property) }}"
+                                                class="btn btn-xs btn-light-primary">
+                                                Ver
+                                            </a>
+                                            <a href="{{ route('dossiers.properties.show', $property) }}"
+                                                class="btn btn-xs btn-light-info">
+                                                Expediente
+                                            </a>
+                                            <a href="{{ route('inventory-checks.index', $property) }}"
+                                                class="btn btn-xs btn-light-warning">
+                                                Inventario
+                                            </a>
+                                            <a href="{{ route('properties.edit', $property) }}" class="btn btn-xs btn-primary">
+                                                Editar
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
