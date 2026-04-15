@@ -20,6 +20,7 @@
     <link href="{{ asset('/metronic/assets/css/style.bundle.css') }}" rel="stylesheet" />
 
     @stack('styles')
+    
 </head>
 
 <!--begin::Body-->
