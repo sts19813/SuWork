@@ -1,27 +1,33 @@
-<x-guest-layout>
-    <div class="mb-4 text-sm text-gray-600">
-        {{ __('This is a secure area of the application. Please confirm your password before continuing.') }}
+@extends('layouts.auth')
+
+@section('title', 'Confirmar contraseña | ' . config('app.name', 'SuWork'))
+
+@section('content')
+    <div class="text-center mb-11">
+        <h1 class="text-gray-900 fw-bolder mb-3">Confirmar contraseña</h1>
+        <div class="text-gray-500 fw-semibold fs-6">Por seguridad, confirma tu contraseña para continuar</div>
     </div>
 
-    <form method="POST" action="{{ route('password.confirm') }}">
+    @if ($errors->any())
+        <div class="alert alert-danger mb-8">
+            <ul class="mb-0 ps-5">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    <form method="POST" action="{{ route('password.confirm') }}" class="form w-100" novalidate>
         @csrf
 
-        <!-- Password -->
-        <div>
-            <x-input-label for="password" :value="__('Password')" />
-
-            <x-text-input id="password" class="block mt-1 w-full"
-                            type="password"
-                            name="password"
-                            required autocomplete="current-password" />
-
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+        <div class="fv-row mb-10">
+            <input type="password" placeholder="Contraseña" name="password" autocomplete="current-password"
+                class="form-control form-control-lg bg-transparent @error('password') is-invalid @enderror" required autofocus />
         </div>
 
-        <div class="flex justify-end mt-4">
-            <x-primary-button>
-                {{ __('Confirm') }}
-            </x-primary-button>
+        <div class="d-grid">
+            <button type="submit" class="btn btn-primary">Confirmar</button>
         </div>
     </form>
-</x-guest-layout>
+@endsection

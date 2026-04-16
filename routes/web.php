@@ -14,10 +14,10 @@ use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 
 Route::get('/', function () {
     if (auth()->check()) {
-        return redirect()->route('properties.index');
+        return redirect()->route('dashboard');
     }
 
-    return view('welcome');
+    return redirect()->route('login');
 });
 
 Route::get('/lang/{lang}', [LocaleController::class, 'switch'])->name('lang.switch');

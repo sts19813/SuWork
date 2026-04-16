@@ -1,74 +1,97 @@
 <!DOCTYPE html>
 <html lang="{{ app()->getLocale() }}">
-
 <head>
     <base href="{{ asset('/') }}">
-    <title>@yield('title', 'Videre | Auth')</title>
+    <title>@yield('title', config('app.name', 'SuWork') . ' | Auth')</title>
 
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Videre - Plataforma de gestión médica" />
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    {{-- Favicon --}}
-    <link rel="shortcut icon" href="{{ asset('assets/media/logos/favicon.ico') }}" />
-
-    {{-- Fonts --}}
+    <link rel="shortcut icon" href="{{ asset('metronic/assets/media/logos/favicon.ico') }}" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" />
 
-    {{-- Global Styles --}}
-    <link href="{{ asset('/metronic/assets/plugins/global/plugins.bundle.css') }}" rel="stylesheet" />
-    <link href="{{ asset('/metronic/assets/css/style.bundle.css') }}" rel="stylesheet" />
+    <link href="{{ asset('metronic/assets/plugins/global/plugins.bundle.css') }}" rel="stylesheet" type="text/css" />
+    <link href="{{ asset('metronic/assets/css/style.bundle.css') }}" rel="stylesheet" type="text/css" />
+    <link href="{{ asset('assets/css/app.css') }}" rel="stylesheet" type="text/css" />
+
+    <style>
+        .auth-brand-strip {
+            background-image: linear-gradient(130deg, var(--sw-primary) 0%, var(--sw-primary-hover) 45%, var(--sw-primary-border) 100%);
+        }
+
+        .btn-primary,
+        .btn.btn-primary {
+            background-color: var(--sw-primary) !important;
+            border-color: var(--sw-primary-border) !important;
+            color: #fff !important;
+        }
+    </style>
 
     @stack('styles')
-    
 </head>
+<body id="kt_body" class="app-blank">
+    <script>
+        var defaultThemeMode = "light";
+        var themeMode;
 
-<!--begin::Body-->
+        if (document.documentElement) {
+            if (document.documentElement.hasAttribute("data-bs-theme-mode")) {
+                themeMode = document.documentElement.getAttribute("data-bs-theme-mode");
+            } else if (localStorage.getItem("data-bs-theme") !== null) {
+                themeMode = localStorage.getItem("data-bs-theme");
+            } else {
+                themeMode = defaultThemeMode;
+            }
 
-<body id="kt_body" class="app-blank bgi-size-cover bgi-attachment-fixed bgi-position-center bgi-no-repeat">
-    <!--begin::Theme mode setup on page load-->
-    <script>var defaultThemeMode = "light"; var themeMode; if (document.documentElement) { if (document.documentElement.hasAttribute("data-bs-theme-mode")) { themeMode = document.documentElement.getAttribute("data-bs-theme-mode"); } else { if (localStorage.getItem("data-bs-theme") !== null) { themeMode = localStorage.getItem("data-bs-theme"); } else { themeMode = defaultThemeMode; } } if (themeMode === "system") { themeMode = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; } document.documentElement.setAttribute("data-bs-theme", themeMode); }</script>
-    <!--end::Theme mode setup on page load-->
-    <!--begin::Root-->
+            if (themeMode === "system") {
+                themeMode = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+
+            document.documentElement.setAttribute("data-bs-theme", themeMode);
+        }
+    </script>
+
     <div class="d-flex flex-column flex-root" id="kt_app_root">
-        <!--begin::Page bg image-->
-        <style>
-            body {
-                background-image: url('/metronic/assets/media/auth/bg4.jpg');
-            }
-
-            [data-bs-theme="dark"] body {
-                background-image: url('/metronic/assets/media/auth/bg4-dark.jpg');
-            }
-        </style>
-        <!--end::Page bg image-->
-        <!--begin::Authentication - Sign-in -->
-        <div class="d-flex flex-column flex-column-fluid flex-lg-row">
-            <!--begin::Aside-->
-            <div class="d-flex flex-center w-lg-50 pt-15 pt-lg-0 px-10">
-                <!--begin::Aside-->
-                <div class="d-flex flex-center flex-lg-start flex-column">
-                    <!--begin::Logo-->
-                    <a href="index.html" class="mb-7">
-                        <img width="250px" alt="Logo" src='{{ asset("assets/img/Videre-Clinica-Logo.svg") }}'/>
-                    </a>
-                    <!--end::Logo-->
-                    <!--begin::Title-->
-                    <h2 class="text-white fw-normal m-0"></h2>
-                    <!--end::Title-->
+        <div class="d-flex flex-column flex-lg-row flex-column-fluid">
+            <div class="d-flex flex-column flex-lg-row-fluid w-lg-50 p-10 order-2 order-lg-1 bg-body">
+                <div class="d-flex flex-center flex-column flex-lg-row-fluid">
+                    <div class="w-lg-500px p-10 p-lg-15">
+                        @yield('content')
+                    </div>
                 </div>
-                <!--begin::Aside-->
+
+                <div class="d-flex flex-center px-10 mx-auto w-100">
+                    <div class="text-gray-500 fs-7 fw-semibold">&copy; {{ now()->year }} {{ config('app.name', 'SuWork') }}</div>
+                </div>
             </div>
-            <!--begin::Aside-->
-            {{-- Page Content --}}
-            @yield('content')
+
+            <div class="d-flex flex-lg-row-fluid w-lg-50 bgi-size-cover bgi-position-center order-1 order-lg-2"
+                style="background-image: url('{{ asset('metronic/assets/media/misc/auth-bg.png') }}');">
+                <div class="d-flex flex-column flex-center py-10 py-lg-15 px-5 px-md-15 w-100 auth-brand-strip bg-opacity-75">
+                    <a href="{{ url('/') }}" class="mb-8 mb-lg-12">
+                        <img alt="Logo SuWork" src="{{ asset('assets/img/Logo.png') }}" class="h-60px h-lg-75px" />
+                    </a>
+
+                    <img class="d-none d-lg-block mx-auto w-275px w-md-50 w-xl-500px mb-10 mb-lg-20"
+                        src="{{ asset('metronic/assets/media/misc/auth-screens.png') }}" alt="SuWork" />
+
+                    <h1 class="d-none d-lg-block text-white fs-2qx fw-bolder text-center mb-7">
+                        Gestiona tus propiedades con control total
+                    </h1>
+
+                    <div class="d-none d-lg-block text-white fs-base text-center opacity-90">
+                        Expedientes, inquilinos, cobranza e inventarios en una sola plataforma.
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <script>var hostUrl = "/metronic/assets/";</script>
-    <script src="/metronic/assets/plugins/global/plugins.bundle.js"></script>
-    <script src="/metronic/assets/js/scripts.bundle.js"></script>
+    <script>var hostUrl = "{{ asset('metronic/assets') }}/";</script>
+    <script src="{{ asset('metronic/assets/plugins/global/plugins.bundle.js') }}"></script>
+    <script src="{{ asset('metronic/assets/js/scripts.bundle.js') }}"></script>
+
     @stack('scripts')
 </body>
-
 </html>
