@@ -238,6 +238,7 @@ class PropertyController extends Controller
                 'status' => $validated['status'],
                 'tenant_id' => $tenant?->id,
                 'current_tenant_name' => $tenant?->full_name ?? null,
+                'contract_starts_at' => $validated['contract_starts_at'] ?? null,
                 'contract_expires_at' => $validated['contract_expires_at'] ?? null,
                 'onboarding_step' => 5,
                 'monthly_rent_price' => $validated['monthly_rent_price'] ?? null,

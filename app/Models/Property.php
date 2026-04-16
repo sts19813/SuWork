@@ -60,6 +60,7 @@ class Property extends Model
         'status',
         'tenant_id',
         'current_tenant_name',
+        'contract_starts_at',
         'contract_expires_at',
         'onboarding_step',
         'created_by',
@@ -68,6 +69,7 @@ class Property extends Model
     protected function casts(): array
     {
         return [
+            'contract_starts_at' => 'date',
             'contract_expires_at' => 'date',
             'onboarding_step' => 'integer',
             'monthly_rent_price' => 'decimal:2',

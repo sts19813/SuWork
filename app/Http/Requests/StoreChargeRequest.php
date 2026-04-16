@@ -8,6 +8,8 @@ use Illuminate\Validation\Rule;
 
 class StoreChargeRequest extends FormRequest
 {
+    protected $errorBag = 'createCharge';
+
     /**
      * Determine if the user is authorized to make this request.
      */

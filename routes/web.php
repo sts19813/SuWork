@@ -23,6 +23,7 @@ Route::get('/', function () {
 Route::get('/lang/{lang}', [LocaleController::class, 'switch'])->name('lang.switch');
 Route::get('/cobranza/pagar/{token}', [ChargePaymentController::class, 'show'])->name('charges.public.show');
 Route::post('/cobranza/pagar/{token}/checkout', [ChargePaymentController::class, 'createCheckoutSession'])->name('charges.public.checkout');
+Route::post('/cobranza/pagar/{token}/transferencia', [ChargePaymentController::class, 'storeTransferProof'])->name('charges.public.transfer-proof');
 Route::get('/cobranza/pago-exitoso/{token}', [ChargePaymentController::class, 'success'])->name('charges.public.success');
 Route::post('/stripe/webhook', [ChargePaymentController::class, 'webhook'])
     ->name('stripe.webhook')
@@ -88,6 +89,12 @@ Route::middleware(['auth'])
         Route::get('/documentos', [DocumentController::class, 'index'])->name('documents.index');
         Route::get('/cobranza', [ChargeController::class, 'index'])->name('charges.index');
         Route::post('/cobranza', [ChargeController::class, 'store'])->name('charges.store');
+        Route::get('/cobranza/{charge}', [ChargeController::class, 'show'])->name('charges.show');
+        Route::post('/cobranza/{charge}/pagos', [ChargeController::class, 'storePayment'])->name('charges.payments.store');
+        Route::post('/cobranza/{charge}/pagos/{payment}/validar', [ChargeController::class, 'validatePayment'])->name('charges.payments.validate');
+        Route::post('/cobranza/{charge}/notificar', [ChargeController::class, 'sendReminder'])->name('charges.notify');
+        Route::post('/cobranza/generar/preview', [ChargeController::class, 'previewBulk'])->name('charges.bulk.preview');
+        Route::post('/cobranza/generar', [ChargeController::class, 'storeBulk'])->name('charges.bulk.store');
     });
 
 Route::get('/dashboard', function () {

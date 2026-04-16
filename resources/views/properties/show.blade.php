@@ -134,6 +134,12 @@
                         <div class="fw-semibold">{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}</div>
                     </div>
                     <div class="col-lg-6">
+                        <div class="text-muted mb-1">Contrato inicia</div>
+                        <div class="fw-semibold">
+                            {{ $property->contract_starts_at ? $property->contract_starts_at->format('d/m/Y') : '-' }}
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
                         <div class="text-muted mb-1">Contrato vence</div>
                         <div class="fw-semibold">
                             {{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}

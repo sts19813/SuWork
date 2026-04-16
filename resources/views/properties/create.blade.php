@@ -151,6 +151,10 @@
                     $initialStep = 6;
                     break;
                 }
+                if ($errorKey === 'contract_starts_at' || $errorKey === 'contract_expires_at') {
+                    $initialStep = 6;
+                    break;
+                }
             }
         }
     @endphp
@@ -932,9 +936,20 @@
                             </div>
                         </div>
                         <div class="col-lg-6">
+                            <label class="form-label">Contrato inicia (opcional)</label>
+                            <input type="date" name="contract_starts_at" class="form-control @error('contract_starts_at') is-invalid @enderror"
+                                value="{{ old('contract_starts_at', $isEdit && $property && $property->contract_starts_at ? $property->contract_starts_at->format('Y-m-d') : '') }}">
+                            @error('contract_starts_at')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-lg-6">
                             <label class="form-label">Contrato vence (opcional)</label>
-                            <input type="date" name="contract_expires_at" class="form-control"
+                            <input type="date" name="contract_expires_at" class="form-control @error('contract_expires_at') is-invalid @enderror"
                                 value="{{ old('contract_expires_at', $isEdit && $property && $property->contract_expires_at ? $property->contract_expires_at->format('Y-m-d') : '') }}">
+                            @error('contract_expires_at')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
                         </div>
                     </div>
                 </div>
@@ -1177,7 +1192,7 @@
                     return 5;
                 }
 
-                if (errorKey === 'status' || errorKey === 'tenant_id' || errorKey === 'contract_expires_at') {
+                if (errorKey === 'status' || errorKey === 'tenant_id' || errorKey === 'contract_starts_at' || errorKey === 'contract_expires_at') {
                     return 6;
                 }
 

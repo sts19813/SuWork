@@ -46,6 +46,7 @@ class StorePropertyRequest extends FormRequest
             'status' => ['required', Rule::in(array_keys(Property::STATUS_LABELS))],
             'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
             'current_tenant_name' => ['nullable', 'string', 'max:255'],
+            'contract_starts_at' => ['nullable', 'date'],
             'contract_expires_at' => ['nullable', 'date'],
             'owner_ids' => ['nullable', 'array'],
             'owner_ids.*' => ['integer', 'exists:owners,id'],
@@ -168,6 +169,12 @@ class StorePropertyRequest extends FormRequest
             $status = (string) $this->input('status');
             if ($status === Property::STATUS_OCCUPIED && blank($this->input('tenant_id'))) {
                 $validator->errors()->add('tenant_id', 'Debes seleccionar un inquilino cuando la propiedad esta ocupada.');
+            }
+
+            $contractStartsAt = $this->input('contract_starts_at');
+            $contractExpiresAt = $this->input('contract_expires_at');
+            if (filled($contractStartsAt) && filled($contractExpiresAt) && $contractStartsAt > $contractExpiresAt) {
+                $validator->errors()->add('contract_starts_at', 'La fecha de inicio del contrato debe ser anterior o igual al vencimiento.');
             }
 
             // Validate zone: either zone_id or zone_text must be provided

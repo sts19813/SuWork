@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreTransferProofRequest;
+use App\Mail\ChargeCompletedMail;
 use App\Models\Charge;
 use App\Models\ChargePayment;
 use Illuminate\Http\JsonResponse;
@@ -9,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Stripe\Checkout\Session;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\Stripe;
@@ -19,7 +22,10 @@ class ChargePaymentController extends Controller
 {
     public function show(string $token): Response|RedirectResponse
     {
-        $charge = $this->findChargeByToken($token);
+        $charge = $this->findChargeByToken($token)->loadMissing([
+            'tenant:id,full_name,email',
+            'property.owners:id,name,phone,email,bank_name,clabe,account_holder',
+        ]);
 
         if ($charge->status === Charge::STATUS_PAID) {
             return response()
@@ -28,7 +34,8 @@ class ChargePaymentController extends Controller
 
         return response()
             ->view('charges.public-pay', [
-                'charge' => $charge->loadMissing(['tenant:id,full_name,email', 'property:id,internal_name']),
+                'charge' => $charge,
+                'bankOwner' => $charge->property?->owners->first(),
             ]);
     }
 
@@ -97,11 +104,56 @@ class ChargePaymentController extends Controller
                 'amount' => $charge->outstanding_amount,
                 'currency' => $currency,
                 'status' => ChargePayment::STATUS_PENDING,
+                'source' => ChargePayment::SOURCE_STRIPE,
+                'payment_method' => ChargePayment::METHOD_CARD,
+                'payment_date' => now()->toDateString(),
                 'payload' => $session->toArray(),
             ],
         );
 
         return redirect()->away($session->url);
+    }
+
+    public function storeTransferProof(StoreTransferProofRequest $request, string $token): RedirectResponse
+    {
+        $charge = $this->findChargeByToken($token)->loadMissing(['tenant:id,full_name,email', 'property:id,internal_name']);
+
+        if (!in_array($charge->status, [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION], true) || $charge->outstanding_amount <= 0) {
+            return redirect()
+                ->route('charges.public.show', ['token' => $charge->payment_token])
+                ->with('error', 'Este cargo ya no requiere pago.');
+        }
+
+        $validated = $request->validated();
+        $amount = (float) $validated['amount'];
+        if ($amount > $charge->outstanding_amount) {
+            return redirect()
+                ->route('charges.public.show', ['token' => $charge->payment_token])
+                ->with('error', 'El monto reportado no puede ser mayor al saldo pendiente.');
+        }
+
+        DB::transaction(function () use ($request, $validated, $charge, $amount): void {
+            $receiptPath = $request->file('receipt')->store("charges/{$charge->id}/public-proofs", 'public');
+
+            $charge->payments()->create([
+                'amount' => $amount,
+                'currency' => strtolower((string) config('services.stripe.currency', 'mxn')),
+                'status' => ChargePayment::STATUS_PENDING_VALIDATION,
+                'source' => ChargePayment::SOURCE_PUBLIC_TRANSFER,
+                'payment_method' => ChargePayment::METHOD_TRANSFER,
+                'reference' => $validated['reference'] ?? null,
+                'receipt_path' => $receiptPath,
+                'notes' => $validated['notes'] ?? null,
+                'payment_date' => $validated['payment_date'],
+                'registered_by' => null,
+            ]);
+
+            $charge->refreshPaymentStatus();
+        });
+
+        return redirect()
+            ->route('charges.public.show', ['token' => $charge->payment_token])
+            ->with('success', 'Comprobante enviado. Tu pago quedo en validacion.');
     }
 
     public function success(Request $request, string $token): Response
@@ -184,7 +236,10 @@ class ChargePaymentController extends Controller
             return;
         }
 
-        DB::transaction(function () use ($chargeId, $sessionData, $eventId): void {
+        $becamePaid = false;
+        $charge = null;
+
+        DB::transaction(function () use ($chargeId, $sessionData, $eventId, &$becamePaid, &$charge): void {
             $charge = Charge::query()->lockForUpdate()->find($chargeId);
             if (!$charge) {
                 return;
@@ -206,30 +261,33 @@ class ChargePaymentController extends Controller
                     'amount' => $amount,
                     'currency' => $currency,
                     'status' => ChargePayment::STATUS_SUCCEEDED,
+                    'source' => ChargePayment::SOURCE_STRIPE,
+                    'payment_method' => ChargePayment::METHOD_CARD,
                     'stripe_payment_intent_id' => filled($sessionData['payment_intent'] ?? null)
                         ? (string) $sessionData['payment_intent']
                         : null,
                     'stripe_event_id' => $eventId,
                     'paid_at' => $paidAt,
+                    'payment_date' => $paidAt->toDateString(),
                     'payload' => $sessionData,
                 ],
             );
 
-            $totalPaid = (float) $charge->payments()
-                ->where('status', ChargePayment::STATUS_SUCCEEDED)
-                ->sum('amount');
-
-            $nextStatus = match (true) {
-                $totalPaid >= (float) $charge->amount => Charge::STATUS_PAID,
-                $totalPaid > 0 => Charge::STATUS_PARTIAL,
-                default => Charge::STATUS_PENDING,
-            };
-
-            $charge->update([
-                'paid_amount' => min($totalPaid, (float) $charge->amount),
-                'status' => $nextStatus,
-                'paid_at' => $nextStatus === Charge::STATUS_PAID ? now() : null,
-            ]);
+            $becamePaid = $charge->refreshPaymentStatus();
         });
+
+        if ($becamePaid && $charge) {
+            $this->sendCompletedMail($charge);
+        }
+    }
+
+    private function sendCompletedMail(Charge $charge): void
+    {
+        $charge->loadMissing(['tenant:id,email,full_name']);
+        if (!filled($charge->tenant?->email)) {
+            return;
+        }
+
+        Mail::to($charge->tenant->email)->send(new ChargeCompletedMail($charge));
     }
 }

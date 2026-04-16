@@ -3,12 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\Charge;
+use App\Models\ChargePayment;
 use App\Models\Property;
 use App\Models\PropertyType;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ChargeModuleTest extends TestCase
@@ -123,6 +126,84 @@ class ChargeModuleTest extends TestCase
             'stripe_checkout_session_id' => 'cs_test_charge_paid',
             'status' => 'succeeded',
         ]);
+    }
+
+    public function test_admin_can_register_partial_payments_until_charge_is_paid(): void
+    {
+        $user = User::factory()->create();
+        $charge = $this->createChargeFixture();
+
+        $this->actingAs($user)->post(route('charges.payments.store', $charge), [
+            'amount' => 5000,
+            'payment_date' => now()->toDateString(),
+            'payment_method' => ChargePayment::METHOD_SPEI,
+            'reference' => 'SPEI-001',
+        ])->assertRedirect();
+
+        $charge->refresh();
+        $this->assertSame(Charge::STATUS_PARTIAL, $charge->status);
+        $this->assertEquals(5000.0, (float) $charge->paid_amount);
+
+        $this->actingAs($user)->post(route('charges.payments.store', $charge), [
+            'amount' => 13000,
+            'payment_date' => now()->toDateString(),
+            'payment_method' => ChargePayment::METHOD_TRANSFER,
+            'reference' => 'TR-002',
+        ])->assertRedirect();
+
+        $charge->refresh();
+        $this->assertSame(Charge::STATUS_PAID, $charge->status);
+        $this->assertEquals(18000.0, (float) $charge->paid_amount);
+    }
+
+    public function test_public_transfer_proof_sets_charge_in_validation(): void
+    {
+        Storage::fake('public');
+        $charge = $this->createChargeFixture();
+
+        $response = $this->post(route('charges.public.transfer-proof', ['token' => $charge->payment_token]), [
+            'amount' => 6000,
+            'payment_date' => now()->toDateString(),
+            'reference' => 'TRX-900',
+            'receipt' => UploadedFile::fake()->image('proof.png'),
+        ]);
+
+        $response->assertRedirect(route('charges.public.show', ['token' => $charge->payment_token]));
+        $this->assertDatabaseHas('charge_payments', [
+            'charge_id' => $charge->id,
+            'status' => ChargePayment::STATUS_PENDING_VALIDATION,
+            'source' => ChargePayment::SOURCE_PUBLIC_TRANSFER,
+        ]);
+
+        $charge->refresh();
+        $this->assertSame(Charge::STATUS_IN_VALIDATION, $charge->status);
+    }
+
+    public function test_admin_can_validate_transfer_proof_and_complete_charge(): void
+    {
+        $user = User::factory()->create();
+        $charge = $this->createChargeFixture();
+
+        $payment = ChargePayment::create([
+            'charge_id' => $charge->id,
+            'amount' => 18000,
+            'currency' => 'mxn',
+            'status' => ChargePayment::STATUS_PENDING_VALIDATION,
+            'source' => ChargePayment::SOURCE_PUBLIC_TRANSFER,
+            'payment_method' => ChargePayment::METHOD_TRANSFER,
+            'payment_date' => now()->toDateString(),
+        ]);
+
+        $response = $this->actingAs($user)->post(route('charges.payments.validate', [$charge, $payment]));
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('charge_payments', [
+            'id' => $payment->id,
+            'status' => ChargePayment::STATUS_SUCCEEDED,
+        ]);
+
+        $charge->refresh();
+        $this->assertSame(Charge::STATUS_PAID, $charge->status);
     }
 
     private function createChargeFixture(): Charge
