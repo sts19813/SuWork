@@ -129,6 +129,11 @@ class Property extends Model
         return $this->hasMany(InventoryCheck::class);
     }
 
+    public function charges(): HasMany
+    {
+        return $this->hasMany(Charge::class);
+    }
+
     public function getStatusLabelAttribute(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucfirst(str_replace('_', ' ', $this->status));

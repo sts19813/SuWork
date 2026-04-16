@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ChargeController;
+use App\Http\Controllers\ChargePaymentController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\InventoryCheckController;
 use App\Http\Controllers\OwnerController;
@@ -8,6 +10,7 @@ use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\TenantController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LocaleController;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 
 Route::get('/', function () {
     if (auth()->check()) {
@@ -18,6 +21,12 @@ Route::get('/', function () {
 });
 
 Route::get('/lang/{lang}', [LocaleController::class, 'switch'])->name('lang.switch');
+Route::get('/cobranza/pagar/{token}', [ChargePaymentController::class, 'show'])->name('charges.public.show');
+Route::post('/cobranza/pagar/{token}/checkout', [ChargePaymentController::class, 'createCheckoutSession'])->name('charges.public.checkout');
+Route::get('/cobranza/pago-exitoso/{token}', [ChargePaymentController::class, 'success'])->name('charges.public.success');
+Route::post('/stripe/webhook', [ChargePaymentController::class, 'webhook'])
+    ->name('stripe.webhook')
+    ->withoutMiddleware([ValidateCsrfToken::class]);
 
 Route::middleware(['auth'])
     ->group(function () {
@@ -77,6 +86,8 @@ Route::middleware(['auth'])
         Route::post('/inquilinos/{tenant}/expediente/documentos', [DocumentController::class, 'storeCustomTenantDocument'])->name('dossiers.tenants.documents.store');
 
         Route::get('/documentos', [DocumentController::class, 'index'])->name('documents.index');
+        Route::get('/cobranza', [ChargeController::class, 'index'])->name('charges.index');
+        Route::post('/cobranza', [ChargeController::class, 'store'])->name('charges.store');
     });
 
 Route::get('/dashboard', function () {

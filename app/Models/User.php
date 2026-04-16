@@ -55,4 +55,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Property::class, 'created_by');
     }
+
+    public function createdCharges(): HasMany
+    {
+        return $this->hasMany(Charge::class, 'created_by');
+    }
 }
