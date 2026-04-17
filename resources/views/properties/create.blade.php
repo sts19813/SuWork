@@ -43,6 +43,12 @@
             ->all();
 
         $oldNewOwners = old('new_owners', []);
+        $removedAreaPhotoIds = collect(old('removed_area_photo_ids', []))
+            ->map(fn($id) => (int) $id)
+            ->all();
+        $removedItemPhotoIds = collect(old('removed_item_photo_ids', []))
+            ->map(fn($id) => (int) $id)
+            ->all();
 
         $defaultAreaData = collect($defaultAreas)->map(function ($area) {
             return [
@@ -181,6 +187,14 @@
                 @method('PUT')
             @endif
             <input type="hidden" name="wizard_step" id="wizard-step-input" value="{{ $initialStep }}">
+            <div id="inventory-photo-removals">
+                @foreach ($removedAreaPhotoIds as $removedAreaPhotoId)
+                    <input type="hidden" name="removed_area_photo_ids[]" value="{{ $removedAreaPhotoId }}">
+                @endforeach
+                @foreach ($removedItemPhotoIds as $removedItemPhotoId)
+                    <input type="hidden" name="removed_item_photo_ids[]" value="{{ $removedItemPhotoId }}">
+                @endforeach
+            </div>
 
             @if ($errors->any())
                 <div class="alert alert-danger mb-8">
@@ -746,7 +760,8 @@
             <div class="card mb-8 wizard-step d-none" data-step-panel="5">
                 <div class="card-body p-lg-10">
                     <h3 class="mb-3 fw-bold">Inventario de la propiedad</h3>
-                    <p class="text-muted mb-8">Documenta espacios y elementos. Este paso también puede completarse posteriormente.</p>
+                    <p class="text-muted mb-2">Documenta espacios y elementos. Este paso también puede completarse posteriormente.</p>
+                    <p class="text-muted fs-8 mb-8">Las imágenes de inventario se comprimen automáticamente (proporcional, sin estirar) para intentar mantener cada archivo en un máximo de 500KB.</p>
 
                     <button type="button" id="clear-inventory-btn" class="btn btn-light-secondary mb-4">
                         <i class="ki-outline ki-trash fs-4 me-1"></i> Limpiar inventario
@@ -794,10 +809,18 @@
 
                                     <div class="col-12">
                                         @if (!empty($area['existing_photos']))
-                                            <div class="mb-3 d-flex flex-wrap gap-3">
+                                            <div class="mb-3 d-flex flex-wrap gap-3 inventory-existing-area-photos">
                                                 @foreach ($area['existing_photos'] as $photo)
-                                                    <div class="inventory-thumb-item">
+                                                    @continue(in_array((int) ($photo['id'] ?? 0), $removedAreaPhotoIds, true))
+                                                    <div class="inventory-thumb-item position-relative" data-photo-kind="area" data-photo-id="{{ $photo['id'] ?? '' }}">
                                                         <img src="{{ $photo['url'] }}" class="inventory-thumb" alt="Foto área">
+                                                        <button type="button"
+                                                            class="btn btn-icon btn-danger btn-sm position-absolute top-0 end-0 m-1 js-remove-existing-photo"
+                                                            data-photo-type="area"
+                                                            data-photo-id="{{ $photo['id'] ?? '' }}"
+                                                            title="Eliminar foto">
+                                                            <i class="ki-outline ki-trash fs-7"></i>
+                                                        </button>
                                                     </div>
                                                 @endforeach
                                             </div>
@@ -806,7 +829,7 @@
                                         <input type="file"
                                             name="inventory_areas[{{ $areaIndex }}][photos][]"
                                             class="form-control js-drop-input"
-                                            accept=".jpg,.jpeg,.png"
+                                            accept=".jpg,.jpeg,.png,.webp"
                                             multiple>
                                     </div>
                                 </div>
@@ -861,10 +884,18 @@
                                         </div>
 
                                         @if (!empty($item['existing_photos']))
-                                            <div class="mb-3 d-flex flex-wrap gap-3">
+                                            <div class="mb-3 d-flex flex-wrap gap-3 inventory-existing-item-photos">
                                                 @foreach ($item['existing_photos'] as $photo)
-                                                    <div class="inventory-thumb-item">
+                                                    @continue(in_array((int) ($photo['id'] ?? 0), $removedItemPhotoIds, true))
+                                                    <div class="inventory-thumb-item position-relative" data-photo-kind="item" data-photo-id="{{ $photo['id'] ?? '' }}">
                                                         <img src="{{ $photo['url'] }}" class="inventory-thumb" alt="Foto ítem">
+                                                        <button type="button"
+                                                            class="btn btn-icon btn-danger btn-sm position-absolute top-0 end-0 m-1 js-remove-existing-photo"
+                                                            data-photo-type="item"
+                                                            data-photo-id="{{ $photo['id'] ?? '' }}"
+                                                            title="Eliminar foto">
+                                                            <i class="ki-outline ki-trash fs-7"></i>
+                                                        </button>
                                                     </div>
                                                 @endforeach
                                             </div>
@@ -1063,7 +1094,7 @@
             <div class="col-12">
                 <label class="form-label">Fotos generales del área (hasta 3)</label>
                 <input type="file" name="inventory_areas[__AREA_INDEX__][photos][]" class="form-control js-drop-input"
-                    accept=".jpg,.jpeg,.png" multiple>
+                    accept=".jpg,.jpeg,.png,.webp" multiple>
             </div>
         </div>
         <div class="items-container d-flex flex-column gap-4">
@@ -1164,6 +1195,31 @@
                 if (type === 'error') {
                     alert(message);
                 }
+            };
+            const removalsContainer = document.getElementById('inventory-photo-removals');
+
+            const confirmWithSwal = async ({
+                title = 'Confirmar',
+                text = 'Esta accion no se puede deshacer.',
+                confirmButtonText = 'Si, eliminar',
+                cancelButtonText = 'Cancelar',
+                icon = 'warning',
+            } = {}) => {
+                if (window.Swal?.fire) {
+                    const result = await window.Swal.fire({
+                        title,
+                        text,
+                        icon,
+                        showCancelButton: true,
+                        confirmButtonText,
+                        cancelButtonText,
+                        reverseButtons: true,
+                    });
+
+                    return !!result.isConfirmed;
+                }
+
+                return window.confirm(text);
             };
 
             const determineStepFromErrorKey = (errorKey = '') => {
@@ -1347,56 +1403,115 @@
                 inputs.forEach((input) => {
                     input.dataset.dropReady = '1';
                     const box = input.closest('.upload-box');
-                    if (!box) {
-                        return;
+                    const isInventoryPhotoInput = input.name?.includes('inventory_areas[') && input.name?.includes('[photos][]');
+
+                    let label = null;
+                    if (box) {
+                        label = box.querySelector('.file-selected-label');
+                        if (!label) {
+                            label = document.createElement('span');
+                            label.className = 'file-selected-label text-success fs-8 d-none';
+                            box.appendChild(label);
+                        }
                     }
 
-                    let label = box.querySelector('.file-selected-label');
-                    if (!label) {
-                        label = document.createElement('span');
-                        label.className = 'file-selected-label text-success fs-8 d-none';
-                        box.appendChild(label);
-                    }
+                    const ensurePreviewContainer = () => {
+                        if (!isInventoryPhotoInput) {
+                            return null;
+                        }
+
+                        let preview = input.parentElement?.querySelector('.inventory-selected-preview[data-preview-for="' + input.name + '"]');
+                        if (!preview) {
+                            preview = document.createElement('div');
+                            preview.className = 'inventory-selected-preview d-flex flex-wrap gap-3 mt-3';
+                            preview.dataset.previewFor = input.name || '';
+                            input.insertAdjacentElement('afterend', preview);
+                        }
+
+                        return preview;
+                    };
 
                     const renderSelected = () => {
-                        if (!input.files || !input.files.length) {
-                            label.textContent = '';
-                            label.classList.add('d-none');
+                        if (label) {
+                            if (!input.files || !input.files.length) {
+                                label.textContent = '';
+                                label.classList.add('d-none');
+                            } else {
+                                label.textContent = input.files.length === 1
+                                    ? `Archivo seleccionado: ${input.files[0].name}`
+                                    : `${input.files.length} archivos seleccionados`;
+                                label.classList.remove('d-none');
+                            }
+                        }
+
+                        const preview = ensurePreviewContainer();
+                        if (!preview) {
                             return;
                         }
 
-                        label.textContent = input.files.length === 1
-                            ? `Archivo seleccionado: ${input.files[0].name}`
-                            : `${input.files.length} archivos seleccionados`;
-                        label.classList.remove('d-none');
+                        preview.innerHTML = '';
+                        if (!input.files?.length) {
+                            return;
+                        }
+
+                        [...input.files].forEach((file, index) => {
+                            const item = document.createElement('div');
+                            item.className = 'inventory-thumb-item position-relative';
+
+                            const image = document.createElement('img');
+                            image.className = 'inventory-thumb';
+                            image.alt = file.name;
+
+                            const removeBtn = document.createElement('button');
+                            removeBtn.type = 'button';
+                            removeBtn.className = 'btn btn-icon btn-danger btn-sm position-absolute top-0 end-0 m-1 js-remove-selected-photo';
+                            removeBtn.dataset.fileIndex = index.toString();
+                            removeBtn.dataset.targetInput = input.name || '';
+                            removeBtn.title = 'Eliminar foto';
+                            removeBtn.innerHTML = '<i class="ki-outline ki-trash fs-7"></i>';
+
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                image.src = e.target?.result || '';
+                            };
+                            reader.readAsDataURL(file);
+
+                            item.appendChild(image);
+                            item.appendChild(removeBtn);
+                            preview.appendChild(item);
+                        });
                     };
 
                     input.addEventListener('change', renderSelected);
 
-                    ['dragenter', 'dragover'].forEach((eventName) => {
-                        box.addEventListener(eventName, (event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            box.classList.add('is-dragover');
+                    if (box) {
+                        ['dragenter', 'dragover'].forEach((eventName) => {
+                            box.addEventListener(eventName, (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                box.classList.add('is-dragover');
+                            });
                         });
-                    });
 
-                    ['dragleave', 'drop'].forEach((eventName) => {
-                        box.addEventListener(eventName, (event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            box.classList.remove('is-dragover');
+                        ['dragleave', 'drop'].forEach((eventName) => {
+                            box.addEventListener(eventName, (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                box.classList.remove('is-dragover');
+                            });
                         });
-                    });
 
-                    box.addEventListener('drop', (event) => {
-                        if (!event.dataTransfer?.files?.length) {
-                            return;
-                        }
+                        box.addEventListener('drop', (event) => {
+                            if (!event.dataTransfer?.files?.length) {
+                                return;
+                            }
 
-                        input.files = event.dataTransfer.files;
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
-                    });
+                            input.files = event.dataTransfer.files;
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                        });
+                    }
+
+                    renderSelected();
                 });
             };
 
@@ -1491,6 +1606,22 @@
             const areaTemplate = document.getElementById('inventory-area-template').innerHTML;
             const addAreaBtn = document.getElementById('add-area-btn');
             let areaIndex = areasContainer.querySelectorAll('.inventory-area').length;
+            const markedAreaPhotoIds = new Set(
+                [...removalsContainer.querySelectorAll('input[name="removed_area_photo_ids[]"]')]
+                    .map((input) => input.value)
+            );
+            const markedItemPhotoIds = new Set(
+                [...removalsContainer.querySelectorAll('input[name="removed_item_photo_ids[]"]')]
+                    .map((input) => input.value)
+            );
+
+            const appendRemovalInput = (name, value) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                removalsContainer.appendChild(input);
+            };
 
             const refreshAreaButtons = () => {
                 const areas = areasContainer.querySelectorAll('.inventory-area');
@@ -1554,6 +1685,82 @@
                 areaIndex = 1;
                 refreshAreaButtons();
                 initDropInputs(areasContainer);
+            });
+
+            form.addEventListener('click', async (event) => {
+                const removeExistingBtn = event.target.closest('.js-remove-existing-photo');
+                if (removeExistingBtn) {
+                    const confirmed = await confirmWithSwal({
+                        title: 'Eliminar imagen',
+                        text: 'La imagen se eliminara al guardar los cambios del inventario.',
+                        confirmButtonText: 'Si, eliminar',
+                        cancelButtonText: 'Cancelar',
+                    });
+
+                    if (!confirmed) {
+                        return;
+                    }
+
+                    const photoId = (removeExistingBtn.dataset.photoId || '').trim();
+                    const photoType = removeExistingBtn.dataset.photoType || '';
+                    if (!photoId) {
+                        return;
+                    }
+
+                    if (photoType === 'area') {
+                        if (!markedAreaPhotoIds.has(photoId)) {
+                            markedAreaPhotoIds.add(photoId);
+                            appendRemovalInput('removed_area_photo_ids[]', photoId);
+                        }
+                    } else if (photoType === 'item') {
+                        if (!markedItemPhotoIds.has(photoId)) {
+                            markedItemPhotoIds.add(photoId);
+                            appendRemovalInput('removed_item_photo_ids[]', photoId);
+                        }
+                    }
+
+                    removeExistingBtn.closest('.inventory-thumb-item')?.remove();
+                    showToast('success', 'Imagen marcada para eliminacion.');
+                    return;
+                }
+
+                const removeSelectedBtn = event.target.closest('.js-remove-selected-photo');
+                if (!removeSelectedBtn) {
+                    return;
+                }
+
+                const confirmed = await confirmWithSwal({
+                    title: 'Quitar imagen seleccionada',
+                    text: 'La imagen se quitara de esta carga.',
+                    confirmButtonText: 'Si, quitar',
+                    cancelButtonText: 'Cancelar',
+                });
+
+                if (!confirmed) {
+                    return;
+                }
+
+                const targetInputName = removeSelectedBtn.dataset.targetInput || '';
+                const fileIndex = Number(removeSelectedBtn.dataset.fileIndex ?? -1);
+                if (!targetInputName || Number.isNaN(fileIndex) || fileIndex < 0) {
+                    return;
+                }
+
+                const targetInput = [...form.querySelectorAll('input[type="file"]')]
+                    .find((input) => input.name === targetInputName);
+                if (!targetInput?.files?.length) {
+                    return;
+                }
+
+                const dt = new DataTransfer();
+                [...targetInput.files].forEach((file, index) => {
+                    if (index !== fileIndex) {
+                        dt.items.add(file);
+                    }
+                });
+                targetInput.files = dt.files;
+                targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+                showToast('success', 'Imagen eliminada de la seleccion.');
             });
 
             areasContainer.addEventListener('click', (event) => {

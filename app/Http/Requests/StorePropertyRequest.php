@@ -88,8 +88,14 @@ class StorePropertyRequest extends FormRequest
             'inventory_areas.*.items.*.notes' => ['nullable', 'string', 'max:500'],
             'inventory_areas.*.items.*.entry_checklist' => ['nullable', 'string'],
             'inventory_areas.*.items.*.exit_checklist' => ['nullable', 'string'],
+            'inventory_areas.*.items.*.photos' => ['nullable', 'array', 'max:10'],
+            'inventory_areas.*.items.*.photos.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'inventory_areas.*.photos' => ['nullable', 'array', 'max:6'],
-            'inventory_areas.*.photos.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'],
+            'inventory_areas.*.photos.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'removed_area_photo_ids' => ['nullable', 'array'],
+            'removed_area_photo_ids.*' => ['nullable', 'integer', 'exists:property_inventory_photos,id'],
+            'removed_item_photo_ids' => ['nullable', 'array'],
+            'removed_item_photo_ids.*' => ['nullable', 'integer', 'exists:property_inventory_item_photos,id'],
         ];
     }
 

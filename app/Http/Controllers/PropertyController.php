@@ -7,14 +7,17 @@ use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
 use App\Models\PropertyInventoryItemPhoto;
+use App\Models\PropertyInventoryPhoto;
 use App\Models\PropertyType;
 use App\Models\Tenant;
 use App\Models\Zone;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -464,7 +467,20 @@ class PropertyController extends Controller
 
     private function syncInventory(Property $property, array $inventoryAreas, StorePropertyRequest $request): void
     {
-        $existingAreaIds = $property->inventoryAreas()->pluck('id')->toArray();
+        $removedAreaPhotoIds = collect((array) $request->input('removed_area_photo_ids', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->values()
+            ->all();
+        $removedItemPhotoIds = collect((array) $request->input('removed_item_photo_ids', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->values()
+            ->all();
+
+        $this->deleteRequestedAreaPhotos($property, $removedAreaPhotoIds);
+        $this->deleteRequestedItemPhotos($property, $removedItemPhotoIds);
+
         $processedAreaIds = [];
 
         foreach ($inventoryAreas as $areaIndex => $areaData) {
@@ -479,7 +495,6 @@ class PropertyController extends Controller
 
             $processedAreaIds[] = $area->id;
 
-            $existingItemIds = $area->items()->pluck('id')->toArray();
             $processedItemIds = [];
 
             foreach ($areaData['items'] ?? [] as $itemIndex => $itemData) {
@@ -509,35 +524,347 @@ class PropertyController extends Controller
                         'status' => PropertyInventoryItemPhoto::STATUS_ACTIVE,
                     ]);
 
-                    $filePath = $photo->store("properties/{$property->id}/inventory/items/{$item->id}", 'public');
+                    $storedPhoto = $this->storeCompressedInventoryImage(
+                        $photo,
+                        "properties/{$property->id}/inventory/items/{$item->id}",
+                    );
 
                     $photoRecord->versions()->create([
-                        'file_path' => $filePath,
+                        'file_path' => $storedPhoto['path'],
                         'file_name' => $photo->getClientOriginalName(),
-                        'mime_type' => $photo->getClientMimeType(),
-                        'file_size' => $photo->getSize(),
+                        'mime_type' => $storedPhoto['mime_type'],
+                        'file_size' => $storedPhoto['file_size'],
                         'uploaded_by' => $request->user()->id,
                     ]);
                 }
             }
 
             if (!empty($areaData['items'])) {
-                $area->items()
+                $itemsToDelete = $area->items()
                     ->whereNotIn('id', $processedItemIds)
-                    ->delete();
+                    ->with('photos.versions')
+                    ->get();
+
+                foreach ($itemsToDelete as $itemToDelete) {
+                    $this->deleteItemPhotoFiles($itemToDelete->photos);
+                }
+
+                if ($itemsToDelete->isNotEmpty()) {
+                    $area->items()
+                        ->whereIn('id', $itemsToDelete->pluck('id'))
+                        ->delete();
+                }
             }
             // FOTOS DEL ÁREA
             foreach ($request->file("inventory_areas.{$areaIndex}.photos", []) as $photoIndex => $photo) {
-                $filePath = $photo->store("properties/{$property->id}/inventory/{$area->id}", 'public');
+                $storedPhoto = $this->storeCompressedInventoryImage(
+                    $photo,
+                    "properties/{$property->id}/inventory/{$area->id}",
+                );
 
                 $area->photos()->create([
-                    'file_path' => $filePath,
+                    'file_path' => $storedPhoto['path'],
                     'display_order' => $photoIndex,
                 ]);
             }
         }
 
-        $property->inventoryAreas()->whereNotIn('id', $processedAreaIds)->delete();
+        $areasToDeleteQuery = $property->inventoryAreas();
+        if (!empty($processedAreaIds)) {
+            $areasToDeleteQuery->whereNotIn('id', $processedAreaIds);
+        }
+
+        $areasToDelete = $areasToDeleteQuery
+            ->with(['photos', 'items.photos.versions'])
+            ->get();
+
+        foreach ($areasToDelete as $areaToDelete) {
+            $this->deleteAreaPhotoFiles($areaToDelete->photos);
+
+            foreach ($areaToDelete->items as $itemToDelete) {
+                $this->deleteItemPhotoFiles($itemToDelete->photos);
+            }
+        }
+
+        if ($areasToDelete->isNotEmpty()) {
+            $property->inventoryAreas()->whereIn('id', $areasToDelete->pluck('id'))->delete();
+        }
+    }
+
+    /**
+     * Guarda una imagen de inventario aplicando compresion proporcional.
+     * Si no es posible procesarla, guarda el archivo original sin transformacion.
+     *
+     * @return array{path: string, mime_type: string, file_size: int}
+     */
+    private function storeCompressedInventoryImage(UploadedFile $photo, string $directory): array
+    {
+        $encoded = $this->encodeCompressedInventoryImage($photo);
+
+        if ($encoded === null) {
+            $path = $photo->store($directory, 'public');
+
+            return [
+                'path' => $path,
+                'mime_type' => $photo->getClientMimeType() ?: 'application/octet-stream',
+                'file_size' => (int) ($photo->getSize() ?: 0),
+            ];
+        }
+
+        $path = trim($directory, '/') . '/' . Str::uuid() . '.' . $encoded['extension'];
+        Storage::disk('public')->put($path, $encoded['binary']);
+
+        return [
+            'path' => $path,
+            'mime_type' => $encoded['mime_type'],
+            'file_size' => strlen($encoded['binary']),
+        ];
+    }
+
+    /**
+     * Convierte una imagen a WEBP/JPG variando escala y calidad para acercarse
+     * al peso objetivo configurado.
+     *
+     * @return array{binary: string, extension: string, mime_type: string}|null
+     */
+    private function encodeCompressedInventoryImage(UploadedFile $photo): ?array
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            return null;
+        }
+
+        $sourcePath = $photo->getRealPath();
+        if (!$sourcePath) {
+            return null;
+        }
+
+        $imageInfo = @getimagesize($sourcePath);
+        if ($imageInfo === false) {
+            return null;
+        }
+
+        $sourceWidth = (int) ($imageInfo[0] ?? 0);
+        $sourceHeight = (int) ($imageInfo[1] ?? 0);
+        $imageType = (int) ($imageInfo[2] ?? 0);
+        if ($sourceWidth < 1 || $sourceHeight < 1) {
+            return null;
+        }
+
+        $sourceImage = $this->createImageResource($sourcePath, $imageType);
+        if (!$sourceImage) {
+            return null;
+        }
+
+        $largestSide = max($sourceWidth, $sourceHeight);
+        $maxDimension = $this->getInventoryImageMaxDimension();
+        $baseScale = $largestSide > $maxDimension
+            ? $maxDimension / $largestSide
+            : 1;
+
+        $baseWidth = max(1, (int) round($sourceWidth * $baseScale));
+        $baseHeight = max(1, (int) round($sourceHeight * $baseScale));
+
+        $scaleSteps = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3];
+        $qualitySteps = [82, 76, 70, 64, 58, 52, 46, 40];
+        $bestMatch = null;
+
+        try {
+            foreach ($scaleSteps as $scale) {
+                $targetWidth = max(1, (int) round($baseWidth * $scale));
+                $targetHeight = max(1, (int) round($baseHeight * $scale));
+
+                $resizedImage = imagecreatetruecolor($targetWidth, $targetHeight);
+                if (!$resizedImage) {
+                    continue;
+                }
+
+                imagealphablending($resizedImage, false);
+                imagesavealpha($resizedImage, true);
+                $transparent = imagecolorallocatealpha($resizedImage, 255, 255, 255, 127);
+                imagefilledrectangle($resizedImage, 0, 0, $targetWidth, $targetHeight, $transparent);
+
+                imagecopyresampled(
+                    $resizedImage,
+                    $sourceImage,
+                    0,
+                    0,
+                    0,
+                    0,
+                    $targetWidth,
+                    $targetHeight,
+                    $sourceWidth,
+                    $sourceHeight,
+                );
+
+                foreach ($qualitySteps as $quality) {
+                    $encoded = $this->encodeImageBinary($resizedImage, $quality);
+                    if ($encoded === null || $encoded['binary'] === '') {
+                        continue;
+                    }
+
+                    if ($bestMatch === null || strlen($encoded['binary']) < strlen($bestMatch['binary'])) {
+                        $bestMatch = $encoded;
+                    }
+
+                    if (strlen($encoded['binary']) <= $this->getInventoryImageMaxBytes()) {
+                        imagedestroy($resizedImage);
+
+                        return $encoded;
+                    }
+                }
+
+                imagedestroy($resizedImage);
+            }
+        } finally {
+            imagedestroy($sourceImage);
+        }
+
+        return $bestMatch;
+    }
+
+    /**
+     * Crea el recurso GD en memoria segun el tipo de imagen recibido.
+     *
+     * @return \GdImage|resource|null
+     */
+    private function createImageResource(string $sourcePath, int $imageType)
+    {
+        return match ($imageType) {
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($sourcePath),
+            IMAGETYPE_PNG => @imagecreatefrompng($sourcePath),
+            IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($sourcePath) : null,
+            default => null,
+        };
+    }
+
+    /**
+     * Codifica la imagen en WEBP (si esta disponible) o JPEG como respaldo.
+     *
+     * @return array{binary: string, extension: string, mime_type: string}|null
+     */
+    private function encodeImageBinary($image, int $quality): ?array
+    {
+        if (function_exists('imagewebp')) {
+            ob_start();
+            $encoded = @imagewebp($image, null, $quality);
+            $binary = (string) ob_get_clean();
+
+            if ($encoded && $binary !== '') {
+                return [
+                    'binary' => $binary,
+                    'extension' => 'webp',
+                    'mime_type' => 'image/webp',
+                ];
+            }
+        }
+
+        ob_start();
+        $encoded = @imagejpeg($image, null, $quality);
+        $binary = (string) ob_get_clean();
+
+        if (!$encoded || $binary === '') {
+            return null;
+        }
+
+        return [
+            'binary' => $binary,
+            'extension' => 'jpg',
+            'mime_type' => 'image/jpeg',
+        ];
+    }
+
+    /**
+     * Obtiene de configuracion el peso maximo permitido por imagen (bytes).
+     */
+    private function getInventoryImageMaxBytes(): int
+    {
+        return max(10240, (int) config('inventory.image_max_bytes', 512000));
+    }
+
+    /**
+     * Obtiene de configuracion la dimension maxima del lado mayor en pixeles.
+     */
+    private function getInventoryImageMaxDimension(): int
+    {
+        return max(400, (int) config('inventory.image_max_dimension', 2200));
+    }
+
+    /**
+     * Elimina fotos de area solicitadas por el usuario y su archivo en disco.
+     *
+     * @param  array<int>  $photoIds
+     */
+    private function deleteRequestedAreaPhotos(Property $property, array $photoIds): void
+    {
+        if (empty($photoIds)) {
+            return;
+        }
+
+        $photos = PropertyInventoryPhoto::query()
+            ->whereIn('id', $photoIds)
+            ->whereHas('area', fn ($query) => $query->where('property_id', $property->id))
+            ->get();
+
+        $this->deleteAreaPhotoFiles($photos);
+        $photos->each->delete();
+    }
+
+    /**
+     * Elimina fotos de item solicitadas por el usuario y sus archivos en disco.
+     *
+     * @param  array<int>  $photoIds
+     */
+    private function deleteRequestedItemPhotos(Property $property, array $photoIds): void
+    {
+        if (empty($photoIds)) {
+            return;
+        }
+
+        $photos = PropertyInventoryItemPhoto::query()
+            ->whereIn('id', $photoIds)
+            ->whereHas('item.area', fn ($query) => $query->where('property_id', $property->id))
+            ->with('versions')
+            ->get();
+
+        $this->deleteItemPhotoFiles($photos);
+        $photos->each->delete();
+    }
+
+    /**
+     * Borra del disco publico las fotos de area.
+     */
+    private function deleteAreaPhotoFiles(iterable $photos): void
+    {
+        foreach ($photos as $photo) {
+            $this->deleteStoragePath($photo->file_path ?? null);
+        }
+    }
+
+    /**
+     * Borra del disco publico todas las versiones de fotos de item.
+     */
+    private function deleteItemPhotoFiles(iterable $photos): void
+    {
+        foreach ($photos as $photo) {
+            foreach ($photo->versions ?? [] as $version) {
+                $this->deleteStoragePath($version->file_path ?? null);
+            }
+        }
+    }
+
+    /**
+     * Elimina una ruta del disco publico si existe.
+     */
+    private function deleteStoragePath(?string $path): void
+    {
+        if (!filled($path)) {
+            return;
+        }
+
+        $disk = Storage::disk('public');
+        if ($disk->exists($path)) {
+            $disk->delete($path);
+        }
     }
 
     private function getPropertyTypesCatalog(): Collection
