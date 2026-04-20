@@ -45,6 +45,14 @@ class ChargeController extends Controller
                 ->first()
             : null;
         $selectedPropertyId = $selectedProperty?->id;
+        $selectedPropertyHasRentCharges = $selectedPropertyId
+            ? Charge::query()
+                ->where('property_id', $selectedPropertyId)
+                ->where('type', Charge::TYPE_RENT)
+                ->where('status', '!=', Charge::STATUS_CANCELED)
+                ->exists()
+            : false;
+        $showPropertySetupCard = (bool) ($selectedPropertyId && !$selectedPropertyHasRentCharges);
 
         $charges = Charge::query()
             ->with(['tenant:id,full_name', 'property:id,internal_name,internal_reference'])
@@ -130,7 +138,7 @@ class ChargeController extends Controller
 
         $propertySetupTenants = collect();
         $tenantAssignmentChecks = [];
-        if ($selectedPropertyId) {
+        if ($showPropertySetupCard) {
             $propertySetupTenants = Tenant::query()
                 ->with(['documents' => fn ($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
                 ->orderBy('full_name')
@@ -168,6 +176,8 @@ class ChargeController extends Controller
                 'contract_starts_at',
                 'contract_expires_at',
                 'monthly_rent_price',
+                'charge_day',
+                'charge_tolerance_days',
             ]),
             'tenants' => Tenant::query()
                 ->orderBy('full_name')
@@ -190,6 +200,7 @@ class ChargeController extends Controller
             'stats' => $stats,
             'currentMonthLabel' => Carbon::create($now->year, $now->month, 1)->translatedFormat('M Y'),
             'selectedProperty' => $selectedProperty,
+            'showPropertySetupCard' => $showPropertySetupCard,
         ]);
     }
 
@@ -199,6 +210,9 @@ class ChargeController extends Controller
             'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
             'contract_starts_at' => ['nullable', 'date'],
             'contract_expires_at' => ['nullable', 'date'],
+            'monthly_rent_price' => ['required', 'numeric', 'min:0'],
+            'charge_day' => ['nullable', 'integer', 'between:1,31'],
+            'charge_tolerance_days' => ['nullable', 'integer', 'min:0', 'max:31'],
             'rent_charge_plan' => ['nullable', 'array'],
             'rent_charge_plan.*.period_month' => ['required_with:rent_charge_plan', 'integer', 'between:1,12'],
             'rent_charge_plan.*.period_year' => ['required_with:rent_charge_plan', 'integer', 'between:2000,2200'],
@@ -240,6 +254,24 @@ class ChargeController extends Controller
                     'La lista de pagos tiene periodos repetidos. Verifica la tabla de cargos.',
                 );
             }
+
+            $tenantId = $request->input('tenant_id');
+            $monthlyRentPrice = (float) $request->input('monthly_rent_price', 0);
+            if (filled($tenantId)) {
+                if ($monthlyRentPrice <= 0) {
+                    $validator->errors()->add(
+                        'monthly_rent_price',
+                        'El precio de renta mensual debe ser mayor a 0 para generar pagos.',
+                    );
+                }
+
+                if (!filled($contractStartsAt) || !filled($contractExpiresAt)) {
+                    $validator->errors()->add(
+                        'contract_starts_at',
+                        'Debes capturar el inicio y vencimiento del contrato para generar pagos.',
+                    );
+                }
+            }
         });
 
         $validated = $validator->validateWithBag('propertySetup');
@@ -261,21 +293,30 @@ class ChargeController extends Controller
         }
 
         $planRows = $this->normalizeBulkRows($validated['rent_charge_plan'] ?? null)->all();
+        $resolvedChargeDay = $this->resolveChargeDay(
+            $validated['contract_starts_at'] ?? null,
+            array_key_exists('charge_day', $validated) ? (int) $validated['charge_day'] : null,
+        );
+        $resolvedToleranceDays = max(0, (int) ($validated['charge_tolerance_days'] ?? 0));
         if (empty($planRows)) {
             $planRows = $this->buildRentChargePlanFromContractData(
                 $validated['contract_starts_at'] ?? null,
                 $validated['contract_expires_at'] ?? null,
-                (float) $property->monthly_rent_price,
+                (float) ($validated['monthly_rent_price'] ?? 0),
+                $resolvedChargeDay,
             );
         }
 
         $created = 0;
-        DB::transaction(function () use (&$created, $property, $tenant, $validated, $planRows, $request): void {
+        DB::transaction(function () use (&$created, $property, $tenant, $validated, $planRows, $request, $resolvedChargeDay, $resolvedToleranceDays): void {
             $property->forceFill([
                 'tenant_id' => $tenant?->id,
                 'current_tenant_name' => $tenant?->full_name,
                 'contract_starts_at' => $validated['contract_starts_at'] ?? null,
                 'contract_expires_at' => $validated['contract_expires_at'] ?? null,
+                'monthly_rent_price' => (float) ($validated['monthly_rent_price'] ?? 0),
+                'charge_day' => $resolvedChargeDay,
+                'charge_tolerance_days' => $resolvedToleranceDays,
                 'rent_charge_plan' => $planRows,
             ])->save();
 
@@ -500,9 +541,26 @@ class ChargeController extends Controller
         $property = Property::query()
             ->with('tenant:id,full_name')
             ->findOrFail((int) $validated['property_id']);
+        $property = $this->applyBulkPropertyConfiguration($property, $validated, false);
+
+        if ((float) $property->monthly_rent_price <= 0) {
+            return response()->json([
+                'message' => 'El precio de renta mensual debe ser mayor a 0 para generar pagos.',
+                'preview' => [
+                    'rows' => [],
+                    'summary' => [
+                        'total' => 0,
+                        'already_exists' => 0,
+                        'to_create' => 0,
+                    ],
+                ],
+            ], 422);
+        }
+
+        $rowsSource = $this->resolveBulkRowsSource($property, $validated);
 
         return response()->json([
-            'preview' => $this->buildBulkPreview($property, $validated['rows'] ?? null),
+            'preview' => $this->buildBulkPreview($property, $rowsSource),
         ]);
     }
 
@@ -520,7 +578,16 @@ class ChargeController extends Controller
             );
         }
 
-        $preview = $this->buildBulkPreview($property, $validated['rows'] ?? null);
+        $property = $this->applyBulkPropertyConfiguration($property, $validated, false);
+        if ((float) $property->monthly_rent_price <= 0) {
+            return redirect()->route('charges.index', $this->chargesIndexRouteParamsFromRequest($request))->with(
+                'warning',
+                'El precio de renta mensual debe ser mayor a 0 para generar pagos.',
+            );
+        }
+
+        $rowsSource = $this->resolveBulkRowsSource($property, $validated);
+        $preview = $this->buildBulkPreview($property, $rowsSource);
 
         if (empty($preview['rows'])) {
             return redirect()->route('charges.index', $this->chargesIndexRouteParamsFromRequest($request))->with(
@@ -530,7 +597,9 @@ class ChargeController extends Controller
         }
 
         $created = 0;
-        DB::transaction(function () use ($preview, &$created, $request, $property): void {
+        DB::transaction(function () use ($preview, &$created, $request, $property, $validated): void {
+            $this->applyBulkPropertyConfiguration($property, $validated, true);
+
             foreach ($preview['rows'] as $row) {
                 if ($row['already_exists']) {
                     continue;
@@ -625,6 +694,35 @@ class ChargeController extends Controller
         ];
     }
 
+    private function resolveBulkRowsSource(Property $property, array $validated): ?array
+    {
+        $providedRows = $this->normalizeBulkRows($validated['rows'] ?? null)->all();
+        if (!empty($providedRows)) {
+            return $providedRows;
+        }
+
+        $contractStartsAt = $validated['contract_starts_at'] ?? null;
+        $contractExpiresAt = $validated['contract_expires_at'] ?? null;
+        if (!filled($contractStartsAt) || !filled($contractExpiresAt)) {
+            return null;
+        }
+
+        $monthlyRentPrice = (float) ($validated['monthly_rent_price'] ?? $property->monthly_rent_price ?? 0);
+        $resolvedChargeDay = $this->resolveChargeDay(
+            $contractStartsAt,
+            array_key_exists('charge_day', $validated)
+                ? (int) $validated['charge_day']
+                : (filled($property->charge_day) ? (int) $property->charge_day : null),
+        );
+
+        return $this->buildRentChargePlanFromContractData(
+            (string) $contractStartsAt,
+            (string) $contractExpiresAt,
+            $monthlyRentPrice,
+            $resolvedChargeDay,
+        );
+    }
+
     private function getPropertyPlanRows(Property $property): Collection
     {
         $storedRows = $this->normalizeBulkRows($property->rent_charge_plan);
@@ -680,7 +778,8 @@ class ChargeController extends Controller
         }
 
         $startsAt = $property->contract_starts_at->copy();
-        $contractDay = (int) $startsAt->day;
+        $contractDay = $this->normalizeChargeDay($property->charge_day ? (int) $property->charge_day : null)
+            ?? (int) $startsAt->day;
         $startsAt = $startsAt->startOfMonth();
         $expiresAt = $property->contract_expires_at->copy()->startOfMonth();
         if ($startsAt->gt($expiresAt)) {
@@ -711,6 +810,7 @@ class ChargeController extends Controller
         ?string $contractStartsAt,
         ?string $contractExpiresAt,
         float $monthlyRentPrice,
+        ?int $chargeDay = null,
     ): array {
         if (!filled($contractStartsAt) || !filled($contractExpiresAt) || $monthlyRentPrice <= 0) {
             return [];
@@ -727,7 +827,7 @@ class ChargeController extends Controller
             return [];
         }
 
-        $contractDay = (int) $startsAt->day;
+        $contractDay = $this->normalizeChargeDay($chargeDay) ?? (int) $startsAt->day;
         $cursor = $startsAt->copy()->startOfMonth();
         $end = $expiresAt->copy()->startOfMonth();
         $rows = [];
@@ -749,6 +849,76 @@ class ChargeController extends Controller
         }
 
         return $rows;
+    }
+
+    private function resolveChargeDay(?string $contractStartsAt, ?int $requestedChargeDay): ?int
+    {
+        $normalizedRequestedDay = $this->normalizeChargeDay($requestedChargeDay);
+        if ($normalizedRequestedDay !== null) {
+            return $normalizedRequestedDay;
+        }
+
+        if (!filled($contractStartsAt)) {
+            return null;
+        }
+
+        try {
+            $contractStartDay = (int) Carbon::parse($contractStartsAt)->day;
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $this->normalizeChargeDay($contractStartDay);
+    }
+
+    private function normalizeChargeDay(?int $chargeDay): ?int
+    {
+        if ($chargeDay === null || $chargeDay < 1 || $chargeDay > 31) {
+            return null;
+        }
+
+        return $chargeDay;
+    }
+
+    private function applyBulkPropertyConfiguration(Property $property, array $validated, bool $persist): Property
+    {
+        $payload = [];
+
+        if (array_key_exists('contract_starts_at', $validated)) {
+            $payload['contract_starts_at'] = $validated['contract_starts_at'] ?? null;
+        }
+
+        if (array_key_exists('contract_expires_at', $validated)) {
+            $payload['contract_expires_at'] = $validated['contract_expires_at'] ?? null;
+        }
+
+        if (array_key_exists('monthly_rent_price', $validated)) {
+            $payload['monthly_rent_price'] = (float) ($validated['monthly_rent_price'] ?? 0);
+        }
+
+        if (array_key_exists('charge_day', $validated) || array_key_exists('contract_starts_at', $validated)) {
+            $contractStartsAt = array_key_exists('contract_starts_at', $validated)
+                ? $validated['contract_starts_at']
+                : $property->contract_starts_at?->toDateString();
+            $requestedChargeDay = array_key_exists('charge_day', $validated)
+                ? (filled($validated['charge_day']) ? (int) $validated['charge_day'] : null)
+                : (filled($property->charge_day) ? (int) $property->charge_day : null);
+
+            $payload['charge_day'] = $this->resolveChargeDay($contractStartsAt, $requestedChargeDay);
+        }
+
+        if (array_key_exists('charge_tolerance_days', $validated)) {
+            $payload['charge_tolerance_days'] = max(0, (int) ($validated['charge_tolerance_days'] ?? 0));
+        }
+
+        if (!empty($payload)) {
+            $property->forceFill($payload);
+            if ($persist) {
+                $property->save();
+            }
+        }
+
+        return $property;
     }
 
     private function syncPropertyPlanFromBulk(Property $property, array $rows): void

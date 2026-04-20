@@ -60,48 +60,42 @@
                         <a href="{{ route('properties.edit', $property) }}" class="btn btn-sm btn-light-primary">
                             Editar propiedad
                         </a>
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                Asignar inquilino
-                            </button>
-                            <ul class="dropdown-menu">
-                                @foreach($tenants as $tenant)
-                                    @php
-                                        $assignmentCheck = $tenantAssignmentChecks[(string) $tenant->id] ?? ['missing' => [], 'is_complete' => true];
-                                    @endphp
-                                    <li>
-                                        <form method="POST"
-                                            action="{{ route('properties.update.tenant', $property) }}"
-                                            class="d-inline js-assign-tenant-form"
-                                            data-tenant-name="{{ $tenant->full_name }}"
-                                            data-missing='@json($assignmentCheck['missing'])'>
-                                            @csrf
-                                            @method('PUT')
-                                            <input type="hidden" name="tenant_id" value="{{ $tenant->id }}">
-                                            <input type="hidden" name="force_assignment" value="0">
-                                            <button type="submit" class="dropdown-item">
-                                                {{ $tenant->full_name }}
-                                                @unless($assignmentCheck['is_complete'])
-                                                    <span class="text-warning">(incompleto)</span>
-                                                @endunless
-                                            </button>
-                                        </form>
-                                    </li>
-                                @endforeach
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <form method="POST" action="{{ route('properties.update.tenant', $property) }}" class="d-inline">
-                                        @csrf
-                                        @method('PUT')
-                                        <input type="hidden" name="tenant_id" value="">
-                                        <input type="hidden" name="force_assignment" value="0">
-                                        <button type="submit" class="dropdown-item text-danger">
-                                            Remover inquilino
-                                        </button>
-                                    </form>
-                                </li>
-                            </ul>
-                        </div>
+                        @if ($property->tenant_id)
+                            <a href="{{ route('charges.index', ['property' => $property->uuid]) }}" class="btn btn-sm btn-light-success">
+                                Cobranza
+                            </a>
+                        @else
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    Asignar inquilino
+                                </button>
+                                <ul class="dropdown-menu">
+                                    @foreach($tenants as $tenant)
+                                        @php
+                                            $assignmentCheck = $tenantAssignmentChecks[(string) $tenant->id] ?? ['missing' => [], 'is_complete' => true];
+                                        @endphp
+                                        <li>
+                                            <form method="POST"
+                                                action="{{ route('properties.update.tenant', $property) }}"
+                                                class="d-inline js-assign-tenant-form"
+                                                data-tenant-name="{{ $tenant->full_name }}"
+                                                data-missing='@json($assignmentCheck['missing'])'>
+                                                @csrf
+                                                @method('PUT')
+                                                <input type="hidden" name="tenant_id" value="{{ $tenant->id }}">
+                                                <input type="hidden" name="force_assignment" value="0">
+                                                <button type="submit" class="dropdown-item">
+                                                    {{ $tenant->full_name }}
+                                                    @unless($assignmentCheck['is_complete'])
+                                                        <span class="text-warning">(incompleto)</span>
+                                                    @endunless
+                                                </button>
+                                            </form>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>

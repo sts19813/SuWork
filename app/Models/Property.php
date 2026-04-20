@@ -51,6 +51,8 @@ class Property extends Model
         'official_number',
         'unit_number',
         'monthly_rent_price',
+        'charge_day',
+        'charge_tolerance_days',
         'maintenance_fee',
         'rent_charge_plan',
         'facade_photo_path',
@@ -74,6 +76,8 @@ class Property extends Model
             'contract_expires_at' => 'date',
             'onboarding_step' => 'integer',
             'monthly_rent_price' => 'decimal:2',
+            'charge_day' => 'integer',
+            'charge_tolerance_days' => 'integer',
             'maintenance_fee' => 'decimal:2',
             'rent_charge_plan' => 'array',
         ];

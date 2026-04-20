@@ -57,11 +57,14 @@
             </div>
         </div>
 
-        @if ($selectedProperty)
+        @if ($selectedProperty && $showPropertySetupCard)
             @php
                 $selectedSetupTenantId = (string) old('tenant_id', $selectedProperty->tenant_id ?: '');
                 $setupContractStartsAt = old('contract_starts_at', $selectedProperty->contract_starts_at?->format('Y-m-d'));
                 $setupContractExpiresAt = old('contract_expires_at', $selectedProperty->contract_expires_at?->format('Y-m-d'));
+                $setupMonthlyRentPrice = old('monthly_rent_price', number_format((float) ($selectedProperty->monthly_rent_price ?? 0), 2, '.', ''));
+                $setupChargeDay = old('charge_day', $selectedProperty->charge_day ?: $selectedProperty->contract_starts_at?->day);
+                $setupChargeToleranceDays = old('charge_tolerance_days', (int) ($selectedProperty->charge_tolerance_days ?? 0));
                 $initialPropertySetupPlan = old('rent_charge_plan', $selectedProperty->rent_charge_plan ?? []);
                 $initialPropertySetupPlan = collect($initialPropertySetupPlan)
                     ->filter(fn($row) => is_array($row))
@@ -133,6 +136,34 @@
                                     class="form-control @error('contract_expires_at', 'propertySetup') is-invalid @enderror"
                                     value="{{ $setupContractExpiresAt }}">
                                 @error('contract_expires_at', 'propertySetup')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-lg-6">
+                                <label class="form-label">Precio renta mensual</label>
+                                <input type="number" name="monthly_rent_price" id="propertySetupMonthlyRentPrice"
+                                    class="form-control @error('monthly_rent_price', 'propertySetup') is-invalid @enderror"
+                                    min="0" step="0.01" value="{{ $setupMonthlyRentPrice }}">
+                                @error('monthly_rent_price', 'propertySetup')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="text-muted fs-8 mt-2">Si está vacío se considera 0. Es necesario que sea mayor a 0 para generar pagos.</div>
+                            </div>
+                            <div class="col-lg-3">
+                                <label class="form-label">Dia de cobro</label>
+                                <input type="number" name="charge_day" id="propertySetupChargeDay"
+                                    class="form-control @error('charge_day', 'propertySetup') is-invalid @enderror"
+                                    min="1" max="31" step="1" value="{{ $setupChargeDay }}">
+                                @error('charge_day', 'propertySetup')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-lg-3">
+                                <label class="form-label">Tolerancia (dias)</label>
+                                <input type="number" name="charge_tolerance_days" id="propertySetupChargeToleranceDays"
+                                    class="form-control @error('charge_tolerance_days', 'propertySetup') is-invalid @enderror"
+                                    min="0" max="31" step="1" value="{{ $setupChargeToleranceDays }}">
+                                @error('charge_tolerance_days', 'propertySetup')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
@@ -686,25 +717,60 @@
                                 Revisa los datos para generar la cobranza.
                             </div>
                         @endif
+                        @php
+                            $bulkChargeDay = old('charge_day', $selectedProperty?->charge_day ?: $selectedProperty?->contract_starts_at?->day);
+                            $bulkChargeToleranceDays = old('charge_tolerance_days', (int) ($selectedProperty?->charge_tolerance_days ?? 0));
+                        @endphp
 
                         <div class="row g-5 mb-6">
-                            <div class="col-md-7">
+                            <div class="col-md-6">
                                 <label class="form-label required">Propiedad</label>
                                 <select name="property_id" id="bulkPropertyId" class="form-select" required>
                                     <option value="">Seleccionar...</option>
                                     @foreach ($chargeableProperties as $property)
                                         <option value="{{ $property->id }}"
                                             data-tenant-name="{{ $property->tenant?->full_name }}"
+                                            data-contract-start="{{ $property->contract_starts_at?->format('Y-m-d') }}"
+                                            data-contract-expires="{{ $property->contract_expires_at?->format('Y-m-d') }}"
+                                            data-monthly-rent="{{ number_format((float) ($property->monthly_rent_price ?? 0), 2, '.', '') }}"
+                                            data-charge-day="{{ $property->charge_day }}"
+                                            data-charge-tolerance-days="{{ (int) ($property->charge_tolerance_days ?? 0) }}"
                                             {{ (string) old('property_id', $selectedProperty?->id) === (string) $property->id ? 'selected' : '' }}>
                                             {{ $property->internal_name }}{{ $property->internal_reference ? ' - ' . $property->internal_reference : '' }}
                                         </option>
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-5">
+                            <div class="col-md-6">
                                 <label class="form-label">Inquilino actual</label>
                                 <input type="text" id="bulkTenantName" class="form-control" readonly
                                     value="">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Contrato inicia (opcional)</label>
+                                <input type="date" name="contract_starts_at" id="bulkContractStartsAt" class="form-control"
+                                    value="{{ old('contract_starts_at', $selectedProperty?->contract_starts_at?->format('Y-m-d')) }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Contrato vence (opcional)</label>
+                                <input type="date" name="contract_expires_at" id="bulkContractExpiresAt" class="form-control"
+                                    value="{{ old('contract_expires_at', $selectedProperty?->contract_expires_at?->format('Y-m-d')) }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Precio renta mensual</label>
+                                <input type="number" name="monthly_rent_price" id="bulkMonthlyRentPrice" class="form-control"
+                                    min="0" step="0.01"
+                                    value="{{ old('monthly_rent_price', number_format((float) ($selectedProperty?->monthly_rent_price ?? 0), 2, '.', '')) }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Dia de cobro</label>
+                                <input type="number" name="charge_day" id="bulkChargeDay" class="form-control"
+                                    min="1" max="31" step="1" value="{{ $bulkChargeDay }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Tolerancia (dias)</label>
+                                <input type="number" name="charge_tolerance_days" id="bulkChargeToleranceDays" class="form-control"
+                                    min="0" max="31" step="1" value="{{ $bulkChargeToleranceDays }}">
                             </div>
                         </div>
 
@@ -855,6 +921,11 @@
             const bulkChargeForm = document.getElementById('bulkChargeForm');
             const bulkPropertyId = document.getElementById('bulkPropertyId');
             const bulkTenantName = document.getElementById('bulkTenantName');
+            const bulkContractStartsAt = document.getElementById('bulkContractStartsAt');
+            const bulkContractExpiresAt = document.getElementById('bulkContractExpiresAt');
+            const bulkMonthlyRentPrice = document.getElementById('bulkMonthlyRentPrice');
+            const bulkChargeDay = document.getElementById('bulkChargeDay');
+            const bulkChargeToleranceDays = document.getElementById('bulkChargeToleranceDays');
             const bulkPreviewContainer = document.getElementById('bulkPreviewContainer');
             const bulkPreviewBody = document.getElementById('bulkPreviewBody');
             const bulkSummaryText = document.getElementById('bulkSummaryText');
@@ -876,13 +947,14 @@
                 const propertySetupForceAssignment = document.getElementById('propertySetupForceAssignment');
                 const propertySetupContractStartsAt = document.getElementById('propertySetupContractStartsAt');
                 const propertySetupContractExpiresAt = document.getElementById('propertySetupContractExpiresAt');
+                const propertySetupMonthlyRentPrice = document.getElementById('propertySetupMonthlyRentPrice');
+                const propertySetupChargeDay = document.getElementById('propertySetupChargeDay');
                 const propertySetupPlanInputs = document.getElementById('property-setup-plan-inputs');
                 const propertySetupPlanTableBody = document.getElementById('propertySetupPlanTableBody');
                 const propertySetupPlanSummary = document.getElementById('propertySetupPlanSummary');
                 const propertySetupPlanRowsCount = document.getElementById('propertySetupPlanRowsCount');
                 const propertySetupPlanEmptyState = document.getElementById('propertySetupPlanEmptyState');
-                const initialPropertySetupPlan = @json($selectedProperty ? $initialPropertySetupPlan : []);
-                const monthlyRentPrice = toMoney(@json($selectedProperty?->monthly_rent_price), 0);
+                const initialPropertySetupPlan = @json($selectedProperty ? ($initialPropertySetupPlan ?? []) : []);
 
                 const monthNames = [
                     'Enero',
@@ -914,6 +986,14 @@
                     }
 
                     return { year, month, day };
+                };
+                const toDay = (value) => {
+                    const parsed = Number.parseInt(String(value || ''), 10);
+                    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 31) {
+                        return null;
+                    }
+
+                    return parsed;
                 };
 
                 const pad2 = (value) => String(value).padStart(2, '0');
@@ -962,10 +1042,30 @@
 
                 let propertySetupPlanRows = normalizeExistingPlanRows(initialPropertySetupPlan);
 
+                const syncPropertySetupChargeDayFromContract = () => {
+                    if (!propertySetupChargeDay) {
+                        return;
+                    }
+
+                    const starts = parseIsoDate(propertySetupContractStartsAt?.value);
+                    if (!starts) {
+                        return;
+                    }
+
+                    const currentDay = toDay(propertySetupChargeDay.value);
+                    if (currentDay !== null) {
+                        return;
+                    }
+
+                    propertySetupChargeDay.value = String(starts.day);
+                };
+
                 const buildAutoPropertySetupPlan = () => {
                     const starts = parseIsoDate(propertySetupContractStartsAt?.value);
                     const expires = parseIsoDate(propertySetupContractExpiresAt?.value);
-                    if (!starts || !expires || monthlyRentPrice <= 0) {
+                    const currentMonthlyRentPrice = toMoney(propertySetupMonthlyRentPrice?.value, 0);
+                    const setupChargeDay = toDay(propertySetupChargeDay?.value) ?? starts?.day ?? null;
+                    if (!starts || !expires || currentMonthlyRentPrice <= 0 || !setupChargeDay) {
                         return [];
                     }
 
@@ -975,7 +1075,7 @@
                         return [];
                     }
 
-                    const baseContractDay = starts.day;
+                    const baseContractDay = setupChargeDay;
                     const existingByPeriod = new Map(
                         propertySetupPlanRows.map((row) => [periodKey(row.period_year, row.period_month), row]),
                     );
@@ -989,8 +1089,8 @@
                         const current = existingByPeriod.get(key);
                         const customAmount = Boolean(current?.is_custom_amount);
                         const amount = customAmount
-                            ? toMoney(current?.amount, monthlyRentPrice)
-                            : monthlyRentPrice;
+                            ? toMoney(current?.amount, currentMonthlyRentPrice)
+                            : currentMonthlyRentPrice;
                         const dueDate = resolveDueDateForPeriod(current?.due_date, year, month, baseContractDay);
                         const concept = (current?.concept || '').trim() || buildConceptLabel(month, year);
 
@@ -1145,8 +1245,16 @@
                     renderPropertySetupPlan();
                 });
 
-                propertySetupContractStartsAt?.addEventListener('change', rebuildPropertySetupPlan);
+                propertySetupContractStartsAt?.addEventListener('change', () => {
+                    syncPropertySetupChargeDayFromContract();
+                    rebuildPropertySetupPlan();
+                });
                 propertySetupContractExpiresAt?.addEventListener('change', rebuildPropertySetupPlan);
+                propertySetupMonthlyRentPrice?.addEventListener('input', rebuildPropertySetupPlan);
+                propertySetupMonthlyRentPrice?.addEventListener('change', rebuildPropertySetupPlan);
+                propertySetupChargeDay?.addEventListener('input', rebuildPropertySetupPlan);
+                propertySetupChargeDay?.addEventListener('change', rebuildPropertySetupPlan);
+                syncPropertySetupChargeDayFromContract();
                 rebuildPropertySetupPlan();
 
                 propertySetupForm.addEventListener('submit', async (event) => {
@@ -1277,23 +1385,99 @@
                 syncBulkRowsInputs();
             };
 
-            const updateBulkTenantName = () => {
-                if (!bulkPropertyId || !bulkTenantName) {
+            const resetBulkPreview = () => {
+                bulkRows = [];
+                if (bulkPreviewBody) {
+                    bulkPreviewBody.innerHTML = '';
+                }
+                bulkPreviewContainer?.classList.add('d-none');
+                syncBulkRowsInputs();
+            };
+
+            const parseDateDay = (value) => {
+                const stringValue = String(value || '').trim();
+                const parts = stringValue.split('-');
+                if (parts.length !== 3) {
+                    return null;
+                }
+
+                const day = Number.parseInt(parts[2], 10);
+                if (!Number.isInteger(day) || day < 1 || day > 31) {
+                    return null;
+                }
+
+                return day;
+            };
+
+            const normalizeChargeDay = (value) => {
+                const day = Number.parseInt(String(value || ''), 10);
+                if (!Number.isInteger(day) || day < 1 || day > 31) {
+                    return null;
+                }
+
+                return day;
+            };
+
+            const syncBulkChargeDayFromContract = () => {
+                if (!bulkChargeDay) {
+                    return;
+                }
+
+                const currentDay = normalizeChargeDay(bulkChargeDay.value);
+                if (currentDay !== null) {
+                    return;
+                }
+
+                const startsDay = parseDateDay(bulkContractStartsAt?.value);
+                if (startsDay !== null) {
+                    bulkChargeDay.value = String(startsDay);
+                }
+            };
+
+            const applyBulkPropertyDefaults = () => {
+                if (!bulkPropertyId) {
                     return;
                 }
 
                 const selected = bulkPropertyId.options[bulkPropertyId.selectedIndex];
-                bulkTenantName.value = selected?.dataset?.tenantName || '';
+                if (!selected) {
+                    return;
+                }
+
+                if (bulkTenantName) {
+                    bulkTenantName.value = selected.dataset?.tenantName || '';
+                }
+                if (bulkContractStartsAt) {
+                    bulkContractStartsAt.value = selected.dataset?.contractStart || '';
+                }
+                if (bulkContractExpiresAt) {
+                    bulkContractExpiresAt.value = selected.dataset?.contractExpires || '';
+                }
+                if (bulkMonthlyRentPrice) {
+                    bulkMonthlyRentPrice.value = selected.dataset?.monthlyRent || '';
+                }
+                if (bulkChargeDay) {
+                    const dayFromProperty = normalizeChargeDay(selected.dataset?.chargeDay);
+                    bulkChargeDay.value = dayFromProperty !== null ? String(dayFromProperty) : '';
+                    if (dayFromProperty === null) {
+                        syncBulkChargeDayFromContract();
+                    }
+                }
+                if (bulkChargeToleranceDays) {
+                    bulkChargeToleranceDays.value = String(selected.dataset?.chargeToleranceDays || '0');
+                }
             };
 
             bulkPropertyId?.addEventListener('change', () => {
-                updateBulkTenantName();
-                bulkRows = [];
-                bulkPreviewBody.innerHTML = '';
-                bulkPreviewContainer?.classList.add('d-none');
-                syncBulkRowsInputs();
+                applyBulkPropertyDefaults();
+                resetBulkPreview();
             });
-            updateBulkTenantName();
+
+            if (bulkTenantName && bulkPropertyId) {
+                const selected = bulkPropertyId.options[bulkPropertyId.selectedIndex];
+                bulkTenantName.value = selected?.dataset?.tenantName || '';
+            }
+            syncBulkChargeDayFromContract();
 
             bulkPreviewBody?.addEventListener('change', (event) => {
                 const input = event.target.closest('[data-bulk-field="amount"]');
@@ -1310,6 +1494,18 @@
                 renderBulkRows();
             });
 
+            bulkContractStartsAt?.addEventListener('change', () => {
+                syncBulkChargeDayFromContract();
+                resetBulkPreview();
+            });
+            bulkContractExpiresAt?.addEventListener('change', resetBulkPreview);
+            bulkMonthlyRentPrice?.addEventListener('input', resetBulkPreview);
+            bulkMonthlyRentPrice?.addEventListener('change', resetBulkPreview);
+            bulkChargeDay?.addEventListener('input', resetBulkPreview);
+            bulkChargeDay?.addEventListener('change', resetBulkPreview);
+            bulkChargeToleranceDays?.addEventListener('input', resetBulkPreview);
+            bulkChargeToleranceDays?.addEventListener('change', resetBulkPreview);
+
             previewBtn?.addEventListener('click', async () => {
                 const propertyId = bulkPropertyId?.value;
 
@@ -1322,6 +1518,7 @@
                 previewBtn.textContent = 'Cargando...';
 
                 try {
+                    syncBulkChargeDayFromContract();
                     const response = await fetch("{{ route('charges.bulk.preview') }}", {
                         method: 'POST',
                         headers: {
@@ -1331,12 +1528,17 @@
                         },
                         body: JSON.stringify({
                             property_id: propertyId,
+                            contract_starts_at: bulkContractStartsAt?.value || null,
+                            contract_expires_at: bulkContractExpiresAt?.value || null,
+                            monthly_rent_price: bulkMonthlyRentPrice?.value || null,
+                            charge_day: bulkChargeDay?.value || null,
+                            charge_tolerance_days: bulkChargeToleranceDays?.value || null,
                         }),
                     });
 
                     const data = await response.json();
                     if (!response.ok) {
-                        throw new Error('No fue posible generar la vista previa.');
+                        throw new Error(data?.message || 'No fue posible generar la vista previa.');
                     }
 
                     const preview = data.preview || {};
@@ -1351,6 +1553,7 @@
             });
 
             bulkChargeForm?.addEventListener('submit', () => {
+                syncBulkChargeDayFromContract();
                 syncBulkRowsInputs();
             });
         })();
