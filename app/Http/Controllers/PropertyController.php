@@ -11,6 +11,7 @@ use App\Models\PropertyInventoryItemPhoto;
 use App\Models\PropertyInventoryPhoto;
 use App\Models\PropertyType;
 use App\Models\Tenant;
+use App\Models\TenantDocument;
 use App\Models\Zone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
@@ -135,10 +136,25 @@ class PropertyController extends Controller
     {
         $request->validate([
             'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
+            'force_assignment' => ['nullable', 'boolean'],
         ]);
 
         $tenantId = $request->input('tenant_id');
-        $tenant = $tenantId ? Tenant::query()->find($tenantId) : null;
+        $tenant = $tenantId
+            ? Tenant::query()
+                ->with(['documents' => fn ($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
+                ->find($tenantId)
+            : null;
+
+        if ($tenant && !$request->boolean('force_assignment')) {
+            $missingRequirements = $this->getTenantAssignmentMissingRequirements($tenant);
+            if (!empty($missingRequirements)) {
+                return redirect()
+                    ->back()
+                    ->withInput()
+                    ->with('warning', $this->formatTenantAssignmentWarning($tenant, $missingRequirements));
+            }
+        }
 
         $property->update([
             'tenant_id' => $tenant?->id,
@@ -175,14 +191,52 @@ class PropertyController extends Controller
             ->values();
 
         $tenants = Tenant::query()
+            ->with(['documents' => fn ($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
             ->orderBy('full_name')
             ->get();
+
+        $tenantAssignmentChecks = $tenants
+            ->mapWithKeys(function (Tenant $tenant): array {
+                $missing = $this->getTenantAssignmentMissingRequirements($tenant);
+
+                return [
+                    (string) $tenant->id => [
+                        'missing' => $missing,
+                        'is_complete' => empty($missing),
+                    ],
+                ];
+            })
+            ->all();
+
+        $propertyCharges = Charge::query()
+            ->with('tenant:id,full_name')
+            ->where('property_id', $property->id)
+            ->latest('due_date')
+            ->latest('id')
+            ->limit(12)
+            ->get();
+
+        $rentChargesTotal = Charge::query()
+            ->where('property_id', $property->id)
+            ->where('type', Charge::TYPE_RENT)
+            ->where('status', '!=', Charge::STATUS_CANCELED)
+            ->count();
+
+        $rentChargesPaid = Charge::query()
+            ->where('property_id', $property->id)
+            ->where('type', Charge::TYPE_RENT)
+            ->where('status', Charge::STATUS_PAID)
+            ->count();
 
         return view('properties.show', [
             'property' => $property,
             'documents' => $documents,
             'customDocuments' => $customDocuments,
             'tenants' => $tenants,
+            'tenantAssignmentChecks' => $tenantAssignmentChecks,
+            'propertyCharges' => $propertyCharges,
+            'rentChargesTotal' => $rentChargesTotal,
+            'rentChargesPaid' => $rentChargesPaid,
         ]);
     }
 
@@ -222,11 +276,7 @@ class PropertyController extends Controller
 
         return DB::transaction(function () use ($request, $validated, $property) {
             $property = $property ?? new Property();
-            $tenantId = $validated['tenant_id'] ?? null;
-            $tenant = $tenantId ? Tenant::query()->find($tenantId) : null;
-            $rentChargePlan = $this->buildRentChargePlan($validated, $property);
-
-            $property->fill([
+            $data = [
                 'internal_name' => $validated['internal_name'],
                 'internal_reference' => $validated['internal_reference'] ?? null,
                 'property_type_id' => $validated['property_type_id'],
@@ -242,15 +292,29 @@ class PropertyController extends Controller
                 'rental_requirements' => $validated['rental_requirements'] ?? null,
                 'amenities' => $validated['amenities'] ?? null,
                 'status' => $validated['status'],
-                'tenant_id' => $tenant?->id,
-                'current_tenant_name' => $tenant?->full_name ?? null,
-                'contract_starts_at' => $validated['contract_starts_at'] ?? null,
-                'contract_expires_at' => $validated['contract_expires_at'] ?? null,
                 'onboarding_step' => 5,
                 'monthly_rent_price' => $validated['monthly_rent_price'] ?? null,
                 'maintenance_fee' => $validated['maintenance_fee'] ?? null,
-                'rent_charge_plan' => $rentChargePlan,
-            ]);
+            ];
+
+            if (array_key_exists('tenant_id', $validated)) {
+                $tenantId = $validated['tenant_id'] ?? null;
+                $tenant = $tenantId ? Tenant::query()->find($tenantId) : null;
+                $data['tenant_id'] = $tenant?->id;
+                $data['current_tenant_name'] = $tenant?->full_name ?? null;
+            }
+
+            if (
+                array_key_exists('contract_starts_at', $validated) ||
+                array_key_exists('contract_expires_at', $validated) ||
+                array_key_exists('rent_charge_plan', $validated)
+            ) {
+                $data['contract_starts_at'] = $validated['contract_starts_at'] ?? null;
+                $data['contract_expires_at'] = $validated['contract_expires_at'] ?? null;
+                $data['rent_charge_plan'] = $this->buildRentChargePlan($validated, $property);
+            }
+
+            $property->fill($data);
 
             if (!$property->exists) {
                 $property->created_by = $request->user()->id;
@@ -275,6 +339,56 @@ class PropertyController extends Controller
 
             return $property->fresh();
         });
+    }
+
+    private function getTenantAssignmentMissingRequirements(Tenant $tenant): array
+    {
+        $missing = [];
+        $checks = [
+            'full_name' => 'Nombre completo',
+            'email' => 'Email',
+            'phone_primary' => 'Telefono principal',
+            'personal_reference_name' => 'Referencia personal - nombre',
+            'personal_reference_phone' => 'Referencia personal - tel',
+        ];
+
+        foreach ($checks as $field => $label) {
+            if (blank($tenant->{$field})) {
+                $missing[] = $label;
+            }
+        }
+
+        $documentsByType = $tenant->relationLoaded('documents')
+            ? $tenant->documents->keyBy('document_type')
+            : $tenant->documents()
+                ->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))
+                ->get()
+                ->keyBy('document_type');
+
+        foreach (TenantDocument::REQUIRED_DOCUMENTS as $documentType => $label) {
+            $document = $documentsByType->get($documentType);
+            $hasUploadedFile = filled($document?->file_path);
+            $isRejectedOrExpired = in_array(
+                $document?->status,
+                [TenantDocument::STATUS_REJECTED, TenantDocument::STATUS_EXPIRED],
+                true,
+            );
+
+            if (!$hasUploadedFile || $isRejectedOrExpired) {
+                $missing[] = 'Documento: ' . $label;
+            }
+        }
+
+        return array_values(array_unique($missing));
+    }
+
+    private function formatTenantAssignmentWarning(Tenant $tenant, array $missingRequirements): string
+    {
+        return sprintf(
+            'El inquilino %s tiene informacion/documentacion incompleta: %s. Si deseas continuar, confirma de nuevo la asignacion.',
+            $tenant->full_name,
+            implode(', ', $missingRequirements),
+        );
     }
 
     private function syncRentChargesFromPlan(Property $property, ?int $userId): void

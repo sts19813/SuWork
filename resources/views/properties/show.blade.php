@@ -39,6 +39,12 @@
                 <div class="fw-semibold">{{ session('success') }}</div>
             </div>
         @endif
+        @if (session('warning'))
+            <div class="alert alert-warning d-flex align-items-center p-5 mb-8">
+                <i class="ki-outline ki-information-5 fs-2hx text-warning me-4"></i>
+                <div class="fw-semibold">{{ session('warning') }}</div>
+            </div>
+        @endif
 
         <div class="card mb-8">
             <div class="card-body d-flex flex-wrap align-items-center gap-6 p-8">
@@ -60,13 +66,24 @@
                             </button>
                             <ul class="dropdown-menu">
                                 @foreach($tenants as $tenant)
+                                    @php
+                                        $assignmentCheck = $tenantAssignmentChecks[(string) $tenant->id] ?? ['missing' => [], 'is_complete' => true];
+                                    @endphp
                                     <li>
-                                        <form method="POST" action="{{ route('properties.update.tenant', $property) }}" class="d-inline">
+                                        <form method="POST"
+                                            action="{{ route('properties.update.tenant', $property) }}"
+                                            class="d-inline js-assign-tenant-form"
+                                            data-tenant-name="{{ $tenant->full_name }}"
+                                            data-missing='@json($assignmentCheck['missing'])'>
                                             @csrf
                                             @method('PUT')
                                             <input type="hidden" name="tenant_id" value="{{ $tenant->id }}">
+                                            <input type="hidden" name="force_assignment" value="0">
                                             <button type="submit" class="dropdown-item">
                                                 {{ $tenant->full_name }}
+                                                @unless($assignmentCheck['is_complete'])
+                                                    <span class="text-warning">(incompleto)</span>
+                                                @endunless
                                             </button>
                                         </form>
                                     </li>
@@ -77,6 +94,7 @@
                                         @csrf
                                         @method('PUT')
                                         <input type="hidden" name="tenant_id" value="">
+                                        <input type="hidden" name="force_assignment" value="0">
                                         <button type="submit" class="dropdown-item text-danger">
                                             Remover inquilino
                                         </button>
@@ -281,6 +299,54 @@
             </div>
         @endif
 
+        <div class="card mb-8">
+            <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
+                <div>
+                    <h3 class="card-title fw-bold mb-1">Cobranza</h3>
+                    <div class="text-muted fs-7">Pagos completos: {{ (int) $rentChargesPaid }}/{{ (int) $rentChargesTotal }}</div>
+                </div>
+                <a href="{{ route('charges.index', ['property' => $property->uuid]) }}" class="btn btn-sm btn-light-primary">
+                    Abrir cobranza
+                </a>
+            </div>
+            <div class="card-body pt-0">
+                <div class="table-responsive">
+                    <table class="table table-row-bordered align-middle mb-0">
+                        <thead>
+                            <tr class="text-muted text-uppercase fs-8">
+                                <th>Concepto</th>
+                                <th>Periodo</th>
+                                <th>Vencimiento</th>
+                                <th>Monto</th>
+                                <th>Estado</th>
+                                <th class="text-end">Accion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($propertyCharges as $charge)
+                                <tr>
+                                    <td>{{ $charge->concept }}</td>
+                                    <td>{{ str_pad((string) $charge->period_month, 2, '0', STR_PAD_LEFT) }}/{{ $charge->period_year }}</td>
+                                    <td>{{ $charge->due_date?->format('d/m/Y') ?? '-' }}</td>
+                                    <td>${{ number_format((float) $charge->amount, 2) }}</td>
+                                    <td>
+                                        <span class="badge {{ $charge->status_badge_class }}">{{ $charge->display_status_label }}</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{{ route('charges.show', $charge) }}?property={{ urlencode($property->uuid) }}" class="btn btn-sm btn-light">Ver</a>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-8">No hay cargos registrados para esta propiedad.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header border-0 pt-6">
                 <h3 class="card-title fw-bold">Inventario</h3>
@@ -352,3 +418,60 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        (() => {
+            document.querySelectorAll('.js-assign-tenant-form').forEach((form) => {
+                form.addEventListener('submit', async (event) => {
+                    const forceInput = form.querySelector('input[name="force_assignment"]');
+                    if (forceInput && forceInput.value === '1') {
+                        return;
+                    }
+
+                    let missing = [];
+                    try {
+                        missing = JSON.parse(form.dataset.missing || '[]');
+                    } catch (error) {
+                        missing = [];
+                    }
+
+                    if (!Array.isArray(missing) || !missing.length) {
+                        return;
+                    }
+
+                    event.preventDefault();
+
+                    const tenantName = form.dataset.tenantName || 'este inquilino';
+                    const details = missing.join('\n- ');
+                    const message = `El inquilino ${tenantName} tiene datos o documentos incompletos:\n- ${details}\n\n¿Deseas continuar con la asignacion?`;
+                    let confirmed = false;
+
+                    if (window.Swal?.fire) {
+                        const result = await window.Swal.fire({
+                            title: 'Inquilino incompleto',
+                            text: message,
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'Si, continuar',
+                            cancelButtonText: 'Cancelar',
+                            reverseButtons: true,
+                        });
+                        confirmed = !!result.isConfirmed;
+                    } else {
+                        confirmed = window.confirm(message);
+                    }
+
+                    if (!confirmed) {
+                        return;
+                    }
+
+                    if (forceInput) {
+                        forceInput.value = '1';
+                    }
+                    form.submit();
+                });
+            });
+        })();
+    </script>
+@endpush

@@ -89,8 +89,7 @@
                             <tr class="fw-bold text-muted text-uppercase gs-0">
                                 <th class="min-w-220px">Inquilino</th>
                                 <th class="min-w-220px">Contacto</th>
-                                <th class="min-w-140px">Ingreso mensual</th>
-                                <th class="min-w-160px">Expediente</th>
+                                <th class="min-w-160px">Estatus de pagos</th>
                                 <th class="min-w-130px text-end">Opciones</th>
                             </tr>
                         </thead>
@@ -111,12 +110,12 @@
                                         <div class="text-muted fs-7">{{ $tenant->email ?: '-' }}</div>
                                     </td>
                                     <td>
-                                        {{ $tenant->monthly_income ? '$' . number_format((float) $tenant->monthly_income, 2) : '-' }}
-                                    </td>
-                                    <td>
-                                        <span class="badge {{ $tenant->dossier_status_badge_class }}">
-                                            {{ $tenant->dossier_status_label }}
-                                        </span>
+                                        @if ((int) $tenant->total_rent_charges_count > 0)
+                                            <div class="fw-bold text-gray-900">{{ (int) $tenant->paid_rent_charges_count }}/{{ (int) $tenant->total_rent_charges_count }}</div>
+                                            <div class="text-muted fs-7">Pagos completos</div>
+                                        @else
+                                            -
+                                        @endif
                                     </td>
                                     <td class="text-end">
                                         <a href="{{ route('dossiers.tenants.show', $tenant) }}" class="btn btn-sm btn-light-primary me-2">Expediente</a>
@@ -125,7 +124,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center py-16 text-muted">No hay inquilinos registrados.</td>
+                                    <td colspan="4" class="text-center py-16 text-muted">No hay inquilinos registrados.</td>
                                 </tr>
                             @endforelse
                         </tbody>
