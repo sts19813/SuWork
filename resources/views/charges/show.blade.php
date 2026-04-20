@@ -3,9 +3,12 @@
 @section('title', 'Detalle de cargo | SuWork')
 
 @section('content')
+    @php
+        $backQuery = request()->filled('property') ? ['property' => request('property')] : [];
+    @endphp
     <div class="py-10 charges-module">
         <div class="mb-8">
-            <a href="{{ route('charges.index') }}" class="text-gray-600 text-hover-primary fw-semibold">
+            <a href="{{ route('charges.index', $backQuery) }}" class="text-gray-600 text-hover-primary fw-semibold">
                 <i class="ki-outline ki-arrow-left fs-4 me-1"></i> Volver a cobranza
             </a>
         </div>

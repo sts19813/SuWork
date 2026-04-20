@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreTenantRequest;
+use App\Models\Charge;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
 use Illuminate\Http\RedirectResponse;
@@ -18,6 +19,14 @@ class TenantController extends Controller
         $status = (string) $request->query('status', '');
 
         $tenants = Tenant::query()
+            ->withCount([
+                'charges as total_rent_charges_count' => fn ($query) => $query
+                    ->where('type', Charge::TYPE_RENT)
+                    ->where('status', '!=', Charge::STATUS_CANCELED),
+                'charges as paid_rent_charges_count' => fn ($query) => $query
+                    ->where('type', Charge::TYPE_RENT)
+                    ->where('status', Charge::STATUS_PAID),
+            ])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($innerQuery) use ($search) {
                     $innerQuery

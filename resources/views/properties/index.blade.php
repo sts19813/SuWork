@@ -135,6 +135,12 @@
                                                 class="btn btn-xs btn-light-warning">
                                                 Inventario
                                             </a>
+                                            @if ($property->tenant_id)
+                                                <a href="{{ route('charges.index', ['property' => $property->uuid]) }}"
+                                                    class="btn btn-xs btn-light-success">
+                                                    Cobranza
+                                                </a>
+                                            @endif
                                             <a href="{{ route('properties.edit', $property) }}" class="btn btn-xs btn-primary">
                                                 Editar
                                             </a>

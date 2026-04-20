@@ -204,7 +204,6 @@
                     <input type="hidden" name="removed_item_photo_ids[]" value="{{ $removedItemPhotoId }}">
                 @endforeach
             </div>
-            <div id="rent-charge-plan-inputs"></div>
 
             @if ($errors->any())
                 <div class="alert alert-danger mb-8">
@@ -958,103 +957,11 @@
                         <span class="text-primary">Nota: Podrás cambiar el estado de la propiedad en cualquier momento desde
                             su expediente.</span>
                     </div>
-                    <div class="row g-6">
-                        <div class="col-lg-6">
-                            <label class="form-label">Inquilino (opcional)</label>
-                            <select name="tenant_id" class="form-select @error('tenant_id') is-invalid @enderror">
-                                <option value="">Sin asignar</option>
-                                @foreach ($availableTenants as $tenant)
-                                    <option value="{{ $tenant->id }}" {{ $selectedTenantId === (string) $tenant->id ? 'selected' : '' }}>
-                                        {{ $tenant->full_name }} {{ $tenant->phone_primary ? '- ' . $tenant->phone_primary : '' }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('tenant_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                            <div class="text-muted fs-8 mt-2">
-                                ¿No aparece? <a href="{{ route('tenants.index') }}" target="_blank">Crear inquilino</a>
-                            </div>
-                        </div>
-                        <div class="col-lg-6">
-                            <label class="form-label">Contrato inicia (opcional)</label>
-                            <input type="date" name="contract_starts_at" class="form-control @error('contract_starts_at') is-invalid @enderror"
-                                value="{{ old('contract_starts_at', $isEdit && $property && $property->contract_starts_at ? $property->contract_starts_at->format('Y-m-d') : '') }}">
-                            @error('contract_starts_at')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-lg-6">
-                            <label class="form-label">Contrato vence (opcional)</label>
-                            <input type="date" name="contract_expires_at" class="form-control @error('contract_expires_at') is-invalid @enderror"
-                                value="{{ old('contract_expires_at', $isEdit && $property && $property->contract_expires_at ? $property->contract_expires_at->format('Y-m-d') : '') }}">
-                            @error('contract_expires_at')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-12">
-                            <div class="border rounded p-5 bg-light">
-                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-2">
-                                    <div>
-                                        <div class="fw-bold">Lista de pagos de renta</div>
-                                        <div class="text-muted fs-8" id="rentChargePlanSummary">
-                                            Configura contrato y renta mensual para generar la lista automatica.
-                                        </div>
-                                    </div>
-                                    <button type="button" class="btn btn-light-primary" data-bs-toggle="modal" data-bs-target="#rentChargePlanModal" id="openRentChargePlanModal">
-                                        Ver lista de pagos
-                                    </button>
-                                </div>
-                                <div class="text-muted fs-8">
-                                    Total de pagos generados: <span class="fw-bold" id="rentChargePlanRowsCount">0</span>
-                                </div>
-                            </div>
-                            @error('rent_charge_plan')
-                                <div class="text-danger fs-7 mt-2">{{ $message }}</div>
-                            @enderror
-                        </div>
-                    </div>
+                    <p class="text-muted mb-0">
+                        La asignacion de inquilino, configuracion de contrato y generacion de pagos se administra desde el modulo de cobranza de la propiedad.
+                    </p>
                 </div>
             </div>
-
-            <div class="modal fade" id="rentChargePlanModal" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog modal-lg modal-dialog-scrollable">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3 class="modal-title">Lista de pagos</h3>
-                            <button type="button" class="btn btn-icon btn-sm btn-active-light-primary" data-bs-dismiss="modal">
-                                <i class="ki-outline ki-cross fs-1"></i>
-                            </button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="alert alert-light-primary py-3 px-4 mb-5">
-                                El monto inicia con la renta mensual y puedes ajustarlo por periodo para contratos de mas de un anio.
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table table-row-bordered align-middle">
-                                    <thead>
-                                        <tr class="text-muted text-uppercase fs-8">
-                                            <th>Periodo</th>
-                                            <th>Vencimiento</th>
-                                            <th>Monto (MXN)</th>
-                                            <th>Concepto</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="rentChargePlanTableBody">
-                                        <tr id="rentChargePlanEmptyState">
-                                            <td colspan="4" class="text-center text-muted py-8">No hay pagos configurados.</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div class="d-flex justify-content-between align-items-center">
                 <button type="button" id="wizard-prev" class="btn btn-light">
                     <i class="ki-outline ki-arrow-left fs-4 me-1"></i> Anterior

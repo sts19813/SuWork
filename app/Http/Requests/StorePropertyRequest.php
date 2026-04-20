@@ -180,11 +180,6 @@ class StorePropertyRequest extends FormRequest
                 }
             }
 
-            $status = (string) $this->input('status');
-            if ($status === Property::STATUS_OCCUPIED && blank($this->input('tenant_id'))) {
-                $validator->errors()->add('tenant_id', 'Debes seleccionar un inquilino cuando la propiedad esta ocupada.');
-            }
-
             $contractStartsAt = $this->input('contract_starts_at');
             $contractExpiresAt = $this->input('contract_expires_at');
             if (filled($contractStartsAt) && filled($contractExpiresAt) && $contractStartsAt > $contractExpiresAt) {
