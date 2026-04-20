@@ -156,6 +156,11 @@
                                         [\App\Models\Charge::STATUS_PENDING, \App\Models\Charge::STATUS_PARTIAL, \App\Models\Charge::STATUS_IN_VALIDATION],
                                         true,
                                     );
+                                    $canEditCharge = in_array(
+                                        $charge->status,
+                                        [\App\Models\Charge::STATUS_PENDING, \App\Models\Charge::STATUS_PARTIAL, \App\Models\Charge::STATUS_IN_VALIDATION],
+                                        true,
+                                    );
                                 @endphp
                                 <tr>
                                     <td>
@@ -187,6 +192,22 @@
                                             <a href="{{ route('charges.show', $charge) }}" class="btn btn-sm btn-light">
                                                 Ver
                                             </a>
+
+                                            @if ($canEditCharge)
+                                                <button type="button" class="btn btn-sm btn-light-primary"
+                                                    data-edit-charge
+                                                    data-action="{{ route('charges.update', $charge) }}"
+                                                    data-charge="{{ $charge->uuid }}"
+                                                    data-type="{{ $charge->type }}"
+                                                    data-due-date="{{ $charge->due_date?->format('Y-m-d') }}"
+                                                    data-amount="{{ number_format((float) $charge->amount, 2, '.', '') }}"
+                                                    data-period-month="{{ $charge->period_month }}"
+                                                    data-period-year="{{ $charge->period_year }}"
+                                                    data-concept="{{ $charge->concept }}"
+                                                    data-notes="{{ $charge->notes }}">
+                                                    Editar cargo
+                                                </button>
+                                            @endif
 
                                             @if ($canRegisterPayment)
                                                 <button type="button" class="btn btn-sm btn-success"
@@ -399,6 +420,78 @@
         </div>
     </div>
 
+    <div class="modal fade" id="editChargeModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <form method="POST" id="editChargeForm" class="h-100 d-flex flex-column">
+                    @csrf
+                    @method('PUT')
+                    <div class="modal-header">
+                        <h3 class="modal-title">Editar cargo</h3>
+                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary" data-bs-dismiss="modal">
+                            <i class="ki-outline ki-cross fs-1"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        @if ($errors->updateCharge->any())
+                            <div class="alert alert-danger mb-5">
+                                Revisa la informacion del cargo.
+                            </div>
+                        @endif
+
+                        <input type="hidden" name="charge_uuid" id="editChargeUuid" value="{{ old('charge_uuid') }}">
+
+                        <div class="row g-5">
+                            <div class="col-md-6">
+                                <label class="form-label required">Tipo</label>
+                                <select name="type" id="editChargeType" class="form-select" required>
+                                    @foreach ($typeOptions as $typeValue => $typeLabel)
+                                        <option value="{{ $typeValue }}" {{ old('type') === $typeValue ? 'selected' : '' }}>
+                                            {{ $typeLabel }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label required">Fecha vencimiento</label>
+                                <input type="date" name="due_date" id="editChargeDueDate" class="form-control"
+                                    value="{{ old('due_date') }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label required">Monto (MXN)</label>
+                                <input type="number" min="0.01" step="0.01" name="amount" id="editChargeAmount" class="form-control"
+                                    value="{{ old('amount') }}" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label required">Mes (periodo)</label>
+                                <input type="number" min="1" max="12" name="period_month" id="editChargePeriodMonth" class="form-control"
+                                    value="{{ old('period_month') }}" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label required">Anio (periodo)</label>
+                                <input type="number" min="2000" max="2200" name="period_year" id="editChargePeriodYear" class="form-control"
+                                    value="{{ old('period_year') }}" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label required">Concepto</label>
+                                <input type="text" name="concept" id="editChargeConcept" class="form-control"
+                                    value="{{ old('concept') }}" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Notas</label>
+                                <textarea name="notes" id="editChargeNotes" class="form-control" rows="3">{{ old('notes') }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="bulkChargeModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
@@ -418,29 +511,33 @@
                         @endif
 
                         <div class="row g-5 mb-6">
-                            <div class="col-md-8">
-                                <label class="form-label required">Inquilino</label>
-                                <select name="tenant_id" id="bulkTenantId" class="form-select" required>
+                            <div class="col-md-7">
+                                <label class="form-label required">Propiedad</label>
+                                <select name="property_id" id="bulkPropertyId" class="form-select" required>
                                     <option value="">Seleccionar...</option>
-                                    @foreach ($tenants as $tenant)
-                                        <option value="{{ $tenant->id }}" {{ (string) old('tenant_id') === (string) $tenant->id ? 'selected' : '' }}>
-                                            {{ $tenant->full_name }}
+                                    @foreach ($chargeableProperties as $property)
+                                        <option value="{{ $property->id }}"
+                                            data-tenant-name="{{ $property->tenant?->full_name }}"
+                                            {{ (string) old('property_id') === (string) $property->id ? 'selected' : '' }}>
+                                            {{ $property->internal_name }}{{ $property->internal_reference ? ' - ' . $property->internal_reference : '' }}
                                         </option>
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label required">Dia de pago</label>
-                                <input type="number" min="1" max="31" id="bulkPaymentDay" name="payment_day"
-                                    value="{{ old('payment_day', 5) }}" class="form-control" required>
+                            <div class="col-md-5">
+                                <label class="form-label">Inquilino actual</label>
+                                <input type="text" id="bulkTenantName" class="form-control" readonly
+                                    value="">
                             </div>
                         </div>
 
                         <div class="d-flex justify-content-end mb-5">
                             <button type="button" class="btn btn-light-primary" id="previewBulkChargesBtn">
-                                Previsualizar tabla
+                                Ver lista de pagos
                             </button>
                         </div>
+
+                        <div id="bulkChargeRowsContainer"></div>
 
                         <div class="border rounded p-4 d-none" id="bulkPreviewContainer">
                             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -452,9 +549,10 @@
                                     <thead>
                                         <tr class="text-muted text-uppercase fs-8">
                                             <th>Propiedad</th>
+                                            <th>Inquilino</th>
                                             <th>Periodo</th>
                                             <th>Vencimiento</th>
-                                            <th>Monto</th>
+                                            <th>Monto (editable)</th>
                                             <th>Estado</th>
                                         </tr>
                                     </thead>
@@ -542,19 +640,170 @@
                 });
             });
 
+            const editChargeForm = document.getElementById('editChargeForm');
+            const editChargeUuid = document.getElementById('editChargeUuid');
+            const editChargeType = document.getElementById('editChargeType');
+            const editChargeDueDate = document.getElementById('editChargeDueDate');
+            const editChargeAmount = document.getElementById('editChargeAmount');
+            const editChargePeriodMonth = document.getElementById('editChargePeriodMonth');
+            const editChargePeriodYear = document.getElementById('editChargePeriodYear');
+            const editChargeConcept = document.getElementById('editChargeConcept');
+            const editChargeNotes = document.getElementById('editChargeNotes');
+
+            document.querySelectorAll('[data-edit-charge]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    if (!editChargeForm) {
+                        return;
+                    }
+
+                    editChargeForm.setAttribute('action', button.getAttribute('data-action') || '');
+                    if (editChargeUuid) editChargeUuid.value = button.getAttribute('data-charge') || '';
+                    if (editChargeType) editChargeType.value = button.getAttribute('data-type') || 'rent';
+                    if (editChargeDueDate) editChargeDueDate.value = button.getAttribute('data-due-date') || '';
+                    if (editChargeAmount) editChargeAmount.value = button.getAttribute('data-amount') || '';
+                    if (editChargePeriodMonth) editChargePeriodMonth.value = button.getAttribute('data-period-month') || '';
+                    if (editChargePeriodYear) editChargePeriodYear.value = button.getAttribute('data-period-year') || '';
+                    if (editChargeConcept) editChargeConcept.value = button.getAttribute('data-concept') || '';
+                    if (editChargeNotes) editChargeNotes.value = button.getAttribute('data-notes') || '';
+
+                    const modalEl = document.getElementById('editChargeModal');
+                    if (!modalEl) {
+                        return;
+                    }
+                    new bootstrap.Modal(modalEl).show();
+                });
+            });
+
             const previewBtn = document.getElementById('previewBulkChargesBtn');
-            const bulkTenantId = document.getElementById('bulkTenantId');
-            const bulkPaymentDay = document.getElementById('bulkPaymentDay');
+            const bulkChargeForm = document.getElementById('bulkChargeForm');
+            const bulkPropertyId = document.getElementById('bulkPropertyId');
+            const bulkTenantName = document.getElementById('bulkTenantName');
             const bulkPreviewContainer = document.getElementById('bulkPreviewContainer');
             const bulkPreviewBody = document.getElementById('bulkPreviewBody');
             const bulkSummaryText = document.getElementById('bulkSummaryText');
+            const bulkChargeRowsContainer = document.getElementById('bulkChargeRowsContainer');
+            let bulkRows = [];
+
+            const toMoney = (value, fallback = 0) => {
+                const parsed = Number.parseFloat(String(value ?? '').replace(/,/g, ''));
+                if (!Number.isFinite(parsed)) {
+                    return fallback;
+                }
+
+                return Math.round(parsed * 100) / 100;
+            };
+
+            const syncBulkRowsInputs = () => {
+                if (!bulkChargeRowsContainer) {
+                    return;
+                }
+
+                bulkChargeRowsContainer.innerHTML = '';
+                bulkRows.forEach((row, index) => {
+                    const appendInput = (name, value) => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = `rows[${index}][${name}]`;
+                        input.value = value;
+                        bulkChargeRowsContainer.appendChild(input);
+                    };
+
+                    appendInput('period_month', row.period_month);
+                    appendInput('period_year', row.period_year);
+                    appendInput('due_date', row.due_date);
+                    appendInput('amount', toMoney(row.amount, 0).toFixed(2));
+                    appendInput('concept', row.concept || '');
+                    appendInput('notes', row.notes || '');
+                });
+            };
+
+            const renderBulkRows = () => {
+                if (!bulkPreviewBody) {
+                    return;
+                }
+
+                bulkPreviewBody.innerHTML = '';
+                if (!bulkRows.length) {
+                    bulkPreviewBody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-8">No se encontraron cargos para esta propiedad.</td>
+                        </tr>
+                    `;
+                    bulkSummaryText.textContent = 'Total: 0 | Nuevos: 0 | Existentes: 0';
+                    bulkPreviewContainer?.classList.remove('d-none');
+                    syncBulkRowsInputs();
+                    return;
+                }
+
+                const summary = {
+                    total: bulkRows.length,
+                    to_create: bulkRows.filter((row) => !row.already_exists).length,
+                    already_exists: bulkRows.filter((row) => row.already_exists).length,
+                };
+
+                bulkRows.forEach((row, index) => {
+                    const alreadyClass = row.already_exists ? 'badge-light-warning text-warning' : 'badge-light-success text-success';
+                    const alreadyLabel = row.already_exists ? 'Ya existe' : 'Se creara';
+                    const disabled = row.already_exists ? 'disabled' : '';
+                    bulkPreviewBody.insertAdjacentHTML('beforeend', `
+                        <tr>
+                            <td>${row.property_name}</td>
+                            <td>${row.tenant_name || '-'}</td>
+                            <td>${String(row.period_month).padStart(2, '0')}/${row.period_year}</td>
+                            <td>${row.due_date}</td>
+                            <td>
+                                <input type="number" min="0.01" step="0.01" class="form-control form-control-sm"
+                                    data-bulk-row-index="${index}" data-bulk-field="amount"
+                                    value="${toMoney(row.amount, 0).toFixed(2)}" ${disabled}>
+                            </td>
+                            <td><span class="badge ${alreadyClass}">${alreadyLabel}</span></td>
+                        </tr>
+                    `);
+                });
+
+                bulkSummaryText.textContent = `Total: ${summary.total} | Nuevos: ${summary.to_create} | Existentes: ${summary.already_exists}`;
+                bulkPreviewContainer?.classList.remove('d-none');
+                syncBulkRowsInputs();
+            };
+
+            const updateBulkTenantName = () => {
+                if (!bulkPropertyId || !bulkTenantName) {
+                    return;
+                }
+
+                const selected = bulkPropertyId.options[bulkPropertyId.selectedIndex];
+                bulkTenantName.value = selected?.dataset?.tenantName || '';
+            };
+
+            bulkPropertyId?.addEventListener('change', () => {
+                updateBulkTenantName();
+                bulkRows = [];
+                bulkPreviewBody.innerHTML = '';
+                bulkPreviewContainer?.classList.add('d-none');
+                syncBulkRowsInputs();
+            });
+            updateBulkTenantName();
+
+            bulkPreviewBody?.addEventListener('change', (event) => {
+                const input = event.target.closest('[data-bulk-field="amount"]');
+                if (!input) {
+                    return;
+                }
+
+                const index = Number.parseInt(input.getAttribute('data-bulk-row-index') || '-1', 10);
+                if (!Number.isInteger(index) || !bulkRows[index]) {
+                    return;
+                }
+
+                bulkRows[index].amount = toMoney(input.value, bulkRows[index].amount);
+                renderBulkRows();
+            });
 
             previewBtn?.addEventListener('click', async () => {
-                const tenantId = bulkTenantId?.value;
-                const paymentDay = bulkPaymentDay?.value;
+                const propertyId = bulkPropertyId?.value;
 
-                if (!tenantId || !paymentDay) {
-                    alert('Selecciona inquilino y dia de pago.');
+                if (!propertyId) {
+                    alert('Selecciona una propiedad.');
                     return;
                 }
 
@@ -570,8 +819,7 @@
                             'Accept': 'application/json',
                         },
                         body: JSON.stringify({
-                            tenant_id: tenantId,
-                            payment_day: paymentDay,
+                            property_id: propertyId,
                         }),
                     });
 
@@ -581,40 +829,18 @@
                     }
 
                     const preview = data.preview || {};
-                    const rows = preview.rows || [];
-                    const summary = preview.summary || {};
-
-                    bulkPreviewBody.innerHTML = '';
-                    if (!rows.length) {
-                        bulkPreviewBody.innerHTML = `
-                            <tr>
-                                <td colspan="5" class="text-center text-muted py-8">No se encontraron cargos para ese inquilino.</td>
-                            </tr>
-                        `;
-                    } else {
-                        rows.forEach((row) => {
-                            const alreadyClass = row.already_exists ? 'badge-light-warning text-warning' : 'badge-light-success text-success';
-                            const alreadyLabel = row.already_exists ? 'Ya existe' : 'Se creara';
-                            bulkPreviewBody.insertAdjacentHTML('beforeend', `
-                                <tr>
-                                    <td>${row.property_name}</td>
-                                    <td>${String(row.period_month).padStart(2, '0')}/${row.period_year}</td>
-                                    <td>${row.due_date}</td>
-                                    <td>$${Number(row.amount).toFixed(2)}</td>
-                                    <td><span class="badge ${alreadyClass}">${alreadyLabel}</span></td>
-                                </tr>
-                            `);
-                        });
-                    }
-
-                    bulkSummaryText.textContent = `Total: ${summary.total || 0} | Nuevos: ${summary.to_create || 0} | Existentes: ${summary.already_exists || 0}`;
-                    bulkPreviewContainer?.classList.remove('d-none');
+                    bulkRows = Array.isArray(preview.rows) ? preview.rows : [];
+                    renderBulkRows();
                 } catch (error) {
                     alert(error.message || 'No fue posible generar la vista previa.');
                 } finally {
                     previewBtn.disabled = false;
-                    previewBtn.textContent = 'Previsualizar tabla';
+                    previewBtn.textContent = 'Ver lista de pagos';
                 }
+            });
+
+            bulkChargeForm?.addEventListener('submit', () => {
+                syncBulkRowsInputs();
             });
         })();
     </script>
@@ -639,6 +865,22 @@
                 const chargeUuid = @json(old('charge_uuid'));
                 if (form && chargeUuid) {
                     form.setAttribute('action', "{{ url('/cobranza') }}/" + chargeUuid + "/pagos");
+                }
+                new bootstrap.Modal(modalEl).show();
+            })();
+        </script>
+    @endif
+
+    @if ($errors->updateCharge->any())
+        <script>
+            (() => {
+                const modalEl = document.getElementById('editChargeModal');
+                if (!modalEl) return;
+
+                const form = document.getElementById('editChargeForm');
+                const chargeUuid = @json(old('charge_uuid'));
+                if (form && chargeUuid) {
+                    form.setAttribute('action', "{{ url('/cobranza') }}/" + chargeUuid);
                 }
                 new bootstrap.Modal(modalEl).show();
             })();

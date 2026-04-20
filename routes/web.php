@@ -89,6 +89,7 @@ Route::middleware(['auth'])
         Route::get('/documentos', [DocumentController::class, 'index'])->name('documents.index');
         Route::get('/cobranza', [ChargeController::class, 'index'])->name('charges.index');
         Route::post('/cobranza', [ChargeController::class, 'store'])->name('charges.store');
+        Route::put('/cobranza/{charge}', [ChargeController::class, 'update'])->name('charges.update');
         Route::get('/cobranza/{charge}', [ChargeController::class, 'show'])->name('charges.show');
         Route::post('/cobranza/{charge}/pagos', [ChargeController::class, 'storePayment'])->name('charges.payments.store');
         Route::post('/cobranza/{charge}/pagos/{payment}/validar', [ChargeController::class, 'validatePayment'])->name('charges.payments.validate');

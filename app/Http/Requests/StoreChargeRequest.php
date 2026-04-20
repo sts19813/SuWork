@@ -3,8 +3,10 @@
 namespace App\Http\Requests;
 
 use App\Models\Charge;
+use App\Models\Property;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreChargeRequest extends FormRequest
 {
@@ -36,5 +38,33 @@ class StoreChargeRequest extends FormRequest
             'concept' => ['required', 'string', 'max:190'],
             'notes' => ['nullable', 'string', 'max:4000'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $propertyId = $this->input('property_id');
+            $tenantId = $this->input('tenant_id');
+            if (!filled($propertyId) || !filled($tenantId)) {
+                return;
+            }
+
+            $property = Property::query()->find((int) $propertyId);
+            if (!$property) {
+                return;
+            }
+
+            if (!$property->tenant_id) {
+                $validator->errors()->add('property_id', 'La propiedad seleccionada no tiene inquilino asignado.');
+                return;
+            }
+
+            if ((int) $property->tenant_id !== (int) $tenantId) {
+                $validator->errors()->add(
+                    'tenant_id',
+                    'El inquilino debe coincidir con el inquilino activo de la propiedad seleccionada.',
+                );
+            }
+        });
     }
 }

@@ -24,8 +24,14 @@ class GenerateChargesRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'tenant_id' => ['required', 'integer', 'exists:tenants,id'],
-            'payment_day' => ['required', 'integer', 'between:1,31'],
+            'property_id' => ['required', 'integer', 'exists:properties,id'],
+            'rows' => ['nullable', 'array'],
+            'rows.*.period_month' => ['required_with:rows', 'integer', 'between:1,12'],
+            'rows.*.period_year' => ['required_with:rows', 'integer', 'between:2000,2200'],
+            'rows.*.due_date' => ['required_with:rows', 'date'],
+            'rows.*.amount' => ['required_with:rows', 'numeric', 'min:0.01'],
+            'rows.*.concept' => ['required_with:rows', 'string', 'max:190'],
+            'rows.*.notes' => ['nullable', 'string', 'max:4000'],
         ];
     }
 }

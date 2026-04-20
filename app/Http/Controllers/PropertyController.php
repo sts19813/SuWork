@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePropertyRequest;
+use App\Models\Charge;
 use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
@@ -16,6 +17,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -222,6 +224,7 @@ class PropertyController extends Controller
             $property = $property ?? new Property();
             $tenantId = $validated['tenant_id'] ?? null;
             $tenant = $tenantId ? Tenant::query()->find($tenantId) : null;
+            $rentChargePlan = $this->buildRentChargePlan($validated, $property);
 
             $property->fill([
                 'internal_name' => $validated['internal_name'],
@@ -246,6 +249,7 @@ class PropertyController extends Controller
                 'onboarding_step' => 5,
                 'monthly_rent_price' => $validated['monthly_rent_price'] ?? null,
                 'maintenance_fee' => $validated['maintenance_fee'] ?? null,
+                'rent_charge_plan' => $rentChargePlan,
             ]);
 
             if (!$property->exists) {
@@ -267,9 +271,220 @@ class PropertyController extends Controller
             $this->syncDocuments($property, $request);
             $this->syncCustomDocuments($property, $request);
             $this->syncInventory($property, $validated['inventory_areas'] ?? [], $request);
+            $this->syncRentChargesFromPlan($property, $request->user()?->id);
 
             return $property->fresh();
         });
+    }
+
+    private function syncRentChargesFromPlan(Property $property, ?int $userId): void
+    {
+        if (!$property->tenant_id) {
+            return;
+        }
+
+        $planRows = collect($property->rent_charge_plan ?? [])
+            ->filter(fn ($row) => is_array($row))
+            ->values();
+
+        foreach ($planRows as $row) {
+            $periodMonth = (int) ($row['period_month'] ?? 0);
+            $periodYear = (int) ($row['period_year'] ?? 0);
+            $amount = (float) ($row['amount'] ?? 0);
+
+            if ($periodMonth < 1 || $periodMonth > 12 || $periodYear < 2000 || $amount <= 0) {
+                continue;
+            }
+
+            $alreadyExists = Charge::query()
+                ->where('property_id', $property->id)
+                ->where('tenant_id', $property->tenant_id)
+                ->where('type', Charge::TYPE_RENT)
+                ->where('period_month', $periodMonth)
+                ->where('period_year', $periodYear)
+                ->exists();
+
+            if ($alreadyExists) {
+                continue;
+            }
+
+            Charge::create([
+                'property_id' => $property->id,
+                'tenant_id' => $property->tenant_id,
+                'type' => Charge::TYPE_RENT,
+                'due_date' => (string) ($row['due_date'] ?? now()->toDateString()),
+                'amount' => $amount,
+                'paid_amount' => 0,
+                'period_month' => $periodMonth,
+                'period_year' => $periodYear,
+                'concept' => (string) ($row['concept'] ?? $this->buildRentChargeConcept($periodMonth, $periodYear)),
+                'notes' => filled($row['notes'] ?? null) ? (string) $row['notes'] : 'Generado automaticamente por contrato.',
+                'status' => Charge::STATUS_PENDING,
+                'created_by' => $userId,
+            ]);
+        }
+    }
+
+    private function buildRentChargePlan(array $validated, ?Property $property = null): array
+    {
+        $startsAt = $this->parseDate($validated['contract_starts_at'] ?? null);
+        $expiresAt = $this->parseDate($validated['contract_expires_at'] ?? null);
+
+        if (!$startsAt || !$expiresAt) {
+            return [];
+        }
+
+        $contractDay = (int) $startsAt->day;
+        $startsAt = $startsAt->startOfMonth();
+        $expiresAt = $expiresAt->startOfMonth();
+        if ($startsAt->gt($expiresAt)) {
+            return [];
+        }
+
+        $rentPrice = (float) ($validated['monthly_rent_price'] ?? 0);
+
+        $submittedRows = collect($validated['rent_charge_plan'] ?? [])
+            ->filter(fn ($row) => is_array($row))
+            ->map(fn (array $row) => $this->normalizeRentChargePlanRow($row))
+            ->filter()
+            ->keyBy(fn (array $row) => $this->chargePlanPeriodKey((int) $row['period_year'], (int) $row['period_month']));
+
+        $existingRows = collect($property?->rent_charge_plan ?? [])
+            ->filter(fn ($row) => is_array($row))
+            ->map(fn (array $row) => $this->normalizeRentChargePlanRow($row))
+            ->filter()
+            ->keyBy(fn (array $row) => $this->chargePlanPeriodKey((int) $row['period_year'], (int) $row['period_month']));
+
+        $rows = [];
+        $cursor = $startsAt->copy();
+
+        while ($cursor->lte($expiresAt)) {
+            $periodMonth = (int) $cursor->month;
+            $periodYear = (int) $cursor->year;
+            $periodKey = $this->chargePlanPeriodKey($periodYear, $periodMonth);
+
+            /** @var array|null $submittedRow */
+            $submittedRow = $submittedRows->get($periodKey);
+            /** @var array|null $existingRow */
+            $existingRow = $existingRows->get($periodKey);
+            $sourceRow = $submittedRow ?? $existingRow ?? [];
+
+            $isCustomAmount = (bool) ($sourceRow['is_custom_amount'] ?? false);
+            $amount = $isCustomAmount
+                ? (float) ($sourceRow['amount'] ?? 0)
+                : $rentPrice;
+            if ($amount <= 0 && isset($sourceRow['amount']) && is_numeric($sourceRow['amount'])) {
+                $amount = (float) $sourceRow['amount'];
+            }
+            if ($amount <= 0) {
+                $cursor->addMonthNoOverflow()->startOfMonth();
+                continue;
+            }
+
+            $defaultDueDate = $cursor->copy()->day(min($contractDay, $cursor->daysInMonth))->toDateString();
+            $dueDate = $this->resolveRentChargeDueDate(
+                $sourceRow['due_date'] ?? null,
+                $cursor,
+                $defaultDueDate,
+            );
+
+            $concept = trim((string) ($sourceRow['concept'] ?? ''));
+            if ($concept === '') {
+                $concept = $this->buildRentChargeConcept($periodMonth, $periodYear);
+            }
+
+            $notes = trim((string) ($sourceRow['notes'] ?? ''));
+
+            $rows[] = [
+                'type' => 'rent',
+                'period_month' => $periodMonth,
+                'period_year' => $periodYear,
+                'due_date' => $dueDate,
+                'amount' => round($amount, 2),
+                'concept' => $concept,
+                'notes' => $notes !== '' ? $notes : null,
+                'is_custom_amount' => $isCustomAmount,
+            ];
+
+            $cursor->addMonthNoOverflow()->startOfMonth();
+        }
+
+        return $rows;
+    }
+
+    private function normalizeRentChargePlanRow(array $row): ?array
+    {
+        $periodMonth = (int) ($row['period_month'] ?? 0);
+        $periodYear = (int) ($row['period_year'] ?? 0);
+        if ($periodMonth < 1 || $periodMonth > 12 || $periodYear < 1900) {
+            return null;
+        }
+
+        $amount = isset($row['amount']) && is_numeric($row['amount'])
+            ? (float) $row['amount']
+            : null;
+
+        return [
+            'period_month' => $periodMonth,
+            'period_year' => $periodYear,
+            'due_date' => filled($row['due_date'] ?? null) ? (string) $row['due_date'] : null,
+            'amount' => $amount,
+            'concept' => filled($row['concept'] ?? null) ? trim((string) $row['concept']) : null,
+            'notes' => filled($row['notes'] ?? null) ? trim((string) $row['notes']) : null,
+            'is_custom_amount' => (bool) ($row['is_custom_amount'] ?? false),
+        ];
+    }
+
+    private function parseDate(mixed $value): ?Carbon
+    {
+        if (!filled($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse((string) $value);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function resolveRentChargeDueDate(?string $dueDate, Carbon $periodDate, string $defaultDueDate): string
+    {
+        $parsedDueDate = $this->parseDate($dueDate);
+        if (
+            !$parsedDueDate ||
+            (int) $parsedDueDate->month !== (int) $periodDate->month ||
+            (int) $parsedDueDate->year !== (int) $periodDate->year
+        ) {
+            return $defaultDueDate;
+        }
+
+        return $parsedDueDate->toDateString();
+    }
+
+    private function chargePlanPeriodKey(int $periodYear, int $periodMonth): string
+    {
+        return sprintf('%04d-%02d', $periodYear, $periodMonth);
+    }
+
+    private function buildRentChargeConcept(int $periodMonth, int $periodYear): string
+    {
+        $monthNames = [
+            1 => 'Enero',
+            2 => 'Febrero',
+            3 => 'Marzo',
+            4 => 'Abril',
+            5 => 'Mayo',
+            6 => 'Junio',
+            7 => 'Julio',
+            8 => 'Agosto',
+            9 => 'Septiembre',
+            10 => 'Octubre',
+            11 => 'Noviembre',
+            12 => 'Diciembre',
+        ];
+
+        return 'Renta ' . ($monthNames[$periodMonth] ?? (string) $periodMonth) . ' ' . $periodYear;
     }
 
     private function syncOwners(Property $property, array $ownerIds, array $newOwners): void

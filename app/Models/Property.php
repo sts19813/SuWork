@@ -52,6 +52,7 @@ class Property extends Model
         'unit_number',
         'monthly_rent_price',
         'maintenance_fee',
+        'rent_charge_plan',
         'facade_photo_path',
         'details',
         'description',
@@ -74,6 +75,7 @@ class Property extends Model
             'onboarding_step' => 'integer',
             'monthly_rent_price' => 'decimal:2',
             'maintenance_fee' => 'decimal:2',
+            'rent_charge_plan' => 'array',
         ];
     }
 

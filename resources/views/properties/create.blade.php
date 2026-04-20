@@ -124,6 +124,11 @@
         $selectedType = (string) $fieldValue('property_type_id');
         $selectedZone = (string) $fieldValue('zone_id');
         $selectedTenantId = (string) old('tenant_id', $isEdit && $property ? ($property->tenant_id ?: '') : '');
+        $initialRentChargePlan = old('rent_charge_plan', $isEdit && $property ? ($property->rent_charge_plan ?? []) : []);
+        $initialRentChargePlan = collect($initialRentChargePlan)
+            ->filter(fn($row) => is_array($row))
+            ->values()
+            ->all();
 
         $initialStep = (int) old('wizard_step', 1);
         if ($errors->isNotEmpty()) {
@@ -161,6 +166,10 @@
                     $initialStep = 6;
                     break;
                 }
+                if ($errorKey === 'rent_charge_plan' || str_starts_with($errorKey, 'rent_charge_plan.')) {
+                    $initialStep = 6;
+                    break;
+                }
             }
         }
     @endphp
@@ -195,6 +204,7 @@
                     <input type="hidden" name="removed_item_photo_ids[]" value="{{ $removedItemPhotoId }}">
                 @endforeach
             </div>
+            <div id="rent-charge-plan-inputs"></div>
 
             @if ($errors->any())
                 <div class="alert alert-danger mb-8">
@@ -982,6 +992,65 @@
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
+                        <div class="col-12">
+                            <div class="border rounded p-5 bg-light">
+                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-2">
+                                    <div>
+                                        <div class="fw-bold">Lista de pagos de renta</div>
+                                        <div class="text-muted fs-8" id="rentChargePlanSummary">
+                                            Configura contrato y renta mensual para generar la lista automatica.
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-light-primary" data-bs-toggle="modal" data-bs-target="#rentChargePlanModal" id="openRentChargePlanModal">
+                                        Ver lista de pagos
+                                    </button>
+                                </div>
+                                <div class="text-muted fs-8">
+                                    Total de pagos generados: <span class="fw-bold" id="rentChargePlanRowsCount">0</span>
+                                </div>
+                            </div>
+                            @error('rent_charge_plan')
+                                <div class="text-danger fs-7 mt-2">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal fade" id="rentChargePlanModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3 class="modal-title">Lista de pagos</h3>
+                            <button type="button" class="btn btn-icon btn-sm btn-active-light-primary" data-bs-dismiss="modal">
+                                <i class="ki-outline ki-cross fs-1"></i>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-light-primary py-3 px-4 mb-5">
+                                El monto inicia con la renta mensual y puedes ajustarlo por periodo para contratos de mas de un anio.
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-row-bordered align-middle">
+                                    <thead>
+                                        <tr class="text-muted text-uppercase fs-8">
+                                            <th>Periodo</th>
+                                            <th>Vencimiento</th>
+                                            <th>Monto (MXN)</th>
+                                            <th>Concepto</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="rentChargePlanTableBody">
+                                        <tr id="rentChargePlanEmptyState">
+                                            <td colspan="4" class="text-center text-muted py-8">No hay pagos configurados.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1179,8 +1248,18 @@
             const urlParams = new URLSearchParams(window.location.search);
             const stepFromUrl = parseInt(urlParams.get('step'));
             const editorInstances = [];
+            const initialRentChargePlan = @json($initialRentChargePlan);
+            const rentChargePlanInputsHost = document.getElementById('rent-charge-plan-inputs');
+            const rentChargePlanTableBody = document.getElementById('rentChargePlanTableBody');
+            const rentChargePlanSummary = document.getElementById('rentChargePlanSummary');
+            const rentChargePlanRowsCount = document.getElementById('rentChargePlanRowsCount');
+            const rentChargePlanEmptyState = document.getElementById('rentChargePlanEmptyState');
+            const monthlyRentInput = form.querySelector('input[name="monthly_rent_price"]');
+            const contractStartsInput = form.querySelector('input[name="contract_starts_at"]');
+            const contractExpiresInput = form.querySelector('input[name="contract_expires_at"]');
 
             let currentStep = stepFromUrl || parseInt(stepInput.value || '1', 10);
+            let rentChargePlanRows = [];
 
             if (Number.isNaN(currentStep) || currentStep < 1 || currentStep > totalSteps) {
                 currentStep = 1;
@@ -1248,7 +1327,14 @@
                     return 5;
                 }
 
-                if (errorKey === 'status' || errorKey === 'tenant_id' || errorKey === 'contract_starts_at' || errorKey === 'contract_expires_at') {
+                if (
+                    errorKey === 'status' ||
+                    errorKey === 'tenant_id' ||
+                    errorKey === 'contract_starts_at' ||
+                    errorKey === 'contract_expires_at' ||
+                    errorKey === 'rent_charge_plan' ||
+                    errorKey.startsWith('rent_charge_plan.')
+                ) {
                     return 6;
                 }
 
@@ -1514,6 +1600,285 @@
                     renderSelected();
                 });
             };
+
+            const monthNames = [
+                'Enero',
+                'Febrero',
+                'Marzo',
+                'Abril',
+                'Mayo',
+                'Junio',
+                'Julio',
+                'Agosto',
+                'Septiembre',
+                'Octubre',
+                'Noviembre',
+                'Diciembre',
+            ];
+
+            const toMoney = (value, fallback = 0) => {
+                const parsed = Number.parseFloat(String(value ?? '').replace(/,/g, ''));
+                if (!Number.isFinite(parsed)) {
+                    return fallback;
+                }
+
+                return Math.round(parsed * 100) / 100;
+            };
+
+            const parseIsoDate = (value) => {
+                const stringValue = String(value || '').trim();
+                const parts = stringValue.split('-');
+                if (parts.length !== 3) {
+                    return null;
+                }
+
+                const year = Number.parseInt(parts[0], 10);
+                const month = Number.parseInt(parts[1], 10);
+                const day = Number.parseInt(parts[2], 10);
+                if (!year || month < 1 || month > 12 || day < 1 || day > 31) {
+                    return null;
+                }
+
+                return { year, month, day };
+            };
+
+            const pad2 = (value) => String(value).padStart(2, '0');
+            const periodKey = (year, month) => `${year}-${pad2(month)}`;
+
+            const formatIsoDate = (year, month, day) => `${year}-${pad2(month)}-${pad2(day)}`;
+
+            const resolveDueDateForPeriod = (candidate, year, month, fallbackDay) => {
+                const parsedCandidate = parseIsoDate(candidate);
+                if (parsedCandidate && parsedCandidate.year === year && parsedCandidate.month === month) {
+                    return formatIsoDate(year, month, parsedCandidate.day);
+                }
+
+                const daysInMonth = new Date(year, month, 0).getDate();
+                return formatIsoDate(year, month, Math.min(Math.max(1, fallbackDay), daysInMonth));
+            };
+
+            const buildConceptLabel = (periodMonth, periodYear) => {
+                const monthLabel = monthNames[periodMonth - 1] || String(periodMonth);
+                return `Renta ${monthLabel} ${periodYear}`;
+            };
+
+            const normalizeExistingPlanRows = (rows) => {
+                if (!Array.isArray(rows)) {
+                    return [];
+                }
+
+                return rows
+                    .map((row) => {
+                        const month = Number.parseInt(row?.period_month, 10);
+                        const year = Number.parseInt(row?.period_year, 10);
+                        if (!month || !year || month < 1 || month > 12) {
+                            return null;
+                        }
+
+                        return {
+                            period_month: month,
+                            period_year: year,
+                            due_date: String(row?.due_date || ''),
+                            amount: toMoney(row?.amount, 0),
+                            concept: String(row?.concept || '').trim(),
+                            notes: row?.notes ? String(row.notes) : null,
+                            is_custom_amount: Boolean(row?.is_custom_amount),
+                        };
+                    })
+                    .filter(Boolean);
+            };
+
+            const buildAutoRentChargePlan = () => {
+                const starts = parseIsoDate(contractStartsInput?.value);
+                const expires = parseIsoDate(contractExpiresInput?.value);
+                if (!starts || !expires) {
+                    return [];
+                }
+
+                const startsDate = new Date(starts.year, starts.month - 1, 1);
+                const expiresDate = new Date(expires.year, expires.month - 1, 1);
+                if (startsDate > expiresDate) {
+                    return [];
+                }
+
+                const defaultAmount = toMoney(monthlyRentInput?.value, 0);
+                const baseContractDay = starts.day;
+                const existingByPeriod = new Map(
+                    rentChargePlanRows.map((row) => [periodKey(row.period_year, row.period_month), row]),
+                );
+                const builtRows = [];
+                const cursor = new Date(startsDate.getFullYear(), startsDate.getMonth(), 1);
+
+                while (cursor <= expiresDate) {
+                    const year = cursor.getFullYear();
+                    const month = cursor.getMonth() + 1;
+                    const key = periodKey(year, month);
+                    const current = existingByPeriod.get(key);
+                    const customAmount = Boolean(current?.is_custom_amount);
+                    const amount = customAmount
+                        ? toMoney(current?.amount, defaultAmount)
+                        : defaultAmount;
+                    const dueDate = resolveDueDateForPeriod(current?.due_date, year, month, baseContractDay);
+                    const concept = (current?.concept || '').trim() || buildConceptLabel(month, year);
+
+                    if (amount > 0) {
+                        builtRows.push({
+                            period_month: month,
+                            period_year: year,
+                            due_date: dueDate,
+                            amount,
+                            concept,
+                            notes: current?.notes || null,
+                            is_custom_amount: customAmount,
+                        });
+                    }
+
+                    cursor.setMonth(cursor.getMonth() + 1);
+                }
+
+                return builtRows;
+            };
+
+            const syncRentChargePlanInputs = () => {
+                if (!rentChargePlanInputsHost) {
+                    return;
+                }
+
+                rentChargePlanInputsHost.innerHTML = '';
+                rentChargePlanRows.forEach((row, index) => {
+                    const appendInput = (name, value) => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = `rent_charge_plan[${index}][${name}]`;
+                        input.value = value;
+                        rentChargePlanInputsHost.appendChild(input);
+                    };
+
+                    appendInput('period_month', row.period_month);
+                    appendInput('period_year', row.period_year);
+                    appendInput('due_date', row.due_date);
+                    appendInput('amount', toMoney(row.amount, 0).toFixed(2));
+                    appendInput('concept', row.concept || '');
+                    appendInput('is_custom_amount', row.is_custom_amount ? '1' : '0');
+
+                    if (row.notes) {
+                        appendInput('notes', row.notes);
+                    }
+                });
+            };
+
+            const renderRentChargePlan = () => {
+                if (!rentChargePlanTableBody) {
+                    return;
+                }
+
+                rentChargePlanTableBody.innerHTML = '';
+                if (!rentChargePlanRows.length) {
+                    if (rentChargePlanEmptyState) {
+                        rentChargePlanTableBody.appendChild(rentChargePlanEmptyState);
+                    } else {
+                        rentChargePlanTableBody.innerHTML = `
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-8">No hay pagos configurados.</td>
+                            </tr>
+                        `;
+                    }
+                } else {
+                    rentChargePlanRows.forEach((row, index) => {
+                        const tr = document.createElement('tr');
+
+                        const periodCell = document.createElement('td');
+                        periodCell.textContent = `${pad2(row.period_month)}/${row.period_year}`;
+                        tr.appendChild(periodCell);
+
+                        const dueDateCell = document.createElement('td');
+                        const dueDateInput = document.createElement('input');
+                        dueDateInput.type = 'date';
+                        dueDateInput.className = 'form-control form-control-sm';
+                        dueDateInput.value = row.due_date || '';
+                        dueDateInput.dataset.planField = 'due_date';
+                        dueDateInput.dataset.planIndex = String(index);
+                        dueDateCell.appendChild(dueDateInput);
+                        tr.appendChild(dueDateCell);
+
+                        const amountCell = document.createElement('td');
+                        const amountInput = document.createElement('input');
+                        amountInput.type = 'number';
+                        amountInput.min = '0.01';
+                        amountInput.step = '0.01';
+                        amountInput.className = 'form-control form-control-sm';
+                        amountInput.value = toMoney(row.amount, 0).toFixed(2);
+                        amountInput.dataset.planField = 'amount';
+                        amountInput.dataset.planIndex = String(index);
+                        amountCell.appendChild(amountInput);
+                        tr.appendChild(amountCell);
+
+                        const conceptCell = document.createElement('td');
+                        const conceptInput = document.createElement('input');
+                        conceptInput.type = 'text';
+                        conceptInput.className = 'form-control form-control-sm';
+                        conceptInput.maxLength = 190;
+                        conceptInput.value = row.concept || '';
+                        conceptInput.dataset.planField = 'concept';
+                        conceptInput.dataset.planIndex = String(index);
+                        conceptCell.appendChild(conceptInput);
+                        tr.appendChild(conceptCell);
+
+                        rentChargePlanTableBody.appendChild(tr);
+                    });
+                }
+
+                const total = rentChargePlanRows.reduce((sum, row) => sum + toMoney(row.amount, 0), 0);
+                if (rentChargePlanSummary) {
+                    if (rentChargePlanRows.length) {
+                        rentChargePlanSummary.textContent = `Total proyectado: $${total.toFixed(2)} en ${rentChargePlanRows.length} cargos.`;
+                    } else {
+                        rentChargePlanSummary.textContent = 'Configura contrato y renta mensual para generar la lista automatica.';
+                    }
+                }
+                if (rentChargePlanRowsCount) {
+                    rentChargePlanRowsCount.textContent = String(rentChargePlanRows.length);
+                }
+            };
+
+            const rebuildRentChargePlan = () => {
+                rentChargePlanRows = buildAutoRentChargePlan();
+                renderRentChargePlan();
+                syncRentChargePlanInputs();
+            };
+
+            rentChargePlanTableBody?.addEventListener('change', (event) => {
+                const target = event.target.closest('[data-plan-field]');
+                if (!target) {
+                    return;
+                }
+
+                const index = Number.parseInt(target.dataset.planIndex || '-1', 10);
+                if (!Number.isInteger(index) || !rentChargePlanRows[index]) {
+                    return;
+                }
+
+                const row = rentChargePlanRows[index];
+                const field = target.dataset.planField;
+                if (field === 'amount') {
+                    row.amount = toMoney(target.value, row.amount);
+                    row.is_custom_amount = true;
+                } else if (field === 'due_date') {
+                    row.due_date = String(target.value || '').trim();
+                } else if (field === 'concept') {
+                    row.concept = String(target.value || '').trim();
+                }
+
+                syncRentChargePlanInputs();
+                renderRentChargePlan();
+            });
+
+            monthlyRentInput?.addEventListener('input', rebuildRentChargePlan);
+            contractStartsInput?.addEventListener('change', rebuildRentChargePlan);
+            contractExpiresInput?.addEventListener('change', rebuildRentChargePlan);
+
+            rentChargePlanRows = normalizeExistingPlanRows(initialRentChargePlan);
+            rebuildRentChargePlan();
 
             const ownersSearchInput = document.getElementById('owners-search-input');
             const ownerOptionItems = [...document.querySelectorAll('.owner-option-item')];
@@ -1865,6 +2230,7 @@
 
             form.addEventListener('submit', async (event) => {
                 event.preventDefault();
+                syncRentChargePlanInputs();
                 syncEditors();
                 clearAjaxErrors();
                 setSubmittingState(true);

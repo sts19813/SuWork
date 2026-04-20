@@ -48,6 +48,14 @@ class StorePropertyRequest extends FormRequest
             'current_tenant_name' => ['nullable', 'string', 'max:255'],
             'contract_starts_at' => ['nullable', 'date'],
             'contract_expires_at' => ['nullable', 'date'],
+            'rent_charge_plan' => ['nullable', 'array'],
+            'rent_charge_plan.*.period_month' => ['required_with:rent_charge_plan', 'integer', 'between:1,12'],
+            'rent_charge_plan.*.period_year' => ['required_with:rent_charge_plan', 'integer', 'between:2000,2200'],
+            'rent_charge_plan.*.due_date' => ['required_with:rent_charge_plan', 'date'],
+            'rent_charge_plan.*.amount' => ['required_with:rent_charge_plan', 'numeric', 'min:0.01'],
+            'rent_charge_plan.*.concept' => ['nullable', 'string', 'max:190'],
+            'rent_charge_plan.*.notes' => ['nullable', 'string', 'max:4000'],
+            'rent_charge_plan.*.is_custom_amount' => ['nullable', 'boolean'],
             'owner_ids' => ['nullable', 'array'],
             'owner_ids.*' => ['integer', 'exists:owners,id'],
             'new_owners' => ['nullable', 'array'],
@@ -181,6 +189,19 @@ class StorePropertyRequest extends FormRequest
             $contractExpiresAt = $this->input('contract_expires_at');
             if (filled($contractStartsAt) && filled($contractExpiresAt) && $contractStartsAt > $contractExpiresAt) {
                 $validator->errors()->add('contract_starts_at', 'La fecha de inicio del contrato debe ser anterior o igual al vencimiento.');
+            }
+
+            $chargePlanRows = collect((array) $this->input('rent_charge_plan', []))
+                ->filter(fn ($row) => is_array($row));
+            $duplicatePeriods = $chargePlanRows
+                ->map(fn ($row) => sprintf('%s-%s', (string) ($row['period_year'] ?? ''), (string) ($row['period_month'] ?? '')))
+                ->filter(fn ($period) => $period !== '-')
+                ->duplicates();
+            if ($duplicatePeriods->isNotEmpty()) {
+                $validator->errors()->add(
+                    'rent_charge_plan',
+                    'La lista de pagos tiene periodos repetidos. Verifica la tabla de cargos.',
+                );
             }
 
             // Validate zone: either zone_id or zone_text must be provided
