@@ -170,11 +170,15 @@ class PropertyController extends Controller
             'type',
             'zone',
             'owners',
-            'documents.versions', 
+            'documents.versions',
             'inventoryAreas.items.photos',
             'inventoryAreas.photos',
             'tenant',
         ]);
+        $propertyChangeLogs = $property->changeLogs()
+            ->with('user:id,name')
+            ->limit(250)
+            ->get();
 
         $documents = collect(PropertyDocument::REQUIRED_DOCUMENTS)
             ->map(function (string $label, string $type) use ($property) {
@@ -237,7 +241,41 @@ class PropertyController extends Controller
             'propertyCharges' => $propertyCharges,
             'rentChargesTotal' => $rentChargesTotal,
             'rentChargesPaid' => $rentChargesPaid,
+            'propertyChangeLogs' => $propertyChangeLogs,
+            'propertyChangeFieldLabels' => $this->propertyChangeFieldLabels(),
         ]);
+    }
+
+    private function propertyChangeFieldLabels(): array
+    {
+        return [
+            'internal_name' => 'Nombre interno',
+            'internal_reference' => 'Referencia interna',
+            'property_type_id' => 'Tipo de propiedad',
+            'zone_id' => 'Zona',
+            'zone_text' => 'Zona (texto)',
+            'full_address' => 'Direccion completa',
+            'map_url' => 'URL de mapa',
+            'complex_name' => 'Complejo o privada',
+            'official_number' => 'Numero oficial',
+            'unit_number' => 'Numero de unidad',
+            'monthly_rent_price' => 'Renta mensual',
+            'charge_day' => 'Dia de cobro',
+            'charge_tolerance_days' => 'Tolerancia de cobro',
+            'maintenance_fee' => 'Cuota de mantenimiento',
+            'rent_charge_plan' => 'Plan de cobro de renta',
+            'facade_photo_path' => 'Foto de fachada',
+            'details' => 'Detalles',
+            'description' => 'Descripcion',
+            'rental_requirements' => 'Requisitos de renta',
+            'amenities' => 'Amenidades',
+            'status' => 'Estatus',
+            'tenant_id' => 'Inquilino',
+            'current_tenant_name' => 'Nombre inquilino actual',
+            'contract_starts_at' => 'Contrato inicia',
+            'contract_expires_at' => 'Contrato vence',
+            'onboarding_step' => 'Paso onboarding',
+        ];
     }
 
     private function formViewData(?Property $property = null, bool $isEdit = false): array

@@ -2,16 +2,23 @@
 
 namespace App\Models;
 
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class Property extends Model
 {
     use HasFactory;
+    private const CHANGE_LOG_IGNORED_ATTRIBUTES = [
+        'updated_at',
+        'created_at',
+    ];
+    private array $pendingPropertyChangeSet = [];
 
     public const STATUS_DRAFT = 'draft';
     public const STATUS_AVAILABLE = 'available';
@@ -90,6 +97,25 @@ class Property extends Model
                 $property->uuid = (string) Str::uuid();
             }
         });
+
+        static::updating(function (self $property): void {
+            $property->pendingPropertyChangeSet = $property->buildPendingPropertyChangeSet();
+        });
+
+        static::updated(function (self $property): void {
+            if (empty($property->pendingPropertyChangeSet)) {
+                return;
+            }
+
+            PropertyChangeLog::create([
+                'property_id' => $property->id,
+                'user_id' => Auth::id(),
+                'change_set' => $property->pendingPropertyChangeSet,
+                'changed_at' => now(),
+            ]);
+
+            $property->pendingPropertyChangeSet = [];
+        });
     }
 
     public function type(): BelongsTo
@@ -142,6 +168,11 @@ class Property extends Model
         return $this->hasMany(Charge::class);
     }
 
+    public function changeLogs(): HasMany
+    {
+        return $this->hasMany(PropertyChangeLog::class)->latest('changed_at')->latest('id');
+    }
+
     public function getStatusLabelAttribute(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucfirst(str_replace('_', ' ', $this->status));
@@ -155,5 +186,49 @@ class Property extends Model
     public function getRouteKeyName(): string
     {
         return 'uuid';
+    }
+
+    private function buildPendingPropertyChangeSet(): array
+    {
+        $dirty = $this->getDirty();
+        $changes = [];
+
+        foreach ($dirty as $attribute => $newValue) {
+            if (in_array($attribute, self::CHANGE_LOG_IGNORED_ATTRIBUTES, true)) {
+                continue;
+            }
+
+            $oldValue = $this->getOriginal($attribute);
+            $normalizedOldValue = $this->normalizePropertyChangeValue($oldValue);
+            $normalizedNewValue = $this->normalizePropertyChangeValue($newValue);
+
+            if ($normalizedOldValue === $normalizedNewValue) {
+                continue;
+            }
+
+            $changes[$attribute] = [
+                'old' => $normalizedOldValue,
+                'new' => $normalizedNewValue,
+            ];
+        }
+
+        return $changes;
+    }
+
+    private function normalizePropertyChangeValue(mixed $value): mixed
+    {
+        if ($value instanceof DateTimeInterface) {
+            return $value->format('Y-m-d H:i:s');
+        }
+
+        if (is_array($value)) {
+            return array_map(fn ($item) => $this->normalizePropertyChangeValue($item), $value);
+        }
+
+        if (is_bool($value) || is_int($value) || is_float($value) || is_string($value) || $value === null) {
+            return $value;
+        }
+
+        return (string) $value;
     }
 }
