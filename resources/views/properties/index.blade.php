@@ -81,7 +81,7 @@
                                 <th class="min-w-150px">Inquilino</th>
                                 <th class="min-w-130px">Contrato vence</th>
                                 <th class="min-w-110px">Incidencias</th>
-                                <th class="min-w-250px text-end">Opciones</th>
+                                <th class="text-end">Opciones</th>
                             </tr>
                         </thead>
                         <tbody class="fw-semibold text-gray-700">
@@ -121,12 +121,15 @@
                                             <span class="text-muted">0</span>
                                         @endif
                                     </td>
-                                    <td class="text-end" style="max-width:250px;">
+                                    <td class="text-end">
                                         <div class="d-flex flex-wrap justify-content-end gap-1">
                                             <a href="{{ route('properties.show', $property) }}"
                                                 class="btn btn-xs btn-light-primary">
                                                 Ver
                                             </a>
+
+                                            {{--
+
                                             <a href="{{ route('dossiers.properties.show', $property) }}"
                                                 class="btn btn-xs btn-light-info">
                                                 Expediente
@@ -144,6 +147,8 @@
                                             <a href="{{ route('properties.edit', $property) }}" class="btn btn-xs btn-primary">
                                                 Editar
                                             </a>
+                                            --}}
+                                            
                                         </div>
                                     </td>
                                 </tr>

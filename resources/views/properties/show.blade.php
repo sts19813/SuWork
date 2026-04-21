@@ -4,98 +4,165 @@
 
 @section('content')
     <style>
-        .property-header-meta .meta-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            padding: 0.4rem 0.75rem;
-            border-radius: 999px;
-            background: #efefef;
-            color: #000;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
+    /* CONTENEDOR DE TABS */
+    .property-tabs-wrap {
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid #edf0fb;
+        overflow: hidden;
+        padding: 10px;
+    }
 
-        .property-tabs-wrap {
-            background: #ffffff;
-            border-radius: 16px;
-            border: 1px solid #edf0fb;
-            overflow: hidden;
-        }
+    /* NAV GENERAL */
+    .property-tabs-nav {
+        display: flex;
+        gap: 8px;
+        border-bottom: none;
+        flex-wrap: wrap;
+    }
 
-       
+    /* TAB BASE */
+    .property-tabs-nav .nav-link {
+        border: none;
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #6c7293;
+        background: #f5f7ff;
+        transition: all 0.25s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
 
-        .property-block-card {
-            border: 1px solid #edf1fb;
-            border-radius: 14px;
-            box-shadow: 0 10px 26px rgba(25, 41, 80, 0.05);
-        }
+    /* HOVER */
+    .property-tabs-nav .nav-link:hover {
+        background: #e4e9ff;
+        color: #a52800;
+        transform: translateY(-1px);
+    }
 
-        .property-value-label {
-            color: #7b86ac;
-            font-size: 0.86rem;
-            margin-bottom: 0.2rem;
-        }
+    /* ACTIVO (LO IMPORTANTE) */
+    .property-tabs-nav .nav-link.active {
+        background: #a52800;
+        color: #ffffff !important;
+        box-shadow: 0 6px 14px rgba(63, 81, 181, 0.25);
+    }
 
-        .property-value-content {
-            color: #1f2a51;
-            font-weight: 600;
-            word-break: break-word;
-        }
+    /* ICONOS DENTRO DEL TAB */
+    .property-tabs-nav .nav-link i {
+        font-size: 1rem;
+    }
 
-        .inventory-thumb,
-        .property-thumb {
-            width: 88px;
-            height: 88px;
-            object-fit: cover;
-            border-radius: 10px;
-            border: 1px solid #e8ecf8;
-        }
+    /* CONTENIDO DEL TAB */
+    .property-tab-pane {
+        padding: 20px 5px 5px 5px;
+        animation: fadeIn 0.25s ease;
+    }
 
-        .change-log-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 0.75rem;
+    /* ANIMACIÓN SUAVE */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
         }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
 
-        .change-log-value {
-            background: #f8faff;
-            border: 1px solid #e9eeff;
-            border-radius: 8px;
-            padding: 0.65rem;
-            font-family: Consolas, 'Courier New', monospace;
-            font-size: 0.78rem;
-            color: #27345f;
-            white-space: pre-wrap;
-            word-break: break-word;
-            margin: 0;
-            min-height: 44px;
-        }
+    /* CARD MEJORADA */
+    .property-block-card {
+        border: 1px solid #edf1fb;
+        border-radius: 14px;
+        box-shadow: 0 10px 26px rgba(25, 41, 80, 0.06);
+        transition: all 0.2s ease;
+    }
 
-        .change-log-tag {
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: #5f6ca0;
-            margin-bottom: 0.35rem;
-        }
+    .property-block-card:hover {
+        box-shadow: 0 14px 30px rgba(25, 41, 80, 0.08);
+    }
 
-        .ck-content table {
-            width: 100%;
-            border-collapse: collapse;
-        }
+    /* HEADER DE PROPIEDAD */
+    .property-cover {
+        width: 140px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 12px;
+        border: 1px solid #e8ecf8;
+    }
 
-        .ck-content table td,
-        .ck-content table th {
-            border: 1px solid #ddd;
-            padding: 8px;
-        }
+    /* PILLS SUPERIORES */
+    .property-header-meta .meta-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.4rem 0.75rem;
+        border-radius: 999px;
+        background: #eef1ff;
+        color: #a52800;
+        font-size: 14px;
+        font-weight: 600;
+    }
 
-        .ck-content table tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-    </style>
+    /* VALORES */
+    .property-value-label {
+        color: #7b86ac;
+        font-size: 16px;
+        margin-bottom: 0.2rem;
+    }
+
+    .property-value-content {
+        color: #a52800;
+        font-weight: 600;
+        word-break: break-word;
+        font-size: 16px;
+    }
+
+    /* TABLA */
+    .table-row-bordered td,
+    .table-row-bordered th {
+        border-color: #edf1fb !important;
+    }
+
+    .table-row-bordered tbody tr:hover {
+        background: #f8faff;
+    }
+
+    /* BADGES */
+    .badge {
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-weight: 600;
+    }
+
+    /* BOTONES */
+    .btn-light-primary {
+        background: #eef1ff;
+        color: #a52800;
+        border: none;
+    }
+
+    .btn-light-primary:hover {
+        background: #a52800;
+        color: #fff;
+    }
+
+    .btn-light-success {
+        background: #e6f8f0;
+        color: #0bb783;
+        border: none;
+    }
+
+    .btn-light-success:hover {
+        background: #0bb783;
+        color: #fff;
+    }
+
+
+</style>
 
     @php
         $photoUrl = $property->facade_photo_path
@@ -148,7 +215,10 @@
                         <h1 class="mb-3 fw-bold">{{ $property->internal_name }}</h1>
                         <div class="property-header-meta mb-4">
                             <span class="meta-pill"><i class="ki-outline ki-home-2 fs-6"></i> {{ $property->type?->name ?? '-' }}</span>
-                            <span class="meta-pill"><i class="ki-outline ki-geolocation fs-6"></i> {{ $property->zone?->name ?? '-' }}</span>
+                            <span class="meta-pill"><i class="ki-outline ki-geolocation fs-6"></i> 
+                        
+                            <a href="{{ $property->map_url }}" target="_blank">Ubicacion</a>
+                        </span>
                             <span class="meta-pill"><i class="ki-outline ki-profile-user fs-6"></i> {{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: 'Sin inquilino') }}</span>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-3">
@@ -317,7 +387,7 @@
                                     @if ($property->map_url)
                                         <div class="col-12">
                                             <div class="property-value-label">URL del mapa</div>
-                                            <div class="property-value-content"><a href="{{ $property->map_url }}" target="_blank">{{ $property->map_url }}</a></div>
+                                            <div class="property-value-content"><a href="{{ $property->map_url }}" target="_blank">link a maps</a></div>
                                         </div>
                                     @endif
                                 </div>
