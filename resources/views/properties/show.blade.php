@@ -63,7 +63,7 @@
                             <div class="row g-6">
 
                                 <!-- IMAGEN GRANDE -->
-                                <div class="col-lg-5">
+                                <div class="col-lg-4">
                                     <img src="{{ $photoUrl }}" class="w-100 h-100 rounded"
                                         style="object-fit: cover; min-height: 220px;" alt="{{ $property->internal_name }}">
                                 </div>
@@ -74,8 +74,7 @@
                                     <!-- HEADER -->
                                     <div>
                                         <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
-                                            <h1 class="mb-0 fw-bold">{{ $property->internal_name }}</h1>
-
+                                            <h1 class="mb-0 fw-bold">{{ $property->internal_name }} - {{ $property->internal_reference ?: '-' }}</h1>
                                             <span class="badge {{ $property->status_badge_class }} fs-7">
                                                 {{ $property->status_label }}
                                             </span>
@@ -212,21 +211,6 @@
 
                                 <!-- DETALLE -->
                                 <div class="row g-4">
-
-                                    <div class="col-6">
-                                        <div class="property-value-label">Pagos</div>
-                                        <div class="property-value-content">
-                                            {{ (int) $rentChargesPaid }}/{{ (int) $rentChargesTotal }}
-                                        </div>
-                                    </div>
-
-                                    <div class="col-6">
-                                        <div class="property-value-label">Referencia</div>
-                                        <div class="property-value-content">
-                                            {{ $property->internal_reference ?: '-' }}
-                                        </div>
-                                    </div>
-
                                     <div class="col-6">
                                         <div class="property-value-label">Día cobro</div>
                                         <div class="property-value-content">
@@ -235,11 +219,18 @@
                                     </div>
 
                                     <div class="col-6">
-                                        <div class="property-value-label">Tolerancia</div>
+                                        <div class="property-value-label">Días de Tolerancia</div>
                                         <div class="property-value-content">
                                             {{ is_null($property->charge_tolerance_days) ? '-' : (int) $property->charge_tolerance_days }}
                                         </div>
                                     </div>
+
+                                    <div class="col-6">
+                                        <div class="property-value-label">Pagos</div>
+                                        <div class="property-value-content">
+                                            {{ (int) $rentChargesPaid }}/{{ (int) $rentChargesTotal }}
+                                        </div>
+                                    </div>               
 
                                 </div>
 
@@ -258,7 +249,7 @@
                         <button class="nav-link active" id="tab-general-tab" data-bs-toggle="tab"
                             data-bs-target="#tab-general" type="button" role="tab" aria-controls="tab-general"
                             aria-selected="true">
-                            Informacion general
+                            Información general
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
@@ -278,7 +269,7 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="tab-extra-tab" data-bs-toggle="tab" data-bs-target="#tab-extra"
                             type="button" role="tab" aria-controls="tab-extra" aria-selected="false">
-                            Informacion adicional
+                            Información adicional
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
@@ -296,7 +287,7 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="tab-history-tab" data-bs-toggle="tab" data-bs-target="#tab-history"
                             type="button" role="tab" aria-controls="tab-history" aria-selected="false">
-                            Historico de cambios
+                            Histórico de cambios
                         </button>
                     </li>
                 </ul>
@@ -956,7 +947,7 @@
 
                                         @if ($property->description)
                                             <div class="col-lg-6 col-12">
-                                                <div class="property-value-label">Descripcion</div>
+                                                <div class="property-value-label">Descripción</div>
                                                 <div class="ck-content">{!! $property->description !!}</div>
                                             </div>
                                         @endif
@@ -976,7 +967,7 @@
                                         @endif
                                     </div>
                                 @else
-                                    <div class="alert alert-light-info mb-0">No hay informacion adicional capturada.</div>
+                                    <div class="alert alert-light-info mb-0">No hay información adicional capturada.</div>
                                 @endif
                             </div>
                         </div>
@@ -1005,7 +996,7 @@
                                                 <th>Vencimiento</th>
                                                 <th>Monto</th>
                                                 <th>Estado</th>
-                                                <th class="text-end">Accion</th>
+                                                <th class="text-end">Acción</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1048,7 +1039,7 @@
                             </div>
                             <div class="card-body pt-0">
                                 @if ($property->inventoryAreas->isEmpty())
-                                    <div class="alert alert-light-info mb-0">No hay inventario capturado todavia.</div>
+                                    <div class="alert alert-light-info mb-0">No hay inventario capturado todavía.</div>
                                 @else
                                     <div class="d-flex flex-column gap-6">
                                         @foreach ($property->inventoryAreas as $area)
@@ -1204,17 +1195,19 @@
                     event.preventDefault();
 
                     const tenantName = form.dataset.tenantName || 'este inquilino';
-                    const details = missing.join('\n- ');
-                    const message = `El inquilino ${tenantName} tiene datos o documentos incompletos:\n- ${details}\n\nDeseas continuar con la asignacion?`;
+                    const details = missing.join('<br>');
+
+                    const message = `El inquilino ${tenantName} tiene datos o documentos incompletos:<br><br>- ${details}<br><br>¿Deseas continuar con la asignación?`;
+
                     let confirmed = false;
 
                     if (window.Swal?.fire) {
                         const result = await window.Swal.fire({
                             title: 'Inquilino incompleto',
-                            text: message,
+                            html: message,
                             icon: 'warning',
                             showCancelButton: true,
-                            confirmButtonText: 'Si, continuar',
+                            confirmButtonText: 'Sí, continuar',
                             cancelButtonText: 'Cancelar',
                             reverseButtons: true,
                         });
