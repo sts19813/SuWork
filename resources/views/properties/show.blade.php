@@ -135,6 +135,14 @@
                             Propietarios
                         </button>
                     </li>
+                    @if ($property->tenant)
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-tenant-tab" data-bs-toggle="tab" data-bs-target="#tab-tenant"
+                                type="button" role="tab" aria-controls="tab-tenant" aria-selected="false">
+                                Inquilino
+                            </button>
+                        </li>
+                    @endif
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="tab-documents-tab" data-bs-toggle="tab" data-bs-target="#tab-documents"
                             type="button" role="tab" aria-controls="tab-documents" aria-selected="false">
@@ -337,6 +345,137 @@
                         </div>
                     </div>
 
+                    @if ($property->tenant)
+                        @php
+                            $tenantUuid = $property->tenant?->uuid ?: $property->tenant?->id;
+                        @endphp
+                        <div class="tab-pane fade property-tab-pane" id="tab-tenant" role="tabpanel"
+                            aria-labelledby="tab-tenant-tab">
+                            <div class="card property-block-card">
+                                <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
+                                    <h3 class="card-title fw-bold mb-0">Información del inquilino</h3>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <a href="{{ url('/inquilinos/' . $tenantUuid . '/expediente') }}"
+                                            class="btn btn-sm btn-light-primary">
+                                            Ver expediente
+                                        </a>
+                                        <a href="{{ url('/inquilinos/' . $tenantUuid . '/editar') }}"
+                                            class="btn btn-sm btn-light-primary">
+                                            Editar inquilino
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="card-body pt-0">
+                                    <div class="row g-6">
+                                        <div class="col-lg-6">
+                                            <div class="property-value-label">Nombre completo</div>
+                                            <div class="property-value-content">{{ $property->tenant?->full_name ?: '-' }}</div>
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <div class="property-value-label">Teléfono principal</div>
+                                            <div class="property-value-content">{{ $property->tenant?->phone_primary ?: '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <div class="property-value-label">Teléfono secundario</div>
+                                            <div class="property-value-content">{{ $property->tenant?->phone_secondary ?: '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <div class="property-value-label">Email</div>
+                                            <div class="property-value-content">{{ $property->tenant?->email ?: '-' }}</div>
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <div class="property-value-label">CURP</div>
+                                            <div class="property-value-content">{{ $property->tenant?->curp ?: '-' }}</div>
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <div class="property-value-label">RFC</div>
+                                            <div class="property-value-content">{{ $property->tenant?->rfc ?: '-' }}</div>
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <div class="property-value-label">Empresa</div>
+                                            <div class="property-value-content">{{ $property->tenant?->employer ?: '-' }}</div>
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <div class="property-value-label">Ocupación</div>
+                                            <div class="property-value-content">{{ $property->tenant?->occupation ?: '-' }}</div>
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <div class="property-value-label">Ingreso mensual</div>
+                                            <div class="property-value-content">
+                                                {{ $property->tenant?->monthly_income ? '$' . number_format((float) $property->tenant?->monthly_income, 2) : '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <div class="property-value-label">Años laborales</div>
+                                            <div class="property-value-content">
+                                                {{ is_null($property->tenant?->employment_years) ? '-' : (int) $property->tenant?->employment_years }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <div class="property-value-label">Estado del expediente</div>
+                                            <div class="property-value-content">
+                                                {{ $property->tenant?->dossier_status_label ?: '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <div class="property-value-label">Contacto de emergencia</div>
+                                            <div class="property-value-content">
+                                                {{ $property->tenant?->emergency_contact_name ?: '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <div class="property-value-label">Tel. emergencia</div>
+                                            <div class="property-value-content">
+                                                {{ $property->tenant?->emergency_contact_phone ?: '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-6">
+                                            <div class="property-value-label">Referencia personal</div>
+                                            <div class="property-value-content">
+                                                {{ $property->tenant?->personal_reference_name ?: '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-6">
+                                            <div class="property-value-label">Tel. referencia personal</div>
+                                            <div class="property-value-content">
+                                                {{ $property->tenant?->personal_reference_phone ?: '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-6">
+                                            <div class="property-value-label">Referencia laboral</div>
+                                            <div class="property-value-content">
+                                                {{ $property->tenant?->work_reference_name ?: '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-6">
+                                            <div class="property-value-label">Tel. referencia laboral</div>
+                                            <div class="property-value-content">
+                                                {{ $property->tenant?->work_reference_phone ?: '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-6">
+                                            <div class="property-value-label">Domicilio actual</div>
+                                            <div class="property-value-content">{{ $property->tenant?->current_address ?: '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-6">
+                                            <div class="property-value-label">Domicilio anterior</div>
+                                            <div class="property-value-content">
+                                                {{ $property->tenant?->previous_address ?: '-' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-12">
+                                            <div class="property-value-label">Notas</div>
+                                            <div class="property-value-content">{{ $property->tenant?->notes ?: '-' }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+
                     <div class="tab-pane fade property-tab-pane" id="tab-documents" role="tabpanel"
                         aria-labelledby="tab-documents-tab">
                         <div class="card property-block-card">
@@ -355,8 +494,9 @@
                                                 <span class="fw-semibold">{{ $document->label }}</span>
                                             </div>
                                             <div class="d-flex align-items-center gap-3">
-                                                <span
-                                                    class="badge {{ $document->status_badge_class }}">{{ $document->status_label }}</span>
+                                                @unless ($document->file_path)
+                                                    <span class="badge badge-light-warning text-warning">Pendiente</span>
+                                                @endunless
                                                 <span
                                                     class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
                                                 @if ($document->file_path)
@@ -382,8 +522,10 @@
                                                     <span class="fw-semibold">{{ $document->label }}</span>
                                                 </div>
                                                 <div class="d-flex align-items-center gap-3">
-                                                    <span
-                                                        class="badge {{ $document->status_badge_class }}">{{ $document->status_label }}</span>
+                                                    @unless ($document->file_path)
+                                                        <span
+                                                            class="badge badge-light-warning text-warning">Pendiente</span>
+                                                    @endunless
                                                     <span
                                                         class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
                                                     @if ($document->file_path)
