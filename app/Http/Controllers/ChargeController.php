@@ -12,6 +12,7 @@ use App\Mail\ChargeReminderMail;
 use App\Models\Charge;
 use App\Models\ChargePayment;
 use App\Models\Property;
+use App\Models\PropertyChangeLog;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
 use Illuminate\Http\JsonResponse;
@@ -333,7 +334,7 @@ class ChargeController extends Controller
                 Charge::create([
                     'property_id' => $row['property_id'],
                     'tenant_id' => $row['tenant_id'],
-                    'type' => Charge::TYPE_RENT,
+                    'type' => $row['type'],
                     'due_date' => $row['due_date'],
                     'amount' => $row['amount'],
                     'paid_amount' => 0,
@@ -389,13 +390,32 @@ class ChargeController extends Controller
 
     public function update(UpdateChargeRequest $request, Charge $charge): RedirectResponse
     {
+        $validated = $request->validated();
+
+        if ($request->boolean('delete_charge')) {
+            if (in_array($charge->status, [Charge::STATUS_PAID, Charge::STATUS_CANCELED], true)) {
+                return redirect()
+                    ->route('charges.index', $this->chargesIndexRouteParamsFromRequest($request))
+                    ->with('error', 'Este cargo no se puede eliminar por su estado actual.');
+            }
+
+            DB::transaction(function () use ($charge, $validated, $request): void {
+                $this->logChargeDeletion($charge, (string) ($validated['deletion_note'] ?? ''), $request->user()?->id);
+                $this->removeChargeFromPropertyPlan($charge);
+                $charge->delete();
+            });
+
+            return redirect()
+                ->route('charges.index', $this->chargesIndexRouteParamsFromRequest($request))
+                ->with('success', 'Cargo eliminado correctamente.');
+        }
+
         if (in_array($charge->status, [Charge::STATUS_PAID, Charge::STATUS_CANCELED], true)) {
             return redirect()
                 ->route('charges.index', $this->chargesIndexRouteParamsFromRequest($request))
                 ->with('error', 'Este cargo no se puede editar por su estado actual.');
         }
 
-        $validated = $request->validated();
         $newAmount = (float) $validated['amount'];
         if ($newAmount < (float) $charge->paid_amount) {
             return redirect()->route('charges.index', $this->chargesIndexRouteParamsFromRequest($request))->with(
@@ -626,7 +646,7 @@ class ChargeController extends Controller
         });
 
         $message = $created > 0
-            ? "Se generaron {$created} cargos de renta."
+            ? "Se generaron {$created} cargos."
             : 'No se crearon cargos nuevos porque todos ya existen.';
 
         return redirect()
@@ -654,6 +674,7 @@ class ChargeController extends Controller
 
         $rows = [];
         foreach ($rowsSource as $row) {
+            $rowType = (string) ($row['type'] ?? Charge::TYPE_RENT);
             $periodMonth = (int) $row['period_month'];
             $periodYear = (int) $row['period_year'];
             $amount = (float) $row['amount'];
@@ -661,19 +682,28 @@ class ChargeController extends Controller
                 continue;
             }
 
-            $alreadyExists = Charge::query()
+            $alreadyExistsQuery = Charge::query()
                 ->where('property_id', $property->id)
                 ->where('tenant_id', $property->tenant_id)
-                ->where('type', Charge::TYPE_RENT)
-                ->where('period_month', $periodMonth)
-                ->where('period_year', $periodYear)
-                ->exists();
+                ->where('type', $rowType);
+            if ($rowType === Charge::TYPE_RENT) {
+                $alreadyExistsQuery
+                    ->where('period_month', $periodMonth)
+                    ->where('period_year', $periodYear);
+            } else {
+                $alreadyExistsQuery
+                    ->whereDate('due_date', (string) $row['due_date'])
+                    ->where('concept', (string) $row['concept']);
+            }
+            $alreadyExists = $alreadyExistsQuery->exists();
 
             $rows[] = [
                 'property_id' => $property->id,
                 'property_name' => $property->internal_name,
                 'tenant_id' => (int) $property->tenant_id,
                 'tenant_name' => $property->tenant?->full_name ?? '-',
+                'type' => $rowType,
+                'type_label' => Charge::TYPE_LABELS[$rowType] ?? ucfirst(str_replace('_', ' ', $rowType)),
                 'period_month' => $periodMonth,
                 'period_year' => $periodYear,
                 'due_date' => (string) $row['due_date'],
@@ -752,13 +782,22 @@ class ChargeController extends Controller
                 }
                 $amount = (float) ($row['amount'] ?? 0);
                 $concept = trim((string) ($row['concept'] ?? ''));
+                $type = (string) ($row['type'] ?? Charge::TYPE_RENT);
+                if (!array_key_exists($type, Charge::TYPE_LABELS)) {
+                    $type = Charge::TYPE_RENT;
+                }
 
                 return [
+                    'type' => $type,
                     'period_month' => $periodMonth,
                     'period_year' => $periodYear,
                     'due_date' => $dueDate,
                     'amount' => $amount,
-                    'concept' => $concept !== '' ? $concept : $this->buildRentConcept($periodMonth, $periodYear),
+                    'concept' => $concept !== ''
+                        ? $concept
+                        : ($type === Charge::TYPE_RENT
+                            ? $this->buildRentConcept($periodMonth, $periodYear)
+                            : (Charge::TYPE_LABELS[$type] ?? 'Cargo')),
                     'notes' => filled($row['notes'] ?? null) ? (string) $row['notes'] : null,
                     'is_custom_amount' => (bool) ($row['is_custom_amount'] ?? false),
                 ];
@@ -792,6 +831,7 @@ class ChargeController extends Controller
             $periodMonth = (int) $cursor->month;
             $periodYear = (int) $cursor->year;
             $rows[] = [
+                'type' => Charge::TYPE_RENT,
                 'period_month' => $periodMonth,
                 'period_year' => $periodYear,
                 'due_date' => $cursor->copy()->day(min($contractDay, $cursor->daysInMonth))->toDateString(),
@@ -836,6 +876,7 @@ class ChargeController extends Controller
             $periodMonth = (int) $cursor->month;
             $periodYear = (int) $cursor->year;
             $rows[] = [
+                'type' => Charge::TYPE_RENT,
                 'period_month' => $periodMonth,
                 'period_year' => $periodYear,
                 'due_date' => $cursor->copy()->day(min($contractDay, $cursor->daysInMonth))->toDateString(),
@@ -927,6 +968,10 @@ class ChargeController extends Controller
             ->keyBy(fn (array $row) => $this->periodKey((int) $row['period_year'], (int) $row['period_month']));
 
         foreach ($rows as $row) {
+            if (($row['type'] ?? Charge::TYPE_RENT) !== Charge::TYPE_RENT) {
+                continue;
+            }
+
             $periodMonth = (int) ($row['period_month'] ?? 0);
             $periodYear = (int) ($row['period_year'] ?? 0);
             if ($periodMonth < 1 || $periodMonth > 12 || $periodYear < 2000) {
@@ -987,6 +1032,70 @@ class ChargeController extends Controller
                 ->values()
                 ->all(),
         ])->save();
+    }
+
+    private function removeChargeFromPropertyPlan(Charge $charge): void
+    {
+        if ($charge->type !== Charge::TYPE_RENT || !$charge->property_id) {
+            return;
+        }
+
+        $property = Property::query()->find($charge->property_id);
+        if (!$property) {
+            return;
+        }
+
+        $periodKey = $this->periodKey((int) $charge->period_year, (int) $charge->period_month);
+        $planRows = $this->normalizeBulkRows($property->rent_charge_plan)
+            ->keyBy(fn (array $row) => $this->periodKey((int) $row['period_year'], (int) $row['period_month']));
+
+        if (!$planRows->has($periodKey)) {
+            return;
+        }
+
+        $planRows->forget($periodKey);
+
+        $property->forceFill([
+            'rent_charge_plan' => $planRows
+                ->values()
+                ->sortBy(fn (array $row) => ((int) $row['period_year'] * 100) + (int) $row['period_month'])
+                ->values()
+                ->all(),
+        ])->save();
+    }
+
+    private function logChargeDeletion(Charge $charge, string $note, ?int $userId): void
+    {
+        if (!$charge->property_id) {
+            return;
+        }
+
+        PropertyChangeLog::create([
+            'property_id' => $charge->property_id,
+            'user_id' => $userId,
+            'change_set' => [
+                'charge_deleted' => [
+                    'old' => [
+                        'charge_uuid' => $charge->uuid,
+                        'type' => $charge->type,
+                        'concept' => $charge->concept,
+                        'amount' => (float) $charge->amount,
+                        'paid_amount' => (float) $charge->paid_amount,
+                        'due_date' => $charge->due_date?->toDateString(),
+                        'period_month' => (int) $charge->period_month,
+                        'period_year' => (int) $charge->period_year,
+                        'status' => $charge->status,
+                        'notes' => $charge->notes,
+                    ],
+                    'new' => [
+                        'deleted' => true,
+                        'deletion_note' => trim($note),
+                        'deleted_at' => now()->toDateTimeString(),
+                    ],
+                ],
+            ],
+            'changed_at' => now(),
+        ]);
     }
 
     private function periodKey(int $periodYear, int $periodMonth): string

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Charge;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -37,6 +38,7 @@ class GenerateChargesRequest extends FormRequest
             'rows.*.due_date' => ['required_with:rows', 'date'],
             'rows.*.amount' => ['required_with:rows', 'numeric', 'min:0.01'],
             'rows.*.concept' => ['required_with:rows', 'string', 'max:190'],
+            'rows.*.type' => ['nullable', 'string', 'in:' . implode(',', array_keys(Charge::TYPE_LABELS))],
             'rows.*.notes' => ['nullable', 'string', 'max:4000'],
             'property_context' => ['nullable', 'string'],
         ];

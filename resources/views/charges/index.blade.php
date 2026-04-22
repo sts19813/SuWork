@@ -48,10 +48,12 @@
                         <i class="ki-outline ki-home fs-4 me-1"></i> Ver propiedad
                     </a>
                 @endif
-                <button type="button" class="btn btn-light-primary fw-bold" data-bs-toggle="modal" data-bs-target="#bulkChargeModal">
+                <button type="button" class="btn btn-light-primary fw-bold" data-bs-toggle="modal"
+                    data-bs-target="#bulkChargeModal">
                     <i class="ki-outline ki-calendar-add fs-4 me-1"></i> Generar cobranza
                 </button>
-                <button type="button" class="btn btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#createChargeModal">
+                <button type="button" class="btn btn-primary fw-bold" data-bs-toggle="modal"
+                    data-bs-target="#createChargeModal">
                     <i class="ki-outline ki-plus fs-4 me-1"></i> Nuevo cargo
                 </button>
             </div>
@@ -88,29 +90,31 @@
                         </div>
                     @endif
 
-                    <form method="POST" action="{{ route('charges.properties.setup', $selectedProperty) }}" id="propertySetupForm">
+                    <form method="POST" action="{{ route('charges.properties.setup', $selectedProperty) }}"
+                        id="propertySetupForm">
                         @csrf
                         @method('PUT')
                         <input type="hidden" name="force_assignment" id="propertySetupForceAssignment" value="0">
                         <div id="property-setup-plan-inputs"></div>
 
                         <div class="notice d-flex bg-light-primary border border-primary border-dashed rounded p-4 mb-6">
-                            <span class="text-primary">Nota: Podras cambiar el estado de la propiedad en cualquier momento desde su expediente.</span>
+                            <span class="text-primary">Nota: Podras cambiar el estado de la propiedad en cualquier momento desde
+                                su expediente.</span>
                         </div>
 
                         <div class="row g-6">
                             <div class="col-lg-6">
                                 <label class="form-label">Inquilino (opcional)</label>
-                                <select name="tenant_id" id="propertySetupTenant" class="form-select @error('tenant_id', 'propertySetup') is-invalid @enderror">
+                                <select name="tenant_id" id="propertySetupTenant"
+                                    class="form-select @error('tenant_id', 'propertySetup') is-invalid @enderror">
                                     <option value="">Sin asignar</option>
                                     @foreach ($propertySetupTenants as $tenant)
                                         @php
                                             $setupCheck = $tenantAssignmentChecks[(string) $tenant->id] ?? ['missing' => [], 'is_complete' => true];
                                         @endphp
-                                        <option value="{{ $tenant->id }}"
-                                            data-missing='@json($setupCheck['missing'])'
-                                            {{ $selectedSetupTenantId === (string) $tenant->id ? 'selected' : '' }}>
-                                            {{ $tenant->full_name }} {{ $tenant->phone_primary ? '- ' . $tenant->phone_primary : '' }}{{ $setupCheck['is_complete'] ? '' : ' (incompleto)' }}
+                                        <option value="{{ $tenant->id }}" data-missing='@json($setupCheck['missing'])' {{ $selectedSetupTenantId === (string) $tenant->id ? 'selected' : '' }}>
+                                            {{ $tenant->full_name }}
+                                            {{ $tenant->phone_primary ? '- ' . $tenant->phone_primary : '' }}{{ $setupCheck['is_complete'] ? '' : ' (incompleto)' }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -147,13 +151,14 @@
                                 @error('monthly_rent_price', 'propertySetup')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
-                                <div class="text-muted fs-8 mt-2">Si está vacío se considera 0. Es necesario que sea mayor a 0 para generar pagos.</div>
+                                <div class="text-muted fs-8 mt-2">Si está vacío se considera 0. Es necesario que sea mayor a 0
+                                    para generar pagos.</div>
                             </div>
                             <div class="col-lg-3">
                                 <label class="form-label">Dia de cobro</label>
                                 <input type="number" name="charge_day" id="propertySetupChargeDay"
-                                    class="form-control @error('charge_day', 'propertySetup') is-invalid @enderror"
-                                    min="1" max="31" step="1" value="{{ $setupChargeDay }}">
+                                    class="form-control @error('charge_day', 'propertySetup') is-invalid @enderror" min="1"
+                                    max="31" step="1" value="{{ $setupChargeDay }}">
                                 @error('charge_day', 'propertySetup')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -176,7 +181,8 @@
                                                 Configura contrato y renta mensual para generar la lista automatica.
                                             </div>
                                         </div>
-                                        <button type="button" class="btn btn-light-primary" data-bs-toggle="modal" data-bs-target="#propertySetupPlanModal">
+                                        <button type="button" class="btn btn-light-primary" data-bs-toggle="modal"
+                                            data-bs-target="#propertySetupPlanModal">
                                             Ver lista de pagos
                                         </button>
                                     </div>
@@ -208,7 +214,8 @@
                         </div>
                         <div class="modal-body">
                             <div class="alert alert-light-primary py-3 px-4 mb-5">
-                                El monto inicia con la renta mensual y puedes ajustarlo por periodo para contratos de mas de un anio.
+                                El monto inicia con la renta mensual y puedes ajustarlo por periodo para contratos de mas de un
+                                anio.
                             </div>
                             <div class="table-responsive">
                                 <table class="table table-row-bordered align-middle">
@@ -300,7 +307,8 @@
         </div>
 
         <div class="mb-6 d-flex align-items-center gap-6 fs-5 fw-semibold border-bottom pb-3">
-            <span class="text-primary border-bottom border-2 border-primary pb-2">Cargos ({{ $stats['charges_count'] }})</span>
+            <span class="text-primary border-bottom border-2 border-primary pb-2">Cargos
+                ({{ $stats['charges_count'] }})</span>
             <span class="text-muted">Pagos ({{ $stats['payments_count'] }})</span>
         </div>
 
@@ -312,8 +320,8 @@
                     @endif
                     <div class="col-lg-9">
                         <label class="form-label fw-semibold">Buscar</label>
-                        <input type="text" name="q" class="form-control"
-                            placeholder="Concepto, inquilino, propiedad..." value="{{ $search }}">
+                        <input type="text" name="q" class="form-control" placeholder="Concepto, inquilino, propiedad..."
+                            value="{{ $search }}">
                     </div>
                     <div class="col-lg-3">
                         <label class="form-label fw-semibold">Estado</label>
@@ -326,7 +334,8 @@
                         </select>
                     </div>
                     <div class="col-12 d-flex justify-content-end gap-3">
-                        <a href="{{ route('charges.index', $selectedProperty ? ['property' => $selectedProperty->uuid] : []) }}" class="btn btn-light">Limpiar</a>
+                        <a href="{{ route('charges.index', $selectedProperty ? ['property' => $selectedProperty->uuid] : []) }}"
+                            class="btn btn-light">Limpiar</a>
                         <button type="submit" class="btn btn-primary">Filtrar</button>
                     </div>
                 </form>
@@ -376,9 +385,11 @@
                                         {{ $charge->due_date?->format('d M Y') ?? '-' }}
                                     </td>
                                     <td>
-                                        <div class="fw-bold text-gray-900">${{ number_format((float) $charge->amount, 2) }}</div>
+                                        <div class="fw-bold text-gray-900">${{ number_format((float) $charge->amount, 2) }}
+                                        </div>
                                         @if ($charge->outstanding_amount > 0 && $charge->status !== \App\Models\Charge::STATUS_CANCELED)
-                                            <div class="text-muted fs-7">Saldo: ${{ number_format($charge->outstanding_amount, 2) }}</div>
+                                            <div class="text-muted fs-7">Saldo: ${{ number_format($charge->outstanding_amount, 2) }}
+                                            </div>
                                         @endif
                                     </td>
                                     <td>
@@ -388,29 +399,31 @@
                                     </td>
                                     <td class="text-end">
                                         <div class="d-flex flex-wrap justify-content-end gap-2">
-                                            <a href="{{ route('charges.show', $charge) }}{{ $selectedProperty ? '?property=' . urlencode($selectedProperty->uuid) : '' }}" class="btn btn-sm btn-light">
+                                            <a href="{{ route('charges.show', $charge) }}{{ $selectedProperty ? '?property=' . urlencode($selectedProperty->uuid) : '' }}"
+                                                class="btn btn-sm btn-light">
                                                 Ver
                                             </a>
 
                                             @if ($canEditCharge)
-                                                <button type="button" class="btn btn-sm btn-light-primary"
-                                                    data-edit-charge
+                                                <button type="button" class="btn btn-sm btn-light-primary" data-edit-charge
                                                     data-action="{{ route('charges.update', $charge) }}"
-                                                    data-charge="{{ $charge->uuid }}"
-                                                    data-type="{{ $charge->type }}"
+                                                    data-charge="{{ $charge->uuid }}" data-type="{{ $charge->type }}"
                                                     data-due-date="{{ $charge->due_date?->format('Y-m-d') }}"
                                                     data-amount="{{ number_format((float) $charge->amount, 2, '.', '') }}"
                                                     data-period-month="{{ $charge->period_month }}"
                                                     data-period-year="{{ $charge->period_year }}"
-                                                    data-concept="{{ $charge->concept }}"
-                                                    data-notes="{{ $charge->notes }}">
+                                                    data-concept="{{ $charge->concept }}" data-notes="{{ $charge->notes }}">
                                                     Editar cargo
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-light-danger" data-delete-charge
+                                                    data-action="{{ route('charges.update', $charge) }}"
+                                                    data-charge="{{ $charge->uuid }}" data-concept="{{ $charge->concept }}">
+                                                    Eliminar cargo
                                                 </button>
                                             @endif
 
                                             @if ($canRegisterPayment)
-                                                <button type="button" class="btn btn-sm btn-success"
-                                                    data-register-payment
+                                                <button type="button" class="btn btn-sm btn-success" data-register-payment
                                                     data-charge="{{ $charge->uuid }}"
                                                     data-action="{{ route('charges.payments.store', $charge) }}"
                                                     data-concept="{{ $charge->concept }}"
@@ -472,8 +485,7 @@
                                 <select name="property_id" class="form-select" id="chargeProperty" required>
                                     <option value="">Seleccionar...</option>
                                     @foreach ($properties as $property)
-                                        <option value="{{ $property->id }}" data-tenant-id="{{ $property->tenant_id }}"
-                                            {{ (string) old('property_id', $selectedProperty?->id) === (string) $property->id ? 'selected' : '' }}>
+                                        <option value="{{ $property->id }}" data-tenant-id="{{ $property->tenant_id }}" {{ (string) old('property_id', $selectedProperty?->id) === (string) $property->id ? 'selected' : '' }}>
                                             {{ $property->internal_name }}{{ $property->internal_reference ? ' - ' . $property->internal_reference : '' }}
                                         </option>
                                     @endforeach
@@ -508,8 +520,8 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label required">Fecha vencimiento</label>
-                                <input type="date" name="due_date" class="form-control"
-                                    value="{{ old('due_date') }}" required>
+                                <input type="date" name="due_date" class="form-control" value="{{ old('due_date') }}"
+                                    required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label required">Monto (MXN)</label>
@@ -528,8 +540,8 @@
                             </div>
                             <div class="col-12">
                                 <label class="form-label required">Concepto</label>
-                                <input type="text" name="concept" class="form-control"
-                                    value="{{ old('concept') }}" placeholder="Ej. Renta Enero 2026" required>
+                                <input type="text" name="concept" class="form-control" value="{{ old('concept') }}"
+                                    placeholder="Ej. Renta Enero 2026" required>
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Notas</label>
@@ -563,7 +575,8 @@
                             <div class="text-muted fs-7 mb-1">Cargo a cubrir</div>
                             <div class="fw-bold fs-4 mb-1" id="registerPaymentConcept">-</div>
                             <div class="text-muted fs-6">
-                                Saldo pendiente: <span class="text-danger fw-bold" id="registerPaymentOutstanding">$0.00</span>
+                                Saldo pendiente: <span class="text-danger fw-bold"
+                                    id="registerPaymentOutstanding">$0.00</span>
                             </div>
                         </div>
 
@@ -573,7 +586,8 @@
                             </div>
                         @endif
 
-                        <input type="hidden" name="charge_uuid" id="registerPaymentChargeUuid" value="{{ old('charge_uuid') }}">
+                        <input type="hidden" name="charge_uuid" id="registerPaymentChargeUuid"
+                            value="{{ old('charge_uuid') }}">
 
                         <div class="row g-5">
                             <div class="col-md-6">
@@ -583,8 +597,8 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label required">Fecha de pago</label>
-                                <input type="date" name="payment_date" value="{{ old('payment_date', now()->toDateString()) }}"
-                                    class="form-control" required>
+                                <input type="date" name="payment_date"
+                                    value="{{ old('payment_date', now()->toDateString()) }}" class="form-control" required>
                             </div>
                             <div class="col-12">
                                 <label class="form-label required">Metodo de pago</label>
@@ -599,8 +613,8 @@
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Referencia / Folio</label>
-                                <input type="text" name="reference" class="form-control"
-                                    value="{{ old('reference') }}" placeholder="Numero de referencia">
+                                <input type="text" name="reference" class="form-control" value="{{ old('reference') }}"
+                                    placeholder="Numero de referencia">
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Comprobante de pago (imagen)</label>
@@ -664,18 +678,18 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label required">Monto (MXN)</label>
-                                <input type="number" min="0.01" step="0.01" name="amount" id="editChargeAmount" class="form-control"
-                                    value="{{ old('amount') }}" required>
+                                <input type="number" min="0.01" step="0.01" name="amount" id="editChargeAmount"
+                                    class="form-control" value="{{ old('amount') }}" required>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label required">Mes (periodo)</label>
-                                <input type="number" min="1" max="12" name="period_month" id="editChargePeriodMonth" class="form-control"
-                                    value="{{ old('period_month') }}" required>
+                                <input type="number" min="1" max="12" name="period_month" id="editChargePeriodMonth"
+                                    class="form-control" value="{{ old('period_month') }}" required>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label required">Anio (periodo)</label>
-                                <input type="number" min="2000" max="2200" name="period_year" id="editChargePeriodYear" class="form-control"
-                                    value="{{ old('period_year') }}" required>
+                                <input type="number" min="2000" max="2200" name="period_year" id="editChargePeriodYear"
+                                    class="form-control" value="{{ old('period_year') }}" required>
                             </div>
                             <div class="col-12">
                                 <label class="form-label required">Concepto</label>
@@ -684,7 +698,8 @@
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Notas</label>
-                                <textarea name="notes" id="editChargeNotes" class="form-control" rows="3">{{ old('notes') }}</textarea>
+                                <textarea name="notes" id="editChargeNotes" class="form-control"
+                                    rows="3">{{ old('notes') }}</textarea>
                             </div>
                         </div>
                     </div>
@@ -697,32 +712,85 @@
         </div>
     </div>
 
-    <div class="modal fade" id="bulkChargeModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal fade" id="deleteChargeModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-md modal-dialog-scrollable">
             <div class="modal-content">
-                <form method="POST" action="{{ route('charges.bulk.store') }}" id="bulkChargeForm" class="h-100 d-flex flex-column">
+                <form method="POST" id="deleteChargeForm" class="h-100 d-flex flex-column">
                     @csrf
+                    @method('PUT')
                     @if ($selectedProperty)
                         <input type="hidden" name="property_context" value="{{ $selectedProperty->uuid }}">
                     @endif
+                    <input type="hidden" name="delete_charge" value="1">
                     <div class="modal-header">
-                        <h3 class="modal-title">Generar cobranza mensual</h3>
+                        <h3 class="modal-title">Eliminar cargo</h3>
                         <button type="button" class="btn btn-icon btn-sm btn-active-light-primary" data-bs-dismiss="modal">
                             <i class="ki-outline ki-cross fs-1"></i>
                         </button>
                     </div>
                     <div class="modal-body">
+                        @if ($errors->updateCharge->any() && old('delete_charge'))
+                            <div class="alert alert-danger mb-5">
+                                Revisa la información de eliminación.
+                            </div>
+                        @endif
+                        <input type="hidden" name="charge_uuid" id="deleteChargeUuid" value="{{ old('charge_uuid') }}">
+                        <div class="bg-light rounded p-4 mb-5">
+                            <div class="text-muted fs-7 mb-1">Cargo a eliminar</div>
+                            <div class="fw-bold fs-5" id="deleteChargeConcept">-</div>
+                        </div>
+                        <label class="form-label required">Nota de bitácora</label>
+                        <textarea name="deletion_note" id="deleteChargeNote" class="form-control" rows="4"
+                            placeholder="Motivo de eliminación" required>{{ old('deletion_note') }}</textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-light-danger">Eliminar cargo</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="bulkChargeModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:1200px; width:100%;">
+            <div class="modal-content">
+
+                <form method="POST" action="{{ route('charges.bulk.store') }}" id="bulkChargeForm"
+                    class="h-100 d-flex flex-column">
+
+                    @csrf
+
+                    @if ($selectedProperty)
+                        <input type="hidden" name="property_context" value="{{ $selectedProperty->uuid }}">
+                    @endif
+
+                    <!-- HEADER -->
+                    <div class="modal-header">
+                        <h3 class="modal-title">Generar cobranza mensual</h3>
+
+                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary" data-bs-dismiss="modal">
+                            <i class="ki-outline ki-cross fs-1"></i>
+                        </button>
+                    </div>
+
+                    <!-- BODY CON SCROLL -->
+                    <div class="modal-body" style="max-height:75vh; overflow-y:auto;">
+
                         @if ($errors->generateCharges->any())
                             <div class="alert alert-danger mb-5">
                                 Revisa los datos para generar la cobranza.
                             </div>
                         @endif
+
                         @php
                             $bulkChargeDay = old('charge_day', $selectedProperty?->charge_day ?: $selectedProperty?->contract_starts_at?->day);
                             $bulkChargeToleranceDays = old('charge_tolerance_days', (int) ($selectedProperty?->charge_tolerance_days ?? 0));
                         @endphp
 
+                        <!-- FORM -->
                         <div class="row g-5 mb-6">
+
                             <div class="col-md-6">
                                 <label class="form-label required">Propiedad</label>
                                 <select name="property_id" id="bulkPropertyId" class="form-select" required>
@@ -734,81 +802,102 @@
                                             data-contract-expires="{{ $property->contract_expires_at?->format('Y-m-d') }}"
                                             data-monthly-rent="{{ number_format((float) ($property->monthly_rent_price ?? 0), 2, '.', '') }}"
                                             data-charge-day="{{ $property->charge_day }}"
-                                            data-charge-tolerance-days="{{ (int) ($property->charge_tolerance_days ?? 0) }}"
-                                            {{ (string) old('property_id', $selectedProperty?->id) === (string) $property->id ? 'selected' : '' }}>
+                                            data-charge-tolerance-days="{{ (int) ($property->charge_tolerance_days ?? 0) }}" {{ (string) old('property_id', $selectedProperty?->id) === (string) $property->id ? 'selected' : '' }}>
                                             {{ $property->internal_name }}{{ $property->internal_reference ? ' - ' . $property->internal_reference : '' }}
                                         </option>
                                     @endforeach
                                 </select>
                             </div>
+
                             <div class="col-md-6">
                                 <label class="form-label">Inquilino actual</label>
-                                <input type="text" id="bulkTenantName" class="form-control" readonly
-                                    value="">
+                                <input type="text" id="bulkTenantName" class="form-control" readonly value="">
                             </div>
+
                             <div class="col-md-4">
                                 <label class="form-label">Contrato inicia (opcional)</label>
                                 <input type="date" name="contract_starts_at" id="bulkContractStartsAt" class="form-control"
                                     value="{{ old('contract_starts_at', $selectedProperty?->contract_starts_at?->format('Y-m-d')) }}">
                             </div>
+
                             <div class="col-md-4">
                                 <label class="form-label">Contrato vence (opcional)</label>
-                                <input type="date" name="contract_expires_at" id="bulkContractExpiresAt" class="form-control"
+                                <input type="date" name="contract_expires_at" id="bulkContractExpiresAt"
+                                    class="form-control"
                                     value="{{ old('contract_expires_at', $selectedProperty?->contract_expires_at?->format('Y-m-d')) }}">
                             </div>
+
                             <div class="col-md-4">
                                 <label class="form-label">Precio renta mensual</label>
-                                <input type="number" name="monthly_rent_price" id="bulkMonthlyRentPrice" class="form-control"
-                                    min="0" step="0.01"
+                                <input type="number" name="monthly_rent_price" id="bulkMonthlyRentPrice"
+                                    class="form-control" min="0" step="0.01"
                                     value="{{ old('monthly_rent_price', number_format((float) ($selectedProperty?->monthly_rent_price ?? 0), 2, '.', '')) }}">
                             </div>
+
                             <div class="col-md-3">
-                                <label class="form-label">Dia de cobro</label>
-                                <input type="number" name="charge_day" id="bulkChargeDay" class="form-control"
-                                    min="1" max="31" step="1" value="{{ $bulkChargeDay }}">
+                                <label class="form-label">Día de cobro</label>
+                                <input type="number" name="charge_day" id="bulkChargeDay" class="form-control" min="1"
+                                    max="31" step="1" value="{{ $bulkChargeDay }}">
                             </div>
+
                             <div class="col-md-3">
-                                <label class="form-label">Tolerancia (dias)</label>
-                                <input type="number" name="charge_tolerance_days" id="bulkChargeToleranceDays" class="form-control"
-                                    min="0" max="31" step="1" value="{{ $bulkChargeToleranceDays }}">
+                                <label class="form-label">Tolerancia (días)</label>
+                                <input type="number" name="charge_tolerance_days" id="bulkChargeToleranceDays"
+                                    class="form-control" min="0" max="31" step="1" value="{{ $bulkChargeToleranceDays }}">
                             </div>
+
                         </div>
 
-                        <div class="d-flex justify-content-end mb-5">
-                            <button type="button" class="btn btn-light-primary" id="previewBulkChargesBtn">
-                                Ver lista de pagos
-                            </button>
+                        <!-- BOTONES -->
+                        <div class="d-flex flex-wrap justify-content-end gap-2 mb-5">
+                            <button type="button" class="btn btn-light-primary" id="bulkAddRowBtn">Agregar registro</button>
+                            <button type="button" class="btn btn-light-primary" id="bulkGenerateDepositBtn">Generar
+                                depósito</button>
+                            <button type="button" class="btn btn-light-primary"
+                                id="bulkGenerateNoGuarantorDepositBtn">Generar depósito sin aval</button>
+                            <button type="button" class="btn btn-primary" id="previewBulkChargesBtn">Ver lista de
+                                pagos</button>
                         </div>
 
                         <div id="bulkChargeRowsContainer"></div>
 
+                        <!-- PREVIEW -->
                         <div class="border rounded p-4 d-none" id="bulkPreviewContainer">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h4 class="mb-0">Vista previa</h4>
                                 <span class="text-muted fs-7" id="bulkSummaryText"></span>
                             </div>
+
                             <div class="table-responsive">
                                 <table class="table table-row-bordered align-middle">
                                     <thead>
                                         <tr class="text-muted text-uppercase fs-8">
                                             <th>Propiedad</th>
                                             <th>Inquilino</th>
+                                            <th>Tipo</th>
                                             <th>Periodo</th>
                                             <th>Vencimiento</th>
-                                            <th>Monto (editable)</th>
+                                            <th>Monto</th>
+                                            <th>Concepto</th>
                                             <th>Estado</th>
+                                            <th class="text-end">Acción</th>
                                         </tr>
                                     </thead>
                                     <tbody id="bulkPreviewBody"></tbody>
                                 </table>
                             </div>
                         </div>
+
                     </div>
+
+                    <!-- FOOTER -->
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-primary">Crear cargos</button>
                     </div>
+
                 </form>
+
             </div>
         </div>
     </div>
@@ -917,6 +1006,29 @@
                 });
             });
 
+            const deleteChargeForm = document.getElementById('deleteChargeForm');
+            const deleteChargeUuid = document.getElementById('deleteChargeUuid');
+            const deleteChargeConcept = document.getElementById('deleteChargeConcept');
+            const deleteChargeNote = document.getElementById('deleteChargeNote');
+            document.querySelectorAll('[data-delete-charge]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    if (!deleteChargeForm) {
+                        return;
+                    }
+
+                    deleteChargeForm.setAttribute('action', button.getAttribute('data-action') || '');
+                    if (deleteChargeUuid) deleteChargeUuid.value = button.getAttribute('data-charge') || '';
+                    if (deleteChargeConcept) deleteChargeConcept.textContent = button.getAttribute('data-concept') || '-';
+                    if (deleteChargeNote) deleteChargeNote.value = '';
+
+                    const modalEl = document.getElementById('deleteChargeModal');
+                    if (!modalEl) {
+                        return;
+                    }
+                    new bootstrap.Modal(modalEl).show();
+                });
+            });
+
             const previewBtn = document.getElementById('previewBulkChargesBtn');
             const bulkChargeForm = document.getElementById('bulkChargeForm');
             const bulkPropertyId = document.getElementById('bulkPropertyId');
@@ -930,7 +1042,11 @@
             const bulkPreviewBody = document.getElementById('bulkPreviewBody');
             const bulkSummaryText = document.getElementById('bulkSummaryText');
             const bulkChargeRowsContainer = document.getElementById('bulkChargeRowsContainer');
+            const bulkAddRowBtn = document.getElementById('bulkAddRowBtn');
+            const bulkGenerateDepositBtn = document.getElementById('bulkGenerateDepositBtn');
+            const bulkGenerateNoGuarantorDepositBtn = document.getElementById('bulkGenerateNoGuarantorDepositBtn');
             let bulkRows = [];
+            const bulkTypeOptions = @json($typeOptions);
 
             const toMoney = (value, fallback = 0) => {
                 const parsed = Number.parseFloat(String(value ?? '').replace(/,/g, ''));
@@ -1150,10 +1266,10 @@
                             propertySetupPlanTableBody.appendChild(propertySetupPlanEmptyState);
                         } else {
                             propertySetupPlanTableBody.innerHTML = `
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted py-8">No hay pagos configurados.</td>
-                                </tr>
-                            `;
+                                    <tr>
+                                        <td colspan="4" class="text-center text-muted py-8">No hay pagos configurados.</td>
+                                    </tr>
+                                `;
                         }
                     } else {
                         propertySetupPlanRows.forEach((row, index) => {
@@ -1327,6 +1443,7 @@
                         bulkChargeRowsContainer.appendChild(input);
                     };
 
+                    appendInput('type', row.type || 'rent');
                     appendInput('period_month', row.period_month);
                     appendInput('period_year', row.period_year);
                     appendInput('due_date', row.due_date);
@@ -1344,10 +1461,10 @@
                 bulkPreviewBody.innerHTML = '';
                 if (!bulkRows.length) {
                     bulkPreviewBody.innerHTML = `
-                        <tr>
-                            <td colspan="6" class="text-center text-muted py-8">No se encontraron cargos para esta propiedad.</td>
-                        </tr>
-                    `;
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-8">No se encontraron cargos para esta propiedad.</td>
+                            </tr>
+                        `;
                     bulkSummaryText.textContent = 'Total: 0 | Nuevos: 0 | Existentes: 0';
                     bulkPreviewContainer?.classList.remove('d-none');
                     syncBulkRowsInputs();
@@ -1359,25 +1476,52 @@
                     to_create: bulkRows.filter((row) => !row.already_exists).length,
                     already_exists: bulkRows.filter((row) => row.already_exists).length,
                 };
+                const typeOptionsHtml = Object.entries(bulkTypeOptions || {})
+                    .map(([value, label]) => `<option value="${value}">${label}</option>`)
+                    .join('');
 
                 bulkRows.forEach((row, index) => {
                     const alreadyClass = row.already_exists ? 'badge-light-warning text-warning' : 'badge-light-success text-success';
                     const alreadyLabel = row.already_exists ? 'Ya existe' : 'Se creara';
-                    const disabled = row.already_exists ? 'disabled' : '';
                     bulkPreviewBody.insertAdjacentHTML('beforeend', `
-                        <tr>
-                            <td>${row.property_name}</td>
-                            <td>${row.tenant_name || '-'}</td>
-                            <td>${String(row.period_month).padStart(2, '0')}/${row.period_year}</td>
-                            <td>${row.due_date}</td>
-                            <td>
-                                <input type="number" min="0.01" step="0.01" class="form-control form-control-sm"
-                                    data-bulk-row-index="${index}" data-bulk-field="amount"
-                                    value="${toMoney(row.amount, 0).toFixed(2)}" ${disabled}>
-                            </td>
-                            <td><span class="badge ${alreadyClass}">${alreadyLabel}</span></td>
-                        </tr>
-                    `);
+                            <tr>
+                                <td>${row.property_name}</td>
+                                <td>${row.tenant_name || '-'}</td>
+                                <td>
+                                    <select class="form-select form-select-sm" data-bulk-row-index="${index}" data-bulk-field="type">
+                                        ${typeOptionsHtml}
+                                    </select>
+                                </td>
+                                <td>${String(row.period_month).padStart(2, '0')}/${row.period_year}</td>
+                                <td>
+                                    <input type="date" class="form-control form-control-sm"
+                                        data-bulk-row-index="${index}" data-bulk-field="due_date"
+                                        value="${row.due_date || ''}">
+                                </td>
+                                <td>
+                                    <input type="number" min="0.01" step="0.01" class="form-control form-control-sm"
+                                        data-bulk-row-index="${index}" data-bulk-field="amount"
+                                        value="${toMoney(row.amount, 0).toFixed(2)}">
+                                </td>
+                                <td>
+                                    <input type="text" maxlength="190" class="form-control form-control-sm"
+                                        data-bulk-row-index="${index}" data-bulk-field="concept"
+                                        value="${row.concept || ''}">
+                                </td>
+                                <td><span class="badge ${alreadyClass}">${alreadyLabel}</span></td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-light-danger"
+                                        data-bulk-row-index="${index}" data-bulk-remove="1">Quitar</button>
+                                </td>
+                            </tr>
+                        `);
+                });
+                bulkPreviewBody.querySelectorAll('select[data-bulk-field="type"]').forEach((selectEl) => {
+                    const index = Number.parseInt(selectEl.getAttribute('data-bulk-row-index') || '-1', 10);
+                    if (!Number.isInteger(index) || !bulkRows[index]) {
+                        return;
+                    }
+                    selectEl.value = bulkRows[index].type || 'rent';
                 });
 
                 bulkSummaryText.textContent = `Total: ${summary.total} | Nuevos: ${summary.to_create} | Existentes: ${summary.already_exists}`;
@@ -1468,6 +1612,45 @@
                 }
             };
 
+            const parsePeriodFromDate = (dateValue) => {
+                const parsed = new Date(`${dateValue}T00:00:00`);
+                if (Number.isNaN(parsed.getTime())) {
+                    const now = new Date();
+                    return {
+                        period_month: now.getMonth() + 1,
+                        period_year: now.getFullYear(),
+                    };
+                }
+
+                return {
+                    period_month: parsed.getMonth() + 1,
+                    period_year: parsed.getFullYear(),
+                };
+            };
+
+            const createManualBulkRow = ({ amountMultiplier = 1, conceptPrefix = 'Renta', type = 'rent' } = {}) => {
+                const selected = bulkPropertyId?.options[bulkPropertyId.selectedIndex];
+                const dueDate = String(bulkContractStartsAt?.value || '').trim() || new Date().toISOString().slice(0, 10);
+                const { period_month, period_year } = parsePeriodFromDate(dueDate);
+                const monthlyRent = toMoney(bulkMonthlyRentPrice?.value, 0);
+                const amountBase = monthlyRent > 0 ? monthlyRent : 0;
+                const amount = amountBase > 0 ? amountBase * amountMultiplier : 0.01;
+                const tenantName = selected?.dataset?.tenantName || bulkTenantName?.value || '-';
+
+                return {
+                    property_name: selected?.textContent?.trim() || '-',
+                    tenant_name: tenantName,
+                    type,
+                    period_month,
+                    period_year,
+                    due_date: dueDate,
+                    amount,
+                    concept: `${conceptPrefix} ${String(period_month).padStart(2, '0')}/${period_year}`,
+                    notes: null,
+                    already_exists: false,
+                };
+            };
+
             bulkPropertyId?.addEventListener('change', () => {
                 applyBulkPropertyDefaults();
                 resetBulkPreview();
@@ -1480,7 +1663,7 @@
             syncBulkChargeDayFromContract();
 
             bulkPreviewBody?.addEventListener('change', (event) => {
-                const input = event.target.closest('[data-bulk-field="amount"]');
+                const input = event.target.closest('[data-bulk-field]');
                 if (!input) {
                     return;
                 }
@@ -1490,7 +1673,60 @@
                     return;
                 }
 
-                bulkRows[index].amount = toMoney(input.value, bulkRows[index].amount);
+                const field = input.getAttribute('data-bulk-field');
+                if (field === 'amount') {
+                    bulkRows[index].amount = toMoney(input.value, bulkRows[index].amount);
+                } else if (field === 'due_date') {
+                    bulkRows[index].due_date = String(input.value || '').trim();
+                    const period = parsePeriodFromDate(bulkRows[index].due_date);
+                    bulkRows[index].period_month = period.period_month;
+                    bulkRows[index].period_year = period.period_year;
+                } else if (field === 'concept') {
+                    bulkRows[index].concept = String(input.value || '').trim();
+                } else if (field === 'type') {
+                    bulkRows[index].type = String(input.value || 'rent');
+                }
+                bulkRows[index].already_exists = false;
+
+                syncBulkRowsInputs();
+                renderBulkRows();
+            });
+
+            bulkPreviewBody?.addEventListener('click', (event) => {
+                const button = event.target.closest('[data-bulk-remove="1"]');
+                if (!button) {
+                    return;
+                }
+
+                const index = Number.parseInt(button.getAttribute('data-bulk-row-index') || '-1', 10);
+                if (!Number.isInteger(index) || !bulkRows[index]) {
+                    return;
+                }
+
+                bulkRows.splice(index, 1);
+                renderBulkRows();
+            });
+
+            bulkAddRowBtn?.addEventListener('click', () => {
+                bulkRows.push(createManualBulkRow());
+                renderBulkRows();
+            });
+
+            bulkGenerateDepositBtn?.addEventListener('click', () => {
+                bulkRows.push(createManualBulkRow({
+                    amountMultiplier: 1,
+                    conceptPrefix: 'Deposito en garantia',
+                    type: 'deposit_adjustment',
+                }));
+                renderBulkRows();
+            });
+
+            bulkGenerateNoGuarantorDepositBtn?.addEventListener('click', () => {
+                bulkRows.push(createManualBulkRow({
+                    amountMultiplier: 2,
+                    conceptPrefix: 'Deposito sin aval',
+                    type: 'deposit_adjustment',
+                }));
                 renderBulkRows();
             });
 
@@ -1588,13 +1824,22 @@
     @if ($errors->updateCharge->any())
         <script>
             (() => {
-                const modalEl = document.getElementById('editChargeModal');
+                const isDeleteFlow = @json((bool) old('delete_charge'));
+                const modalEl = document.getElementById(isDeleteFlow ? 'deleteChargeModal' : 'editChargeModal');
                 if (!modalEl) return;
 
-                const form = document.getElementById('editChargeForm');
+                const form = document.getElementById(isDeleteFlow ? 'deleteChargeForm' : 'editChargeForm');
                 const chargeUuid = @json(old('charge_uuid'));
                 if (form && chargeUuid) {
                     form.setAttribute('action', "{{ url('/cobranza') }}/" + chargeUuid);
+                }
+
+                if (isDeleteFlow) {
+                    const concept = @json(old('concept', '-'));
+                    const conceptLabel = document.getElementById('deleteChargeConcept');
+                    if (conceptLabel) {
+                        conceptLabel.textContent = concept || '-';
+                    }
                 }
                 new bootstrap.Modal(modalEl).show();
             })();

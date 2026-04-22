@@ -25,6 +25,15 @@ class UpdateChargeRequest extends FormRequest
      */
     public function rules(): array
     {
+        if ($this->boolean('delete_charge')) {
+            return [
+                'delete_charge' => ['required', 'accepted'],
+                'deletion_note' => ['required', 'string', 'max:4000'],
+                'charge_uuid' => ['nullable', 'string'],
+                'property_context' => ['nullable', 'string'],
+            ];
+        }
+
         return [
             'due_date' => ['required', 'date'],
             'amount' => ['required', 'numeric', 'min:0.01'],
@@ -34,6 +43,7 @@ class UpdateChargeRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:4000'],
             'type' => ['required', 'string', Rule::in(array_keys(Charge::TYPE_LABELS))],
             'charge_uuid' => ['nullable', 'string'],
+            'property_context' => ['nullable', 'string'],
         ];
     }
 }

@@ -56,8 +56,8 @@
                     <div class="row g-8 align-items-stretch">
 
                         <!-- =========================
-                     IZQUIERDA (IMAGEN GRANDE + INFO)
-                ========================== -->
+                             IZQUIERDA (IMAGEN GRANDE + INFO)
+                        ========================== -->
                         <div class="col-xl-8">
 
                             <div class="row g-6">
@@ -74,7 +74,9 @@
                                     <!-- HEADER -->
                                     <div>
                                         <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
-                                            <h1 class="mb-0 fw-bold">{{ $property->internal_name }} - {{ $property->internal_reference ?: '-' }}</h1>
+                                            <h1 class="mb-0 fw-bold">{{ $property->internal_name }} -
+                                                {{ $property->internal_reference ?: '-' }}
+                                            </h1>
                                             <span class="badge {{ $property->status_badge_class }} fs-7">
                                                 {{ $property->status_label }}
                                             </span>
@@ -100,6 +102,82 @@
                                                 {{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: 'Sin inquilino') }}
                                             </span>
                                         </div>
+
+                                        @if ($property->tenant_id)
+                                            <div class="row g-4 mb-4 pt-5 align-items-center">
+
+                                                <!-- POR COBRAR -->
+                                                <div class="col-6 col-md-3">
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        <div class="symbol symbol-35px">
+                                                            <span class="symbol-label bg-light-warning">
+                                                                <i class="ki-outline ki-time text-warning fs-5"></i>
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <div class="text-muted fs-8">Por cobrar</div>
+                                                            <div class="fw-bold fs-5">
+                                                                ${{ number_format((float) $propertyPendingAmount, 2) }}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- VENCIDO -->
+                                                <div class="col-6 col-md-3">
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        <div class="symbol symbol-35px">
+                                                            <span class="symbol-label bg-light-danger">
+                                                                <i class="ki-outline ki-information-3 text-danger fs-5"></i>
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <div class="text-muted fs-8">Vencido</div>
+                                                            <div class="fw-bold fs-5">
+                                                                ${{ number_format((float) $propertyOverdueAmount, 2) }}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- COBRADO -->
+                                                <div class="col-6 col-md-3">
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        <div class="symbol symbol-35px">
+                                                            <span class="symbol-label bg-light-success">
+                                                                <i class="ki-outline ki-check text-success fs-5"></i>
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <div class="text-muted fs-8">
+                                                                Cobrado ({{ $propertyCurrentMonthLabel }})
+                                                            </div>
+                                                            <div class="fw-bold fs-5">
+                                                                ${{ number_format((float) $propertyCollectedMonthAmount, 2) }}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- PENDIENTE VALIDACIÓN -->
+                                                <div class="col-6 col-md-3">
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        <div class="symbol symbol-35px">
+                                                            <span class="symbol-label bg-light-primary">
+                                                                <i class="ki-outline ki-dollar text-primary fs-5"></i>
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <div class="text-muted fs-8">Pend. validación</div>
+                                                            <div class="fw-bold fs-5">
+                                                                {{ (int) $propertyPendingValidationCount }}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                        @endif
                                     </div>
 
                                     <!-- RESUMEN RÁPIDO -->
@@ -129,12 +207,12 @@
                                     </div>
 
                                     <!-- ASIGNAR INQUILINO -->
-                                    @if (!$property->tenant_id)
+                                    @if ($canReassignTenant)
                                         <div class="mt-4">
                                             <div class="dropdown">
                                                 <button class="btn btn-sm btn-primary dropdown-toggle" type="button"
                                                     data-bs-toggle="dropdown">
-                                                    Asignar inquilino
+                                                    {{ $property->tenant_id ? 'Cambiar inquilino' : 'Asignar inquilino' }}
                                                 </button>
 
                                                 <ul class="dropdown-menu">
@@ -175,8 +253,8 @@
                         </div>
 
                         <!-- =========================
-                     DERECHA (COBRANZA LIMPIA)
-                ========================== -->
+                             DERECHA (COBRANZA LIMPIA)
+                        ========================== -->
                         <div class="col-xl-4 d-flex flex-column justify-content-between">
 
                             <div>
@@ -230,7 +308,7 @@
                                         <div class="property-value-content">
                                             {{ (int) $rentChargesPaid }}/{{ (int) $rentChargesTotal }}
                                         </div>
-                                    </div>               
+                                    </div>
 
                                 </div>
 
@@ -314,20 +392,24 @@
                                             </div>
                                             <div class="col-lg-6">
                                                 <div class="property-value-label">Referencia interna</div>
-                                                <div class="property-value-content">{{ $property->internal_reference ?: '-' }}
+                                                <div class="property-value-content">
+                                                    {{ $property->internal_reference ?: '-' }}
                                                 </div>
                                             </div>
                                             <div class="col-lg-6">
                                                 <div class="property-value-label">Complejo o privada</div>
-                                                <div class="property-value-content">{{ $property->complex_name ?: '-' }}</div>
+                                                <div class="property-value-content">{{ $property->complex_name ?: '-' }}
+                                                </div>
                                             </div>
                                             <div class="col-lg-4">
                                                 <div class="property-value-label">Número interior</div>
-                                                <div class="property-value-content">{{ $property->official_number ?: '-' }}</div>
+                                                <div class="property-value-content">{{ $property->official_number ?: '-' }}
+                                                </div>
                                             </div>
                                             <div class="col-lg-4">
                                                 <div class="property-value-label">Número exterior</div>
-                                                <div class="property-value-content">{{ $property->unit_number ?: '-' }}</div>
+                                                <div class="property-value-content">{{ $property->unit_number ?: '-' }}
+                                                </div>
                                             </div>
                                             <div class="col-lg-4">
                                                 <div class="property-value-label">Estatus</div>
@@ -409,8 +491,7 @@
                                                     </div>
                                                     <div class="d-flex align-items-center gap-3">
                                                         @unless ($document->file_path)
-                                                            <span
-                                                                class="badge badge-light-warning text-warning">Pendiente</span>
+                                                            <span class="badge badge-light-warning text-warning">Pendiente</span>
                                                         @endunless
                                                         <span
                                                             class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
@@ -437,15 +518,13 @@
                                                         </div>
                                                         <div class="d-flex align-items-center gap-3">
                                                             @unless ($document->file_path)
-                                                                <span
-                                                                    class="badge badge-light-warning text-warning">Pendiente</span>
+                                                                <span class="badge badge-light-warning text-warning">Pendiente</span>
                                                             @endunless
                                                             <span
                                                                 class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
                                                             @if ($document->file_path)
                                                                 <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}"
-                                                                    class="btn btn-sm btn-light-primary"
-                                                                    target="_blank">
+                                                                    class="btn btn-sm btn-light-primary" target="_blank">
                                                                     Ver archivo
                                                                 </a>
                                                             @endif
@@ -472,8 +551,8 @@
                                 <div class="row g-6 mb-8">
 
                                     <!-- =========================
-                                                                         INFO PROPIETARIO (60%)
-                                                                    ========================== -->
+                                                                                                 INFO PROPIETARIO (60%)
+                                                                                            ========================== -->
                                     <div class="col-xl-7">
                                         <div class="card property-block-card h-100">
 
@@ -592,8 +671,8 @@
                                     </div>
 
                                     <!-- =========================
-                                                                         EXPEDIENTE (40%)
-                                                                    ========================== -->
+                                                                                                 EXPEDIENTE (40%)
+                                                                                            ========================== -->
                                     <div class="col-xl-5">
                                         <div class="card property-block-card h-100">
 
@@ -664,8 +743,8 @@
                             <div class="row g-6">
 
                                 <!-- =========================
-                                                                                 INFO INQUILINO (60%)
-                                                                            ========================== -->
+                                                                                                 INFO INQUILINO (60%)
+                                                                                            ========================== -->
                                 <div class="col-xl-7">
                                     <div class="card property-block-card h-100">
 
@@ -831,8 +910,8 @@
                                 </div>
 
                                 <!-- =========================
-                                                                                 EXPEDIENTE (40%)
-                                                                            ========================== -->
+                                                                                                 EXPEDIENTE (40%)
+                                                                                            ========================== -->
                                 <div class="col-xl-5">
                                     <div class="card property-block-card h-100">
 

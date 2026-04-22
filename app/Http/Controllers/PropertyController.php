@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePropertyRequest;
 use App\Models\Charge;
+use App\Models\ChargePayment;
 use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
@@ -142,9 +143,33 @@ class PropertyController extends Controller
         $tenantId = $request->input('tenant_id');
         $tenant = $tenantId
             ? Tenant::query()
-                ->with(['documents' => fn ($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
+                ->with(['documents' => fn($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
                 ->find($tenantId)
             : null;
+        $requestedTenantId = $tenant?->id;
+        $isChangingTenant = (int) ($property->tenant_id ?? 0) !== (int) ($requestedTenantId ?? 0);
+
+        if ($isChangingTenant && $property->tenant_id) {
+            $hasOpenCharges = Charge::query()
+                ->where('property_id', $property->id)
+                ->whereIn('status', [
+                    Charge::STATUS_PENDING,
+                    Charge::STATUS_PARTIAL,
+                    Charge::STATUS_IN_VALIDATION,
+                ])
+                ->exists();
+            $hasOverdueCharges = Charge::query()
+                ->where('property_id', $property->id)
+                ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL])
+                ->whereDate('due_date', '<', now()->toDateString())
+                ->exists();
+
+            if ($hasOpenCharges || $hasOverdueCharges) {
+                return redirect()
+                    ->back()
+                    ->with('warning', 'No es posible cambiar el inquilino mientras existan cargos pendientes, en validación o vencidos.');
+            }
+        }
 
         if ($tenant && !$request->boolean('force_assignment')) {
             $missingRequirements = $this->getTenantAssignmentMissingRequirements($tenant);
@@ -214,7 +239,7 @@ class PropertyController extends Controller
         }
 
         $tenants = Tenant::query()
-            ->with(['documents' => fn ($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
+            ->with(['documents' => fn($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
             ->orderBy('full_name')
             ->get();
 
@@ -234,9 +259,8 @@ class PropertyController extends Controller
         $propertyCharges = Charge::query()
             ->with('tenant:id,full_name')
             ->where('property_id', $property->id)
-            ->latest('due_date')
-            ->latest('id')
-            ->limit(12)
+            ->orderBy('due_date', 'asc')
+            ->orderBy('id', 'asc')
             ->get();
 
         $rentChargesTotal = Charge::query()
@@ -279,6 +303,39 @@ class PropertyController extends Controller
             ->where('status', Charge::STATUS_PAID)
             ->orderByDesc('due_date')
             ->value('due_date');
+        $propertyPendingAmount = (float) Charge::query()
+            ->where('property_id', $property->id)
+            ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
+            ->sum('amount')
+            - (float) Charge::query()
+                ->where('property_id', $property->id)
+                ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
+                ->sum('paid_amount');
+        $propertyOverdueAmount = (float) Charge::query()
+            ->where('property_id', $property->id)
+            ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL])
+            ->whereDate('due_date', '<', now()->toDateString())
+            ->sum('amount')
+            - (float) Charge::query()
+                ->where('property_id', $property->id)
+                ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL])
+                ->whereDate('due_date', '<', now()->toDateString())
+                ->sum('paid_amount');
+        $propertyCollectedMonthAmount = (float) ChargePayment::query()
+            ->whereHas('charge', fn($query) => $query->where('property_id', $property->id))
+            ->where('status', ChargePayment::STATUS_SUCCEEDED)
+            ->whereYear('paid_at', now()->year)
+            ->whereMonth('paid_at', now()->month)
+            ->sum('amount');
+        $propertyPendingValidationCount = ChargePayment::query()
+            ->whereHas('charge', fn($query) => $query->where('property_id', $property->id))
+            ->where('status', ChargePayment::STATUS_PENDING_VALIDATION)
+            ->count();
+        $propertyOpenChargesCount = Charge::query()
+            ->where('property_id', $property->id)
+            ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
+            ->count();
+        $canReassignTenant = !$property->tenant_id || ($propertyOpenChargesCount === 0 && (int) $chargesVencidos === 0);
 
         return view('properties.show', [
             'property' => $property,
@@ -295,6 +352,12 @@ class PropertyController extends Controller
             'chargesVencidos' => $chargesVencidos,
             'chargesPendingValidation' => $chargesPendingValidation,
             'paidThroughDate' => $paidThroughDate ? Carbon::parse($paidThroughDate) : null,
+            'propertyPendingAmount' => max(0, $propertyPendingAmount),
+            'propertyOverdueAmount' => max(0, $propertyOverdueAmount),
+            'propertyCollectedMonthAmount' => max(0, $propertyCollectedMonthAmount),
+            'propertyPendingValidationCount' => (int) $propertyPendingValidationCount,
+            'propertyCurrentMonthLabel' => Carbon::create(now()->year, now()->month, 1)->translatedFormat('M Y'),
+            'canReassignTenant' => $canReassignTenant,
             'propertyChangeLogs' => $propertyChangeLogs,
             'propertyChangeFieldLabels' => $this->propertyChangeFieldLabels(),
         ]);
@@ -326,6 +389,7 @@ class PropertyController extends Controller
             'status' => 'Estatus',
             'tenant_id' => 'Inquilino',
             'current_tenant_name' => 'Nombre inquilino actual',
+            'charge_deleted' => 'Cargo eliminado',
             'contract_starts_at' => 'Contrato inicia',
             'contract_expires_at' => 'Contrato vence',
             'onboarding_step' => 'Paso onboarding',
@@ -490,7 +554,7 @@ class PropertyController extends Controller
         }
 
         $planRows = collect($property->rent_charge_plan ?? [])
-            ->filter(fn ($row) => is_array($row))
+            ->filter(fn($row) => is_array($row))
             ->values();
 
         foreach ($planRows as $row) {
@@ -550,16 +614,16 @@ class PropertyController extends Controller
         $rentPrice = (float) ($validated['monthly_rent_price'] ?? 0);
 
         $submittedRows = collect($validated['rent_charge_plan'] ?? [])
-            ->filter(fn ($row) => is_array($row))
-            ->map(fn (array $row) => $this->normalizeRentChargePlanRow($row))
+            ->filter(fn($row) => is_array($row))
+            ->map(fn(array $row) => $this->normalizeRentChargePlanRow($row))
             ->filter()
-            ->keyBy(fn (array $row) => $this->chargePlanPeriodKey((int) $row['period_year'], (int) $row['period_month']));
+            ->keyBy(fn(array $row) => $this->chargePlanPeriodKey((int) $row['period_year'], (int) $row['period_month']));
 
         $existingRows = collect($property?->rent_charge_plan ?? [])
-            ->filter(fn ($row) => is_array($row))
-            ->map(fn (array $row) => $this->normalizeRentChargePlanRow($row))
+            ->filter(fn($row) => is_array($row))
+            ->map(fn(array $row) => $this->normalizeRentChargePlanRow($row))
             ->filter()
-            ->keyBy(fn (array $row) => $this->chargePlanPeriodKey((int) $row['period_year'], (int) $row['period_month']));
+            ->keyBy(fn(array $row) => $this->chargePlanPeriodKey((int) $row['period_year'], (int) $row['period_month']));
 
         $rows = [];
         $cursor = $startsAt->copy();
@@ -889,12 +953,12 @@ class PropertyController extends Controller
     private function syncInventory(Property $property, array $inventoryAreas, StorePropertyRequest $request): void
     {
         $removedAreaPhotoIds = collect((array) $request->input('removed_area_photo_ids', []))
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->filter()
             ->values()
             ->all();
         $removedItemPhotoIds = collect((array) $request->input('removed_item_photo_ids', []))
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->filter()
             ->values()
             ->all();
@@ -1223,7 +1287,7 @@ class PropertyController extends Controller
 
         $photos = PropertyInventoryPhoto::query()
             ->whereIn('id', $photoIds)
-            ->whereHas('area', fn ($query) => $query->where('property_id', $property->id))
+            ->whereHas('area', fn($query) => $query->where('property_id', $property->id))
             ->get();
 
         $this->deleteAreaPhotoFiles($photos);
@@ -1243,7 +1307,7 @@ class PropertyController extends Controller
 
         $photos = PropertyInventoryItemPhoto::query()
             ->whereIn('id', $photoIds)
-            ->whereHas('item.area', fn ($query) => $query->where('property_id', $property->id))
+            ->whereHas('item.area', fn($query) => $query->where('property_id', $property->id))
             ->with('versions')
             ->get();
 
