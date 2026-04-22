@@ -52,129 +52,203 @@
         <div class="property-page-shell p-6 p-lg-8">
             <div class="card property-block-card mb-8">
                 <div class="card-body p-8">
-                    <div class="row g-8">
-                        <div class="col-xl-7">
-                            <div class="d-flex flex-wrap align-items-start gap-6">
-                                <img src="{{ $photoUrl }}" class="property-cover" alt="{{ $property->internal_name }}">
-                                <div class="flex-grow-1">
-                                    <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
-                                        <h1 class="mb-0 fw-bold">{{ $property->internal_name }}</h1>
-                                        <span
-                                            class="badge {{ $property->status_badge_class }} fs-7">{{ $property->status_label }}</span>
+
+                    <div class="row g-8 align-items-stretch">
+
+                        <!-- =========================
+                     IZQUIERDA (IMAGEN GRANDE + INFO)
+                ========================== -->
+                        <div class="col-xl-8">
+
+                            <div class="row g-6">
+
+                                <!-- IMAGEN GRANDE -->
+                                <div class="col-lg-5">
+                                    <img src="{{ $photoUrl }}" class="w-100 h-100 rounded"
+                                        style="object-fit: cover; min-height: 220px;" alt="{{ $property->internal_name }}">
+                                </div>
+
+                                <!-- INFO -->
+                                <div class="col-lg-7 d-flex flex-column justify-content-between">
+
+                                    <!-- HEADER -->
+                                    <div>
+                                        <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+                                            <h1 class="mb-0 fw-bold">{{ $property->internal_name }}</h1>
+
+                                            <span class="badge {{ $property->status_badge_class }} fs-7">
+                                                {{ $property->status_label }}
+                                            </span>
+                                        </div>
+
+                                        <div class="property-header-meta mb-4 d-flex flex-wrap gap-2">
+                                            <span class="meta-pill">
+                                                <i class="ki-outline ki-home-2 fs-6"></i>
+                                                {{ $property->type?->name ?? '-' }}
+                                            </span>
+
+                                            <span class="meta-pill">
+                                                <i class="ki-outline ki-geolocation fs-6"></i>
+                                                @if ($property->map_url)
+                                                    <a href="{{ $property->map_url }}" target="_blank">Ubicación</a>
+                                                @else
+                                                    -
+                                                @endif
+                                            </span>
+
+                                            <span class="meta-pill">
+                                                <i class="ki-outline ki-profile-user fs-6"></i>
+                                                {{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: 'Sin inquilino') }}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div class="property-header-meta mb-4">
-                                        <span class="meta-pill"><i class="ki-outline ki-home-2 fs-6"></i>
-                                            {{ $property->type?->name ?? '-' }}</span>
-                                        <span class="meta-pill"><i class="ki-outline ki-geolocation fs-6"></i>
-                                            @if ($property->map_url)
-                                                <a href="{{ $property->map_url }}" target="_blank">Ubicacion</a>
-                                            @else
-                                                -
-                                            @endif
-                                        </span>
-                                        <span class="meta-pill"><i class="ki-outline ki-profile-user fs-6"></i>
-                                            {{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: 'Sin inquilino') }}</span>
-                                    </div>
-                                    <div class="row g-4 mb-4">
+
+                                    <!-- RESUMEN RÁPIDO -->
+                                    <div class="row g-4">
+
                                         <div class="col-sm-4">
-                                            <div class="property-value-label">Precio renta mensual</div>
+                                            <div class="property-value-label">Precio renta</div>
                                             <div class="property-value-content">
                                                 {{ $property->monthly_rent_price ? '$' . number_format((float) $property->monthly_rent_price, 2) : '-' }}
                                             </div>
                                         </div>
+
                                         <div class="col-sm-4">
                                             <div class="property-value-label">Contrato inicia</div>
                                             <div class="property-value-content">
                                                 {{ $property->contract_starts_at ? $property->contract_starts_at->format('d/m/Y') : '-' }}
                                             </div>
                                         </div>
+
                                         <div class="col-sm-4">
                                             <div class="property-value-label">Contrato vence</div>
                                             <div class="property-value-content">
                                                 {{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}
                                             </div>
                                         </div>
+
                                     </div>
+
+                                    <!-- ASIGNAR INQUILINO -->
                                     @if (!$property->tenant_id)
-                                        <div class="dropdown">
-                                            <button class="btn btn-sm btn-primary dropdown-toggle" type="button"
-                                                data-bs-toggle="dropdown">
-                                                Asignar inquilino
-                                            </button>
-                                            <ul class="dropdown-menu">
-                                                @foreach ($tenants as $tenant)
-                                                    @php
-                                                        $assignmentCheck = $tenantAssignmentChecks[(string) $tenant->id] ?? ['missing' => [], 'is_complete' => true];
-                                                    @endphp
-                                                    <li>
-                                                        <form method="POST"
-                                                            action="{{ route('properties.update.tenant', $property) }}"
-                                                            class="d-inline js-assign-tenant-form"
-                                                            data-tenant-name="{{ $tenant->full_name }}"
-                                                            data-missing='@json($assignmentCheck['missing'])'>
-                                                            @csrf
-                                                            @method('PUT')
-                                                            <input type="hidden" name="tenant_id" value="{{ $tenant->id }}">
-                                                            <input type="hidden" name="force_assignment" value="0">
-                                                            <button type="submit" class="dropdown-item">
-                                                                {{ $tenant->full_name }}
-                                                                @unless ($assignmentCheck['is_complete'])
-                                                                    <span class="text-warning">(incompleto)</span>
-                                                                @endunless
-                                                            </button>
-                                                        </form>
-                                                    </li>
-                                                @endforeach
-                                            </ul>
+                                        <div class="mt-4">
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-primary dropdown-toggle" type="button"
+                                                    data-bs-toggle="dropdown">
+                                                    Asignar inquilino
+                                                </button>
+
+                                                <ul class="dropdown-menu">
+                                                    @foreach ($tenants as $tenant)
+                                                        @php
+                                                            $assignmentCheck = $tenantAssignmentChecks[(string) $tenant->id] ?? ['missing' => [], 'is_complete' => true];
+                                                        @endphp
+                                                        <li>
+                                                            <form method="POST"
+                                                                action="{{ route('properties.update.tenant', $property) }}"
+                                                                class="d-inline js-assign-tenant-form"
+                                                                data-tenant-name="{{ $tenant->full_name }}"
+                                                                data-missing='@json($assignmentCheck['missing'])'>
+                                                                @csrf
+                                                                @method('PUT')
+
+                                                                <input type="hidden" name="tenant_id" value="{{ $tenant->id }}">
+                                                                <input type="hidden" name="force_assignment" value="0">
+
+                                                                <button type="submit" class="dropdown-item">
+                                                                    {{ $tenant->full_name }}
+                                                                    @unless ($assignmentCheck['is_complete'])
+                                                                        <span class="text-warning">(incompleto)</span>
+                                                                    @endunless
+                                                                </button>
+                                                            </form>
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            </div>
                                         </div>
                                     @endif
+
                                 </div>
+
                             </div>
+
                         </div>
-                        <div class="col-xl-5">
-                            <div class="border rounded p-5 h-100">
+
+                        <!-- =========================
+                     DERECHA (COBRANZA LIMPIA)
+                ========================== -->
+                        <div class="col-xl-4 d-flex flex-column justify-content-between">
+
+                            <div>
+
+                                <!-- HEADER -->
                                 <div class="d-flex justify-content-between align-items-center mb-4">
-                                    <h3 class="fw-bold mb-0">Resumen de cobranza</h3>
+                                    <h3 class="fw-bold mb-0">Cobranza</h3>
                                     <a href="{{ route('charges.index', ['property' => $property->uuid]) }}"
                                         class="btn btn-sm btn-light-primary">
-                                        Abrir cobranza
+                                        Abrir
                                     </a>
                                 </div>
+
+                                <!-- INDICADORES -->
                                 <div class="d-flex flex-wrap gap-2 mb-5">
-                                    <span class="badge badge-light-warning text-warning">Por cobrar:
-                                        {{ (int) $chargesPorCobrar }}</span>
-                                    <span class="badge badge-light-danger text-danger">Vencido:
-                                        {{ (int) $chargesVencidos }}</span>
-                                    <span class="badge badge-light-success text-success">Cobrado hasta:
-                                        {{ $paidThroughDate?->format('d/m/Y') ?: '-' }}</span>
-                                    <span class="badge badge-light-primary text-primary">Pendiente de validación:
-                                        {{ (int) $chargesPendingValidation }}</span>
+                                    <span class="meta-pill bg-light-warning text-warning">
+                                        Por cobrar: {{ (int) $chargesPorCobrar }}
+                                    </span>
+
+                                    <span class="meta-pill bg-light-danger text-danger">
+                                        Vencido: {{ (int) $chargesVencidos }}
+                                    </span>
+
+                                    <span class="meta-pill bg-light-success text-success">
+                                        Cobrado: {{ $paidThroughDate?->format('d/m/Y') ?: '-' }}
+                                    </span>
+
+                                    <span class="meta-pill bg-light-primary text-primary">
+                                        Validación: {{ (int) $chargesPendingValidation }}
+                                    </span>
                                 </div>
+
+                                <!-- DETALLE -->
                                 <div class="row g-4">
-                                    <div class="col-sm-6">
-                                        <div class="property-value-label">Pagos completos</div>
+
+                                    <div class="col-6">
+                                        <div class="property-value-label">Pagos</div>
                                         <div class="property-value-content">
                                             {{ (int) $rentChargesPaid }}/{{ (int) $rentChargesTotal }}
                                         </div>
                                     </div>
-                                    <div class="col-sm-6">
-                                        <div class="property-value-label">Referencia interna</div>
-                                        <div class="property-value-content">{{ $property->internal_reference ?: '-' }}</div>
+
+                                    <div class="col-6">
+                                        <div class="property-value-label">Referencia</div>
+                                        <div class="property-value-content">
+                                            {{ $property->internal_reference ?: '-' }}
+                                        </div>
                                     </div>
-                                    <div class="col-sm-6">
-                                        <div class="property-value-label">Día de cobro</div>
-                                        <div class="property-value-content">{{ $property->charge_day ?: '-' }}</div>
+
+                                    <div class="col-6">
+                                        <div class="property-value-label">Día cobro</div>
+                                        <div class="property-value-content">
+                                            {{ $property->charge_day ?: '-' }}
+                                        </div>
                                     </div>
-                                    <div class="col-sm-6">
-                                        <div class="property-value-label">Tolerancia (días)</div>
+
+                                    <div class="col-6">
+                                        <div class="property-value-label">Tolerancia</div>
                                         <div class="property-value-content">
                                             {{ is_null($property->charge_tolerance_days) ? '-' : (int) $property->charge_tolerance_days }}
                                         </div>
                                     </div>
+
                                 </div>
+
                             </div>
+
                         </div>
+
                     </div>
+
                 </div>
             </div>
 
@@ -365,8 +439,8 @@
                                 <div class="row g-6 mb-8">
 
                                     <!-- =========================
-                                                             INFO PROPIETARIO (60%)
-                                                        ========================== -->
+                                                                         INFO PROPIETARIO (60%)
+                                                                    ========================== -->
                                     <div class="col-xl-7">
                                         <div class="card property-block-card h-100">
 
@@ -485,8 +559,8 @@
                                     </div>
 
                                     <!-- =========================
-                                                             EXPEDIENTE (40%)
-                                                        ========================== -->
+                                                                         EXPEDIENTE (40%)
+                                                                    ========================== -->
                                     <div class="col-xl-5">
                                         <div class="card property-block-card h-100">
 
@@ -557,8 +631,8 @@
                             <div class="row g-6">
 
                                 <!-- =========================
-                                                                         INFO INQUILINO (60%)
-                                                                    ========================== -->
+                                                                                 INFO INQUILINO (60%)
+                                                                            ========================== -->
                                 <div class="col-xl-7">
                                     <div class="card property-block-card h-100">
 
@@ -724,8 +798,8 @@
                                 </div>
 
                                 <!-- =========================
-                                                                         EXPEDIENTE (40%)
-                                                                    ========================== -->
+                                                                                 EXPEDIENTE (40%)
+                                                                            ========================== -->
                                 <div class="col-xl-5">
                                     <div class="card property-block-card h-100">
 
