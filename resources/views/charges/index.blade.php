@@ -59,190 +59,7 @@
             </div>
         </div>
 
-        @if ($selectedProperty && $showPropertySetupCard)
-            @php
-                $selectedSetupTenantId = (string) old('tenant_id', $selectedProperty->tenant_id ?: '');
-                $setupContractStartsAt = old('contract_starts_at', $selectedProperty->contract_starts_at?->format('Y-m-d'));
-                $setupContractExpiresAt = old('contract_expires_at', $selectedProperty->contract_expires_at?->format('Y-m-d'));
-                $setupMonthlyRentPrice = old('monthly_rent_price', number_format((float) ($selectedProperty->monthly_rent_price ?? 0), 2, '.', ''));
-                $setupChargeDay = old('charge_day', $selectedProperty->charge_day ?: $selectedProperty->contract_starts_at?->day);
-                $setupChargeToleranceDays = old('charge_tolerance_days', (int) ($selectedProperty->charge_tolerance_days ?? 0));
-                $initialPropertySetupPlan = old('rent_charge_plan', $selectedProperty->rent_charge_plan ?? []);
-                $initialPropertySetupPlan = collect($initialPropertySetupPlan)
-                    ->filter(fn($row) => is_array($row))
-                    ->values()
-                    ->all();
-            @endphp
-
-            <div class="card mb-8">
-                <div class="card-header border-0 pt-6">
-                    <h3 class="card-title fw-bold">Configuracion de cobranza de la propiedad</h3>
-                </div>
-                <div class="card-body pt-0">
-                    @if ($errors->propertySetup->any())
-                        <div class="alert alert-danger mb-6">
-                            <div class="fw-bold mb-2">Revisa la configuracion de cobranza:</div>
-                            <ul class="mb-0 ps-5">
-                                @foreach ($errors->propertySetup->all() as $error)
-                                    <li>{{ $error }}</li>
-                                @endforeach
-                            </ul>
-                        </div>
-                    @endif
-
-                    <form method="POST" action="{{ route('charges.properties.setup', $selectedProperty) }}"
-                        id="propertySetupForm">
-                        @csrf
-                        @method('PUT')
-                        <input type="hidden" name="force_assignment" id="propertySetupForceAssignment" value="0">
-                        <div id="property-setup-plan-inputs"></div>
-
-                        <div class="notice d-flex bg-light-primary border border-primary border-dashed rounded p-4 mb-6">
-                            <span class="text-primary">Nota: Podras cambiar el estado de la propiedad en cualquier momento desde
-                                su expediente.</span>
-                        </div>
-
-                        <div class="row g-6">
-                            <div class="col-lg-6">
-                                <label class="form-label">Inquilino (opcional)</label>
-                                <select name="tenant_id" id="propertySetupTenant"
-                                    class="form-select @error('tenant_id', 'propertySetup') is-invalid @enderror">
-                                    <option value="">Sin asignar</option>
-                                    @foreach ($propertySetupTenants as $tenant)
-                                        @php
-                                            $setupCheck = $tenantAssignmentChecks[(string) $tenant->id] ?? ['missing' => [], 'is_complete' => true];
-                                        @endphp
-                                        <option value="{{ $tenant->id }}" data-missing='@json($setupCheck['missing'])' {{ $selectedSetupTenantId === (string) $tenant->id ? 'selected' : '' }}>
-                                            {{ $tenant->full_name }}
-                                            {{ $tenant->phone_primary ? '- ' . $tenant->phone_primary : '' }}{{ $setupCheck['is_complete'] ? '' : ' (incompleto)' }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                @error('tenant_id', 'propertySetup')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                                <div class="text-muted fs-8 mt-2">
-                                    ¿No aparece? <a href="{{ route('tenants.index') }}" target="_blank">Crear inquilino</a>
-                                </div>
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label">Contrato inicia (opcional)</label>
-                                <input type="date" name="contract_starts_at" id="propertySetupContractStartsAt"
-                                    class="form-control @error('contract_starts_at', 'propertySetup') is-invalid @enderror"
-                                    value="{{ $setupContractStartsAt }}">
-                                @error('contract_starts_at', 'propertySetup')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label">Contrato vence (opcional)</label>
-                                <input type="date" name="contract_expires_at" id="propertySetupContractExpiresAt"
-                                    class="form-control @error('contract_expires_at', 'propertySetup') is-invalid @enderror"
-                                    value="{{ $setupContractExpiresAt }}">
-                                @error('contract_expires_at', 'propertySetup')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label">Precio renta mensual</label>
-                                <input type="number" name="monthly_rent_price" id="propertySetupMonthlyRentPrice"
-                                    class="form-control @error('monthly_rent_price', 'propertySetup') is-invalid @enderror"
-                                    min="0" step="0.01" value="{{ $setupMonthlyRentPrice }}">
-                                @error('monthly_rent_price', 'propertySetup')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                                <div class="text-muted fs-8 mt-2">Si está vacío se considera 0. Es necesario que sea mayor a 0
-                                    para generar pagos.</div>
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label">Dia de cobro</label>
-                                <input type="number" name="charge_day" id="propertySetupChargeDay"
-                                    class="form-control @error('charge_day', 'propertySetup') is-invalid @enderror" min="1"
-                                    max="31" step="1" value="{{ $setupChargeDay }}">
-                                @error('charge_day', 'propertySetup')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label">Tolerancia (dias)</label>
-                                <input type="number" name="charge_tolerance_days" id="propertySetupChargeToleranceDays"
-                                    class="form-control @error('charge_tolerance_days', 'propertySetup') is-invalid @enderror"
-                                    min="0" max="31" step="1" value="{{ $setupChargeToleranceDays }}">
-                                @error('charge_tolerance_days', 'propertySetup')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <div class="col-12">
-                                <div class="border rounded p-5 bg-light">
-                                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-2">
-                                        <div>
-                                            <div class="fw-bold">Lista de pagos de renta</div>
-                                            <div class="text-muted fs-8" id="propertySetupPlanSummary">
-                                                Configura contrato y renta mensual para generar la lista automatica.
-                                            </div>
-                                        </div>
-                                        <button type="button" class="btn btn-light-primary" data-bs-toggle="modal"
-                                            data-bs-target="#propertySetupPlanModal">
-                                            Ver lista de pagos
-                                        </button>
-                                    </div>
-                                    <div class="text-muted fs-8">
-                                        Total de pagos generados: <span class="fw-bold" id="propertySetupPlanRowsCount">0</span>
-                                    </div>
-                                </div>
-                                @error('rent_charge_plan', 'propertySetup')
-                                    <div class="text-danger fs-7 mt-2">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
-
-                        <div class="d-flex justify-content-end mt-6">
-                            <button type="submit" class="btn btn-primary">Guardar y generar pagos</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="modal fade" id="propertySetupPlanModal" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog modal-lg modal-dialog-scrollable">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3 class="modal-title">Lista de pagos</h3>
-                            <button type="button" class="btn btn-icon btn-sm btn-active-light-primary" data-bs-dismiss="modal">
-                                <i class="ki-outline ki-cross fs-1"></i>
-                            </button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="alert alert-light-primary py-3 px-4 mb-5">
-                                El monto inicia con la renta mensual y puedes ajustarlo por periodo para contratos de mas de un
-                                anio.
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table table-row-bordered align-middle">
-                                    <thead>
-                                        <tr class="text-muted text-uppercase fs-8">
-                                            <th>Periodo</th>
-                                            <th>Vencimiento</th>
-                                            <th>Monto (MXN)</th>
-                                            <th>Concepto</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="propertySetupPlanTableBody">
-                                        <tr id="propertySetupPlanEmptyState">
-                                            <td colspan="4" class="text-center text-muted py-8">No hay pagos configurados.</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        @endif
-
+        
         <div class="row g-5 mb-8">
             <div class="col-md-6 col-xl-3">
                 <div class="card h-100">
@@ -904,7 +721,21 @@
 @endsection
 
 @push('scripts')
+
     <script>
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const hasNoCharges = @json($charges->isEmpty());
+            const hasProperty = @json((bool) $selectedProperty);
+
+            if (hasNoCharges && hasProperty) {
+                const modalEl = document.getElementById('bulkChargeModal');
+                if (modalEl) {
+                    const modal = new bootstrap.Modal(modalEl);
+                    modal.show();
+                }
+            }
+        });
         (() => {
             const propertySelect = document.getElementById('chargeProperty');
             const tenantSelect = document.getElementById('chargeTenant');

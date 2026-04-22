@@ -8,6 +8,7 @@
         $bankContactEmail = $bankOwner?->email ?: 'sts19813@gmail.com';
         $bankName = $bankOwner?->bank_name ?: 'BBVA';
         $bankClabe = $bankOwner?->clabe ?: '101010101010101001';
+        $bankNameOwner = $bankOwner?->name ?: 'Beneficiario';
     @endphp
 
     <div class="row justify-content-center g-8">
@@ -80,7 +81,7 @@
                 </div>
                 <div class="card-body">
                     <div class="bg-light rounded p-4 mb-6">
-                        <div class="fw-semibold mb-1">{{ $bankContactPhone }} | {{ $bankContactEmail }}</div>
+                        <div class="fw-semibold mb-1"> Nombre Beneficiario: {{ $bankNameOwner }} </div>
                         <div class="text-muted">Banco: {{ $bankName }} | CLABE: {{ $bankClabe }}</div>
                     </div>
 
@@ -99,7 +100,7 @@
                                     value="{{ old('amount', number_format($charge->outstanding_amount, 2, '.', '')) }}" required>
                             </div>
                             <div class="col-12">
-                                <label class="form-label required">Fecha de pago</label>
+                                <label class="form-label required">Fecha en la que se realizó el pago</label>
                                 <input type="date" name="payment_date" value="{{ old('payment_date', now()->toDateString()) }}"
                                     class="form-control" required>
                             </div>
