@@ -1,25 +1,41 @@
-<x-guest-layout>
-    <div class="mb-4 text-sm text-gray-600">
-        {{ __('Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.') }}
+@extends('layouts.auth')
+
+@section('title', 'Recuperar contraseña | ' . config('app.name', 'SuWork'))
+
+@section('content')
+    <div class="text-center mb-11">
+        <h1 class="text-gray-900 fw-bolder mb-3">Recuperar contraseña</h1>
+        <div class="text-gray-500 fw-semibold fs-6">Te enviaremos un enlace para restablecer tu acceso</div>
     </div>
 
-    <!-- Session Status -->
-    <x-auth-session-status class="mb-4" :status="session('status')" />
+    @if (session('status'))
+        <div class="alert alert-success mb-8">{{ session('status') }}</div>
+    @endif
 
-    <form method="POST" action="{{ route('password.email') }}">
+    @if ($errors->any())
+        <div class="alert alert-danger mb-8">
+            <ul class="mb-0 ps-5">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    <form method="POST" action="{{ route('password.email') }}" class="form w-100" novalidate>
         @csrf
 
-        <!-- Email Address -->
-        <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+        <div class="fv-row mb-8">
+            <input type="email" placeholder="Correo electrónico" name="email" value="{{ old('email') }}"
+                class="form-control form-control-lg bg-transparent @error('email') is-invalid @enderror" required autofocus />
         </div>
 
-        <div class="flex items-center justify-end mt-4">
-            <x-primary-button>
-                {{ __('Email Password Reset Link') }}
-            </x-primary-button>
+        <div class="d-grid mb-8">
+            <button type="submit" class="btn btn-primary">Enviar enlace</button>
+        </div>
+
+        <div class="text-gray-500 text-center fw-semibold fs-6">
+            <a href="{{ route('login') }}" class="link-primary">Volver a iniciar sesión</a>
         </div>
     </form>
-</x-guest-layout>
+@endsection

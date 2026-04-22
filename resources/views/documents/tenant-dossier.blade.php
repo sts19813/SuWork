@@ -38,10 +38,9 @@
 
         <div class="card">
             <div class="card-header border-0 pt-6">
-                <h3 class="card-title fw-bold">Documentos versionados</h3>
+                <h3 class="card-title fw-bold">Documentos</h3>
             </div>
             <div class="card-body pt-0 d-flex flex-column gap-6">
-                <h4 class="fw-bold mb-0">Documentos obligatorios</h4>
                 @foreach ($documents as $document)
                     @php
                         $versions = $document->relationLoaded('versions') ? $document->versions : collect();

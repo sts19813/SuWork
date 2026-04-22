@@ -26,7 +26,11 @@ class User extends Authenticatable
         'email',
         'password',
         'is_active',
-        'profile_photo'
+        'profile_photo',
+        'google_id',
+        'google_access_token',
+        'google_refresh_token',
+        'google_token_expires_at',
     ];
     /**
      * The attributes that should be hidden for serialization.
@@ -48,11 +52,17 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'google_token_expires_at' => 'datetime',
         ];
     }
 
     public function createdProperties(): HasMany
     {
         return $this->hasMany(Property::class, 'created_by');
+    }
+
+    public function createdCharges(): HasMany
+    {
+        return $this->hasMany(Charge::class, 'created_by');
     }
 }

@@ -88,6 +88,11 @@ class Tenant extends Model
         return $this->documents()->where('status', TenantDocument::STATUS_PENDING);
     }
 
+    public function charges(): HasMany
+    {
+        return $this->hasMany(Charge::class);
+    }
+
     public function getDossierStatusLabelAttribute(): string
     {
         return self::DOSSIER_STATUS_LABELS[$this->dossier_status] ?? ucfirst(str_replace('_', ' ', $this->dossier_status));

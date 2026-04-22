@@ -9,7 +9,7 @@
 <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm py-0">
     <div class="container-fluid px-4">
         <a href="{{ route('properties.index') }}" class="d-flex align-items-center py-2 me-8">
-            <img src="{{ asset('assets/img/Logo.png') }}" alt="Logo SuWork" height="45">
+            <img src="{{ asset('assets/img/suhomes-app-logo.svg') }}" alt="Logo SuHomes" height="45">
         </a>
 
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainHeaderNav"
@@ -47,6 +47,12 @@
                     <a class="nav-link fw-semibold {{ request()->routeIs('documents.*') || request()->routeIs('dossiers.*') ? 'active text-primary' : 'text-gray-700' }}"
                         href="{{ route('documents.index') }}">
                         Documentos
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link fw-semibold {{ request()->routeIs('charges.*') ? 'active text-primary' : 'text-gray-700' }}"
+                        href="{{ route('charges.index') }}">
+                        Cobranza
                     </a>
                 </li>
                 <li class="nav-item">

@@ -22,6 +22,14 @@
     <script src="https://unpkg.com/dropzone@5/dist/min/dropzone.min.js"></script>
     <script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/ckeditor.js"></script>
 
+    <style>
+        @media (min-width: 1800px) {
+            .container, .container-lg, .container-md, .container-sm, .container-xl, .container-xxl {
+                max-width: 1700px;
+            }
+        }
+    </style>
+
     @stack('styles')
 </head>
 

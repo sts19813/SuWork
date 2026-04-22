@@ -43,6 +43,12 @@
             ->all();
 
         $oldNewOwners = old('new_owners', []);
+        $removedAreaPhotoIds = collect(old('removed_area_photo_ids', []))
+            ->map(fn($id) => (int) $id)
+            ->all();
+        $removedItemPhotoIds = collect(old('removed_item_photo_ids', []))
+            ->map(fn($id) => (int) $id)
+            ->all();
 
         $defaultAreaData = collect($defaultAreas)->map(function ($area) {
             return [
@@ -118,6 +124,11 @@
         $selectedType = (string) $fieldValue('property_type_id');
         $selectedZone = (string) $fieldValue('zone_id');
         $selectedTenantId = (string) old('tenant_id', $isEdit && $property ? ($property->tenant_id ?: '') : '');
+        $initialRentChargePlan = old('rent_charge_plan', $isEdit && $property ? ($property->rent_charge_plan ?? []) : []);
+        $initialRentChargePlan = collect($initialRentChargePlan)
+            ->filter(fn($row) => is_array($row))
+            ->values()
+            ->all();
 
         $initialStep = (int) old('wizard_step', 1);
         if ($errors->isNotEmpty()) {
@@ -151,6 +162,14 @@
                     $initialStep = 6;
                     break;
                 }
+                if ($errorKey === 'contract_starts_at' || $errorKey === 'contract_expires_at') {
+                    $initialStep = 6;
+                    break;
+                }
+                if ($errorKey === 'rent_charge_plan' || str_starts_with($errorKey, 'rent_charge_plan.')) {
+                    $initialStep = 6;
+                    break;
+                }
             }
         }
     @endphp
@@ -177,6 +196,14 @@
                 @method('PUT')
             @endif
             <input type="hidden" name="wizard_step" id="wizard-step-input" value="{{ $initialStep }}">
+            <div id="inventory-photo-removals">
+                @foreach ($removedAreaPhotoIds as $removedAreaPhotoId)
+                    <input type="hidden" name="removed_area_photo_ids[]" value="{{ $removedAreaPhotoId }}">
+                @endforeach
+                @foreach ($removedItemPhotoIds as $removedItemPhotoId)
+                    <input type="hidden" name="removed_item_photo_ids[]" value="{{ $removedItemPhotoId }}">
+                @endforeach
+            </div>
 
             @if ($errors->any())
                 <div class="alert alert-danger mb-8">
@@ -742,7 +769,8 @@
             <div class="card mb-8 wizard-step d-none" data-step-panel="5">
                 <div class="card-body p-lg-10">
                     <h3 class="mb-3 fw-bold">Inventario de la propiedad</h3>
-                    <p class="text-muted mb-8">Documenta espacios y elementos. Este paso también puede completarse posteriormente.</p>
+                    <p class="text-muted mb-2">Documenta espacios y elementos. Este paso también puede completarse posteriormente.</p>
+                    <p class="text-muted fs-8 mb-8">Las imágenes de inventario se comprimen automáticamente (proporcional, sin estirar) para intentar mantener cada archivo en un máximo de 500KB.</p>
 
                     <button type="button" id="clear-inventory-btn" class="btn btn-light-secondary mb-4">
                         <i class="ki-outline ki-trash fs-4 me-1"></i> Limpiar inventario
@@ -790,10 +818,18 @@
 
                                     <div class="col-12">
                                         @if (!empty($area['existing_photos']))
-                                            <div class="mb-3 d-flex flex-wrap gap-3">
+                                            <div class="mb-3 d-flex flex-wrap gap-3 inventory-existing-area-photos">
                                                 @foreach ($area['existing_photos'] as $photo)
-                                                    <div class="inventory-thumb-item">
+                                                    @continue(in_array((int) ($photo['id'] ?? 0), $removedAreaPhotoIds, true))
+                                                    <div class="inventory-thumb-item position-relative" data-photo-kind="area" data-photo-id="{{ $photo['id'] ?? '' }}">
                                                         <img src="{{ $photo['url'] }}" class="inventory-thumb" alt="Foto área">
+                                                        <button type="button"
+                                                            class="btn btn-icon btn-danger btn-sm position-absolute top-0 end-0 m-1 js-remove-existing-photo"
+                                                            data-photo-type="area"
+                                                            data-photo-id="{{ $photo['id'] ?? '' }}"
+                                                            title="Eliminar foto">
+                                                            <i class="ki-outline ki-trash fs-7"></i>
+                                                        </button>
                                                     </div>
                                                 @endforeach
                                             </div>
@@ -802,7 +838,7 @@
                                         <input type="file"
                                             name="inventory_areas[{{ $areaIndex }}][photos][]"
                                             class="form-control js-drop-input"
-                                            accept=".jpg,.jpeg,.png"
+                                            accept=".jpg,.jpeg,.png,.webp"
                                             multiple>
                                     </div>
                                 </div>
@@ -857,10 +893,18 @@
                                         </div>
 
                                         @if (!empty($item['existing_photos']))
-                                            <div class="mb-3 d-flex flex-wrap gap-3">
+                                            <div class="mb-3 d-flex flex-wrap gap-3 inventory-existing-item-photos">
                                                 @foreach ($item['existing_photos'] as $photo)
-                                                    <div class="inventory-thumb-item">
+                                                    @continue(in_array((int) ($photo['id'] ?? 0), $removedItemPhotoIds, true))
+                                                    <div class="inventory-thumb-item position-relative" data-photo-kind="item" data-photo-id="{{ $photo['id'] ?? '' }}">
                                                         <img src="{{ $photo['url'] }}" class="inventory-thumb" alt="Foto ítem">
+                                                        <button type="button"
+                                                            class="btn btn-icon btn-danger btn-sm position-absolute top-0 end-0 m-1 js-remove-existing-photo"
+                                                            data-photo-type="item"
+                                                            data-photo-id="{{ $photo['id'] ?? '' }}"
+                                                            title="Eliminar foto">
+                                                            <i class="ki-outline ki-trash fs-7"></i>
+                                                        </button>
                                                     </div>
                                                 @endforeach
                                             </div>
@@ -913,33 +957,11 @@
                         <span class="text-primary">Nota: Podrás cambiar el estado de la propiedad en cualquier momento desde
                             su expediente.</span>
                     </div>
-                    <div class="row g-6">
-                        <div class="col-lg-6">
-                            <label class="form-label">Inquilino (opcional)</label>
-                            <select name="tenant_id" class="form-select @error('tenant_id') is-invalid @enderror">
-                                <option value="">Sin asignar</option>
-                                @foreach ($availableTenants as $tenant)
-                                    <option value="{{ $tenant->id }}" {{ $selectedTenantId === (string) $tenant->id ? 'selected' : '' }}>
-                                        {{ $tenant->full_name }} {{ $tenant->phone_primary ? '- ' . $tenant->phone_primary : '' }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('tenant_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                            <div class="text-muted fs-8 mt-2">
-                                ¿No aparece? <a href="{{ route('tenants.index') }}" target="_blank">Crear inquilino</a>
-                            </div>
-                        </div>
-                        <div class="col-lg-6">
-                            <label class="form-label">Contrato vence (opcional)</label>
-                            <input type="date" name="contract_expires_at" class="form-control"
-                                value="{{ old('contract_expires_at', $isEdit && $property && $property->contract_expires_at ? $property->contract_expires_at->format('Y-m-d') : '') }}">
-                        </div>
-                    </div>
+                    <p class="text-muted mb-0">
+                        La asignacion de inquilino, configuracion de contrato y generacion de pagos se administra desde el modulo de cobranza de la propiedad.
+                    </p>
                 </div>
             </div>
-
             <div class="d-flex justify-content-between align-items-center">
                 <button type="button" id="wizard-prev" class="btn btn-light">
                     <i class="ki-outline ki-arrow-left fs-4 me-1"></i> Anterior
@@ -1048,7 +1070,7 @@
             <div class="col-12">
                 <label class="form-label">Fotos generales del área (hasta 3)</label>
                 <input type="file" name="inventory_areas[__AREA_INDEX__][photos][]" class="form-control js-drop-input"
-                    accept=".jpg,.jpeg,.png" multiple>
+                    accept=".jpg,.jpeg,.png,.webp" multiple>
             </div>
         </div>
         <div class="items-container d-flex flex-column gap-4">
@@ -1133,8 +1155,18 @@
             const urlParams = new URLSearchParams(window.location.search);
             const stepFromUrl = parseInt(urlParams.get('step'));
             const editorInstances = [];
+            const initialRentChargePlan = @json($initialRentChargePlan);
+            const rentChargePlanInputsHost = document.getElementById('rent-charge-plan-inputs');
+            const rentChargePlanTableBody = document.getElementById('rentChargePlanTableBody');
+            const rentChargePlanSummary = document.getElementById('rentChargePlanSummary');
+            const rentChargePlanRowsCount = document.getElementById('rentChargePlanRowsCount');
+            const rentChargePlanEmptyState = document.getElementById('rentChargePlanEmptyState');
+            const monthlyRentInput = form.querySelector('input[name="monthly_rent_price"]');
+            const contractStartsInput = form.querySelector('input[name="contract_starts_at"]');
+            const contractExpiresInput = form.querySelector('input[name="contract_expires_at"]');
 
             let currentStep = stepFromUrl || parseInt(stepInput.value || '1', 10);
+            let rentChargePlanRows = [];
 
             if (Number.isNaN(currentStep) || currentStep < 1 || currentStep > totalSteps) {
                 currentStep = 1;
@@ -1149,6 +1181,31 @@
                 if (type === 'error') {
                     alert(message);
                 }
+            };
+            const removalsContainer = document.getElementById('inventory-photo-removals');
+
+            const confirmWithSwal = async ({
+                title = 'Confirmar',
+                text = 'Esta accion no se puede deshacer.',
+                confirmButtonText = 'Si, eliminar',
+                cancelButtonText = 'Cancelar',
+                icon = 'warning',
+            } = {}) => {
+                if (window.Swal?.fire) {
+                    const result = await window.Swal.fire({
+                        title,
+                        text,
+                        icon,
+                        showCancelButton: true,
+                        confirmButtonText,
+                        cancelButtonText,
+                        reverseButtons: true,
+                    });
+
+                    return !!result.isConfirmed;
+                }
+
+                return window.confirm(text);
             };
 
             const determineStepFromErrorKey = (errorKey = '') => {
@@ -1177,7 +1234,14 @@
                     return 5;
                 }
 
-                if (errorKey === 'status' || errorKey === 'tenant_id' || errorKey === 'contract_expires_at') {
+                if (
+                    errorKey === 'status' ||
+                    errorKey === 'tenant_id' ||
+                    errorKey === 'contract_starts_at' ||
+                    errorKey === 'contract_expires_at' ||
+                    errorKey === 'rent_charge_plan' ||
+                    errorKey.startsWith('rent_charge_plan.')
+                ) {
                     return 6;
                 }
 
@@ -1332,58 +1396,396 @@
                 inputs.forEach((input) => {
                     input.dataset.dropReady = '1';
                     const box = input.closest('.upload-box');
-                    if (!box) {
-                        return;
+                    const isInventoryPhotoInput = input.name?.includes('inventory_areas[') && input.name?.includes('[photos][]');
+
+                    let label = null;
+                    if (box) {
+                        label = box.querySelector('.file-selected-label');
+                        if (!label) {
+                            label = document.createElement('span');
+                            label.className = 'file-selected-label text-success fs-8 d-none';
+                            box.appendChild(label);
+                        }
                     }
 
-                    let label = box.querySelector('.file-selected-label');
-                    if (!label) {
-                        label = document.createElement('span');
-                        label.className = 'file-selected-label text-success fs-8 d-none';
-                        box.appendChild(label);
-                    }
+                    const ensurePreviewContainer = () => {
+                        if (!isInventoryPhotoInput) {
+                            return null;
+                        }
+
+                        let preview = input.parentElement?.querySelector('.inventory-selected-preview[data-preview-for="' + input.name + '"]');
+                        if (!preview) {
+                            preview = document.createElement('div');
+                            preview.className = 'inventory-selected-preview d-flex flex-wrap gap-3 mt-3';
+                            preview.dataset.previewFor = input.name || '';
+                            input.insertAdjacentElement('afterend', preview);
+                        }
+
+                        return preview;
+                    };
 
                     const renderSelected = () => {
-                        if (!input.files || !input.files.length) {
-                            label.textContent = '';
-                            label.classList.add('d-none');
+                        if (label) {
+                            if (!input.files || !input.files.length) {
+                                label.textContent = '';
+                                label.classList.add('d-none');
+                            } else {
+                                label.textContent = input.files.length === 1
+                                    ? `Archivo seleccionado: ${input.files[0].name}`
+                                    : `${input.files.length} archivos seleccionados`;
+                                label.classList.remove('d-none');
+                            }
+                        }
+
+                        const preview = ensurePreviewContainer();
+                        if (!preview) {
                             return;
                         }
 
-                        label.textContent = input.files.length === 1
-                            ? `Archivo seleccionado: ${input.files[0].name}`
-                            : `${input.files.length} archivos seleccionados`;
-                        label.classList.remove('d-none');
+                        preview.innerHTML = '';
+                        if (!input.files?.length) {
+                            return;
+                        }
+
+                        [...input.files].forEach((file, index) => {
+                            const item = document.createElement('div');
+                            item.className = 'inventory-thumb-item position-relative';
+
+                            const image = document.createElement('img');
+                            image.className = 'inventory-thumb';
+                            image.alt = file.name;
+
+                            const removeBtn = document.createElement('button');
+                            removeBtn.type = 'button';
+                            removeBtn.className = 'btn btn-icon btn-danger btn-sm position-absolute top-0 end-0 m-1 js-remove-selected-photo';
+                            removeBtn.dataset.fileIndex = index.toString();
+                            removeBtn.dataset.targetInput = input.name || '';
+                            removeBtn.title = 'Eliminar foto';
+                            removeBtn.innerHTML = '<i class="ki-outline ki-trash fs-7"></i>';
+
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                image.src = e.target?.result || '';
+                            };
+                            reader.readAsDataURL(file);
+
+                            item.appendChild(image);
+                            item.appendChild(removeBtn);
+                            preview.appendChild(item);
+                        });
                     };
 
                     input.addEventListener('change', renderSelected);
 
-                    ['dragenter', 'dragover'].forEach((eventName) => {
-                        box.addEventListener(eventName, (event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            box.classList.add('is-dragover');
+                    if (box) {
+                        ['dragenter', 'dragover'].forEach((eventName) => {
+                            box.addEventListener(eventName, (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                box.classList.add('is-dragover');
+                            });
                         });
-                    });
 
-                    ['dragleave', 'drop'].forEach((eventName) => {
-                        box.addEventListener(eventName, (event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            box.classList.remove('is-dragover');
+                        ['dragleave', 'drop'].forEach((eventName) => {
+                            box.addEventListener(eventName, (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                box.classList.remove('is-dragover');
+                            });
                         });
-                    });
 
-                    box.addEventListener('drop', (event) => {
-                        if (!event.dataTransfer?.files?.length) {
-                            return;
-                        }
+                        box.addEventListener('drop', (event) => {
+                            if (!event.dataTransfer?.files?.length) {
+                                return;
+                            }
 
-                        input.files = event.dataTransfer.files;
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
-                    });
+                            input.files = event.dataTransfer.files;
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                        });
+                    }
+
+                    renderSelected();
                 });
             };
+
+            const monthNames = [
+                'Enero',
+                'Febrero',
+                'Marzo',
+                'Abril',
+                'Mayo',
+                'Junio',
+                'Julio',
+                'Agosto',
+                'Septiembre',
+                'Octubre',
+                'Noviembre',
+                'Diciembre',
+            ];
+
+            const toMoney = (value, fallback = 0) => {
+                const parsed = Number.parseFloat(String(value ?? '').replace(/,/g, ''));
+                if (!Number.isFinite(parsed)) {
+                    return fallback;
+                }
+
+                return Math.round(parsed * 100) / 100;
+            };
+
+            const parseIsoDate = (value) => {
+                const stringValue = String(value || '').trim();
+                const parts = stringValue.split('-');
+                if (parts.length !== 3) {
+                    return null;
+                }
+
+                const year = Number.parseInt(parts[0], 10);
+                const month = Number.parseInt(parts[1], 10);
+                const day = Number.parseInt(parts[2], 10);
+                if (!year || month < 1 || month > 12 || day < 1 || day > 31) {
+                    return null;
+                }
+
+                return { year, month, day };
+            };
+
+            const pad2 = (value) => String(value).padStart(2, '0');
+            const periodKey = (year, month) => `${year}-${pad2(month)}`;
+
+            const formatIsoDate = (year, month, day) => `${year}-${pad2(month)}-${pad2(day)}`;
+
+            const resolveDueDateForPeriod = (candidate, year, month, fallbackDay) => {
+                const parsedCandidate = parseIsoDate(candidate);
+                if (parsedCandidate && parsedCandidate.year === year && parsedCandidate.month === month) {
+                    return formatIsoDate(year, month, parsedCandidate.day);
+                }
+
+                const daysInMonth = new Date(year, month, 0).getDate();
+                return formatIsoDate(year, month, Math.min(Math.max(1, fallbackDay), daysInMonth));
+            };
+
+            const buildConceptLabel = (periodMonth, periodYear) => {
+                const monthLabel = monthNames[periodMonth - 1] || String(periodMonth);
+                return `Renta ${monthLabel} ${periodYear}`;
+            };
+
+            const normalizeExistingPlanRows = (rows) => {
+                if (!Array.isArray(rows)) {
+                    return [];
+                }
+
+                return rows
+                    .map((row) => {
+                        const month = Number.parseInt(row?.period_month, 10);
+                        const year = Number.parseInt(row?.period_year, 10);
+                        if (!month || !year || month < 1 || month > 12) {
+                            return null;
+                        }
+
+                        return {
+                            period_month: month,
+                            period_year: year,
+                            due_date: String(row?.due_date || ''),
+                            amount: toMoney(row?.amount, 0),
+                            concept: String(row?.concept || '').trim(),
+                            notes: row?.notes ? String(row.notes) : null,
+                            is_custom_amount: Boolean(row?.is_custom_amount),
+                        };
+                    })
+                    .filter(Boolean);
+            };
+
+            const buildAutoRentChargePlan = () => {
+                const starts = parseIsoDate(contractStartsInput?.value);
+                const expires = parseIsoDate(contractExpiresInput?.value);
+                if (!starts || !expires) {
+                    return [];
+                }
+
+                const startsDate = new Date(starts.year, starts.month - 1, 1);
+                const expiresDate = new Date(expires.year, expires.month - 1, 1);
+                if (startsDate > expiresDate) {
+                    return [];
+                }
+
+                const defaultAmount = toMoney(monthlyRentInput?.value, 0);
+                const baseContractDay = starts.day;
+                const existingByPeriod = new Map(
+                    rentChargePlanRows.map((row) => [periodKey(row.period_year, row.period_month), row]),
+                );
+                const builtRows = [];
+                const cursor = new Date(startsDate.getFullYear(), startsDate.getMonth(), 1);
+
+                while (cursor <= expiresDate) {
+                    const year = cursor.getFullYear();
+                    const month = cursor.getMonth() + 1;
+                    const key = periodKey(year, month);
+                    const current = existingByPeriod.get(key);
+                    const customAmount = Boolean(current?.is_custom_amount);
+                    const amount = customAmount
+                        ? toMoney(current?.amount, defaultAmount)
+                        : defaultAmount;
+                    const dueDate = resolveDueDateForPeriod(current?.due_date, year, month, baseContractDay);
+                    const concept = (current?.concept || '').trim() || buildConceptLabel(month, year);
+
+                    if (amount > 0) {
+                        builtRows.push({
+                            period_month: month,
+                            period_year: year,
+                            due_date: dueDate,
+                            amount,
+                            concept,
+                            notes: current?.notes || null,
+                            is_custom_amount: customAmount,
+                        });
+                    }
+
+                    cursor.setMonth(cursor.getMonth() + 1);
+                }
+
+                return builtRows;
+            };
+
+            const syncRentChargePlanInputs = () => {
+                if (!rentChargePlanInputsHost) {
+                    return;
+                }
+
+                rentChargePlanInputsHost.innerHTML = '';
+                rentChargePlanRows.forEach((row, index) => {
+                    const appendInput = (name, value) => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = `rent_charge_plan[${index}][${name}]`;
+                        input.value = value;
+                        rentChargePlanInputsHost.appendChild(input);
+                    };
+
+                    appendInput('period_month', row.period_month);
+                    appendInput('period_year', row.period_year);
+                    appendInput('due_date', row.due_date);
+                    appendInput('amount', toMoney(row.amount, 0).toFixed(2));
+                    appendInput('concept', row.concept || '');
+                    appendInput('is_custom_amount', row.is_custom_amount ? '1' : '0');
+
+                    if (row.notes) {
+                        appendInput('notes', row.notes);
+                    }
+                });
+            };
+
+            const renderRentChargePlan = () => {
+                if (!rentChargePlanTableBody) {
+                    return;
+                }
+
+                rentChargePlanTableBody.innerHTML = '';
+                if (!rentChargePlanRows.length) {
+                    if (rentChargePlanEmptyState) {
+                        rentChargePlanTableBody.appendChild(rentChargePlanEmptyState);
+                    } else {
+                        rentChargePlanTableBody.innerHTML = `
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-8">No hay pagos configurados.</td>
+                            </tr>
+                        `;
+                    }
+                } else {
+                    rentChargePlanRows.forEach((row, index) => {
+                        const tr = document.createElement('tr');
+
+                        const periodCell = document.createElement('td');
+                        periodCell.textContent = `${pad2(row.period_month)}/${row.period_year}`;
+                        tr.appendChild(periodCell);
+
+                        const dueDateCell = document.createElement('td');
+                        const dueDateInput = document.createElement('input');
+                        dueDateInput.type = 'date';
+                        dueDateInput.className = 'form-control form-control-sm';
+                        dueDateInput.value = row.due_date || '';
+                        dueDateInput.dataset.planField = 'due_date';
+                        dueDateInput.dataset.planIndex = String(index);
+                        dueDateCell.appendChild(dueDateInput);
+                        tr.appendChild(dueDateCell);
+
+                        const amountCell = document.createElement('td');
+                        const amountInput = document.createElement('input');
+                        amountInput.type = 'number';
+                        amountInput.min = '0.01';
+                        amountInput.step = '0.01';
+                        amountInput.className = 'form-control form-control-sm';
+                        amountInput.value = toMoney(row.amount, 0).toFixed(2);
+                        amountInput.dataset.planField = 'amount';
+                        amountInput.dataset.planIndex = String(index);
+                        amountCell.appendChild(amountInput);
+                        tr.appendChild(amountCell);
+
+                        const conceptCell = document.createElement('td');
+                        const conceptInput = document.createElement('input');
+                        conceptInput.type = 'text';
+                        conceptInput.className = 'form-control form-control-sm';
+                        conceptInput.maxLength = 190;
+                        conceptInput.value = row.concept || '';
+                        conceptInput.dataset.planField = 'concept';
+                        conceptInput.dataset.planIndex = String(index);
+                        conceptCell.appendChild(conceptInput);
+                        tr.appendChild(conceptCell);
+
+                        rentChargePlanTableBody.appendChild(tr);
+                    });
+                }
+
+                const total = rentChargePlanRows.reduce((sum, row) => sum + toMoney(row.amount, 0), 0);
+                if (rentChargePlanSummary) {
+                    if (rentChargePlanRows.length) {
+                        rentChargePlanSummary.textContent = `Total proyectado: $${total.toFixed(2)} en ${rentChargePlanRows.length} cargos.`;
+                    } else {
+                        rentChargePlanSummary.textContent = 'Configura contrato y renta mensual para generar la lista automatica.';
+                    }
+                }
+                if (rentChargePlanRowsCount) {
+                    rentChargePlanRowsCount.textContent = String(rentChargePlanRows.length);
+                }
+            };
+
+            const rebuildRentChargePlan = () => {
+                rentChargePlanRows = buildAutoRentChargePlan();
+                renderRentChargePlan();
+                syncRentChargePlanInputs();
+            };
+
+            rentChargePlanTableBody?.addEventListener('change', (event) => {
+                const target = event.target.closest('[data-plan-field]');
+                if (!target) {
+                    return;
+                }
+
+                const index = Number.parseInt(target.dataset.planIndex || '-1', 10);
+                if (!Number.isInteger(index) || !rentChargePlanRows[index]) {
+                    return;
+                }
+
+                const row = rentChargePlanRows[index];
+                const field = target.dataset.planField;
+                if (field === 'amount') {
+                    row.amount = toMoney(target.value, row.amount);
+                    row.is_custom_amount = true;
+                } else if (field === 'due_date') {
+                    row.due_date = String(target.value || '').trim();
+                } else if (field === 'concept') {
+                    row.concept = String(target.value || '').trim();
+                }
+
+                syncRentChargePlanInputs();
+                renderRentChargePlan();
+            });
+
+            monthlyRentInput?.addEventListener('input', rebuildRentChargePlan);
+            contractStartsInput?.addEventListener('change', rebuildRentChargePlan);
+            contractExpiresInput?.addEventListener('change', rebuildRentChargePlan);
+
+            rentChargePlanRows = normalizeExistingPlanRows(initialRentChargePlan);
+            rebuildRentChargePlan();
 
             const ownersSearchInput = document.getElementById('owners-search-input');
             const ownerOptionItems = [...document.querySelectorAll('.owner-option-item')];
@@ -1476,6 +1878,22 @@
             const areaTemplate = document.getElementById('inventory-area-template').innerHTML;
             const addAreaBtn = document.getElementById('add-area-btn');
             let areaIndex = areasContainer.querySelectorAll('.inventory-area').length;
+            const markedAreaPhotoIds = new Set(
+                [...removalsContainer.querySelectorAll('input[name="removed_area_photo_ids[]"]')]
+                    .map((input) => input.value)
+            );
+            const markedItemPhotoIds = new Set(
+                [...removalsContainer.querySelectorAll('input[name="removed_item_photo_ids[]"]')]
+                    .map((input) => input.value)
+            );
+
+            const appendRemovalInput = (name, value) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                removalsContainer.appendChild(input);
+            };
 
             const refreshAreaButtons = () => {
                 const areas = areasContainer.querySelectorAll('.inventory-area');
@@ -1539,6 +1957,82 @@
                 areaIndex = 1;
                 refreshAreaButtons();
                 initDropInputs(areasContainer);
+            });
+
+            form.addEventListener('click', async (event) => {
+                const removeExistingBtn = event.target.closest('.js-remove-existing-photo');
+                if (removeExistingBtn) {
+                    const confirmed = await confirmWithSwal({
+                        title: 'Eliminar imagen',
+                        text: 'La imagen se eliminara al guardar los cambios del inventario.',
+                        confirmButtonText: 'Si, eliminar',
+                        cancelButtonText: 'Cancelar',
+                    });
+
+                    if (!confirmed) {
+                        return;
+                    }
+
+                    const photoId = (removeExistingBtn.dataset.photoId || '').trim();
+                    const photoType = removeExistingBtn.dataset.photoType || '';
+                    if (!photoId) {
+                        return;
+                    }
+
+                    if (photoType === 'area') {
+                        if (!markedAreaPhotoIds.has(photoId)) {
+                            markedAreaPhotoIds.add(photoId);
+                            appendRemovalInput('removed_area_photo_ids[]', photoId);
+                        }
+                    } else if (photoType === 'item') {
+                        if (!markedItemPhotoIds.has(photoId)) {
+                            markedItemPhotoIds.add(photoId);
+                            appendRemovalInput('removed_item_photo_ids[]', photoId);
+                        }
+                    }
+
+                    removeExistingBtn.closest('.inventory-thumb-item')?.remove();
+                    showToast('success', 'Imagen marcada para eliminacion.');
+                    return;
+                }
+
+                const removeSelectedBtn = event.target.closest('.js-remove-selected-photo');
+                if (!removeSelectedBtn) {
+                    return;
+                }
+
+                const confirmed = await confirmWithSwal({
+                    title: 'Quitar imagen seleccionada',
+                    text: 'La imagen se quitara de esta carga.',
+                    confirmButtonText: 'Si, quitar',
+                    cancelButtonText: 'Cancelar',
+                });
+
+                if (!confirmed) {
+                    return;
+                }
+
+                const targetInputName = removeSelectedBtn.dataset.targetInput || '';
+                const fileIndex = Number(removeSelectedBtn.dataset.fileIndex ?? -1);
+                if (!targetInputName || Number.isNaN(fileIndex) || fileIndex < 0) {
+                    return;
+                }
+
+                const targetInput = [...form.querySelectorAll('input[type="file"]')]
+                    .find((input) => input.name === targetInputName);
+                if (!targetInput?.files?.length) {
+                    return;
+                }
+
+                const dt = new DataTransfer();
+                [...targetInput.files].forEach((file, index) => {
+                    if (index !== fileIndex) {
+                        dt.items.add(file);
+                    }
+                });
+                targetInput.files = dt.files;
+                targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+                showToast('success', 'Imagen eliminada de la seleccion.');
             });
 
             areasContainer.addEventListener('click', (event) => {
@@ -1643,6 +2137,7 @@
 
             form.addEventListener('submit', async (event) => {
                 event.preventDefault();
+                syncRentChargePlanInputs();
                 syncEditors();
                 clearAjaxErrors();
                 setSubmittingState(true);

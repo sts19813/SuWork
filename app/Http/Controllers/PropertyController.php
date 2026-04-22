@@ -3,18 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePropertyRequest;
+use App\Models\Charge;
+use App\Models\ChargePayment;
 use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
 use App\Models\PropertyInventoryItemPhoto;
+use App\Models\PropertyInventoryPhoto;
 use App\Models\PropertyType;
 use App\Models\Tenant;
+use App\Models\TenantDocument;
 use App\Models\Zone;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -130,10 +137,49 @@ class PropertyController extends Controller
     {
         $request->validate([
             'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
+            'force_assignment' => ['nullable', 'boolean'],
         ]);
 
         $tenantId = $request->input('tenant_id');
-        $tenant = $tenantId ? Tenant::query()->find($tenantId) : null;
+        $tenant = $tenantId
+            ? Tenant::query()
+                ->with(['documents' => fn($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
+                ->find($tenantId)
+            : null;
+        $requestedTenantId = $tenant?->id;
+        $isChangingTenant = (int) ($property->tenant_id ?? 0) !== (int) ($requestedTenantId ?? 0);
+
+        if ($isChangingTenant && $property->tenant_id) {
+            $hasOpenCharges = Charge::query()
+                ->where('property_id', $property->id)
+                ->whereIn('status', [
+                    Charge::STATUS_PENDING,
+                    Charge::STATUS_PARTIAL,
+                    Charge::STATUS_IN_VALIDATION,
+                ])
+                ->exists();
+            $hasOverdueCharges = Charge::query()
+                ->where('property_id', $property->id)
+                ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL])
+                ->whereDate('due_date', '<', now()->toDateString())
+                ->exists();
+
+            if ($hasOpenCharges || $hasOverdueCharges) {
+                return redirect()
+                    ->back()
+                    ->with('warning', 'No es posible cambiar el inquilino mientras existan cargos pendientes, en validación o vencidos.');
+            }
+        }
+
+        if ($tenant && !$request->boolean('force_assignment')) {
+            $missingRequirements = $this->getTenantAssignmentMissingRequirements($tenant);
+            if (!empty($missingRequirements)) {
+                return redirect()
+                    ->back()
+                    ->withInput()
+                    ->with('warning', $this->formatTenantAssignmentWarning($tenant, $missingRequirements));
+            }
+        }
 
         $property->update([
             'tenant_id' => $tenant?->id,
@@ -148,12 +194,16 @@ class PropertyController extends Controller
         $property->load([
             'type',
             'zone',
-            'owners',
-            'documents.versions', 
+            'owners.documents.versions',
+            'documents.versions',
             'inventoryAreas.items.photos',
             'inventoryAreas.photos',
-            'tenant',
+            'tenant.documents.versions',
         ]);
+        $propertyChangeLogs = $property->changeLogs()
+            ->with('user:id,name')
+            ->limit(250)
+            ->get();
 
         $documents = collect(PropertyDocument::REQUIRED_DOCUMENTS)
             ->map(function (string $label, string $type) use ($property) {
@@ -169,16 +219,181 @@ class PropertyController extends Controller
             ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
             ->values();
 
+        $tenantDocuments = collect();
+        $tenantCustomDocuments = collect();
+
+        if ($property->tenant) {
+            $tenantDocuments = collect(TenantDocument::REQUIRED_DOCUMENTS)
+                ->map(function (string $label, string $type) use ($property) {
+                    return $property->tenant->documents->firstWhere('document_type', $type)
+                        ?? new TenantDocument([
+                            'document_type' => $type,
+                            'label' => $label,
+                            'status' => TenantDocument::STATUS_PENDING,
+                        ]);
+                });
+
+            $tenantCustomDocuments = $property->tenant->documents
+                ->whereNotIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))
+                ->values();
+        }
+
         $tenants = Tenant::query()
+            ->with(['documents' => fn($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
             ->orderBy('full_name')
             ->get();
+
+        $tenantAssignmentChecks = $tenants
+            ->mapWithKeys(function (Tenant $tenant): array {
+                $missing = $this->getTenantAssignmentMissingRequirements($tenant);
+
+                return [
+                    (string) $tenant->id => [
+                        'missing' => $missing,
+                        'is_complete' => empty($missing),
+                    ],
+                ];
+            })
+            ->all();
+
+        $propertyCharges = Charge::query()
+            ->with('tenant:id,full_name')
+            ->where('property_id', $property->id)
+            ->orderBy('due_date', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $rentChargesTotal = Charge::query()
+            ->where('property_id', $property->id)
+            ->where('type', Charge::TYPE_RENT)
+            ->where('status', '!=', Charge::STATUS_CANCELED)
+            ->count();
+
+        $rentChargesPaid = Charge::query()
+            ->where('property_id', $property->id)
+            ->where('type', Charge::TYPE_RENT)
+            ->where('status', Charge::STATUS_PAID)
+            ->count();
+
+        $chargesPorCobrar = Charge::query()
+            ->where('property_id', $property->id)
+            ->whereIn('status', [
+                Charge::STATUS_PENDING,
+                Charge::STATUS_PARTIAL,
+                Charge::STATUS_IN_VALIDATION,
+            ])
+            ->count();
+
+        $chargesVencidos = Charge::query()
+            ->where('property_id', $property->id)
+            ->whereIn('status', [
+                Charge::STATUS_PENDING,
+                Charge::STATUS_PARTIAL,
+            ])
+            ->whereDate('due_date', '<', now()->toDateString())
+            ->count();
+
+        $chargesPendingValidation = Charge::query()
+            ->where('property_id', $property->id)
+            ->where('status', Charge::STATUS_IN_VALIDATION)
+            ->count();
+
+        $paidThroughDate = Charge::query()
+            ->where('property_id', $property->id)
+            ->where('status', Charge::STATUS_PAID)
+            ->orderByDesc('due_date')
+            ->value('due_date');
+        $propertyPendingAmount = (float) Charge::query()
+            ->where('property_id', $property->id)
+            ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
+            ->sum('amount')
+            - (float) Charge::query()
+                ->where('property_id', $property->id)
+                ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
+                ->sum('paid_amount');
+        $propertyOverdueAmount = (float) Charge::query()
+            ->where('property_id', $property->id)
+            ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL])
+            ->whereDate('due_date', '<', now()->toDateString())
+            ->sum('amount')
+            - (float) Charge::query()
+                ->where('property_id', $property->id)
+                ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL])
+                ->whereDate('due_date', '<', now()->toDateString())
+                ->sum('paid_amount');
+        $propertyCollectedMonthAmount = (float) ChargePayment::query()
+            ->whereHas('charge', fn($query) => $query->where('property_id', $property->id))
+            ->where('status', ChargePayment::STATUS_SUCCEEDED)
+            ->whereYear('paid_at', now()->year)
+            ->whereMonth('paid_at', now()->month)
+            ->sum('amount');
+        $propertyPendingValidationCount = ChargePayment::query()
+            ->whereHas('charge', fn($query) => $query->where('property_id', $property->id))
+            ->where('status', ChargePayment::STATUS_PENDING_VALIDATION)
+            ->count();
+        $propertyOpenChargesCount = Charge::query()
+            ->where('property_id', $property->id)
+            ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
+            ->count();
+        $canReassignTenant = !$property->tenant_id || ($propertyOpenChargesCount === 0 && (int) $chargesVencidos === 0);
 
         return view('properties.show', [
             'property' => $property,
             'documents' => $documents,
             'customDocuments' => $customDocuments,
+            'tenantDocuments' => $tenantDocuments,
+            'tenantCustomDocuments' => $tenantCustomDocuments,
             'tenants' => $tenants,
+            'tenantAssignmentChecks' => $tenantAssignmentChecks,
+            'propertyCharges' => $propertyCharges,
+            'rentChargesTotal' => $rentChargesTotal,
+            'rentChargesPaid' => $rentChargesPaid,
+            'chargesPorCobrar' => $chargesPorCobrar,
+            'chargesVencidos' => $chargesVencidos,
+            'chargesPendingValidation' => $chargesPendingValidation,
+            'paidThroughDate' => $paidThroughDate ? Carbon::parse($paidThroughDate) : null,
+            'propertyPendingAmount' => max(0, $propertyPendingAmount),
+            'propertyOverdueAmount' => max(0, $propertyOverdueAmount),
+            'propertyCollectedMonthAmount' => max(0, $propertyCollectedMonthAmount),
+            'propertyPendingValidationCount' => (int) $propertyPendingValidationCount,
+            'propertyCurrentMonthLabel' => Carbon::create(now()->year, now()->month, 1)->translatedFormat('M Y'),
+            'canReassignTenant' => $canReassignTenant,
+            'propertyChangeLogs' => $propertyChangeLogs,
+            'propertyChangeFieldLabels' => $this->propertyChangeFieldLabels(),
         ]);
+    }
+
+    private function propertyChangeFieldLabels(): array
+    {
+        return [
+            'internal_name' => 'Nombre interno',
+            'internal_reference' => 'Referencia interna',
+            'property_type_id' => 'Tipo de propiedad',
+            'zone_id' => 'Zona',
+            'zone_text' => 'Zona (texto)',
+            'full_address' => 'Direccion completa',
+            'map_url' => 'URL de mapa',
+            'complex_name' => 'Complejo o privada',
+            'official_number' => 'Numero oficial',
+            'unit_number' => 'Numero de unidad',
+            'monthly_rent_price' => 'Renta mensual',
+            'charge_day' => 'Dia de cobro',
+            'charge_tolerance_days' => 'Tolerancia de cobro',
+            'maintenance_fee' => 'Cuota de mantenimiento',
+            'rent_charge_plan' => 'Plan de cobro de renta',
+            'facade_photo_path' => 'Foto de fachada',
+            'details' => 'Detalles',
+            'description' => 'Descripcion',
+            'rental_requirements' => 'Requisitos de renta',
+            'amenities' => 'Amenidades',
+            'status' => 'Estatus',
+            'tenant_id' => 'Inquilino',
+            'current_tenant_name' => 'Nombre inquilino actual',
+            'charge_deleted' => 'Cargo eliminado',
+            'contract_starts_at' => 'Contrato inicia',
+            'contract_expires_at' => 'Contrato vence',
+            'onboarding_step' => 'Paso onboarding',
+        ];
     }
 
     private function formViewData(?Property $property = null, bool $isEdit = false): array
@@ -217,10 +432,7 @@ class PropertyController extends Controller
 
         return DB::transaction(function () use ($request, $validated, $property) {
             $property = $property ?? new Property();
-            $tenantId = $validated['tenant_id'] ?? null;
-            $tenant = $tenantId ? Tenant::query()->find($tenantId) : null;
-
-            $property->fill([
+            $data = [
                 'internal_name' => $validated['internal_name'],
                 'internal_reference' => $validated['internal_reference'] ?? null,
                 'property_type_id' => $validated['property_type_id'],
@@ -236,13 +448,29 @@ class PropertyController extends Controller
                 'rental_requirements' => $validated['rental_requirements'] ?? null,
                 'amenities' => $validated['amenities'] ?? null,
                 'status' => $validated['status'],
-                'tenant_id' => $tenant?->id,
-                'current_tenant_name' => $tenant?->full_name ?? null,
-                'contract_expires_at' => $validated['contract_expires_at'] ?? null,
                 'onboarding_step' => 5,
                 'monthly_rent_price' => $validated['monthly_rent_price'] ?? null,
                 'maintenance_fee' => $validated['maintenance_fee'] ?? null,
-            ]);
+            ];
+
+            if (array_key_exists('tenant_id', $validated)) {
+                $tenantId = $validated['tenant_id'] ?? null;
+                $tenant = $tenantId ? Tenant::query()->find($tenantId) : null;
+                $data['tenant_id'] = $tenant?->id;
+                $data['current_tenant_name'] = $tenant?->full_name ?? null;
+            }
+
+            if (
+                array_key_exists('contract_starts_at', $validated) ||
+                array_key_exists('contract_expires_at', $validated) ||
+                array_key_exists('rent_charge_plan', $validated)
+            ) {
+                $data['contract_starts_at'] = $validated['contract_starts_at'] ?? null;
+                $data['contract_expires_at'] = $validated['contract_expires_at'] ?? null;
+                $data['rent_charge_plan'] = $this->buildRentChargePlan($validated, $property);
+            }
+
+            $property->fill($data);
 
             if (!$property->exists) {
                 $property->created_by = $request->user()->id;
@@ -263,9 +491,270 @@ class PropertyController extends Controller
             $this->syncDocuments($property, $request);
             $this->syncCustomDocuments($property, $request);
             $this->syncInventory($property, $validated['inventory_areas'] ?? [], $request);
+            $this->syncRentChargesFromPlan($property, $request->user()?->id);
 
             return $property->fresh();
         });
+    }
+
+    private function getTenantAssignmentMissingRequirements(Tenant $tenant): array
+    {
+        $missing = [];
+        $checks = [
+            'full_name' => 'Nombre completo',
+            'email' => 'Email',
+            'phone_primary' => 'Telefono principal',
+            'personal_reference_name' => 'Referencia personal - nombre',
+            'personal_reference_phone' => 'Referencia personal - tel',
+        ];
+
+        foreach ($checks as $field => $label) {
+            if (blank($tenant->{$field})) {
+                $missing[] = $label;
+            }
+        }
+
+        $documentsByType = $tenant->relationLoaded('documents')
+            ? $tenant->documents->keyBy('document_type')
+            : $tenant->documents()
+                ->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))
+                ->get()
+                ->keyBy('document_type');
+
+        foreach (TenantDocument::REQUIRED_DOCUMENTS as $documentType => $label) {
+            $document = $documentsByType->get($documentType);
+            $hasUploadedFile = filled($document?->file_path);
+            $isRejectedOrExpired = in_array(
+                $document?->status,
+                [TenantDocument::STATUS_REJECTED, TenantDocument::STATUS_EXPIRED],
+                true,
+            );
+
+            if (!$hasUploadedFile || $isRejectedOrExpired) {
+                $missing[] = 'Documento: ' . $label;
+            }
+        }
+
+        return array_values(array_unique($missing));
+    }
+
+    private function formatTenantAssignmentWarning(Tenant $tenant, array $missingRequirements): string
+    {
+        return sprintf(
+            'El inquilino %s tiene informacion/documentacion incompleta: %s. Si deseas continuar, confirma de nuevo la asignacion.',
+            $tenant->full_name,
+            implode(', ', $missingRequirements),
+        );
+    }
+
+    private function syncRentChargesFromPlan(Property $property, ?int $userId): void
+    {
+        if (!$property->tenant_id) {
+            return;
+        }
+
+        $planRows = collect($property->rent_charge_plan ?? [])
+            ->filter(fn($row) => is_array($row))
+            ->values();
+
+        foreach ($planRows as $row) {
+            $periodMonth = (int) ($row['period_month'] ?? 0);
+            $periodYear = (int) ($row['period_year'] ?? 0);
+            $amount = (float) ($row['amount'] ?? 0);
+
+            if ($periodMonth < 1 || $periodMonth > 12 || $periodYear < 2000 || $amount <= 0) {
+                continue;
+            }
+
+            $alreadyExists = Charge::query()
+                ->where('property_id', $property->id)
+                ->where('tenant_id', $property->tenant_id)
+                ->where('type', Charge::TYPE_RENT)
+                ->where('period_month', $periodMonth)
+                ->where('period_year', $periodYear)
+                ->exists();
+
+            if ($alreadyExists) {
+                continue;
+            }
+
+            Charge::create([
+                'property_id' => $property->id,
+                'tenant_id' => $property->tenant_id,
+                'type' => Charge::TYPE_RENT,
+                'due_date' => (string) ($row['due_date'] ?? now()->toDateString()),
+                'amount' => $amount,
+                'paid_amount' => 0,
+                'period_month' => $periodMonth,
+                'period_year' => $periodYear,
+                'concept' => (string) ($row['concept'] ?? $this->buildRentChargeConcept($periodMonth, $periodYear)),
+                'notes' => filled($row['notes'] ?? null) ? (string) $row['notes'] : 'Generado automaticamente por contrato.',
+                'status' => Charge::STATUS_PENDING,
+                'created_by' => $userId,
+            ]);
+        }
+    }
+
+    private function buildRentChargePlan(array $validated, ?Property $property = null): array
+    {
+        $startsAt = $this->parseDate($validated['contract_starts_at'] ?? null);
+        $expiresAt = $this->parseDate($validated['contract_expires_at'] ?? null);
+
+        if (!$startsAt || !$expiresAt) {
+            return [];
+        }
+
+        $contractDay = (int) $startsAt->day;
+        $startsAt = $startsAt->startOfMonth();
+        $expiresAt = $expiresAt->startOfMonth();
+        if ($startsAt->gt($expiresAt)) {
+            return [];
+        }
+
+        $rentPrice = (float) ($validated['monthly_rent_price'] ?? 0);
+
+        $submittedRows = collect($validated['rent_charge_plan'] ?? [])
+            ->filter(fn($row) => is_array($row))
+            ->map(fn(array $row) => $this->normalizeRentChargePlanRow($row))
+            ->filter()
+            ->keyBy(fn(array $row) => $this->chargePlanPeriodKey((int) $row['period_year'], (int) $row['period_month']));
+
+        $existingRows = collect($property?->rent_charge_plan ?? [])
+            ->filter(fn($row) => is_array($row))
+            ->map(fn(array $row) => $this->normalizeRentChargePlanRow($row))
+            ->filter()
+            ->keyBy(fn(array $row) => $this->chargePlanPeriodKey((int) $row['period_year'], (int) $row['period_month']));
+
+        $rows = [];
+        $cursor = $startsAt->copy();
+
+        while ($cursor->lte($expiresAt)) {
+            $periodMonth = (int) $cursor->month;
+            $periodYear = (int) $cursor->year;
+            $periodKey = $this->chargePlanPeriodKey($periodYear, $periodMonth);
+
+            /** @var array|null $submittedRow */
+            $submittedRow = $submittedRows->get($periodKey);
+            /** @var array|null $existingRow */
+            $existingRow = $existingRows->get($periodKey);
+            $sourceRow = $submittedRow ?? $existingRow ?? [];
+
+            $isCustomAmount = (bool) ($sourceRow['is_custom_amount'] ?? false);
+            $amount = $isCustomAmount
+                ? (float) ($sourceRow['amount'] ?? 0)
+                : $rentPrice;
+            if ($amount <= 0 && isset($sourceRow['amount']) && is_numeric($sourceRow['amount'])) {
+                $amount = (float) $sourceRow['amount'];
+            }
+            if ($amount <= 0) {
+                $cursor->addMonthNoOverflow()->startOfMonth();
+                continue;
+            }
+
+            $defaultDueDate = $cursor->copy()->day(min($contractDay, $cursor->daysInMonth))->toDateString();
+            $dueDate = $this->resolveRentChargeDueDate(
+                $sourceRow['due_date'] ?? null,
+                $cursor,
+                $defaultDueDate,
+            );
+
+            $concept = trim((string) ($sourceRow['concept'] ?? ''));
+            if ($concept === '') {
+                $concept = $this->buildRentChargeConcept($periodMonth, $periodYear);
+            }
+
+            $notes = trim((string) ($sourceRow['notes'] ?? ''));
+
+            $rows[] = [
+                'type' => 'rent',
+                'period_month' => $periodMonth,
+                'period_year' => $periodYear,
+                'due_date' => $dueDate,
+                'amount' => round($amount, 2),
+                'concept' => $concept,
+                'notes' => $notes !== '' ? $notes : null,
+                'is_custom_amount' => $isCustomAmount,
+            ];
+
+            $cursor->addMonthNoOverflow()->startOfMonth();
+        }
+
+        return $rows;
+    }
+
+    private function normalizeRentChargePlanRow(array $row): ?array
+    {
+        $periodMonth = (int) ($row['period_month'] ?? 0);
+        $periodYear = (int) ($row['period_year'] ?? 0);
+        if ($periodMonth < 1 || $periodMonth > 12 || $periodYear < 1900) {
+            return null;
+        }
+
+        $amount = isset($row['amount']) && is_numeric($row['amount'])
+            ? (float) $row['amount']
+            : null;
+
+        return [
+            'period_month' => $periodMonth,
+            'period_year' => $periodYear,
+            'due_date' => filled($row['due_date'] ?? null) ? (string) $row['due_date'] : null,
+            'amount' => $amount,
+            'concept' => filled($row['concept'] ?? null) ? trim((string) $row['concept']) : null,
+            'notes' => filled($row['notes'] ?? null) ? trim((string) $row['notes']) : null,
+            'is_custom_amount' => (bool) ($row['is_custom_amount'] ?? false),
+        ];
+    }
+
+    private function parseDate(mixed $value): ?Carbon
+    {
+        if (!filled($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse((string) $value);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function resolveRentChargeDueDate(?string $dueDate, Carbon $periodDate, string $defaultDueDate): string
+    {
+        $parsedDueDate = $this->parseDate($dueDate);
+        if (
+            !$parsedDueDate ||
+            (int) $parsedDueDate->month !== (int) $periodDate->month ||
+            (int) $parsedDueDate->year !== (int) $periodDate->year
+        ) {
+            return $defaultDueDate;
+        }
+
+        return $parsedDueDate->toDateString();
+    }
+
+    private function chargePlanPeriodKey(int $periodYear, int $periodMonth): string
+    {
+        return sprintf('%04d-%02d', $periodYear, $periodMonth);
+    }
+
+    private function buildRentChargeConcept(int $periodMonth, int $periodYear): string
+    {
+        $monthNames = [
+            1 => 'Enero',
+            2 => 'Febrero',
+            3 => 'Marzo',
+            4 => 'Abril',
+            5 => 'Mayo',
+            6 => 'Junio',
+            7 => 'Julio',
+            8 => 'Agosto',
+            9 => 'Septiembre',
+            10 => 'Octubre',
+            11 => 'Noviembre',
+            12 => 'Diciembre',
+        ];
+
+        return 'Renta ' . ($monthNames[$periodMonth] ?? (string) $periodMonth) . ' ' . $periodYear;
     }
 
     private function syncOwners(Property $property, array $ownerIds, array $newOwners): void
@@ -463,7 +952,20 @@ class PropertyController extends Controller
 
     private function syncInventory(Property $property, array $inventoryAreas, StorePropertyRequest $request): void
     {
-        $existingAreaIds = $property->inventoryAreas()->pluck('id')->toArray();
+        $removedAreaPhotoIds = collect((array) $request->input('removed_area_photo_ids', []))
+            ->map(fn($id) => (int) $id)
+            ->filter()
+            ->values()
+            ->all();
+        $removedItemPhotoIds = collect((array) $request->input('removed_item_photo_ids', []))
+            ->map(fn($id) => (int) $id)
+            ->filter()
+            ->values()
+            ->all();
+
+        $this->deleteRequestedAreaPhotos($property, $removedAreaPhotoIds);
+        $this->deleteRequestedItemPhotos($property, $removedItemPhotoIds);
+
         $processedAreaIds = [];
 
         foreach ($inventoryAreas as $areaIndex => $areaData) {
@@ -478,7 +980,6 @@ class PropertyController extends Controller
 
             $processedAreaIds[] = $area->id;
 
-            $existingItemIds = $area->items()->pluck('id')->toArray();
             $processedItemIds = [];
 
             foreach ($areaData['items'] ?? [] as $itemIndex => $itemData) {
@@ -508,35 +1009,347 @@ class PropertyController extends Controller
                         'status' => PropertyInventoryItemPhoto::STATUS_ACTIVE,
                     ]);
 
-                    $filePath = $photo->store("properties/{$property->id}/inventory/items/{$item->id}", 'public');
+                    $storedPhoto = $this->storeCompressedInventoryImage(
+                        $photo,
+                        "properties/{$property->id}/inventory/items/{$item->id}",
+                    );
 
                     $photoRecord->versions()->create([
-                        'file_path' => $filePath,
+                        'file_path' => $storedPhoto['path'],
                         'file_name' => $photo->getClientOriginalName(),
-                        'mime_type' => $photo->getClientMimeType(),
-                        'file_size' => $photo->getSize(),
+                        'mime_type' => $storedPhoto['mime_type'],
+                        'file_size' => $storedPhoto['file_size'],
                         'uploaded_by' => $request->user()->id,
                     ]);
                 }
             }
 
             if (!empty($areaData['items'])) {
-                $area->items()
+                $itemsToDelete = $area->items()
                     ->whereNotIn('id', $processedItemIds)
-                    ->delete();
+                    ->with('photos.versions')
+                    ->get();
+
+                foreach ($itemsToDelete as $itemToDelete) {
+                    $this->deleteItemPhotoFiles($itemToDelete->photos);
+                }
+
+                if ($itemsToDelete->isNotEmpty()) {
+                    $area->items()
+                        ->whereIn('id', $itemsToDelete->pluck('id'))
+                        ->delete();
+                }
             }
             // FOTOS DEL ÁREA
             foreach ($request->file("inventory_areas.{$areaIndex}.photos", []) as $photoIndex => $photo) {
-                $filePath = $photo->store("properties/{$property->id}/inventory/{$area->id}", 'public');
+                $storedPhoto = $this->storeCompressedInventoryImage(
+                    $photo,
+                    "properties/{$property->id}/inventory/{$area->id}",
+                );
 
                 $area->photos()->create([
-                    'file_path' => $filePath,
+                    'file_path' => $storedPhoto['path'],
                     'display_order' => $photoIndex,
                 ]);
             }
         }
 
-        $property->inventoryAreas()->whereNotIn('id', $processedAreaIds)->delete();
+        $areasToDeleteQuery = $property->inventoryAreas();
+        if (!empty($processedAreaIds)) {
+            $areasToDeleteQuery->whereNotIn('id', $processedAreaIds);
+        }
+
+        $areasToDelete = $areasToDeleteQuery
+            ->with(['photos', 'items.photos.versions'])
+            ->get();
+
+        foreach ($areasToDelete as $areaToDelete) {
+            $this->deleteAreaPhotoFiles($areaToDelete->photos);
+
+            foreach ($areaToDelete->items as $itemToDelete) {
+                $this->deleteItemPhotoFiles($itemToDelete->photos);
+            }
+        }
+
+        if ($areasToDelete->isNotEmpty()) {
+            $property->inventoryAreas()->whereIn('id', $areasToDelete->pluck('id'))->delete();
+        }
+    }
+
+    /**
+     * Guarda una imagen de inventario aplicando compresion proporcional.
+     * Si no es posible procesarla, guarda el archivo original sin transformacion.
+     *
+     * @return array{path: string, mime_type: string, file_size: int}
+     */
+    private function storeCompressedInventoryImage(UploadedFile $photo, string $directory): array
+    {
+        $encoded = $this->encodeCompressedInventoryImage($photo);
+
+        if ($encoded === null) {
+            $path = $photo->store($directory, 'public');
+
+            return [
+                'path' => $path,
+                'mime_type' => $photo->getClientMimeType() ?: 'application/octet-stream',
+                'file_size' => (int) ($photo->getSize() ?: 0),
+            ];
+        }
+
+        $path = trim($directory, '/') . '/' . Str::uuid() . '.' . $encoded['extension'];
+        Storage::disk('public')->put($path, $encoded['binary']);
+
+        return [
+            'path' => $path,
+            'mime_type' => $encoded['mime_type'],
+            'file_size' => strlen($encoded['binary']),
+        ];
+    }
+
+    /**
+     * Convierte una imagen a WEBP/JPG variando escala y calidad para acercarse
+     * al peso objetivo configurado.
+     *
+     * @return array{binary: string, extension: string, mime_type: string}|null
+     */
+    private function encodeCompressedInventoryImage(UploadedFile $photo): ?array
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            return null;
+        }
+
+        $sourcePath = $photo->getRealPath();
+        if (!$sourcePath) {
+            return null;
+        }
+
+        $imageInfo = @getimagesize($sourcePath);
+        if ($imageInfo === false) {
+            return null;
+        }
+
+        $sourceWidth = (int) ($imageInfo[0] ?? 0);
+        $sourceHeight = (int) ($imageInfo[1] ?? 0);
+        $imageType = (int) ($imageInfo[2] ?? 0);
+        if ($sourceWidth < 1 || $sourceHeight < 1) {
+            return null;
+        }
+
+        $sourceImage = $this->createImageResource($sourcePath, $imageType);
+        if (!$sourceImage) {
+            return null;
+        }
+
+        $largestSide = max($sourceWidth, $sourceHeight);
+        $maxDimension = $this->getInventoryImageMaxDimension();
+        $baseScale = $largestSide > $maxDimension
+            ? $maxDimension / $largestSide
+            : 1;
+
+        $baseWidth = max(1, (int) round($sourceWidth * $baseScale));
+        $baseHeight = max(1, (int) round($sourceHeight * $baseScale));
+
+        $scaleSteps = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3];
+        $qualitySteps = [82, 76, 70, 64, 58, 52, 46, 40];
+        $bestMatch = null;
+
+        try {
+            foreach ($scaleSteps as $scale) {
+                $targetWidth = max(1, (int) round($baseWidth * $scale));
+                $targetHeight = max(1, (int) round($baseHeight * $scale));
+
+                $resizedImage = imagecreatetruecolor($targetWidth, $targetHeight);
+                if (!$resizedImage) {
+                    continue;
+                }
+
+                imagealphablending($resizedImage, false);
+                imagesavealpha($resizedImage, true);
+                $transparent = imagecolorallocatealpha($resizedImage, 255, 255, 255, 127);
+                imagefilledrectangle($resizedImage, 0, 0, $targetWidth, $targetHeight, $transparent);
+
+                imagecopyresampled(
+                    $resizedImage,
+                    $sourceImage,
+                    0,
+                    0,
+                    0,
+                    0,
+                    $targetWidth,
+                    $targetHeight,
+                    $sourceWidth,
+                    $sourceHeight,
+                );
+
+                foreach ($qualitySteps as $quality) {
+                    $encoded = $this->encodeImageBinary($resizedImage, $quality);
+                    if ($encoded === null || $encoded['binary'] === '') {
+                        continue;
+                    }
+
+                    if ($bestMatch === null || strlen($encoded['binary']) < strlen($bestMatch['binary'])) {
+                        $bestMatch = $encoded;
+                    }
+
+                    if (strlen($encoded['binary']) <= $this->getInventoryImageMaxBytes()) {
+                        imagedestroy($resizedImage);
+
+                        return $encoded;
+                    }
+                }
+
+                imagedestroy($resizedImage);
+            }
+        } finally {
+            imagedestroy($sourceImage);
+        }
+
+        return $bestMatch;
+    }
+
+    /**
+     * Crea el recurso GD en memoria segun el tipo de imagen recibido.
+     *
+     * @return \GdImage|resource|null
+     */
+    private function createImageResource(string $sourcePath, int $imageType)
+    {
+        return match ($imageType) {
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($sourcePath),
+            IMAGETYPE_PNG => @imagecreatefrompng($sourcePath),
+            IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($sourcePath) : null,
+            default => null,
+        };
+    }
+
+    /**
+     * Codifica la imagen en WEBP (si esta disponible) o JPEG como respaldo.
+     *
+     * @return array{binary: string, extension: string, mime_type: string}|null
+     */
+    private function encodeImageBinary($image, int $quality): ?array
+    {
+        if (function_exists('imagewebp')) {
+            ob_start();
+            $encoded = @imagewebp($image, null, $quality);
+            $binary = (string) ob_get_clean();
+
+            if ($encoded && $binary !== '') {
+                return [
+                    'binary' => $binary,
+                    'extension' => 'webp',
+                    'mime_type' => 'image/webp',
+                ];
+            }
+        }
+
+        ob_start();
+        $encoded = @imagejpeg($image, null, $quality);
+        $binary = (string) ob_get_clean();
+
+        if (!$encoded || $binary === '') {
+            return null;
+        }
+
+        return [
+            'binary' => $binary,
+            'extension' => 'jpg',
+            'mime_type' => 'image/jpeg',
+        ];
+    }
+
+    /**
+     * Obtiene de configuracion el peso maximo permitido por imagen (bytes).
+     */
+    private function getInventoryImageMaxBytes(): int
+    {
+        return max(10240, (int) config('inventory.image_max_bytes', 512000));
+    }
+
+    /**
+     * Obtiene de configuracion la dimension maxima del lado mayor en pixeles.
+     */
+    private function getInventoryImageMaxDimension(): int
+    {
+        return max(400, (int) config('inventory.image_max_dimension', 2200));
+    }
+
+    /**
+     * Elimina fotos de area solicitadas por el usuario y su archivo en disco.
+     *
+     * @param  array<int>  $photoIds
+     */
+    private function deleteRequestedAreaPhotos(Property $property, array $photoIds): void
+    {
+        if (empty($photoIds)) {
+            return;
+        }
+
+        $photos = PropertyInventoryPhoto::query()
+            ->whereIn('id', $photoIds)
+            ->whereHas('area', fn($query) => $query->where('property_id', $property->id))
+            ->get();
+
+        $this->deleteAreaPhotoFiles($photos);
+        $photos->each->delete();
+    }
+
+    /**
+     * Elimina fotos de item solicitadas por el usuario y sus archivos en disco.
+     *
+     * @param  array<int>  $photoIds
+     */
+    private function deleteRequestedItemPhotos(Property $property, array $photoIds): void
+    {
+        if (empty($photoIds)) {
+            return;
+        }
+
+        $photos = PropertyInventoryItemPhoto::query()
+            ->whereIn('id', $photoIds)
+            ->whereHas('item.area', fn($query) => $query->where('property_id', $property->id))
+            ->with('versions')
+            ->get();
+
+        $this->deleteItemPhotoFiles($photos);
+        $photos->each->delete();
+    }
+
+    /**
+     * Borra del disco publico las fotos de area.
+     */
+    private function deleteAreaPhotoFiles(iterable $photos): void
+    {
+        foreach ($photos as $photo) {
+            $this->deleteStoragePath($photo->file_path ?? null);
+        }
+    }
+
+    /**
+     * Borra del disco publico todas las versiones de fotos de item.
+     */
+    private function deleteItemPhotoFiles(iterable $photos): void
+    {
+        foreach ($photos as $photo) {
+            foreach ($photo->versions ?? [] as $version) {
+                $this->deleteStoragePath($version->file_path ?? null);
+            }
+        }
+    }
+
+    /**
+     * Elimina una ruta del disco publico si existe.
+     */
+    private function deleteStoragePath(?string $path): void
+    {
+        if (!filled($path)) {
+            return;
+        }
+
+        $disk = Storage::disk('public');
+        if ($disk->exists($path)) {
+            $disk->delete($path);
+        }
     }
 
     private function getPropertyTypesCatalog(): Collection

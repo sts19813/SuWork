@@ -18,6 +18,11 @@
                     Perfil
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('charges.*') ? 'active' : '' }}" href="{{ route('charges.index') }}">
+                    Cobranza
+                </a>
+            </li>
         </ul>
     </div>
 </div>
