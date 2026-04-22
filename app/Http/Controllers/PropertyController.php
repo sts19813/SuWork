@@ -173,7 +173,7 @@ class PropertyController extends Controller
             'documents.versions',
             'inventoryAreas.items.photos',
             'inventoryAreas.photos',
-            'tenant',
+            'tenant.documents.versions',
         ]);
         $propertyChangeLogs = $property->changeLogs()
             ->with('user:id,name')
@@ -193,6 +193,25 @@ class PropertyController extends Controller
         $customDocuments = $property->documents
             ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
             ->values();
+
+        $tenantDocuments = collect();
+        $tenantCustomDocuments = collect();
+
+        if ($property->tenant) {
+            $tenantDocuments = collect(TenantDocument::REQUIRED_DOCUMENTS)
+                ->map(function (string $label, string $type) use ($property) {
+                    return $property->tenant->documents->firstWhere('document_type', $type)
+                        ?? new TenantDocument([
+                            'document_type' => $type,
+                            'label' => $label,
+                            'status' => TenantDocument::STATUS_PENDING,
+                        ]);
+                });
+
+            $tenantCustomDocuments = $property->tenant->documents
+                ->whereNotIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))
+                ->values();
+        }
 
         $tenants = Tenant::query()
             ->with(['documents' => fn ($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
@@ -236,6 +255,8 @@ class PropertyController extends Controller
             'property' => $property,
             'documents' => $documents,
             'customDocuments' => $customDocuments,
+            'tenantDocuments' => $tenantDocuments,
+            'tenantCustomDocuments' => $tenantCustomDocuments,
             'tenants' => $tenants,
             'tenantAssignmentChecks' => $tenantAssignmentChecks,
             'propertyCharges' => $propertyCharges,
