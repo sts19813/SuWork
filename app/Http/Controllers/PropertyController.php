@@ -169,7 +169,7 @@ class PropertyController extends Controller
         $property->load([
             'type',
             'zone',
-            'owners',
+            'owners.documents.versions',
             'documents.versions',
             'inventoryAreas.items.photos',
             'inventoryAreas.photos',
@@ -251,6 +251,35 @@ class PropertyController extends Controller
             ->where('status', Charge::STATUS_PAID)
             ->count();
 
+        $chargesPorCobrar = Charge::query()
+            ->where('property_id', $property->id)
+            ->whereIn('status', [
+                Charge::STATUS_PENDING,
+                Charge::STATUS_PARTIAL,
+                Charge::STATUS_IN_VALIDATION,
+            ])
+            ->count();
+
+        $chargesVencidos = Charge::query()
+            ->where('property_id', $property->id)
+            ->whereIn('status', [
+                Charge::STATUS_PENDING,
+                Charge::STATUS_PARTIAL,
+            ])
+            ->whereDate('due_date', '<', now()->toDateString())
+            ->count();
+
+        $chargesPendingValidation = Charge::query()
+            ->where('property_id', $property->id)
+            ->where('status', Charge::STATUS_IN_VALIDATION)
+            ->count();
+
+        $paidThroughDate = Charge::query()
+            ->where('property_id', $property->id)
+            ->where('status', Charge::STATUS_PAID)
+            ->orderByDesc('due_date')
+            ->value('due_date');
+
         return view('properties.show', [
             'property' => $property,
             'documents' => $documents,
@@ -262,6 +291,10 @@ class PropertyController extends Controller
             'propertyCharges' => $propertyCharges,
             'rentChargesTotal' => $rentChargesTotal,
             'rentChargesPaid' => $rentChargesPaid,
+            'chargesPorCobrar' => $chargesPorCobrar,
+            'chargesVencidos' => $chargesVencidos,
+            'chargesPendingValidation' => $chargesPendingValidation,
+            'paidThroughDate' => $paidThroughDate ? Carbon::parse($paidThroughDate) : null,
             'propertyChangeLogs' => $propertyChangeLogs,
             'propertyChangeFieldLabels' => $this->propertyChangeFieldLabels(),
         ]);
