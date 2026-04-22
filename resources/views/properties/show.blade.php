@@ -49,7 +49,7 @@
             </div>
         @endif
 
-        <div class="property-page-shell p-6 p-lg-8">
+        <div class="property-page-shell">
             <div class="card property-block-card mb-8">
                 <div class="card-body p-8">
 
@@ -193,19 +193,19 @@
 
                                 <!-- INDICADORES -->
                                 <div class="d-flex flex-wrap gap-2 mb-5">
-                                    <span class="meta-pill bg-light-warning text-warning">
+                                    <span class="meta-pill bg-light-warning text-warning badge">
                                         Por cobrar: {{ (int) $chargesPorCobrar }}
                                     </span>
 
-                                    <span class="meta-pill bg-light-danger text-danger">
+                                    <span class="meta-pill bg-light-danger text-danger badge">
                                         Vencido: {{ (int) $chargesVencidos }}
                                     </span>
 
-                                    <span class="meta-pill bg-light-success text-success">
+                                    <span class="meta-pill bg-light-success text-success badge">
                                         Cobrado: {{ $paidThroughDate?->format('d/m/Y') ?: '-' }}
                                     </span>
 
-                                    <span class="meta-pill bg-light-primary text-primary">
+                                    <span class="meta-pill bg-light-primary text-primary badge">
                                         Validación: {{ (int) $chargesPendingValidation }}
                                     </span>
                                 </div>
