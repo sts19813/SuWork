@@ -3,166 +3,8 @@
 @section('title', $property->internal_name . ' | SuWork')
 
 @section('content')
-    <style>
-    /* CONTENEDOR DE TABS */
-    .property-tabs-wrap {
-        background: #ffffff;
-        border-radius: 16px;
-        border: 1px solid #edf0fb;
-        overflow: hidden;
-        padding: 10px;
-    }
 
-    /* NAV GENERAL */
-    .property-tabs-nav {
-        display: flex;
-        gap: 8px;
-        border-bottom: none;
-        flex-wrap: wrap;
-    }
-
-    /* TAB BASE */
-    .property-tabs-nav .nav-link {
-        border: none;
-        border-radius: 10px;
-        padding: 10px 16px;
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: #6c7293;
-        background: #f5f7ff;
-        transition: all 0.25s ease;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    /* HOVER */
-    .property-tabs-nav .nav-link:hover {
-        background: #e4e9ff;
-        color: #a52800;
-        transform: translateY(-1px);
-    }
-
-    /* ACTIVO (LO IMPORTANTE) */
-    .property-tabs-nav .nav-link.active {
-        background: #a52800;
-        color: #ffffff !important;
-        box-shadow: 0 6px 14px rgba(63, 81, 181, 0.25);
-    }
-
-    /* ICONOS DENTRO DEL TAB */
-    .property-tabs-nav .nav-link i {
-        font-size: 1rem;
-    }
-
-    /* CONTENIDO DEL TAB */
-    .property-tab-pane {
-        padding: 20px 5px 5px 5px;
-        animation: fadeIn 0.25s ease;
-    }
-
-    /* ANIMACIÓN SUAVE */
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-            transform: translateY(6px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    /* CARD MEJORADA */
-    .property-block-card {
-        border: 1px solid #edf1fb;
-        border-radius: 14px;
-        box-shadow: 0 10px 26px rgba(25, 41, 80, 0.06);
-        transition: all 0.2s ease;
-    }
-
-    .property-block-card:hover {
-        box-shadow: 0 14px 30px rgba(25, 41, 80, 0.08);
-    }
-
-    /* HEADER DE PROPIEDAD */
-    .property-cover {
-        width: 140px;
-        height: 100px;
-        object-fit: cover;
-        border-radius: 12px;
-        border: 1px solid #e8ecf8;
-    }
-
-    /* PILLS SUPERIORES */
-    .property-header-meta .meta-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        padding: 0.4rem 0.75rem;
-        border-radius: 999px;
-        background: #eef1ff;
-        color: #a52800;
-        font-size: 14px;
-        font-weight: 600;
-    }
-
-    /* VALORES */
-    .property-value-label {
-        color: #7b86ac;
-        font-size: 16px;
-        margin-bottom: 0.2rem;
-    }
-
-    .property-value-content {
-        color: #a52800;
-        font-weight: 600;
-        word-break: break-word;
-        font-size: 16px;
-    }
-
-    /* TABLA */
-    .table-row-bordered td,
-    .table-row-bordered th {
-        border-color: #edf1fb !important;
-    }
-
-    .table-row-bordered tbody tr:hover {
-        background: #f8faff;
-    }
-
-    /* BADGES */
-    .badge {
-        border-radius: 8px;
-        padding: 6px 10px;
-        font-weight: 600;
-    }
-
-    /* BOTONES */
-    .btn-light-primary {
-        background: #eef1ff;
-        color: #a52800;
-        border: none;
-    }
-
-    .btn-light-primary:hover {
-        background: #a52800;
-        color: #fff;
-    }
-
-    .btn-light-success {
-        background: #e6f8f0;
-        color: #0bb783;
-        border: none;
-    }
-
-    .btn-light-success:hover {
-        background: #0bb783;
-        color: #fff;
-    }
-
-
-</style>
+    <link rel="stylesheet" href="/assets/css/propiedades.css">
 
     @php
         $photoUrl = $property->facade_photo_path
@@ -214,26 +56,31 @@
                     <div class="flex-grow-1">
                         <h1 class="mb-3 fw-bold">{{ $property->internal_name }}</h1>
                         <div class="property-header-meta mb-4">
-                            <span class="meta-pill"><i class="ki-outline ki-home-2 fs-6"></i> {{ $property->type?->name ?? '-' }}</span>
-                            <span class="meta-pill"><i class="ki-outline ki-geolocation fs-6"></i> 
-                        
-                            <a href="{{ $property->map_url }}" target="_blank">Ubicacion</a>
-                        </span>
-                            <span class="meta-pill"><i class="ki-outline ki-profile-user fs-6"></i> {{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: 'Sin inquilino') }}</span>
+                            <span class="meta-pill"><i class="ki-outline ki-home-2 fs-6"></i>
+                                {{ $property->type?->name ?? '-' }}</span>
+                            <span class="meta-pill"><i class="ki-outline ki-geolocation fs-6"></i>
+
+                                <a href="{{ $property->map_url }}" target="_blank">Ubicacion</a>
+                            </span>
+                            <span class="meta-pill"><i class="ki-outline ki-profile-user fs-6"></i>
+                                {{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: 'Sin inquilino') }}</span>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-3">
-                            <span class="badge {{ $property->status_badge_class }} fs-7">{{ $property->status_label }}</span>
+                            <span
+                                class="badge {{ $property->status_badge_class }} fs-7">{{ $property->status_label }}</span>
                             <a href="{{ route('properties.edit', $property) }}" class="btn btn-sm btn-light-primary">
                                 Editar propiedad
                             </a>
 
                             @if ($property->tenant_id)
-                                <a href="{{ route('charges.index', ['property' => $property->uuid]) }}" class="btn btn-sm btn-light-success">
+                                <a href="{{ route('charges.index', ['property' => $property->uuid]) }}"
+                                    class="btn btn-sm btn-light-success">
                                     Cobranza
                                 </a>
                             @else
                                 <div class="dropdown">
-                                    <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <button class="btn btn-sm btn-primary dropdown-toggle" type="button"
+                                        data-bs-toggle="dropdown">
                                         Asignar inquilino
                                     </button>
                                     <ul class="dropdown-menu">
@@ -242,8 +89,7 @@
                                                 $assignmentCheck = $tenantAssignmentChecks[(string) $tenant->id] ?? ['missing' => [], 'is_complete' => true];
                                             @endphp
                                             <li>
-                                                <form method="POST"
-                                                    action="{{ route('properties.update.tenant', $property) }}"
+                                                <form method="POST" action="{{ route('properties.update.tenant', $property) }}"
                                                     class="d-inline js-assign-tenant-form"
                                                     data-tenant-name="{{ $tenant->full_name }}"
                                                     data-missing='@json($assignmentCheck['missing'])'>
@@ -271,49 +117,59 @@
             <div class="property-tabs-wrap">
                 <ul class="nav property-tabs-nav" id="propertyTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="tab-dashboard-tab" data-bs-toggle="tab" data-bs-target="#tab-dashboard" type="button" role="tab" aria-controls="tab-dashboard" aria-selected="true">
+                        <button class="nav-link active" id="tab-dashboard-tab" data-bs-toggle="tab"
+                            data-bs-target="#tab-dashboard" type="button" role="tab" aria-controls="tab-dashboard"
+                            aria-selected="true">
                             Dashboard
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-general-tab" data-bs-toggle="tab" data-bs-target="#tab-general" type="button" role="tab" aria-controls="tab-general" aria-selected="false">
+                        <button class="nav-link" id="tab-general-tab" data-bs-toggle="tab" data-bs-target="#tab-general"
+                            type="button" role="tab" aria-controls="tab-general" aria-selected="false">
                             Informacion general
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-owners-tab" data-bs-toggle="tab" data-bs-target="#tab-owners" type="button" role="tab" aria-controls="tab-owners" aria-selected="false">
+                        <button class="nav-link" id="tab-owners-tab" data-bs-toggle="tab" data-bs-target="#tab-owners"
+                            type="button" role="tab" aria-controls="tab-owners" aria-selected="false">
                             Propietarios
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-documents-tab" data-bs-toggle="tab" data-bs-target="#tab-documents" type="button" role="tab" aria-controls="tab-documents" aria-selected="false">
+                        <button class="nav-link" id="tab-documents-tab" data-bs-toggle="tab" data-bs-target="#tab-documents"
+                            type="button" role="tab" aria-controls="tab-documents" aria-selected="false">
                             Documentos
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-extra-tab" data-bs-toggle="tab" data-bs-target="#tab-extra" type="button" role="tab" aria-controls="tab-extra" aria-selected="false">
+                        <button class="nav-link" id="tab-extra-tab" data-bs-toggle="tab" data-bs-target="#tab-extra"
+                            type="button" role="tab" aria-controls="tab-extra" aria-selected="false">
                             Informacion adicional
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-charges-tab" data-bs-toggle="tab" data-bs-target="#tab-charges" type="button" role="tab" aria-controls="tab-charges" aria-selected="false">
+                        <button class="nav-link" id="tab-charges-tab" data-bs-toggle="tab" data-bs-target="#tab-charges"
+                            type="button" role="tab" aria-controls="tab-charges" aria-selected="false">
                             Cobranza
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-inventory-tab" data-bs-toggle="tab" data-bs-target="#tab-inventory" type="button" role="tab" aria-controls="tab-inventory" aria-selected="false">
+                        <button class="nav-link" id="tab-inventory-tab" data-bs-toggle="tab" data-bs-target="#tab-inventory"
+                            type="button" role="tab" aria-controls="tab-inventory" aria-selected="false">
                             Inventario
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-history-tab" data-bs-toggle="tab" data-bs-target="#tab-history" type="button" role="tab" aria-controls="tab-history" aria-selected="false">
+                        <button class="nav-link" id="tab-history-tab" data-bs-toggle="tab" data-bs-target="#tab-history"
+                            type="button" role="tab" aria-controls="tab-history" aria-selected="false">
                             Historico de cambios
                         </button>
                     </li>
                 </ul>
 
                 <div class="tab-content" id="propertyTabsContent">
-                    <div class="tab-pane fade show active property-tab-pane" id="tab-dashboard" role="tabpanel" aria-labelledby="tab-dashboard-tab">
+                    <div class="tab-pane fade show active property-tab-pane" id="tab-dashboard" role="tabpanel"
+                        aria-labelledby="tab-dashboard-tab">
                         <div class="card property-block-card">
                             <div class="card-header border-0 pt-6">
                                 <h3 class="card-title fw-bold mb-0">Dashboard</h3>
@@ -324,82 +180,132 @@
                         </div>
                     </div>
 
-                    <div class="tab-pane fade property-tab-pane" id="tab-general" role="tabpanel" aria-labelledby="tab-general-tab">
+                    <div class="tab-pane fade property-tab-pane" id="tab-general" role="tabpanel"
+                        aria-labelledby="tab-general-tab">
                         <div class="card property-block-card">
-                            <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
-                                <h3 class="card-title fw-bold">Informacion general</h3>
-                                <a href="{{ route('properties.edit', $property) }}" class="btn btn-sm btn-light-primary">Editar propiedad</a>
+
+                            <!-- HEADER -->
+                            <div
+                                class="card-header border-0 pt-6 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                <h3 class="card-title fw-bold mb-0">Información general</h3>
+                                <a href="{{ route('properties.edit', $property) }}" class="btn btn-sm btn-light-primary">
+                                    Editar propiedad
+                                </a>
                             </div>
+
+                            <!-- BODY -->
                             <div class="card-body pt-0">
                                 <div class="row g-6">
-                                    <div class="col-lg-6">
-                                        <div class="property-value-label">Direccion</div>
+
+                                    <!-- DIRECCIÓN -->
+                                    <div class="col-12">
+                                        <div class="property-value-label">Dirección</div>
                                         <div class="property-value-content">{{ $property->full_address }}</div>
                                     </div>
+
+                                    <!-- IDENTIFICACIÓN -->
                                     <div class="col-lg-6">
                                         <div class="property-value-label">Referencia interna</div>
                                         <div class="property-value-content">{{ $property->internal_reference ?: '-' }}</div>
                                     </div>
-                                    <div class="col-lg-4">
+
+                                    <div class="col-lg-6">
                                         <div class="property-value-label">Complejo o privada</div>
                                         <div class="property-value-content">{{ $property->complex_name ?: '-' }}</div>
                                     </div>
+
+                                    <!-- NUMERACIÓN -->
                                     <div class="col-lg-4">
-                                        <div class="property-value-label">Numero interior</div>
+                                        <div class="property-value-label">Número interior</div>
                                         <div class="property-value-content">{{ $property->official_number ?: '-' }}</div>
                                     </div>
+
                                     <div class="col-lg-4">
-                                        <div class="property-value-label">Numero exterior</div>
+                                        <div class="property-value-label">Número exterior</div>
                                         <div class="property-value-content">{{ $property->unit_number ?: '-' }}</div>
                                     </div>
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Precio renta mensual</div>
-                                        <div class="property-value-content">{{ $property->monthly_rent_price ? '$' . number_format((float) $property->monthly_rent_price, 2) : '-' }}</div>
-                                    </div>
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Dia de cobro</div>
-                                        <div class="property-value-content">{{ $property->charge_day ?: '-' }}</div>
-                                    </div>
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Tolerancia (dias)</div>
-                                        <div class="property-value-content">{{ is_null($property->charge_tolerance_days) ? '-' : (int) $property->charge_tolerance_days }}</div>
-                                    </div>
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Cuota mantenimiento</div>
-                                        <div class="property-value-content">{{ $property->maintenance_fee ? '$' . number_format((float) $property->maintenance_fee, 2) : '-' }}</div>
-                                    </div>
-                                    <div class="col-lg-6">
-                                        <div class="property-value-label">Inquilino actual</div>
-                                        <div class="property-value-content">{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}</div>
-                                    </div>
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Contrato inicia</div>
-                                        <div class="property-value-content">{{ $property->contract_starts_at ? $property->contract_starts_at->format('d/m/Y') : '-' }}</div>
-                                    </div>
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Contrato vence</div>
-                                        <div class="property-value-content">{{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}</div>
-                                    </div>
-                                    <div class="col-lg-6">
+
+                                    <div class="col-lg-4">
                                         <div class="property-value-label">Estatus</div>
                                         <div class="property-value-content">{{ $property->status_label }}</div>
                                     </div>
+
+                                    <!-- FINANZAS -->
+                                    <div class="col-lg-3">
+                                        <div class="property-value-label">Precio renta mensual</div>
+                                        <div class="property-value-content">
+                                            {{ $property->monthly_rent_price ? '$' . number_format((float) $property->monthly_rent_price, 2) : '-' }}
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-3">
+                                        <div class="property-value-label">Día de cobro</div>
+                                        <div class="property-value-content">{{ $property->charge_day ?: '-' }}</div>
+                                    </div>
+
+                                    <div class="col-lg-3">
+                                        <div class="property-value-label">Tolerancia (días)</div>
+                                        <div class="property-value-content">
+                                            {{ is_null($property->charge_tolerance_days) ? '-' : (int) $property->charge_tolerance_days }}
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-3">
+                                        <div class="property-value-label">Cuota mantenimiento</div>
+                                        <div class="property-value-content">
+                                            {{ $property->maintenance_fee ? '$' . number_format((float) $property->maintenance_fee, 2) : '-' }}
+                                        </div>
+                                    </div>
+
+                                    <!-- INQUILINO -->
+                                    <div class="col-lg-6">
+                                        <div class="property-value-label">Inquilino actual</div>
+                                        <div class="property-value-content">
+                                            {{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}
+                                        </div>
+                                    </div>
+
+                                    <!-- CONTRATO -->
+                                    <div class="col-lg-3">
+                                        <div class="property-value-label">Contrato inicia</div>
+                                        <div class="property-value-content">
+                                            {{ $property->contract_starts_at ? $property->contract_starts_at->format('d/m/Y') : '-' }}
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-3">
+                                        <div class="property-value-label">Contrato vence</div>
+                                        <div class="property-value-content">
+                                            {{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}
+                                        </div>
+                                    </div>
+
+                                    <!-- MAPA -->
                                     @if ($property->map_url)
                                         <div class="col-12">
-                                            <div class="property-value-label">URL del mapa</div>
-                                            <div class="property-value-content"><a href="{{ $property->map_url }}" target="_blank">link a maps</a></div>
+                                            <div class="property-value-label">Ubicación en mapa</div>
+                                            <div class="property-value-content">
+                                                <a href="{{ $property->map_url }}" target="_blank"
+                                                    class="text-primary fw-semibold">
+                                                    Ver en Google Maps
+                                                </a>
+                                            </div>
                                         </div>
                                     @endif
+
                                 </div>
                             </div>
+
                         </div>
                     </div>
 
-                    <div class="tab-pane fade property-tab-pane" id="tab-owners" role="tabpanel" aria-labelledby="tab-owners-tab">
+                    <div class="tab-pane fade property-tab-pane" id="tab-owners" role="tabpanel"
+                        aria-labelledby="tab-owners-tab">
                         <div class="card property-block-card">
                             <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
                                 <h3 class="card-title fw-bold">Propietarios</h3>
-                                <a href="{{ route('owners.index') }}" class="btn btn-sm btn-light-primary">Ir a propietarios</a>
+                                <a href="{{ route('owners.index') }}" class="btn btn-sm btn-light-primary">Ir a
+                                    propietarios</a>
                             </div>
                             <div class="card-body pt-0">
                                 @if ($property->owners->isEmpty())
@@ -410,12 +316,18 @@
                                             <div class="border rounded p-5">
                                                 <div class="fw-bold fs-5 mb-3">{{ $owner->name }}</div>
                                                 <div class="row g-4">
-                                                    <div class="col-lg-4"><span class="text-muted">Correo:</span> {{ $owner->email ?: '-' }}</div>
-                                                    <div class="col-lg-4"><span class="text-muted">Telefono:</span> {{ $owner->phone ?: '-' }}</div>
-                                                    <div class="col-lg-4"><span class="text-muted">Tipo:</span> {{ $owner->owner_type_label }}</div>
-                                                    <div class="col-lg-4"><span class="text-muted">Banco:</span> {{ $owner->bank_name ?: '-' }}</div>
-                                                    <div class="col-lg-4"><span class="text-muted">CLABE:</span> {{ $owner->clabe ?: '-' }}</div>
-                                                    <div class="col-lg-4"><span class="text-muted">Metodo pago:</span> {{ $owner->payment_method_label ?: '-' }}</div>
+                                                    <div class="col-lg-4"><span class="text-muted">Correo:</span>
+                                                        {{ $owner->email ?: '-' }}</div>
+                                                    <div class="col-lg-4"><span class="text-muted">Telefono:</span>
+                                                        {{ $owner->phone ?: '-' }}</div>
+                                                    <div class="col-lg-4"><span class="text-muted">Tipo:</span>
+                                                        {{ $owner->owner_type_label }}</div>
+                                                    <div class="col-lg-4"><span class="text-muted">Banco:</span>
+                                                        {{ $owner->bank_name ?: '-' }}</div>
+                                                    <div class="col-lg-4"><span class="text-muted">CLABE:</span>
+                                                        {{ $owner->clabe ?: '-' }}</div>
+                                                    <div class="col-lg-4"><span class="text-muted">Metodo pago:</span>
+                                                        {{ $owner->payment_method_label ?: '-' }}</div>
                                                 </div>
                                             </div>
                                         @endforeach
@@ -425,25 +337,31 @@
                         </div>
                     </div>
 
-                    <div class="tab-pane fade property-tab-pane" id="tab-documents" role="tabpanel" aria-labelledby="tab-documents-tab">
+                    <div class="tab-pane fade property-tab-pane" id="tab-documents" role="tabpanel"
+                        aria-labelledby="tab-documents-tab">
                         <div class="card property-block-card">
                             <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
                                 <h3 class="card-title fw-bold">Documentos de la propiedad</h3>
-                                <a href="{{ route('dossiers.properties.show', $property) }}" class="btn btn-sm btn-light-primary">Abrir expediente</a>
+                                <a href="{{ route('dossiers.properties.show', $property) }}"
+                                    class="btn btn-sm btn-light-primary">Abrir expediente</a>
                             </div>
                             <div class="card-body pt-0">
                                 <div class="d-flex flex-column gap-4">
                                     @foreach ($documents as $document)
-                                        <div class="border rounded px-5 py-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                        <div
+                                            class="border rounded px-5 py-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
                                             <div class="d-flex align-items-center gap-3">
                                                 <i class="ki-outline ki-document text-gray-500 fs-2"></i>
                                                 <span class="fw-semibold">{{ $document->label }}</span>
                                             </div>
                                             <div class="d-flex align-items-center gap-3">
-                                                <span class="badge {{ $document->status_badge_class }}">{{ $document->status_label }}</span>
-                                                <span class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
+                                                <span
+                                                    class="badge {{ $document->status_badge_class }}">{{ $document->status_label }}</span>
+                                                <span
+                                                    class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
                                                 @if ($document->file_path)
-                                                    <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}" class="btn btn-sm btn-light-primary" target="_blank">
+                                                    <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}"
+                                                        class="btn btn-sm btn-light-primary" target="_blank">
                                                         Ver archivo
                                                     </a>
                                                 @endif
@@ -457,16 +375,20 @@
                                     <h4 class="fw-bold mb-4">Otros documentos</h4>
                                     <div class="d-flex flex-column gap-4">
                                         @foreach ($customDocuments as $document)
-                                            <div class="border rounded px-5 py-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                            <div
+                                                class="border rounded px-5 py-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
                                                 <div class="d-flex align-items-center gap-3">
                                                     <i class="ki-outline ki-document text-gray-500 fs-2"></i>
                                                     <span class="fw-semibold">{{ $document->label }}</span>
                                                 </div>
                                                 <div class="d-flex align-items-center gap-3">
-                                                    <span class="badge {{ $document->status_badge_class }}">{{ $document->status_label }}</span>
-                                                    <span class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
+                                                    <span
+                                                        class="badge {{ $document->status_badge_class }}">{{ $document->status_label }}</span>
+                                                    <span
+                                                        class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
                                                     @if ($document->file_path)
-                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}" class="btn btn-sm btn-light-primary" target="_blank">
+                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}"
+                                                            class="btn btn-sm btn-light-primary" target="_blank">
                                                             Ver archivo
                                                         </a>
                                                     @endif
@@ -479,7 +401,8 @@
                         </div>
                     </div>
 
-                    <div class="tab-pane fade property-tab-pane" id="tab-extra" role="tabpanel" aria-labelledby="tab-extra-tab">
+                    <div class="tab-pane fade property-tab-pane" id="tab-extra" role="tabpanel"
+                        aria-labelledby="tab-extra-tab">
                         <div class="card property-block-card">
                             <div class="card-header border-0 pt-6">
                                 <h3 class="card-title fw-bold">Datos adicionales</h3>
@@ -522,14 +445,18 @@
                         </div>
                     </div>
 
-                    <div class="tab-pane fade property-tab-pane" id="tab-charges" role="tabpanel" aria-labelledby="tab-charges-tab">
+                    <div class="tab-pane fade property-tab-pane" id="tab-charges" role="tabpanel"
+                        aria-labelledby="tab-charges-tab">
                         <div class="card property-block-card">
                             <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
                                 <div>
                                     <h3 class="card-title fw-bold mb-1">Cobranza</h3>
-                                    <div class="text-muted fs-7">Pagos completos: {{ (int) $rentChargesPaid }}/{{ (int) $rentChargesTotal }}</div>
+                                    <div class="text-muted fs-7">Pagos completos:
+                                        {{ (int) $rentChargesPaid }}/{{ (int) $rentChargesTotal }}
+                                    </div>
                                 </div>
-                                <a href="{{ route('charges.index', ['property' => $property->uuid]) }}" class="btn btn-sm btn-light-primary">Abrir cobranza</a>
+                                <a href="{{ route('charges.index', ['property' => $property->uuid]) }}"
+                                    class="btn btn-sm btn-light-primary">Abrir cobranza</a>
                             </div>
                             <div class="card-body pt-0">
                                 <div class="table-responsive">
@@ -548,19 +475,23 @@
                                             @forelse ($propertyCharges as $charge)
                                                 <tr>
                                                     <td>{{ $charge->concept }}</td>
-                                                    <td>{{ str_pad((string) $charge->period_month, 2, '0', STR_PAD_LEFT) }}/{{ $charge->period_year }}</td>
+                                                    <td>{{ str_pad((string) $charge->period_month, 2, '0', STR_PAD_LEFT) }}/{{ $charge->period_year }}
+                                                    </td>
                                                     <td>{{ $charge->due_date?->format('d/m/Y') ?? '-' }}</td>
                                                     <td>${{ number_format((float) $charge->amount, 2) }}</td>
                                                     <td>
-                                                        <span class="badge {{ $charge->status_badge_class }}">{{ $charge->display_status_label }}</span>
+                                                        <span
+                                                            class="badge {{ $charge->status_badge_class }}">{{ $charge->display_status_label }}</span>
                                                     </td>
                                                     <td class="text-end">
-                                                        <a href="{{ route('charges.show', $charge) }}?property={{ urlencode($property->uuid) }}" class="btn btn-sm btn-light">Ver</a>
+                                                        <a href="{{ route('charges.show', $charge) }}?property={{ urlencode($property->uuid) }}"
+                                                            class="btn btn-sm btn-light">Ver</a>
                                                     </td>
                                                 </tr>
                                             @empty
                                                 <tr>
-                                                    <td colspan="6" class="text-center text-muted py-8">No hay cargos registrados para esta propiedad.</td>
+                                                    <td colspan="6" class="text-center text-muted py-8">No hay cargos
+                                                        registrados para esta propiedad.</td>
                                                 </tr>
                                             @endforelse
                                         </tbody>
@@ -570,11 +501,13 @@
                         </div>
                     </div>
 
-                    <div class="tab-pane fade property-tab-pane" id="tab-inventory" role="tabpanel" aria-labelledby="tab-inventory-tab">
+                    <div class="tab-pane fade property-tab-pane" id="tab-inventory" role="tabpanel"
+                        aria-labelledby="tab-inventory-tab">
                         <div class="card property-block-card">
                             <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
                                 <h3 class="card-title fw-bold">Inventario</h3>
-                                <a href="{{ route('inventory-checks.index', $property) }}" class="btn btn-sm btn-light-primary">Abrir inventario</a>
+                                <a href="{{ route('inventory-checks.index', $property) }}"
+                                    class="btn btn-sm btn-light-primary">Abrir inventario</a>
                             </div>
                             <div class="card-body pt-0">
                                 @if ($property->inventoryAreas->isEmpty())
@@ -595,7 +528,8 @@
                                                 @if ($area->photos->isNotEmpty())
                                                     <div class="d-flex flex-wrap gap-4 mb-4">
                                                         @foreach ($area->photos as $photo)
-                                                            <img src="{{ \Illuminate\Support\Facades\Storage::url($photo->file_path) }}" class="inventory-thumb" alt="{{ $area->name }}">
+                                                            <img src="{{ \Illuminate\Support\Facades\Storage::url($photo->file_path) }}"
+                                                                class="inventory-thumb" alt="{{ $area->name }}">
                                                         @endforeach
                                                     </div>
                                                 @endif
@@ -622,7 +556,8 @@
                                                                                 <div class="d-flex gap-2">
                                                                                     @foreach ($item->photos as $photo)
                                                                                         @if ($photo->latestVersion)
-                                                                                            <img src="{{ \Illuminate\Support\Facades\Storage::url($photo->latestVersion->file_path) }}" class="property-thumb" alt="Foto {{ $item->name }}">
+                                                                                            <img src="{{ \Illuminate\Support\Facades\Storage::url($photo->latestVersion->file_path) }}"
+                                                                                                class="property-thumb" alt="Foto {{ $item->name }}">
                                                                                         @endif
                                                                                     @endforeach
                                                                                 </div>
@@ -644,14 +579,16 @@
                         </div>
                     </div>
 
-                    <div class="tab-pane fade property-tab-pane" id="tab-history" role="tabpanel" aria-labelledby="tab-history-tab">
+                    <div class="tab-pane fade property-tab-pane" id="tab-history" role="tabpanel"
+                        aria-labelledby="tab-history-tab">
                         <div class="card property-block-card">
                             <div class="card-header border-0 pt-6">
                                 <h3 class="card-title fw-bold">Historico de cambios</h3>
                             </div>
                             <div class="card-body pt-0">
                                 @if ($propertyChangeLogs->isEmpty())
-                                    <div class="alert alert-light-info mb-0">No hay cambios registrados para esta propiedad.</div>
+                                    <div class="alert alert-light-info mb-0">No hay cambios registrados para esta propiedad.
+                                    </div>
                                 @else
                                     <div class="d-flex flex-column gap-6">
                                         @foreach ($propertyChangeLogs as $changeLog)
@@ -680,11 +617,13 @@
                                                                 <div class="change-log-grid">
                                                                     <div>
                                                                         <div class="change-log-tag">Valor anterior</div>
-                                                                        <pre class="change-log-value">{{ $formatChangeValue($values['old'] ?? null) }}</pre>
+                                                                        <pre
+                                                                            class="change-log-value">{{ $formatChangeValue($values['old'] ?? null) }}</pre>
                                                                     </div>
                                                                     <div>
                                                                         <div class="change-log-tag">Valor nuevo</div>
-                                                                        <pre class="change-log-value">{{ $formatChangeValue($values['new'] ?? null) }}</pre>
+                                                                        <pre
+                                                                            class="change-log-value">{{ $formatChangeValue($values['new'] ?? null) }}</pre>
                                                                     </div>
                                                                 </div>
                                                             </div>
