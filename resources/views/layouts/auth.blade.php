@@ -17,7 +17,7 @@
 
     <style>
         .auth-brand-strip {
-            background-image: linear-gradient(130deg, var(--sw-primary) 0%, var(--sw-primary-hover) 45%, var(--sw-primary-border) 100%);
+            background-image: linear-gradient(230deg, var(--sw-primary) 0%, var(--sw-primary-hover) 45%, var(--sw-primary-hover) 100%);
         }
 
         .btn-primary,
@@ -70,11 +70,11 @@
                 style="background-image: url('{{ asset('metronic/assets/media/misc/auth-bg.png') }}');">
                 <div class="d-flex flex-column flex-center py-10 py-lg-15 px-5 px-md-15 w-100 auth-brand-strip bg-opacity-75">
                     <a href="{{ url('/') }}" class="mb-8 mb-lg-12">
-                        <img alt="Logo SuWork" src="{{ asset('assets/img/Logo.png') }}" class="h-60px h-lg-75px" />
+                        <img alt="Logo SuHomes" src="{{ asset('assets/img/suhomes-app-logo.svg') }}" class="h-60px h-lg-75px" />
                     </a>
 
                     <img class="d-none d-lg-block mx-auto w-275px w-md-50 w-xl-500px mb-10 mb-lg-20"
-                        src="{{ asset('metronic/assets/media/misc/auth-screens.png') }}" alt="SuWork" />
+                        src="{{ asset('metronic/assets/media/misc/auth-screens.png') }}" alt="SuHomes" />
 
                     <h1 class="d-none d-lg-block text-white fs-2qx fw-bolder text-center mb-7">
                         Gestiona tus propiedades con control total
