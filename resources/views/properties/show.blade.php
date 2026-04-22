@@ -276,12 +276,6 @@
                         </li>
                     @endif
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-documents-tab" data-bs-toggle="tab" data-bs-target="#tab-documents"
-                            type="button" role="tab" aria-controls="tab-documents" aria-selected="false">
-                            Documentos
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
                         <button class="nav-link" id="tab-extra-tab" data-bs-toggle="tab" data-bs-target="#tab-extra"
                             type="button" role="tab" aria-controls="tab-extra" aria-selected="false">
                             Informacion adicional
@@ -310,120 +304,168 @@
                 <div class="tab-content" id="propertyTabsContent">
                     <div class="tab-pane fade show active property-tab-pane" id="tab-general" role="tabpanel"
                         aria-labelledby="tab-general-tab">
-                        <div class="card property-block-card">
-
-                            <!-- HEADER -->
-                            <div
-                                class="card-header border-0 pt-6 d-flex justify-content-between align-items-center flex-wrap gap-3">
-                                <h3 class="card-title fw-bold mb-0">Información general</h3>
-                                <a href="{{ route('properties.edit', $property) }}" class="btn btn-sm btn-light-primary">
-                                    Editar propiedad
-                                </a>
-                            </div>
-
-                            <!-- BODY -->
-                            <div class="card-body pt-0">
-                                <div class="row g-6">
-
-                                    <!-- DIRECCIÓN -->
-                                    <div class="col-12">
-                                        <div class="property-value-label">Dirección</div>
-                                        <div class="property-value-content">{{ $property->full_address }}</div>
+                        <div class="row g-6">
+                            <div class="col-xl-7">
+                                <div class="card property-block-card h-100">
+                                    <div
+                                        class="card-header border-0 pt-6 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                        <h3 class="card-title fw-bold mb-0">Información general</h3>
+                                        <a href="{{ route('properties.edit', $property) }}"
+                                            class="btn btn-sm btn-light-primary">
+                                            Editar propiedad
+                                        </a>
                                     </div>
-
-                                    <!-- IDENTIFICACIÓN -->
-                                    <div class="col-lg-6">
-                                        <div class="property-value-label">Referencia interna</div>
-                                        <div class="property-value-content">{{ $property->internal_reference ?: '-' }}</div>
-                                    </div>
-
-                                    <div class="col-lg-6">
-                                        <div class="property-value-label">Complejo o privada</div>
-                                        <div class="property-value-content">{{ $property->complex_name ?: '-' }}</div>
-                                    </div>
-
-                                    <!-- NUMERACIÓN -->
-                                    <div class="col-lg-4">
-                                        <div class="property-value-label">Número interior</div>
-                                        <div class="property-value-content">{{ $property->official_number ?: '-' }}</div>
-                                    </div>
-
-                                    <div class="col-lg-4">
-                                        <div class="property-value-label">Número exterior</div>
-                                        <div class="property-value-content">{{ $property->unit_number ?: '-' }}</div>
-                                    </div>
-
-                                    <div class="col-lg-4">
-                                        <div class="property-value-label">Estatus</div>
-                                        <div class="property-value-content">{{ $property->status_label }}</div>
-                                    </div>
-
-                                    <!-- FINANZAS -->
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Precio renta mensual</div>
-                                        <div class="property-value-content">
-                                            {{ $property->monthly_rent_price ? '$' . number_format((float) $property->monthly_rent_price, 2) : '-' }}
-                                        </div>
-                                    </div>
-
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Día de cobro</div>
-                                        <div class="property-value-content">{{ $property->charge_day ?: '-' }}</div>
-                                    </div>
-
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Tolerancia (días)</div>
-                                        <div class="property-value-content">
-                                            {{ is_null($property->charge_tolerance_days) ? '-' : (int) $property->charge_tolerance_days }}
-                                        </div>
-                                    </div>
-
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Cuota mantenimiento</div>
-                                        <div class="property-value-content">
-                                            {{ $property->maintenance_fee ? '$' . number_format((float) $property->maintenance_fee, 2) : '-' }}
-                                        </div>
-                                    </div>
-
-                                    <!-- INQUILINO -->
-                                    <div class="col-lg-6">
-                                        <div class="property-value-label">Inquilino actual</div>
-                                        <div class="property-value-content">
-                                            {{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}
-                                        </div>
-                                    </div>
-
-                                    <!-- CONTRATO -->
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Contrato inicia</div>
-                                        <div class="property-value-content">
-                                            {{ $property->contract_starts_at ? $property->contract_starts_at->format('d/m/Y') : '-' }}
-                                        </div>
-                                    </div>
-
-                                    <div class="col-lg-3">
-                                        <div class="property-value-label">Contrato vence</div>
-                                        <div class="property-value-content">
-                                            {{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}
-                                        </div>
-                                    </div>
-
-                                    <!-- MAPA -->
-                                    @if ($property->map_url)
-                                        <div class="col-12">
-                                            <div class="property-value-label">Ubicación en mapa</div>
-                                            <div class="property-value-content">
-                                                <a href="{{ $property->map_url }}" target="_blank"
-                                                    class="text-primary fw-semibold">
-                                                    Ver en Google Maps
-                                                </a>
+                                    <div class="card-body pt-0">
+                                        <div class="row g-6">
+                                            <div class="col-12">
+                                                <div class="property-value-label">Dirección</div>
+                                                <div class="property-value-content">{{ $property->full_address }}</div>
                                             </div>
+                                            <div class="col-lg-6">
+                                                <div class="property-value-label">Referencia interna</div>
+                                                <div class="property-value-content">{{ $property->internal_reference ?: '-' }}
+                                                </div>
+                                            </div>
+                                            <div class="col-lg-6">
+                                                <div class="property-value-label">Complejo o privada</div>
+                                                <div class="property-value-content">{{ $property->complex_name ?: '-' }}</div>
+                                            </div>
+                                            <div class="col-lg-4">
+                                                <div class="property-value-label">Número interior</div>
+                                                <div class="property-value-content">{{ $property->official_number ?: '-' }}</div>
+                                            </div>
+                                            <div class="col-lg-4">
+                                                <div class="property-value-label">Número exterior</div>
+                                                <div class="property-value-content">{{ $property->unit_number ?: '-' }}</div>
+                                            </div>
+                                            <div class="col-lg-4">
+                                                <div class="property-value-label">Estatus</div>
+                                                <div class="property-value-content">{{ $property->status_label }}</div>
+                                            </div>
+                                            <div class="col-lg-3">
+                                                <div class="property-value-label">Precio renta mensual</div>
+                                                <div class="property-value-content">
+                                                    {{ $property->monthly_rent_price ? '$' . number_format((float) $property->monthly_rent_price, 2) : '-' }}
+                                                </div>
+                                            </div>
+                                            <div class="col-lg-3">
+                                                <div class="property-value-label">Día de cobro</div>
+                                                <div class="property-value-content">{{ $property->charge_day ?: '-' }}</div>
+                                            </div>
+                                            <div class="col-lg-3">
+                                                <div class="property-value-label">Tolerancia (días)</div>
+                                                <div class="property-value-content">
+                                                    {{ is_null($property->charge_tolerance_days) ? '-' : (int) $property->charge_tolerance_days }}
+                                                </div>
+                                            </div>
+                                            <div class="col-lg-3">
+                                                <div class="property-value-label">Cuota mantenimiento</div>
+                                                <div class="property-value-content">
+                                                    {{ $property->maintenance_fee ? '$' . number_format((float) $property->maintenance_fee, 2) : '-' }}
+                                                </div>
+                                            </div>
+                                            <div class="col-lg-6">
+                                                <div class="property-value-label">Inquilino actual</div>
+                                                <div class="property-value-content">
+                                                    {{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}
+                                                </div>
+                                            </div>
+                                            <div class="col-lg-3">
+                                                <div class="property-value-label">Contrato inicia</div>
+                                                <div class="property-value-content">
+                                                    {{ $property->contract_starts_at ? $property->contract_starts_at->format('d/m/Y') : '-' }}
+                                                </div>
+                                            </div>
+                                            <div class="col-lg-3">
+                                                <div class="property-value-label">Contrato vence</div>
+                                                <div class="property-value-content">
+                                                    {{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}
+                                                </div>
+                                            </div>
+                                            @if ($property->map_url)
+                                                <div class="col-12">
+                                                    <div class="property-value-label">Ubicación en mapa</div>
+                                                    <div class="property-value-content">
+                                                        <a href="{{ $property->map_url }}" target="_blank"
+                                                            class="text-primary fw-semibold">
+                                                            Ver en Google Maps
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            @endif
                                         </div>
-                                    @endif
-
+                                    </div>
                                 </div>
                             </div>
-
+                            <div class="col-xl-5">
+                                <div class="card property-block-card h-100">
+                                    <div
+                                        class="card-header border-0 pt-6 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                        <h3 class="card-title fw-bold mb-0">Expediente</h3>
+                                        <a href="{{ route('dossiers.properties.show', $property) }}"
+                                            class="btn btn-sm btn-light-primary">
+                                            Abrir expediente
+                                        </a>
+                                    </div>
+                                    <div class="card-body pt-0">
+                                        <div class="d-flex flex-column gap-4">
+                                            @foreach ($documents as $document)
+                                                <div
+                                                    class="border rounded px-5 py-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        <i class="ki-outline ki-document text-gray-500 fs-2"></i>
+                                                        <span class="fw-semibold">{{ $document->label }}</span>
+                                                    </div>
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        @unless ($document->file_path)
+                                                            <span
+                                                                class="badge badge-light-warning text-warning">Pendiente</span>
+                                                        @endunless
+                                                        <span
+                                                            class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
+                                                        @if ($document->file_path)
+                                                            <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}"
+                                                                class="btn btn-sm btn-light-primary" target="_blank">
+                                                                Ver archivo
+                                                            </a>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                        @if ($customDocuments->isNotEmpty())
+                                            <div class="separator my-6"></div>
+                                            <h4 class="fw-bold mb-4">Otros documentos</h4>
+                                            <div class="d-flex flex-column gap-4">
+                                                @foreach ($customDocuments as $document)
+                                                    <div
+                                                        class="border rounded px-5 py-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                                        <div class="d-flex align-items-center gap-3">
+                                                            <i class="ki-outline ki-document text-gray-500 fs-2"></i>
+                                                            <span class="fw-semibold">{{ $document->label }}</span>
+                                                        </div>
+                                                        <div class="d-flex align-items-center gap-3">
+                                                            @unless ($document->file_path)
+                                                                <span
+                                                                    class="badge badge-light-warning text-warning">Pendiente</span>
+                                                            @endunless
+                                                            <span
+                                                                class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
+                                                            @if ($document->file_path)
+                                                                <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}"
+                                                                    class="btn btn-sm btn-light-primary"
+                                                                    target="_blank">
+                                                                    Ver archivo
+                                                                </a>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -895,72 +937,6 @@
                             </div>
                         </div>
                     @endif
-
-                    <div class="tab-pane fade property-tab-pane" id="tab-documents" role="tabpanel"
-                        aria-labelledby="tab-documents-tab">
-                        <div class="card property-block-card">
-                            <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
-                                <h3 class="card-title fw-bold">Documentos de la propiedad</h3>
-                                <a href="{{ route('dossiers.properties.show', $property) }}"
-                                    class="btn btn-sm btn-light-primary">Abrir expediente</a>
-                            </div>
-                            <div class="card-body pt-0">
-                                <div class="d-flex flex-column gap-4">
-                                    @foreach ($documents as $document)
-                                        <div
-                                            class="border rounded px-5 py-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
-                                            <div class="d-flex align-items-center gap-3">
-                                                <i class="ki-outline ki-document text-gray-500 fs-2"></i>
-                                                <span class="fw-semibold">{{ $document->label }}</span>
-                                            </div>
-                                            <div class="d-flex align-items-center gap-3">
-                                                @unless ($document->file_path)
-                                                    <span class="badge badge-light-warning text-warning">Pendiente</span>
-                                                @endunless
-                                                <span
-                                                    class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
-                                                @if ($document->file_path)
-                                                    <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}"
-                                                        class="btn btn-sm btn-light-primary" target="_blank">
-                                                        Ver archivo
-                                                    </a>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    @endforeach
-                                </div>
-
-                                @if ($customDocuments->isNotEmpty())
-                                    <div class="separator my-6"></div>
-                                    <h4 class="fw-bold mb-4">Otros documentos</h4>
-                                    <div class="d-flex flex-column gap-4">
-                                        @foreach ($customDocuments as $document)
-                                            <div
-                                                class="border rounded px-5 py-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
-                                                <div class="d-flex align-items-center gap-3">
-                                                    <i class="ki-outline ki-document text-gray-500 fs-2"></i>
-                                                    <span class="fw-semibold">{{ $document->label }}</span>
-                                                </div>
-                                                <div class="d-flex align-items-center gap-3">
-                                                    @unless ($document->file_path)
-                                                        <span class="badge badge-light-warning text-warning">Pendiente</span>
-                                                    @endunless
-                                                    <span
-                                                        class="badge badge-light-info text-info">v{{ $document->versions->count() }}</span>
-                                                    @if ($document->file_path)
-                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}"
-                                                            class="btn btn-sm btn-light-primary" target="_blank">
-                                                            Ver archivo
-                                                        </a>
-                                                    @endif
-                                                </div>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
 
                     <div class="tab-pane fade property-tab-pane" id="tab-extra" role="tabpanel"
                         aria-labelledby="tab-extra-tab">
