@@ -65,7 +65,7 @@
                                 <!-- IMAGEN GRANDE -->
                                 <div class="col-lg-4">
                                     <img src="{{ $photoUrl }}" class="w-100 h-100 rounded"
-                                        style="object-fit: cover; min-height: 220px;" alt="{{ $property->internal_name }}">
+                                        style="object-fit: cover; min-height: 220px; max-height: 220px;" alt="{{ $property->internal_name }}">
                                 </div>
 
                                 <!-- INFO -->
