@@ -357,6 +357,12 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-expenses-tab" data-bs-toggle="tab" data-bs-target="#tab-expenses"
+                            type="button" role="tab" aria-controls="tab-expenses" aria-selected="false">
+                            Gastos
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link" id="tab-inventory-tab" data-bs-toggle="tab" data-bs-target="#tab-inventory"
                             type="button" role="tab" aria-controls="tab-inventory" aria-selected="false">
                             Inventario
@@ -1108,6 +1114,8 @@
                         </div>
                     </div>
 
+                    @include('expenses.partials.property-tab')
+
                     <div class="tab-pane fade property-tab-pane" id="tab-inventory" role="tabpanel"
                         aria-labelledby="tab-inventory-tab">
                         <div class="card property-block-card">
@@ -1326,4 +1334,18 @@
             }
         })();
     </script>
+
+    @if ($errors->createExpense->any() || $errors->updateExpense->any() || $errors->expensePropertySetup->any())
+        <script>
+            (() => {
+                const tabButton = document.querySelector('#propertyTabs [data-bs-target="#tab-expenses"]');
+                if (!tabButton) {
+                    return;
+                }
+
+                history.replaceState(null, '', '#tab-expenses');
+                new bootstrap.Tab(tabButton).show();
+            })();
+        </script>
+    @endif
 @endpush

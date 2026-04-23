@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StorePropertyRequest;
 use App\Models\Charge;
 use App\Models\ChargePayment;
+use App\Models\Expense;
+use App\Models\ExpenseNotificationSetting;
 use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
@@ -262,6 +264,13 @@ class PropertyController extends Controller
             ->orderBy('due_date', 'asc')
             ->orderBy('id', 'asc')
             ->get();
+        $propertyExpenses = Expense::query()
+            ->with('files')
+            ->withCount('files')
+            ->where('property_id', $property->id)
+            ->orderBy('due_date', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
 
         $rentChargesTotal = Charge::query()
             ->where('property_id', $property->id)
@@ -336,6 +345,14 @@ class PropertyController extends Controller
             ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
             ->count();
         $canReassignTenant = !$property->tenant_id || ($propertyOpenChargesCount === 0 && (int) $chargesVencidos === 0);
+        $expenseBaseQuery = fn() => Expense::query()->where('property_id', $property->id);
+        $propertyExpenseSummary = [
+            'pending_total' => (float) $expenseBaseQuery()->pending()->sum('amount'),
+            'paid_total' => (float) $expenseBaseQuery()->paid()->sum('amount'),
+            'overdue_total' => (float) $expenseBaseQuery()->overdue()->sum('amount'),
+        ];
+        $globalExpenseNotificationSetup = ExpenseNotificationSetting::current();
+        $resolvedPropertyExpenseNotificationSetup = $property->resolvedExpenseNotificationSetup($globalExpenseNotificationSetup);
 
         return view('properties.show', [
             'property' => $property,
@@ -346,6 +363,7 @@ class PropertyController extends Controller
             'tenants' => $tenants,
             'tenantAssignmentChecks' => $tenantAssignmentChecks,
             'propertyCharges' => $propertyCharges,
+            'propertyExpenses' => $propertyExpenses,
             'rentChargesTotal' => $rentChargesTotal,
             'rentChargesPaid' => $rentChargesPaid,
             'chargesPorCobrar' => $chargesPorCobrar,
@@ -358,6 +376,9 @@ class PropertyController extends Controller
             'propertyPendingValidationCount' => (int) $propertyPendingValidationCount,
             'propertyCurrentMonthLabel' => Carbon::create(now()->year, now()->month, 1)->translatedFormat('M Y'),
             'canReassignTenant' => $canReassignTenant,
+            'propertyExpenseSummary' => $propertyExpenseSummary,
+            'globalExpenseNotificationSetup' => $globalExpenseNotificationSetup,
+            'resolvedPropertyExpenseNotificationSetup' => $resolvedPropertyExpenseNotificationSetup,
             'propertyChangeLogs' => $propertyChangeLogs,
             'propertyChangeFieldLabels' => $this->propertyChangeFieldLabels(),
         ]);
@@ -379,6 +400,10 @@ class PropertyController extends Controller
             'monthly_rent_price' => 'Renta mensual',
             'charge_day' => 'Dia de cobro',
             'charge_tolerance_days' => 'Tolerancia de cobro',
+            'use_global_expense_notifications' => 'Usar config global de gastos',
+            'expense_notification_days_before' => 'Dias aviso de gastos',
+            'expense_notification_emails' => 'Correos de gastos',
+            'expense_notification_phones' => 'Telefonos de gastos',
             'maintenance_fee' => 'Cuota de mantenimiento',
             'rent_charge_plan' => 'Plan de cobro de renta',
             'facade_photo_path' => 'Foto de fachada',

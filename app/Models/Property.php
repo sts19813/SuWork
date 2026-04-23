@@ -60,6 +60,10 @@ class Property extends Model
         'monthly_rent_price',
         'charge_day',
         'charge_tolerance_days',
+        'use_global_expense_notifications',
+        'expense_notification_days_before',
+        'expense_notification_emails',
+        'expense_notification_phones',
         'maintenance_fee',
         'rent_charge_plan',
         'facade_photo_path',
@@ -85,6 +89,10 @@ class Property extends Model
             'monthly_rent_price' => 'decimal:2',
             'charge_day' => 'integer',
             'charge_tolerance_days' => 'integer',
+            'use_global_expense_notifications' => 'boolean',
+            'expense_notification_days_before' => 'integer',
+            'expense_notification_emails' => 'array',
+            'expense_notification_phones' => 'array',
             'maintenance_fee' => 'decimal:2',
             'rent_charge_plan' => 'array',
         ];
@@ -168,6 +176,11 @@ class Property extends Model
         return $this->hasMany(Charge::class);
     }
 
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class);
+    }
+
     public function changeLogs(): HasMany
     {
         return $this->hasMany(PropertyChangeLog::class)->latest('changed_at')->latest('id');
@@ -186,6 +199,28 @@ class Property extends Model
     public function getRouteKeyName(): string
     {
         return 'uuid';
+    }
+
+    public function resolvedExpenseNotificationSetup(?ExpenseNotificationSetting $globalSetup = null): array
+    {
+        $globalSetup = $globalSetup ?: ExpenseNotificationSetting::current();
+        $usesGlobal = (bool) $this->use_global_expense_notifications;
+
+        if ($usesGlobal) {
+            return [
+                'uses_global' => true,
+                'days_before' => max(0, (int) ($globalSetup->days_before ?? 0)),
+                'emails' => $this->normalizeContactList($globalSetup->emails ?? []),
+                'phones' => $this->normalizeContactList($globalSetup->phones ?? []),
+            ];
+        }
+
+        return [
+            'uses_global' => false,
+            'days_before' => max(0, (int) ($this->expense_notification_days_before ?? 0)),
+            'emails' => $this->normalizeContactList($this->expense_notification_emails ?? []),
+            'phones' => $this->normalizeContactList($this->expense_notification_phones ?? []),
+        ];
     }
 
     private function buildPendingPropertyChangeSet(): array
@@ -230,5 +265,15 @@ class Property extends Model
         }
 
         return (string) $value;
+    }
+
+    private function normalizeContactList(array $items): array
+    {
+        return collect($items)
+            ->map(fn ($item) => trim((string) $item))
+            ->filter(fn ($item) => $item !== '')
+            ->unique()
+            ->values()
+            ->all();
     }
 }

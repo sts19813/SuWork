@@ -23,6 +23,11 @@
                     Cobranza
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('expenses.*') ? 'active' : '' }}" href="{{ route('expenses.index') }}">
+                    Gastos
+                </a>
+            </li>
         </ul>
     </div>
 </div>

@@ -56,6 +56,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link fw-semibold {{ request()->routeIs('expenses.*') ? 'active text-primary' : 'text-gray-700' }}"
+                        href="{{ route('expenses.index') }}">
+                        Gastos
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link fw-semibold {{ request()->routeIs('profile.*') ? 'active text-primary' : 'text-gray-700' }}"
                         href="{{ route('profile.index') }}">
                         Perfil
