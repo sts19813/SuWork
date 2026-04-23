@@ -69,7 +69,7 @@
                                 </div>
 
                                 <!-- INFO -->
-                                <div class="col-lg-7 d-flex flex-column justify-content-between">
+                                <div class="col-lg-8 d-flex flex-column justify-content-between">
 
                                     <!-- HEADER -->
                                     <div>
@@ -109,13 +109,9 @@
                                                 <!-- POR COBRAR -->
                                                 <div class="col-6 col-md-3">
                                                     <div class="d-flex align-items-center gap-3">
-                                                        <div class="symbol symbol-35px">
-                                                            <span class="symbol-label bg-light-warning">
-                                                                <i class="ki-outline ki-time text-warning fs-5"></i>
-                                                            </span>
-                                                        </div>
+                                                        
                                                         <div>
-                                                            <div class="text-muted fs-8">Por cobrar</div>
+                                                            <div class="meta-pill text-warning ">Por cobrar</div>
                                                             <div class="fw-bold fs-5">
                                                                 ${{ number_format((float) $propertyPendingAmount, 2) }}
                                                             </div>
@@ -126,13 +122,9 @@
                                                 <!-- VENCIDO -->
                                                 <div class="col-6 col-md-3">
                                                     <div class="d-flex align-items-center gap-3">
-                                                        <div class="symbol symbol-35px">
-                                                            <span class="symbol-label bg-light-danger">
-                                                                <i class="ki-outline ki-information-3 text-danger fs-5"></i>
-                                                            </span>
-                                                        </div>
+                                                        
                                                         <div>
-                                                            <div class="text-muted fs-8">Vencido</div>
+                                                            <div class="meta-pill  text-danger">Vencido</div>
                                                             <div class="fw-bold fs-5">
                                                                 ${{ number_format((float) $propertyOverdueAmount, 2) }}
                                                             </div>
@@ -143,13 +135,9 @@
                                                 <!-- COBRADO -->
                                                 <div class="col-6 col-md-3">
                                                     <div class="d-flex align-items-center gap-3">
-                                                        <div class="symbol symbol-35px">
-                                                            <span class="symbol-label bg-light-success">
-                                                                <i class="ki-outline ki-check text-success fs-5"></i>
-                                                            </span>
-                                                        </div>
+                                                      
                                                         <div>
-                                                            <div class="text-muted fs-8">
+                                                            <div class="meta-pill text-success">
                                                                 Cobrado ({{ $propertyCurrentMonthLabel }})
                                                             </div>
                                                             <div class="fw-bold fs-5">
@@ -162,13 +150,9 @@
                                                 <!-- PENDIENTE VALIDACIÓN -->
                                                 <div class="col-6 col-md-3">
                                                     <div class="d-flex align-items-center gap-3">
-                                                        <div class="symbol symbol-35px">
-                                                            <span class="symbol-label bg-light-primary">
-                                                                <i class="ki-outline ki-dollar text-primary fs-5"></i>
-                                                            </span>
-                                                        </div>
+                                                        
                                                         <div>
-                                                            <div class="text-muted fs-8">Pend. validación</div>
+                                                            <div class="meta-pill text-info">Pend. validación</div>
                                                             <div class="fw-bold fs-5">
                                                                 {{ (int) $propertyPendingValidationCount }}
                                                             </div>

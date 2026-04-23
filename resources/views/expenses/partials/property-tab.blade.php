@@ -6,7 +6,7 @@
                 <div class="text-muted fs-7">Seguimiento de pendientes, pagados y atrasados.</div>
             </div>
             <div class="d-flex flex-wrap gap-2">
-                <button type="button" class="btn btn-sm btn-light-primary" data-bs-toggle="modal" data-bs-target="#expenseSetupModal">
+                <button type="button" class="btn btn-sm btn-light-primary" data-bs-toggle="modal" data-bs-target="#expenseSetupModal d-none" style="display: none;">
                     Configuración de notificación
                 </button>
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createExpenseModalProperty">
