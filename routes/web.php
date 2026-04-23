@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ChargeController;
 use App\Http\Controllers\ChargePaymentController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InventoryCheckController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\PropertyController;
@@ -97,6 +98,14 @@ Route::middleware(['auth'])
         Route::post('/cobranza/{charge}/notificar', [ChargeController::class, 'sendReminder'])->name('charges.notify');
         Route::post('/cobranza/generar/preview', [ChargeController::class, 'previewBulk'])->name('charges.bulk.preview');
         Route::post('/cobranza/generar', [ChargeController::class, 'storeBulk'])->name('charges.bulk.store');
+
+        Route::get('/gastos', [ExpenseController::class, 'index'])->name('expenses.index');
+        Route::post('/gastos', [ExpenseController::class, 'store'])->name('expenses.store');
+        Route::put('/gastos/configuracion', [ExpenseController::class, 'updateGlobalSetup'])->name('expenses.setup.global');
+        Route::put('/gastos/propiedades/{property}/configuracion', [ExpenseController::class, 'updatePropertySetup'])->name('expenses.properties.setup');
+        Route::put('/gastos/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
+        Route::post('/gastos/{expense}/marcar-pagado', [ExpenseController::class, 'markAsPaid'])->name('expenses.mark-paid');
+        Route::delete('/gastos/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
     });
 
 Route::get('/dashboard', function () {
