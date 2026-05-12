@@ -18,11 +18,15 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Spatie\Permission\Models\Role;
 
 class MaintenanceController extends Controller
 {
@@ -58,7 +62,7 @@ class MaintenanceController extends Controller
             ->with([
                 'property:id,uuid,internal_name,internal_reference',
                 'reporter:id,name,email',
-                'currentProvider:id,uuid,name,type,email,phone,specialty,rating,availability',
+                'currentProvider:id,uuid,user_id,name,type,email,phone,specialty,rating,availability',
             ])
             ->withCount(['files', 'messages']);
 
@@ -166,13 +170,17 @@ class MaintenanceController extends Controller
             ->get();
 
         $providers = MaintenanceProvider::query()
-            ->where('is_active', true)
+            ->with('user:id,name,email')
             ->orderBy('name')
             ->get();
+        $users = User::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
 
         return view('maintenance.index', [
             'tickets' => $tickets,
             'providers' => $providers,
+            'users' => $users,
             'properties' => $properties,
             'selectedProperty' => $selectedProperty,
             'status' => $status,
@@ -195,7 +203,7 @@ class MaintenanceController extends Controller
             ],
             'calendarItems' => $calendarItems,
             'role' => $role,
-            'canCreateTicket' => in_array($role, ['administrador', 'propietario', 'inquilino'], true),
+            'canCreateTicket' => in_array($role, ['administrador', 'inquilino'], true),
             'canManageProviders' => $role === 'administrador',
             'canManageAssignments' => $role === 'administrador',
             'canManageCosts' => $role === 'administrador',
@@ -206,7 +214,7 @@ class MaintenanceController extends Controller
     {
         $user = $request->user();
         $role = $this->resolveRole($user);
-        if (!in_array($role, ['administrador', 'propietario', 'inquilino'], true)) {
+        if (!in_array($role, ['administrador', 'inquilino'], true)) {
             abort(403);
         }
 
@@ -268,8 +276,8 @@ class MaintenanceController extends Controller
         $maintenance->load([
             'property:id,uuid,internal_name,internal_reference',
             'reporter:id,name,email',
-            'currentProvider:id,uuid,name,type,email,phone,specialty,average_cost,rating,availability',
-            'assignments.provider:id,uuid,name,type,email,phone,specialty,average_cost,rating,availability',
+            'currentProvider:id,uuid,user_id,name,type,email,phone,specialty,average_cost,rating,availability',
+            'assignments.provider:id,uuid,user_id,name,type,email,phone,specialty,average_cost,rating,availability',
             'assignments.assignedBy:id,name,email',
             'files.uploader:id,name,email',
             'costs',
@@ -281,12 +289,17 @@ class MaintenanceController extends Controller
 
         $providers = MaintenanceProvider::query()
             ->where('is_active', true)
+            ->with('user:id,name,email')
             ->orderBy('name')
             ->get();
+        $users = User::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
 
         return view('maintenance.show', [
             'ticket' => $maintenance,
             'providers' => $providers,
+            'users' => $users,
             'role' => $role,
             'statusOptions' => MaintenanceTicket::STATUS_LABELS,
             'priorityOptions' => MaintenanceTicket::PRIORITY_LABELS,
@@ -296,8 +309,8 @@ class MaintenanceController extends Controller
             'messageChannels' => MaintenanceTicketMessage::CHANNEL_LABELS,
             'canManageAssignments' => $role === 'administrador',
             'canManageCosts' => $role === 'administrador',
-            'canEditTicket' => in_array($role, ['administrador', 'propietario', 'inquilino'], true),
-            'canChangeStatus' => in_array($role, ['administrador', 'tecnico', 'propietario', 'inquilino'], true),
+            'canEditTicket' => $role === 'administrador',
+            'canChangeStatus' => in_array($role, ['administrador', 'tecnico'], true),
         ]);
     }
 
@@ -306,7 +319,7 @@ class MaintenanceController extends Controller
         $user = $request->user();
         $role = $this->resolveRole($user);
         $this->ensureTicketVisible($maintenance, $user, $role);
-        if (!in_array($role, ['administrador', 'propietario', 'inquilino'], true)) {
+        if ($role !== 'administrador') {
             abort(403);
         }
 
@@ -343,6 +356,9 @@ class MaintenanceController extends Controller
         $nextStatus = (string) $validated['status'];
         $fromStatus = (string) $maintenance->status;
 
+        if (!in_array($role, ['administrador', 'tecnico'], true)) {
+            abort(403);
+        }
         if ($role !== 'administrador') {
             $allowed = ['revisado', 'en_proceso', 'esperando_material', 'completado', 'cancelado', 'reabierto'];
             if (!in_array($nextStatus, $allowed, true)) {
@@ -394,6 +410,7 @@ class MaintenanceController extends Controller
         $validated = $request->validate([
             'provider_id' => ['required', 'integer', 'exists:maintenance_providers,id'],
             'notes' => ['nullable', 'string', 'max:3000'],
+            'scheduled_visit_at' => ['nullable', 'date'],
         ]);
 
         $provider = MaintenanceProvider::query()->findOrFail((int) $validated['provider_id']);
@@ -418,6 +435,7 @@ class MaintenanceController extends Controller
             $maintenance->update([
                 'current_provider_id' => $provider->id,
                 'assigned_at' => $maintenance->assigned_at ?: now(),
+                'scheduled_visit_at' => $validated['scheduled_visit_at'] ?? $maintenance->scheduled_visit_at,
                 'status' => in_array($maintenance->status, ['pendiente', 'revisado', 'reabierto'], true)
                     ? 'asignado'
                     : $maintenance->status,
@@ -572,20 +590,56 @@ class MaintenanceController extends Controller
             'availability' => ['nullable', 'string', 'max:255'],
             'is_active' => ['nullable', 'boolean'],
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
+            'create_user_account' => ['nullable', 'boolean'],
+            'account_name' => ['nullable', 'string', 'max:255'],
+            'account_email' => ['nullable', 'email', 'max:190', 'unique:users,email'],
+            'account_password' => ['nullable', 'string', 'min:8', 'max:120'],
+            'send_credentials_email' => ['nullable', 'boolean'],
         ]);
+        $wantsCreateAccount = (bool) ($validated['create_user_account'] ?? false);
+        $selectedUserId = $validated['user_id'] ?? null;
+        if ($wantsCreateAccount && $selectedUserId) {
+            return redirect()->back()->with('error', 'Selecciona un usuario existente o crea una cuenta nueva, no ambos.');
+        }
+        if (!$wantsCreateAccount && !$selectedUserId) {
+            return redirect()->back()->with('error', 'Debes vincular un usuario o crear una cuenta para el técnico/proveedor.');
+        }
 
-        MaintenanceProvider::create([
+        [$linkedUser, $generatedPassword] = $this->resolveOrCreateTechnicianUser(
+            $selectedUserId ? (int) $selectedUserId : null,
+            $wantsCreateAccount,
+            $validated['account_name'] ?? null,
+            $validated['account_email'] ?? null,
+            $validated['account_password'] ?? null,
+        );
+
+        $provider = MaintenanceProvider::create([
             'type' => (string) $validated['type'],
             'name' => trim((string) $validated['name']),
-            'email' => filled($validated['email'] ?? null) ? trim((string) $validated['email']) : null,
+            'email' => filled($validated['email'] ?? null)
+                ? trim((string) $validated['email'])
+                : (filled($linkedUser?->email) ? trim((string) $linkedUser->email) : null),
             'phone' => filled($validated['phone'] ?? null) ? trim((string) $validated['phone']) : null,
             'specialty' => filled($validated['specialty'] ?? null) ? trim((string) $validated['specialty']) : null,
             'average_cost' => $validated['average_cost'] ?? null,
             'rating' => $validated['rating'] ?? null,
             'availability' => filled($validated['availability'] ?? null) ? trim((string) $validated['availability']) : null,
             'is_active' => (bool) ($validated['is_active'] ?? true),
-            'user_id' => $validated['user_id'] ?? null,
+            'user_id' => $linkedUser?->id,
         ]);
+
+        if ((bool) ($validated['send_credentials_email'] ?? false) && $linkedUser && filled($generatedPassword) && filled($linkedUser->email)) {
+            try {
+                Mail::raw(
+                    "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: " . url('/login'),
+                    fn($mail) => $mail->to($linkedUser->email)->subject('Acceso al sistema de mantenimiento')
+                );
+            } catch (\Throwable) {
+            }
+        }
+        if ($provider->user_id && !$provider->email && $linkedUser?->email) {
+            $provider->update(['email' => $linkedUser->email]);
+        }
 
         return redirect()->back()->with('success', 'Técnico/proveedor creado correctamente.');
     }
@@ -608,22 +662,110 @@ class MaintenanceController extends Controller
             'availability' => ['nullable', 'string', 'max:255'],
             'is_active' => ['nullable', 'boolean'],
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
+            'create_user_account' => ['nullable', 'boolean'],
+            'account_name' => ['nullable', 'string', 'max:255'],
+            'account_email' => ['nullable', 'email', 'max:190', 'unique:users,email'],
+            'account_password' => ['nullable', 'string', 'min:8', 'max:120'],
+            'send_credentials_email' => ['nullable', 'boolean'],
         ]);
+        $wantsCreateAccount = (bool) ($validated['create_user_account'] ?? false);
+        $selectedUserId = $validated['user_id'] ?? null;
+        if ($wantsCreateAccount && $selectedUserId) {
+            return redirect()->back()->with('error', 'Selecciona un usuario existente o crea una cuenta nueva, no ambos.');
+        }
+        if (!$wantsCreateAccount && !$selectedUserId && !$provider->user_id) {
+            return redirect()->back()->with('error', 'Debes vincular un usuario o crear una cuenta para el técnico/proveedor.');
+        }
+
+        [$linkedUser, $generatedPassword] = $this->resolveOrCreateTechnicianUser(
+            $selectedUserId ? (int) $selectedUserId : ($provider->user_id ? (int) $provider->user_id : null),
+            $wantsCreateAccount,
+            $validated['account_name'] ?? null,
+            $validated['account_email'] ?? null,
+            $validated['account_password'] ?? null,
+        );
 
         $provider->update([
             'type' => (string) $validated['type'],
             'name' => trim((string) $validated['name']),
-            'email' => filled($validated['email'] ?? null) ? trim((string) $validated['email']) : null,
+            'email' => filled($validated['email'] ?? null)
+                ? trim((string) $validated['email'])
+                : (filled($linkedUser?->email) ? trim((string) $linkedUser->email) : null),
             'phone' => filled($validated['phone'] ?? null) ? trim((string) $validated['phone']) : null,
             'specialty' => filled($validated['specialty'] ?? null) ? trim((string) $validated['specialty']) : null,
             'average_cost' => $validated['average_cost'] ?? null,
             'rating' => $validated['rating'] ?? null,
             'availability' => filled($validated['availability'] ?? null) ? trim((string) $validated['availability']) : null,
             'is_active' => (bool) ($validated['is_active'] ?? false),
-            'user_id' => $validated['user_id'] ?? null,
+            'user_id' => $linkedUser?->id,
         ]);
+        if ((bool) ($validated['send_credentials_email'] ?? false) && $linkedUser && filled($generatedPassword) && filled($linkedUser->email)) {
+            try {
+                Mail::raw(
+                    "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: " . url('/login'),
+                    fn($mail) => $mail->to($linkedUser->email)->subject('Acceso al sistema de mantenimiento')
+                );
+            } catch (\Throwable) {
+            }
+        }
 
         return redirect()->back()->with('success', 'Técnico/proveedor actualizado correctamente.');
+    }
+
+    private function resolveOrCreateTechnicianUser(
+        ?int $userId,
+        bool $createAccount,
+        ?string $accountName,
+        ?string $accountEmail,
+        ?string $accountPassword,
+    ): array {
+        if ($userId) {
+            $user = User::query()->find($userId);
+            if (!$user) {
+                throw ValidationException::withMessages([
+                    'user_id' => 'El usuario seleccionado no existe.',
+                ]);
+            }
+            $this->ensureTechnicianRole($user);
+
+            return [$user, null];
+        }
+
+        if (!$createAccount) {
+            return [null, null];
+        }
+
+        $email = trim((string) $accountEmail);
+        if ($email === '') {
+            throw ValidationException::withMessages([
+                'account_email' => 'Debes proporcionar el correo para crear la cuenta del técnico.',
+            ]);
+        }
+        $password = filled($accountPassword) ? (string) $accountPassword : Str::random(12);
+        $name = trim((string) ($accountName ?? ''));
+        if ($name === '') {
+            $name = Str::before($email, '@');
+        }
+
+        $user = User::create([
+            'name' => $name,
+            'email' => $email,
+            'password' => Hash::make($password),
+        ]);
+        $this->ensureTechnicianRole($user);
+
+        return [$user, $password];
+    }
+
+    private function ensureTechnicianRole(User $user): void
+    {
+        $role = Role::query()->firstOrCreate([
+            'name' => 'tecnico',
+            'guard_name' => 'web',
+        ]);
+        if (!$user->hasRole($role->name)) {
+            $user->assignRole($role);
+        }
     }
 
     private function resolveRole(?User $user): string
@@ -901,7 +1043,8 @@ class MaintenanceController extends Controller
     {
         $ticket->loadMissing([
             'reporter:id,email,name',
-            'currentProvider:id,email,name',
+            'currentProvider:id,user_id,email,name',
+            'currentProvider.user:id,email,name',
             'property.tenant:id,email,full_name',
             'property.owners:id,email,name',
         ]);
@@ -909,6 +1052,7 @@ class MaintenanceController extends Controller
         $emails = collect([
             $ticket->reporter?->email,
             $ticket->currentProvider?->email,
+            $ticket->currentProvider?->user?->email,
             $ticket->property?->tenant?->email,
             ...($ticket->property?->owners?->pluck('email')->all() ?? []),
         ])
@@ -923,7 +1067,8 @@ class MaintenanceController extends Controller
                 Mail::raw(
                     "Ticket {$ticket->uuid}\nEstado: {$ticket->status}\nTítulo: {$ticket->title}\nPropiedad: " .
                     ($ticket->property?->internal_name ?? '-') .
-                    "\nPrioridad: {$ticket->priority}",
+                    "\nPrioridad: {$ticket->priority}" .
+                    "\nVisita programada: " . ($ticket->scheduled_visit_at?->format('Y-m-d H:i') ?? 'Sin agenda'),
                     fn($mail) => $mail->to($email)->subject($subject)
                 );
                 $sent = true;

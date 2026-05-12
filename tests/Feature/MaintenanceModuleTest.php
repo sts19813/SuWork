@@ -96,6 +96,7 @@ class MaintenanceModuleTest extends TestCase
             'name' => 'Técnico 01',
             'email' => 'tecnico01@example.com',
             'specialty' => 'Electricidad',
+            'user_id' => $user->id,
             'is_active' => true,
         ]);
 

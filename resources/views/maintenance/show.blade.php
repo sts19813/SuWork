@@ -255,6 +255,10 @@
                                     </select>
                                 </div>
                                 <div class="col-12">
+                                    <label class="form-label">Agendar visita</label>
+                                    <input class="form-control" type="datetime-local" name="scheduled_visit_at" value="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i') }}">
+                                </div>
+                                <div class="col-12">
                                     <label class="form-label">Nota</label>
                                     <textarea class="form-control" name="notes" rows="2" maxlength="3000"></textarea>
                                 </div>
