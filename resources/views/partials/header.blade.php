@@ -62,6 +62,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link fw-semibold {{ request()->routeIs('maintenance.*') ? 'active text-primary' : 'text-gray-700' }}"
+                        href="{{ route('maintenance.index') }}">
+                        Mantenimiento
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link fw-semibold {{ request()->routeIs('profile.*') ? 'active text-primary' : 'text-gray-700' }}"
                         href="{{ route('profile.index') }}">
                         Perfil
