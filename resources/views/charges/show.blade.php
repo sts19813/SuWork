@@ -40,14 +40,16 @@
                     <h3 class="fw-bold">Detalle del cargo</h3>
                 </div>
                 <div class="card-toolbar d-flex gap-2">
-                    @if (in_array($charge->status, [\App\Models\Charge::STATUS_PENDING, \App\Models\Charge::STATUS_PARTIAL, \App\Models\Charge::STATUS_IN_VALIDATION], true))
+                    @if ($canManageCharges && in_array($charge->status, [\App\Models\Charge::STATUS_PENDING, \App\Models\Charge::STATUS_PARTIAL, \App\Models\Charge::STATUS_IN_VALIDATION], true))
                         <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#registerPaymentModal">
                             Registrar pago
                         </button>
                     @endif
-                    <button class="btn btn-light-primary btn-sm" data-bs-toggle="modal" data-bs-target="#notifyChargeModal">
-                        Notificacion
-                    </button>
+                    @if ($canManageCharges)
+                        <button class="btn btn-light-primary btn-sm" data-bs-toggle="modal" data-bs-target="#notifyChargeModal">
+                            Notificacion
+                        </button>
+                    @endif
                     <a href="{{ route('charges.public.show', ['token' => $charge->payment_token]) }}" target="_blank" class="btn btn-light btn-sm">
                         Abrir link de pago
                     </a>
@@ -155,7 +157,7 @@
                                         @endif
                                     </td>
                                     <td class="text-end">
-                                        @if ($payment->status === \App\Models\ChargePayment::STATUS_PENDING_VALIDATION)
+                                        @if ($canManageCharges && $payment->status === \App\Models\ChargePayment::STATUS_PENDING_VALIDATION)
                                             <form method="POST" action="{{ route('charges.payments.validate', [$charge, $payment]) }}">
                                                 @csrf
                                                 <button type="submit" class="btn btn-sm btn-primary">Validar comprobante</button>
@@ -177,6 +179,7 @@
         </div>
     </div>
 
+    @if ($canManageCharges)
     <div class="modal fade" id="registerPaymentModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-md modal-dialog-scrollable">
             <div class="modal-content">
@@ -281,10 +284,11 @@
             </div>
         </div>
     </div>
+    @endif
 @endsection
 
 @push('scripts')
-    @if ($errors->registerPayment->any())
+    @if ($canManageCharges && $errors->registerPayment->any())
         <script>
             (() => {
                 const modalEl = document.getElementById('registerPaymentModal');
@@ -294,7 +298,7 @@
         </script>
     @endif
 
-    @if ($errors->chargeReminder->any())
+    @if ($canManageCharges && $errors->chargeReminder->any())
         <script>
             (() => {
                 const modalEl = document.getElementById('notifyChargeModal');

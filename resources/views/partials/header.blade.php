@@ -7,6 +7,7 @@
     $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
     $menuItems = $isTenant
         ? [
+            ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza'],
             ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
             ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
         ]
