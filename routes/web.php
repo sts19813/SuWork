@@ -122,6 +122,11 @@ Route::middleware(['auth'])
     });
 
 Route::get('/dashboard', function () {
+    $user = auth()->user();
+    if ($user && ($user->hasRole('inquilino') || $user->hasRole('tenant'))) {
+        return redirect()->route('maintenance.index');
+    }
+
     return redirect()->route('properties.index');
 })->middleware(['auth'])->name('dashboard');
 

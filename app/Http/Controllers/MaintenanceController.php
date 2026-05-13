@@ -207,6 +207,7 @@ class MaintenanceController extends Controller
             'canManageProviders' => $role === 'administrador',
             'canManageAssignments' => $role === 'administrador',
             'canManageCosts' => $role === 'administrador',
+            'isTenant' => $role === 'inquilino',
         ]);
     }
 
@@ -227,20 +228,23 @@ class MaintenanceController extends Controller
             : 'pendiente';
 
         $ticket = DB::transaction(function () use ($validated, $user, $role, $status, $property, $request): MaintenanceTicket {
+            $category = (string) ($validated['category'] ?? array_key_first(MaintenanceTicket::CATEGORY_LABELS));
+            $priority = (string) ($validated['priority'] ?? 'media');
+            $description = trim((string) ($validated['description'] ?? ''));
             $ticket = MaintenanceTicket::create([
                 'property_id' => $property->id,
                 'reported_by_user_id' => $user?->id,
                 'reported_by_role' => $role,
                 'reported_by_name' => $user?->name,
-                'category' => (string) $validated['category'],
-                'priority' => (string) $validated['priority'],
+                'category' => $category,
+                'priority' => $priority,
                 'status' => $status,
                 'title' => trim((string) $validated['title']),
                 'reference' => filled($validated['reference'] ?? null) ? trim((string) $validated['reference']) : null,
-                'exact_location' => trim((string) $validated['exact_location']),
-                'description' => trim((string) $validated['description']),
+                'exact_location' => filled($validated['exact_location'] ?? null) ? trim((string) $validated['exact_location']) : null,
+                'description' => $description !== '' ? $description : trim((string) $validated['title']),
                 'additional_notes' => filled($validated['additional_notes'] ?? null) ? trim((string) $validated['additional_notes']) : null,
-                'reported_at' => $validated['reported_at'],
+                'reported_at' => $validated['reported_at'] ?? now(),
                 'scheduled_visit_at' => $validated['scheduled_visit_at'] ?? null,
                 'payer' => $validated['payer'] ?? null,
                 'payment_rule' => $validated['payment_rule'] ?? null,

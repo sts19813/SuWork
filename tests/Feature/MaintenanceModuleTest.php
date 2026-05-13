@@ -6,12 +6,14 @@ use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\Property;
 use App\Models\PropertyType;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class MaintenanceModuleTest extends TestCase
@@ -69,6 +71,45 @@ class MaintenanceModuleTest extends TestCase
             'ticket_id' => $ticket->id,
             'to_status' => 'pendiente',
         ]);
+    }
+
+    public function test_tenant_can_create_ticket_with_minimal_fields(): void
+    {
+        Storage::fake('public');
+        Mail::fake();
+
+        Role::query()->firstOrCreate(['name' => 'inquilino', 'guard_name' => 'web']);
+        $tenantUser = User::factory()->create(['email' => 'inquilino@example.com']);
+        $tenantUser->assignRole('inquilino');
+        $tenant = Tenant::create([
+            'full_name' => 'Inquilino Prueba',
+            'phone_primary' => '9991112233',
+            'email' => 'inquilino@example.com',
+            'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
+            'is_active' => true,
+        ]);
+        $property = $this->createPropertyFixture($tenantUser);
+        $property->update([
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+        ]);
+
+        $response = $this
+            ->actingAs($tenantUser)
+            ->post(route('maintenance.store'), [
+                'property_id' => $property->id,
+                'title' => 'No hay agua caliente',
+                'files' => [
+                    UploadedFile::fake()->image('evidencia.jpg'),
+                ],
+            ]);
+
+        $ticket = MaintenanceTicket::query()->where('title', 'No hay agua caliente')->first();
+        $this->assertNotNull($ticket);
+        $response->assertRedirect(route('maintenance.show', $ticket));
+        $this->assertSame('media', $ticket->priority);
+        $this->assertSame('pendiente', $ticket->status);
+        $this->assertDatabaseCount('maintenance_ticket_files', 1);
     }
 
     public function test_ticket_can_be_assigned_and_completed(): void

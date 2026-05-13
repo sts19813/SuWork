@@ -17,6 +17,17 @@ class StoreMaintenanceTicketRequest extends FormRequest
 
     public function rules(): array
     {
+        $tenant = $this->user()?->hasRole('inquilino') || $this->user()?->hasRole('tenant');
+        if ($tenant) {
+            return [
+                'property_id' => ['required', 'integer', 'exists:properties,id'],
+                'title' => ['required', 'string', 'max:190'],
+                'description' => ['nullable', 'string', 'max:10000'],
+                'files' => ['required', 'array', 'min:1', 'max:20'],
+                'files.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,mp4,mov,avi,doc,docx,xls,xlsx,txt', 'max:51200'],
+            ];
+        }
+
         return [
             'property_id' => ['required', 'integer', 'exists:properties,id'],
             'category' => ['required', Rule::in(array_keys(MaintenanceTicket::CATEGORY_LABELS))],

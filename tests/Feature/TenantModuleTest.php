@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class TenantModuleTest extends TestCase
@@ -39,11 +41,14 @@ class TenantModuleTest extends TestCase
 
         $response->assertRedirect(route('tenants.index'));
         $this->assertDatabaseHas('tenants', ['full_name' => 'Ana Lucia Torres']);
+        $this->assertDatabaseHas('users', ['email' => 'ana@example.com']);
+        $this->assertTrue(User::query()->where('email', 'ana@example.com')->firstOrFail()->hasRole('inquilino'));
     }
 
     public function test_tenant_can_be_updated(): void
     {
         $user = User::factory()->create();
+        Role::query()->firstOrCreate(['name' => 'inquilino', 'guard_name' => 'web']);
         $tenant = Tenant::create([
             'full_name' => 'Roberto Canul',
             'phone_primary' => '9994445566',
@@ -51,6 +56,10 @@ class TenantModuleTest extends TestCase
             'dossier_status' => Tenant::DOSSIER_IN_REVIEW,
             'is_active' => true,
         ]);
+        User::factory()->create([
+            'name' => 'Roberto Canul',
+            'email' => 'roberto@example.com',
+        ])->assignRole('inquilino');
 
         $response = $this
             ->actingAs($user)
@@ -59,6 +68,7 @@ class TenantModuleTest extends TestCase
                 'phone_primary' => '9994445566',
                 'email' => 'roberto@example.com',
                 'dossier_status' => Tenant::DOSSIER_IN_REVIEW,
+                'access_password' => 'NuevaClave123',
             ]);
 
         $response->assertRedirect(route('tenants.index'));
@@ -66,6 +76,6 @@ class TenantModuleTest extends TestCase
             'id' => $tenant->id,
             'full_name' => 'Roberto Canul Dzib',
         ]);
+        $this->assertTrue(Hash::check('NuevaClave123', User::query()->where('email', 'roberto@example.com')->firstOrFail()->password));
     }
 }
-
