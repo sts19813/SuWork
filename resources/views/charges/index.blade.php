@@ -61,7 +61,7 @@
             </div>
         </div>
 
-        
+        @if ($canManageCharges)
         <div class="row g-5 mb-8">
             <div class="col-md-6 col-xl-3">
                 <div class="card h-100">
@@ -124,6 +124,7 @@
                 </div>
             </div>
         </div>
+        @endif
 
         <div class="mb-6 d-flex align-items-center gap-6 fs-5 fw-semibold border-bottom pb-3">
             <span class="text-primary border-bottom border-2 border-primary pb-2">Cargos
@@ -131,6 +132,7 @@
             <span class="text-muted">Pagos ({{ $stats['payments_count'] }})</span>
         </div>
 
+        @if ($canManageCharges)
         <div class="card mb-8">
             <div class="card-body py-6">
                 <form method="GET" action="{{ route('charges.index') }}" class="row g-4 align-items-end">
@@ -160,6 +162,7 @@
                 </form>
             </div>
         </div>
+        @endif
 
         <div class="card">
             <div class="card-body py-0">

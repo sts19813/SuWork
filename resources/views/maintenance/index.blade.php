@@ -21,6 +21,7 @@
             @endif
         </div>
 
+        @if (!$isTenant)
         <div class="row g-5 mb-6">
             <div class="col-md-3">
                 <div class="card">
@@ -55,7 +56,9 @@
                 </div>
             </div>
         </div>
+        @endif
 
+        @if (!$isTenant)
         <div class="card mb-6">
             <div class="card-body">
                 <form class="row g-4 align-items-end" method="GET" action="{{ route('maintenance.index') }}">
@@ -115,6 +118,7 @@
                 </form>
             </div>
         </div>
+        @endif
 
         <div class="card mb-6">
             <div class="card-body py-0">
@@ -176,6 +180,7 @@
             </div>
         </div>
 
+        @if (!$isTenant)
         <div class="row g-5 mb-6">
             <div class="col-lg-6">
                 <div class="card h-100">
@@ -221,7 +226,9 @@
                 </div>
             </div>
         </div>
+        @endif
 
+        @if (!$isTenant)
         <div class="card mb-6">
             <div class="card-header">
                 <h3 class="card-title">Calendario interno de mantenimiento</h3>
@@ -259,6 +266,7 @@
                 </div>
             </div>
         </div>
+        @endif
 
         @if ($canManageProviders)
             <div class="card">
