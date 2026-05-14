@@ -15,6 +15,7 @@ use App\Models\Property;
 use App\Models\PropertyChangeLog;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,6 +31,13 @@ class ChargeController extends Controller
 {
     public function index(Request $request): View
     {
+        $user = $request->user();
+        $isTenant = $this->isTenantUser($user);
+        $tenantPropertyIds = $isTenant
+            ? Property::query()
+                ->whereHas('tenant', fn ($query) => $query->where('email', $user->email))
+                ->pluck('id')
+            : collect();
         $filters = $request->validate([
             'q' => ['nullable', 'string', 'max:190'],
             'status' => ['nullable', Rule::in(['', 'pending', 'in_validation', 'partial', 'paid', 'overdue', 'canceled'])],
@@ -42,9 +50,13 @@ class ChargeController extends Controller
         $selectedProperty = filled($selectedPropertyUuid)
             ? Property::query()
                 ->with('tenant:id,full_name')
+                ->when($isTenant, fn ($query) => $query->whereIn('id', $tenantPropertyIds))
                 ->where('uuid', $selectedPropertyUuid)
                 ->first()
             : null;
+        if ($isTenant && filled($selectedPropertyUuid) && !$selectedProperty) {
+            abort(403);
+        }
         $selectedPropertyId = $selectedProperty?->id;
         $selectedPropertyHasRentCharges = $selectedPropertyId
             ? Charge::query()
@@ -53,10 +65,11 @@ class ChargeController extends Controller
                 ->where('status', '!=', Charge::STATUS_CANCELED)
                 ->exists()
             : false;
-        $showPropertySetupCard = (bool) ($selectedPropertyId && !$selectedPropertyHasRentCharges);
+        $showPropertySetupCard = !$isTenant && (bool) ($selectedPropertyId && !$selectedPropertyHasRentCharges);
 
         $charges = Charge::query()
             ->with(['tenant:id,full_name', 'property:id,internal_name,internal_reference'])
+            ->when($isTenant, fn ($query) => $query->whereIn('property_id', $tenantPropertyIds))
             ->when($selectedPropertyId, fn ($query) => $query->where('property_id', $selectedPropertyId))
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($innerQuery) use ($search) {
@@ -88,8 +101,13 @@ class ChargeController extends Controller
 
         $now = now();
         $chargeBaseQuery = fn () => Charge::query()
+            ->when($isTenant, fn ($query) => $query->whereIn('property_id', $tenantPropertyIds))
             ->when($selectedPropertyId, fn ($query) => $query->where('property_id', $selectedPropertyId));
         $paymentBaseQuery = fn () => ChargePayment::query()
+            ->when(
+                $isTenant,
+                fn ($query) => $query->whereHas('charge', fn ($chargeQuery) => $chargeQuery->whereIn('property_id', $tenantPropertyIds)),
+            )
             ->when(
                 $selectedPropertyId,
                 fn ($query) => $query->whereHas('charge', fn ($chargeQuery) => $chargeQuery->where('property_id', $selectedPropertyId)),
@@ -124,6 +142,7 @@ class ChargeController extends Controller
 
         $propertiesQuery = Property::query()
             ->with('tenant:id,full_name')
+            ->when($isTenant, fn ($query) => $query->whereIn('id', $tenantPropertyIds))
             ->orderBy('internal_name');
         if ($selectedPropertyId) {
             $propertiesQuery->where('id', $selectedPropertyId);
@@ -132,6 +151,7 @@ class ChargeController extends Controller
         $chargeablePropertiesQuery = Property::query()
             ->with('tenant:id,full_name')
             ->whereNotNull('tenant_id')
+            ->when($isTenant, fn ($query) => $query->whereIn('id', $tenantPropertyIds))
             ->orderBy('internal_name');
         if ($selectedPropertyId) {
             $chargeablePropertiesQuery->where('id', $selectedPropertyId);
@@ -180,9 +200,11 @@ class ChargeController extends Controller
                 'charge_day',
                 'charge_tolerance_days',
             ]),
-            'tenants' => Tenant::query()
-                ->orderBy('full_name')
-                ->get(['id', 'full_name', 'email']),
+            'tenants' => $isTenant
+                ? collect()
+                : Tenant::query()
+                    ->orderBy('full_name')
+                    ->get(['id', 'full_name', 'email']),
             'propertySetupTenants' => $propertySetupTenants,
             'tenantAssignmentChecks' => $tenantAssignmentChecks,
             'typeOptions' => Charge::TYPE_LABELS,
@@ -202,6 +224,7 @@ class ChargeController extends Controller
             'currentMonthLabel' => Carbon::create($now->year, $now->month, 1)->translatedFormat('M Y'),
             'selectedProperty' => $selectedProperty,
             'showPropertySetupCard' => $showPropertySetupCard,
+            'canManageCharges' => !$isTenant,
         ]);
     }
 
@@ -446,6 +469,7 @@ class ChargeController extends Controller
 
     public function show(Charge $charge): View
     {
+        $this->ensureChargeVisible($charge, request()->user());
         $charge->load([
             'tenant:id,full_name,email,phone_primary',
             'property.owners:id,name,phone,email,bank_name,clabe,account_holder',
@@ -455,11 +479,15 @@ class ChargeController extends Controller
         return view('charges.show', [
             'charge' => $charge,
             'paymentMethods' => ChargePayment::METHOD_LABELS,
+            'canManageCharges' => !$this->isTenantUser(request()->user()),
         ]);
     }
 
     public function storePayment(StoreChargePaymentRequest $request, Charge $charge): RedirectResponse
     {
+        if ($this->isTenantUser($request->user())) {
+            abort(403);
+        }
         if (!in_array($charge->status, [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION], true)) {
             return redirect()->back()->with('error', 'Este cargo ya no admite pagos.');
         }
@@ -503,6 +531,9 @@ class ChargeController extends Controller
 
     public function validatePayment(Request $request, Charge $charge, ChargePayment $payment): RedirectResponse
     {
+        if ($this->isTenantUser($request->user())) {
+            abort(403);
+        }
         if ($payment->charge_id !== $charge->id) {
             abort(404);
         }
@@ -536,6 +567,9 @@ class ChargeController extends Controller
 
     public function sendReminder(SendChargeReminderRequest $request, Charge $charge): RedirectResponse
     {
+        if ($this->isTenantUser($request->user())) {
+            abort(403);
+        }
         $validated = $request->validated();
         $channel = (string) $validated['channel'];
         $daysBefore = (int) $validated['days_before'];
@@ -1146,6 +1180,27 @@ class ChargeController extends Controller
         }
 
         Mail::to($charge->tenant->email)->send(new ChargeCompletedMail($charge));
+    }
+
+    private function isTenantUser(?User $user): bool
+    {
+        return (bool) $user && ($user->hasRole('inquilino') || $user->hasRole('tenant'));
+    }
+
+    private function ensureChargeVisible(Charge $charge, ?User $user): void
+    {
+        if (!$this->isTenantUser($user)) {
+            return;
+        }
+
+        $visible = Charge::query()
+            ->where('id', $charge->id)
+            ->whereHas('property.tenant', fn ($query) => $query->where('email', $user->email))
+            ->exists();
+
+        if (!$visible) {
+            abort(403);
+        }
     }
 
     private function getTenantAssignmentMissingRequirements(Tenant $tenant): array

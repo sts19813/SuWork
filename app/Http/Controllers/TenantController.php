@@ -6,10 +6,15 @@ use App\Http\Requests\StoreTenantRequest;
 use App\Models\Charge;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Spatie\Permission\Models\Role;
 
 class TenantController extends Controller
 {
@@ -60,36 +65,18 @@ class TenantController extends Controller
     public function store(StoreTenantRequest $request): RedirectResponse
     {
         $validated = $request->validated();
-
-        $tenant = Tenant::create([
-            'full_name' => $validated['full_name'],
-            'phone_primary' => $validated['phone_primary'],
-            'phone_secondary' => $validated['phone_secondary'] ?? null,
-            'email' => $validated['email'] ?? null,
-            'rfc' => $validated['rfc'] ?? null,
-            'curp' => $validated['curp'] ?? null,
-            'employer' => $validated['employer'] ?? null,
-            'occupation' => $validated['occupation'] ?? null,
-            'monthly_income' => $validated['monthly_income'] ?? null,
-            'employment_years' => $validated['employment_years'] ?? null,
-            'personal_reference_name' => $validated['personal_reference_name'] ?? null,
-            'personal_reference_phone' => $validated['personal_reference_phone'] ?? null,
-            'work_reference_name' => $validated['work_reference_name'] ?? null,
-            'work_reference_phone' => $validated['work_reference_phone'] ?? null,
-            'emergency_contact_name' => $validated['emergency_contact_name'] ?? null,
-            'emergency_contact_phone' => $validated['emergency_contact_phone'] ?? null,
-            'previous_address' => $validated['previous_address'] ?? null,
-            'current_address' => $validated['current_address'] ?? null,
-            'dossier_status' => $validated['dossier_status'],
-            'notes' => $validated['notes'] ?? null,
-            'is_active' => $validated['is_active'] ?? true,
-        ]);
+        $tenant = Tenant::create($this->tenantPayload($validated));
 
         $this->ensureDossierDocuments($tenant);
+        [, $password] = $this->syncTenantAccess($tenant, $validated['access_password'] ?? null);
+        $message = 'El inquilino se creo correctamente.';
+        if ($password !== null) {
+            $message .= ' Acceso: ' . $tenant->email . ' / ' . $password;
+        }
 
         return redirect()
             ->route('tenants.index')
-            ->with('success', 'El inquilino se creo correctamente.');
+            ->with('success', $message);
     }
 
     public function edit(Tenant $tenant): View
@@ -110,12 +97,28 @@ class TenantController extends Controller
     public function update(StoreTenantRequest $request, Tenant $tenant): RedirectResponse
     {
         $validated = $request->validated();
+        $previousEmail = $tenant->email;
+        $tenant->update($this->tenantPayload($validated));
 
-        $tenant->update([
+        $this->ensureDossierDocuments($tenant);
+        [, $password] = $this->syncTenantAccess($tenant, $validated['access_password'] ?? null, $previousEmail);
+        $message = 'El inquilino se actualizo correctamente.';
+        if ($password !== null) {
+            $message .= ' Acceso: ' . $tenant->email . ' / ' . $password;
+        }
+
+        return redirect()
+            ->route('tenants.index')
+            ->with('success', $message);
+    }
+
+    private function tenantPayload(array $validated): array
+    {
+        return [
             'full_name' => $validated['full_name'],
             'phone_primary' => $validated['phone_primary'],
             'phone_secondary' => $validated['phone_secondary'] ?? null,
-            'email' => $validated['email'] ?? null,
+            'email' => $validated['email'],
             'rfc' => $validated['rfc'] ?? null,
             'curp' => $validated['curp'] ?? null,
             'employer' => $validated['employer'] ?? null,
@@ -133,13 +136,65 @@ class TenantController extends Controller
             'dossier_status' => $validated['dossier_status'],
             'notes' => $validated['notes'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
+        ];
+    }
+
+    private function syncTenantAccess(Tenant $tenant, ?string $password, ?string $fallbackEmail = null): array
+    {
+        $email = trim((string) $tenant->email);
+        $plainPassword = filled($password) ? (string) $password : null;
+        $user = User::query()->where('email', $email)->first();
+
+        if (!$user && filled($fallbackEmail)) {
+            $user = User::query()->where('email', trim((string) $fallbackEmail))->first();
+        }
+
+        if (!$user) {
+            $plainPassword = $plainPassword ?: Str::random(12);
+            $user = User::create([
+                'name' => $tenant->full_name,
+                'email' => $email,
+                'password' => Hash::make($plainPassword),
+            ]);
+        } else {
+            $data = [
+                'name' => $tenant->full_name,
+                'email' => $email,
+            ];
+            if ($plainPassword !== null) {
+                $data['password'] = Hash::make($plainPassword);
+            }
+            $user->update($data);
+        }
+
+        $this->ensureTenantRole($user);
+        if ($plainPassword !== null) {
+            $this->sendTenantAccessEmail($user->email, $plainPassword);
+        }
+
+        return [$user, $plainPassword];
+    }
+
+    private function ensureTenantRole(User $user): void
+    {
+        $role = Role::query()->firstOrCreate([
+            'name' => 'inquilino',
+            'guard_name' => 'web',
         ]);
+        if (!$user->hasRole($role->name)) {
+            $user->assignRole($role);
+        }
+    }
 
-        $this->ensureDossierDocuments($tenant);
-
-        return redirect()
-            ->route('tenants.index')
-            ->with('success', 'El inquilino se actualizo correctamente.');
+    private function sendTenantAccessEmail(string $email, string $password): void
+    {
+        try {
+            Mail::raw(
+                "Tu cuenta de inquilino fue creada.\n\nAcceso:\nCorreo: {$email}\nContraseña: {$password}\n\nPortal: " . url('/login'),
+                fn($mail) => $mail->to($email)->subject('Acceso al sistema')
+            );
+        } catch (\Throwable) {
+        }
     }
 
     private function ensureDossierDocuments(Tenant $tenant): void

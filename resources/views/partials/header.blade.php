@@ -4,6 +4,24 @@
     $initials = collect(explode(' ', $name))
         ->map(fn($word) => mb_substr($word, 0, 1))
         ->join('');
+    $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
+    $menuItems = $isTenant
+        ? [
+            ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza'],
+            ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
+            ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
+        ]
+        : [
+            ['patterns' => ['dashboard'], 'route' => 'dashboard', 'label' => 'Dashboard'],
+            ['patterns' => ['properties.*'], 'route' => 'properties.index', 'label' => 'Propiedades'],
+            ['patterns' => ['owners.*'], 'route' => 'owners.index', 'label' => 'Propietarios'],
+            ['patterns' => ['tenants.*'], 'route' => 'tenants.index', 'label' => 'Inquilinos'],
+            ['patterns' => ['documents.*', 'dossiers.*'], 'route' => 'documents.index', 'label' => 'Documentos'],
+            ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza'],
+            ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos'],
+            ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
+            ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
+        ];
 @endphp
 
 <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm py-0">
@@ -19,54 +37,14 @@
 
         <div class="collapse navbar-collapse" id="mainHeaderNav">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-lg-2">
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('dashboard') ? 'active text-primary' : 'text-gray-700' }}"
-                        href="{{ route('dashboard') }}">
-                        Dashboard
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('properties.*') ? 'active text-primary' : 'text-gray-700' }}"
-                        href="{{ route('properties.index') }}">
-                        Propiedades
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('owners.*') ? 'active text-primary' : 'text-gray-700' }}"
-                        href="{{ route('owners.index') }}">
-                        Propietarios
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('tenants.*') ? 'active text-primary' : 'text-gray-700' }}"
-                        href="{{ route('tenants.index') }}">
-                        Inquilinos
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('documents.*') || request()->routeIs('dossiers.*') ? 'active text-primary' : 'text-gray-700' }}"
-                        href="{{ route('documents.index') }}">
-                        Documentos
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('charges.*') ? 'active text-primary' : 'text-gray-700' }}"
-                        href="{{ route('charges.index') }}">
-                        Cobranza
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('expenses.*') ? 'active text-primary' : 'text-gray-700' }}"
-                        href="{{ route('expenses.index') }}">
-                        Gastos
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('profile.*') ? 'active text-primary' : 'text-gray-700' }}"
-                        href="{{ route('profile.index') }}">
-                        Perfil
-                    </a>
-                </li>
+                @foreach ($menuItems as $item)
+                    <li class="nav-item">
+                        <a class="nav-link fw-semibold {{ request()->routeIs(...$item['patterns']) ? 'active text-primary' : 'text-gray-700' }}"
+                            href="{{ route($item['route']) }}">
+                            {{ $item['label'] }}
+                        </a>
+                    </li>
+                @endforeach
             </ul>
 
             <div class="dropdown d-flex align-items-center gap-3">

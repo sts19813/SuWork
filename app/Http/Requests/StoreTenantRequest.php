@@ -23,11 +23,13 @@ class StoreTenantRequest extends FormRequest
      */
     public function rules(): array
     {
+        $tenantId = $this->route('tenant')?->id;
+
         return [
             'full_name' => ['required', 'string', 'max:255'],
             'phone_primary' => ['required', 'string', 'max:40'],
             'phone_secondary' => ['nullable', 'string', 'max:40'],
-            'email' => ['nullable', 'email', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('tenants', 'email')->ignore($tenantId)],
             'rfc' => ['nullable', 'string', 'max:20'],
             'curp' => ['nullable', 'string', 'max:20'],
             'employer' => ['nullable', 'string', 'max:255'],
@@ -45,6 +47,7 @@ class StoreTenantRequest extends FormRequest
             'dossier_status' => ['required', Rule::in(array_keys(Tenant::DOSSIER_STATUS_LABELS))],
             'notes' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
+            'access_password' => ['nullable', 'string', 'min:8', 'max:120'],
         ];
     }
 
@@ -58,7 +61,7 @@ class StoreTenantRequest extends FormRequest
             'phone_primary' => 'telefono principal',
             'monthly_income' => 'ingreso mensual',
             'dossier_status' => 'estado del expediente',
+            'access_password' => 'contrasena de acceso',
         ];
     }
 }
-

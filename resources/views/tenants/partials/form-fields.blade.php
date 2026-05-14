@@ -40,6 +40,14 @@
         @enderror
     </div>
     <div class="col-lg-6">
+        <label class="form-label">Contraseña de acceso</label>
+        <input type="text" name="access_password" class="form-control @error('access_password') is-invalid @enderror"
+            value="{{ old('access_password') }}">
+        @error('access_password')
+            <div class="invalid-feedback">{{ $message }}</div>
+        @enderror
+    </div>
+    <div class="col-lg-6">
         <label class="form-label">CURP</label>
         <input type="text" name="curp" class="form-control @error('curp') is-invalid @enderror"
             value="{{ old('curp', $tenant?->curp) }}">
@@ -150,4 +158,3 @@
         <textarea name="notes" rows="3" class="form-control">{{ old('notes', $tenant?->notes) }}</textarea>
     </div>
 </div>
-

@@ -181,6 +181,11 @@ class Property extends Model
         return $this->hasMany(Expense::class);
     }
 
+    public function maintenanceTickets(): HasMany
+    {
+        return $this->hasMany(MaintenanceTicket::class);
+    }
+
     public function changeLogs(): HasMany
     {
         return $this->hasMany(PropertyChangeLog::class)->latest('changed_at')->latest('id');

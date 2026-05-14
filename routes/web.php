@@ -6,6 +6,7 @@ use App\Http\Controllers\ChargePaymentController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InventoryCheckController;
+use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\TenantController;
@@ -106,9 +107,26 @@ Route::middleware(['auth'])
         Route::put('/gastos/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
         Route::post('/gastos/{expense}/marcar-pagado', [ExpenseController::class, 'markAsPaid'])->name('expenses.mark-paid');
         Route::delete('/gastos/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
+
+        Route::get('/mantenimiento', [MaintenanceController::class, 'index'])->name('maintenance.index');
+        Route::post('/mantenimiento', [MaintenanceController::class, 'store'])->name('maintenance.store');
+        Route::get('/mantenimiento/{maintenance}', [MaintenanceController::class, 'show'])->name('maintenance.show');
+        Route::put('/mantenimiento/{maintenance}', [MaintenanceController::class, 'update'])->name('maintenance.update');
+        Route::patch('/mantenimiento/{maintenance}/estado', [MaintenanceController::class, 'changeStatus'])->name('maintenance.status');
+        Route::post('/mantenimiento/{maintenance}/asignar', [MaintenanceController::class, 'assign'])->name('maintenance.assign');
+        Route::put('/mantenimiento/{maintenance}/costos', [MaintenanceController::class, 'updateCosts'])->name('maintenance.costs');
+        Route::post('/mantenimiento/{maintenance}/archivos', [MaintenanceController::class, 'uploadFiles'])->name('maintenance.files');
+        Route::post('/mantenimiento/{maintenance}/mensajes', [MaintenanceController::class, 'storeMessage'])->name('maintenance.messages');
+        Route::post('/mantenimiento/proveedores', [MaintenanceController::class, 'storeProvider'])->name('maintenance.providers.store');
+        Route::put('/mantenimiento/proveedores/{provider}', [MaintenanceController::class, 'updateProvider'])->name('maintenance.providers.update');
     });
 
 Route::get('/dashboard', function () {
+    $user = auth()->user();
+    if ($user && ($user->hasRole('inquilino') || $user->hasRole('tenant'))) {
+        return redirect()->route('maintenance.index');
+    }
+
     return redirect()->route('properties.index');
 })->middleware(['auth'])->name('dashboard');
 

@@ -65,4 +65,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Charge::class, 'created_by');
     }
+
+    public function maintenanceTicketsReported(): HasMany
+    {
+        return $this->hasMany(MaintenanceTicket::class, 'reported_by_user_id');
+    }
 }

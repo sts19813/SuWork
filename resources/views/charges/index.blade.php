@@ -43,23 +43,25 @@
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-3">
-                @if ($selectedProperty)
+                @if ($selectedProperty && $canManageCharges)
                     <a href="{{ route('properties.show', $selectedProperty) }}" class="btn btn-light fw-bold">
                         <i class="ki-outline ki-home fs-4 me-1"></i> Ver propiedad
                     </a>
                 @endif
-                <button type="button" class="btn btn-light-primary fw-bold" data-bs-toggle="modal"
-                    data-bs-target="#bulkChargeModal">
-                    <i class="ki-outline ki-calendar-add fs-4 me-1"></i> Generar cobranza
-                </button>
-                <button type="button" class="btn btn-primary fw-bold" data-bs-toggle="modal"
-                    data-bs-target="#createChargeModal">
-                    <i class="ki-outline ki-plus fs-4 me-1"></i> Nuevo cargo
-                </button>
+                @if ($canManageCharges)
+                    <button type="button" class="btn btn-light-primary fw-bold" data-bs-toggle="modal"
+                        data-bs-target="#bulkChargeModal">
+                        <i class="ki-outline ki-calendar-add fs-4 me-1"></i> Generar cobranza
+                    </button>
+                    <button type="button" class="btn btn-primary fw-bold" data-bs-toggle="modal"
+                        data-bs-target="#createChargeModal">
+                        <i class="ki-outline ki-plus fs-4 me-1"></i> Nuevo cargo
+                    </button>
+                @endif
             </div>
         </div>
 
-        
+        @if ($canManageCharges)
         <div class="row g-5 mb-8">
             <div class="col-md-6 col-xl-3">
                 <div class="card h-100">
@@ -122,6 +124,7 @@
                 </div>
             </div>
         </div>
+        @endif
 
         <div class="mb-6 d-flex align-items-center gap-6 fs-5 fw-semibold border-bottom pb-3">
             <span class="text-primary border-bottom border-2 border-primary pb-2">Cargos
@@ -129,6 +132,7 @@
             <span class="text-muted">Pagos ({{ $stats['payments_count'] }})</span>
         </div>
 
+        @if ($canManageCharges)
         <div class="card mb-8">
             <div class="card-body py-6">
                 <form method="GET" action="{{ route('charges.index') }}" class="row g-4 align-items-end">
@@ -158,6 +162,7 @@
                 </form>
             </div>
         </div>
+        @endif
 
         <div class="card">
             <div class="card-body py-0">
@@ -176,12 +181,12 @@
                         <tbody class="fw-semibold text-gray-700">
                             @forelse ($charges as $charge)
                                 @php
-                                    $canRegisterPayment = in_array(
+                                    $canRegisterPayment = $canManageCharges && in_array(
                                         $charge->status,
                                         [\App\Models\Charge::STATUS_PENDING, \App\Models\Charge::STATUS_PARTIAL, \App\Models\Charge::STATUS_IN_VALIDATION],
                                         true,
                                     );
-                                    $canEditCharge = in_array(
+                                    $canEditCharge = $canManageCharges && in_array(
                                         $charge->status,
                                         [\App\Models\Charge::STATUS_PENDING, \App\Models\Charge::STATUS_PARTIAL, \App\Models\Charge::STATUS_IN_VALIDATION],
                                         true,
@@ -275,6 +280,7 @@
         </div>
     </div>
 
+    @if ($canManageCharges)
     <div class="modal fade" id="createChargeModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
@@ -718,6 +724,7 @@
             </div>
         </div>
     </div>
+    @endif
 @endsection
 
 @push('scripts')
@@ -727,8 +734,9 @@
         document.addEventListener('DOMContentLoaded', () => {
             const hasNoCharges = @json($charges->isEmpty());
             const hasProperty = @json((bool) $selectedProperty);
+            const canManageCharges = @json((bool) $canManageCharges);
 
-            if (hasNoCharges && hasProperty) {
+            if (canManageCharges && hasNoCharges && hasProperty) {
                 const modalEl = document.getElementById('bulkChargeModal');
                 if (modalEl) {
                     const modal = new bootstrap.Modal(modalEl);
@@ -1626,7 +1634,7 @@
         })();
     </script>
 
-    @if ($errors->createCharge->any())
+    @if ($canManageCharges && $errors->createCharge->any())
         <script>
             (() => {
                 const modalEl = document.getElementById('createChargeModal');
@@ -1636,7 +1644,7 @@
         </script>
     @endif
 
-    @if ($errors->registerPayment->any())
+    @if ($canManageCharges && $errors->registerPayment->any())
         <script>
             (() => {
                 const modalEl = document.getElementById('registerPaymentModal');
@@ -1652,7 +1660,7 @@
         </script>
     @endif
 
-    @if ($errors->updateCharge->any())
+    @if ($canManageCharges && $errors->updateCharge->any())
         <script>
             (() => {
                 const isDeleteFlow = @json((bool) old('delete_charge'));
@@ -1677,7 +1685,7 @@
         </script>
     @endif
 
-    @if ($errors->generateCharges->any())
+    @if ($canManageCharges && $errors->generateCharges->any())
         <script>
             (() => {
                 const modalEl = document.getElementById('bulkChargeModal');

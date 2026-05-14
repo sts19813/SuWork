@@ -12,6 +12,7 @@ use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class ChargeModuleTest extends TestCase
@@ -204,6 +205,113 @@ class ChargeModuleTest extends TestCase
 
         $charge->refresh();
         $this->assertSame(Charge::STATUS_PAID, $charge->status);
+    }
+
+    public function test_tenant_sees_charges_from_all_assigned_properties_only(): void
+    {
+        Role::query()->firstOrCreate(['name' => 'inquilino', 'guard_name' => 'web']);
+
+        $tenantUser = User::factory()->create(['email' => 'cliente@example.com']);
+        $tenantUser->assignRole('inquilino');
+        $admin = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+
+        $tenant = Tenant::create([
+            'full_name' => 'Cliente Uno',
+            'phone_primary' => '9991112233',
+            'email' => 'cliente@example.com',
+            'dossier_status' => Tenant::DOSSIER_COMPLETE,
+            'is_active' => true,
+        ]);
+        $otherTenant = Tenant::create([
+            'full_name' => 'Cliente Dos',
+            'phone_primary' => '9991112244',
+            'email' => 'otro@example.com',
+            'dossier_status' => Tenant::DOSSIER_COMPLETE,
+            'is_active' => true,
+        ]);
+
+        $propertyA = Property::create([
+            'internal_name' => 'Casa A',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle A',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+            'onboarding_step' => 5,
+            'created_by' => $admin->id,
+        ]);
+        $propertyB = Property::create([
+            'internal_name' => 'Casa B',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle B',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+            'onboarding_step' => 5,
+            'created_by' => $admin->id,
+        ]);
+        $propertyC = Property::create([
+            'internal_name' => 'Casa C',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle C',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $otherTenant->id,
+            'current_tenant_name' => $otherTenant->full_name,
+            'onboarding_step' => 5,
+            'created_by' => $admin->id,
+        ]);
+
+        Charge::create([
+            'property_id' => $propertyA->id,
+            'tenant_id' => $tenant->id,
+            'type' => Charge::TYPE_RENT,
+            'due_date' => now()->toDateString(),
+            'amount' => 1000,
+            'paid_amount' => 0,
+            'period_month' => 3,
+            'period_year' => 2026,
+            'concept' => 'Cargo Casa A',
+            'status' => Charge::STATUS_PENDING,
+            'created_by' => $admin->id,
+        ]);
+        Charge::create([
+            'property_id' => $propertyB->id,
+            'tenant_id' => $tenant->id,
+            'type' => Charge::TYPE_RENT,
+            'due_date' => now()->toDateString(),
+            'amount' => 2000,
+            'paid_amount' => 0,
+            'period_month' => 4,
+            'period_year' => 2026,
+            'concept' => 'Cargo Casa B',
+            'status' => Charge::STATUS_PENDING,
+            'created_by' => $admin->id,
+        ]);
+        Charge::create([
+            'property_id' => $propertyC->id,
+            'tenant_id' => $otherTenant->id,
+            'type' => Charge::TYPE_RENT,
+            'due_date' => now()->toDateString(),
+            'amount' => 3000,
+            'paid_amount' => 0,
+            'period_month' => 5,
+            'period_year' => 2026,
+            'concept' => 'Cargo Casa C',
+            'status' => Charge::STATUS_PENDING,
+            'created_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($tenantUser)->get(route('charges.index'));
+
+        $response->assertOk();
+        $response->assertSee('Cargo Casa A');
+        $response->assertSee('Cargo Casa B');
+        $response->assertDontSee('Cargo Casa C');
     }
 
     private function createChargeFixture(): Charge
