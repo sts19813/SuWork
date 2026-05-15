@@ -10,6 +10,7 @@ use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\TenantController;
+use App\Http\Controllers\StorageItemController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LocaleController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -119,6 +120,13 @@ Route::middleware(['auth'])
         Route::post('/mantenimiento/{maintenance}/mensajes', [MaintenanceController::class, 'storeMessage'])->name('maintenance.messages');
         Route::post('/mantenimiento/proveedores', [MaintenanceController::class, 'storeProvider'])->name('maintenance.providers.store');
         Route::put('/mantenimiento/proveedores/{provider}', [MaintenanceController::class, 'updateProvider'])->name('maintenance.providers.update');
+        
+        // Almacén (storage items)
+        Route::resource('storage_items', StorageItemController::class);
+        Route::post('storage_items/{storage_item}/note', [StorageItemController::class, 'addNote'])->name('storage_items.addNote');
+        Route::get('storage_items/trash/view', [StorageItemController::class, 'trashed'])->name('storage_items.trashed');
+        Route::post('storage_items/{storage_item}/restore', [StorageItemController::class, 'restore'])->name('storage_items.restore');
+        Route::post('storage_items/{storage_item}/delete-with-note', [StorageItemController::class, 'deleteWithNote'])->name('storage_items.deleteWithNote');
     });
 
 Route::get('/dashboard', function () {

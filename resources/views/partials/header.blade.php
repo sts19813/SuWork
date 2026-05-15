@@ -20,6 +20,7 @@
             ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza'],
             ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos'],
             ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
+            ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén'],
             ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
         ];
 @endphp
