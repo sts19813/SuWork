@@ -344,6 +344,95 @@
 
                         </div>
 
+                        {{-- Modal Nota / Bitácora --}}
+                        <div class="modal fade" id="noteModal{{ $item->id }}" tabindex="-1">
+
+                            <div class="modal-dialog modal-dialog-centered">
+
+                                <div class="modal-content border-0 shadow">
+
+                                    <div class="modal-header border-0 pb-0">
+
+                                        <div>
+
+                                            <h2 class="fw-bold text-dark mb-1">
+                                                Agregar Nota
+                                            </h2>
+
+                                            <div class="text-muted fs-7">
+                                                Registrar movimiento o comentario del item.
+                                            </div>
+
+                                        </div>
+
+                                        <button type="button" class="btn btn-sm btn-icon btn-light" data-bs-dismiss="modal">
+
+                                            <i class="ki-duotone ki-cross fs-2"></i>
+
+                                        </button>
+
+                                    </div>
+
+                                    <form action="{{ route('storage_items.addNote', $item) }}" method="POST">
+
+                                        @csrf
+
+                                        <div class="modal-body py-5 px-6">
+
+                                            <div class="mb-5">
+
+                                                <div class="fw-bold text-dark fs-5 mb-2">
+                                                    {{ $item->name }}
+                                                </div>
+
+                                                <div class="text-muted fs-7">
+                                                    {{ $item->product_type }}
+                                                </div>
+
+                                            </div>
+
+                                            <div class="mb-3">
+
+                                                <label class="form-label required fw-semibold">
+                                                    Nota / Movimiento
+                                                </label>
+
+                                                <textarea name="note" rows="4" class="form-control form-control-solid" required
+                                                    placeholder="Ej: Revisado, movido de almacén, reparado, entregado, etc."></textarea>
+
+                                            </div>
+
+                                        </div>
+
+                                        <div class="modal-footer border-0 pt-0">
+
+                                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">
+
+                                                Cancelar
+
+                                            </button>
+
+                                            <button type="submit" class="btn btn-info fw-bold">
+
+                                                <i class="ki-duotone ki-note-2 fs-4 me-1">
+                                                    <span class="path1"></span>
+                                                    <span class="path2"></span>
+                                                </i>
+
+                                                Guardar Nota
+
+                                            </button>
+
+                                        </div>
+
+                                    </form>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
                     </div>
 
                 @endforeach
@@ -359,92 +448,5 @@
 
     </div>
 
-    {{-- Modal Nota / Bitácora --}}
-    <div class="modal fade" id="noteModal{{ $item->id }}" tabindex="-1">
 
-        <div class="modal-dialog modal-dialog-centered">
-
-            <div class="modal-content border-0 shadow">
-
-                <div class="modal-header border-0 pb-0">
-
-                    <div>
-
-                        <h2 class="fw-bold text-dark mb-1">
-                            Agregar Nota
-                        </h2>
-
-                        <div class="text-muted fs-7">
-                            Registrar movimiento o comentario del item.
-                        </div>
-
-                    </div>
-
-                    <button type="button" class="btn btn-sm btn-icon btn-light" data-bs-dismiss="modal">
-
-                        <i class="ki-duotone ki-cross fs-2"></i>
-
-                    </button>
-
-                </div>
-
-                <form action="{{ route('storage_items.addNote', $item) }}" method="POST">
-
-                    @csrf
-
-                    <div class="modal-body py-5 px-6">
-
-                        <div class="mb-5">
-
-                            <div class="fw-bold text-dark fs-5 mb-2">
-                                {{ $item->name }}
-                            </div>
-
-                            <div class="text-muted fs-7">
-                                {{ $item->product_type }}
-                            </div>
-
-                        </div>
-
-                        <div class="mb-3">
-
-                            <label class="form-label required fw-semibold">
-                                Nota / Movimiento
-                            </label>
-
-                            <textarea name="note" rows="4" class="form-control form-control-solid" required
-                                placeholder="Ej: Revisado, movido de almacén, reparado, entregado, etc."></textarea>
-
-                        </div>
-
-                    </div>
-
-                    <div class="modal-footer border-0 pt-0">
-
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">
-
-                            Cancelar
-
-                        </button>
-
-                        <button type="submit" class="btn btn-info fw-bold">
-
-                            <i class="ki-duotone ki-note-2 fs-4 me-1">
-                                <span class="path1"></span>
-                                <span class="path2"></span>
-                            </i>
-
-                            Guardar Nota
-
-                        </button>
-
-                    </div>
-
-                </form>
-
-            </div>
-
-        </div>
-
-    </div>
 @endsection
