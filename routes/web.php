@@ -137,6 +137,9 @@ Route::get('/dashboard', function () {
     if ($user && ($user->hasRole('inquilino') || $user->hasRole('tenant'))) {
         return redirect()->route('maintenance.index');
     }
+    if ($user && ($user->hasRole('tecnico') || $user->hasRole('technician'))) {
+        return redirect()->route('maintenance.index');
+    }
 
     return redirect()->route('properties.index');
 })->middleware(['auth'])->name('dashboard');

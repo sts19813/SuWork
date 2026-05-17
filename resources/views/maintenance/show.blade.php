@@ -10,6 +10,7 @@
         @if (session('error'))
             <div class="alert alert-danger mb-6">{{ session('error') }}</div>
         @endif
+        <div id="ticketAjaxNotice" class="mb-6"></div>
 
         @php
             $tenantName = $ticket->property?->tenant?->full_name
@@ -38,9 +39,6 @@
             <div class="d-flex flex-wrap gap-2">
                 <a class="btn btn-light" href="{{ route('maintenance.index') }}">Regresar</a>
                 <a class="btn btn-light-primary" href="#ticket-history-section">Historial de cambios</a>
-                @if ($canManageAssignments)
-                    <button class="btn btn-light-primary" data-bs-toggle="modal" data-bs-target="#assignTechnicianModal">Asignar técnico</button>
-                @endif
                 @if ($canQuickScheduleVisit)
                     <button
                         class="btn btn-primary"
@@ -97,8 +95,18 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <div class="text-muted mb-2">Propiedad</div>
-                        <div class="fw-bold">{{ $ticket->property?->internal_name ?? '-' }}</div>
-                        <div class="text-muted fs-8">{{ $ticket->property?->internal_reference ?: '-' }}</div>
+                        @if (in_array($role, ['administrador', 'tecnico'], true))
+                            <select disabled class="form-select form-select-sm js-ticket-meta" data-field="property_id">
+                                @foreach ($properties as $property)
+                                    <option value="{{ $property->id }}" {{ $ticket->property_id === $property->id ? 'selected' : '' }}>
+                                        {{ $property->internal_name }}{{ $property->internal_reference ? ' - ' . $property->internal_reference : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        @else
+                            <div class="fw-bold">{{ $ticket->property?->internal_name ?? '-' }}</div>
+                            <div class="text-muted fs-8">{{ $ticket->property?->internal_reference ?: '-' }}</div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -106,18 +114,12 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <div class="text-muted mb-2">Categoría</div>
-                        @if ($role === 'administrador')
-                            <form method="POST" action="{{ route('maintenance.meta', $ticket) }}" class="d-flex gap-2">
-                                @csrf
-                                @method('PATCH')
-                                <select class="form-select form-select-sm" name="category">
-                                    @foreach ($categoryOptions as $key => $label)
-                                        <option value="{{ $key }}" {{ $ticket->category === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                                <input type="hidden" name="priority" value="{{ $ticket->priority }}">
-                                <button class="btn btn-sm btn-light-primary">OK</button>
-                            </form>
+                        @if (in_array($role, ['administrador', 'tecnico'], true))
+                            <select class="form-select form-select-sm js-ticket-meta" data-field="category">
+                                @foreach ($categoryOptions as $key => $label)
+                                    <option value="{{ $key }}" {{ $ticket->category === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
                         @else
                             <div class="fw-bold">{{ $categoryOptions[$ticket->category] ?? $ticket->category }}</div>
                         @endif
@@ -128,18 +130,12 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <div class="text-muted mb-2">Prioridad</div>
-                        @if ($role === 'administrador')
-                            <form method="POST" action="{{ route('maintenance.meta', $ticket) }}" class="d-flex gap-2">
-                                @csrf
-                                @method('PATCH')
-                                <select class="form-select form-select-sm" name="priority">
-                                    @foreach ($priorityOptions as $key => $label)
-                                        <option value="{{ $key }}" {{ $ticket->priority === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                                <input type="hidden" name="category" value="{{ $ticket->category }}">
-                                <button class="btn btn-sm btn-light-primary">OK</button>
-                            </form>
+                        @if (in_array($role, ['administrador', 'tecnico'], true))
+                            <select class="form-select form-select-sm js-ticket-meta" data-field="priority">
+                                @foreach ($priorityOptions as $key => $label)
+                                    <option value="{{ $key }}" {{ $ticket->priority === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
                         @else
                             <div class="fw-bold">{{ $priorityOptions[$ticket->priority] ?? $ticket->priority }}</div>
                         @endif
@@ -159,8 +155,18 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <div class="text-muted mb-2">Técnico asignado</div>
-                        <div class="fw-bold">{{ $ticket->currentProvider?->name ?? 'Sin asignar' }}</div>
-                        <div class="text-muted fs-8">{{ $ticket->currentProvider?->phone ?: ($ticket->currentProvider?->email ?: '-') }}</div>
+                        @if (in_array($role, ['administrador', 'tecnico'], true))
+                            <select class="form-select form-select-sm js-ticket-meta" data-field="provider_id">
+                                @foreach ($providers as $provider)
+                                    <option value="{{ $provider->id }}" {{ $ticket->current_provider_id === $provider->id ? 'selected' : '' }}>
+                                        {{ $provider->name }} · {{ \App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        @else
+                            <div class="fw-bold">{{ $ticket->currentProvider?->name ?? 'Sin asignar' }}</div>
+                            <div class="text-muted fs-8">{{ $ticket->currentProvider?->phone ?: ($ticket->currentProvider?->email ?: '-') }}</div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -440,46 +446,73 @@
         </div>
     @endif
 
-    @if ($canManageAssignments)
-        <div class="modal fade" id="assignTechnicianModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <form method="POST" action="{{ route('maintenance.assign', $ticket) }}">
-                        @csrf
-                        <div class="modal-header">
-                            <h3 class="modal-title">Asignar técnico/proveedor</h3>
-                            <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="row g-4">
-                                <div class="col-12">
-                                    <label class="form-label required">Técnico/proveedor</label>
-                                    <select class="form-select" name="provider_id" required>
-                                        <option value="">Seleccionar...</option>
-                                        @foreach ($providers as $provider)
-                                            <option value="{{ $provider->id }}" {{ $ticket->current_provider_id === $provider->id ? 'selected' : '' }}>
-                                                {{ $provider->name }} · {{ \App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Visita programada</label>
-                                    <input class="form-control" type="datetime-local" name="scheduled_visit_at" value="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i') }}">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Nota</label>
-                                    <input class="form-control" type="text" name="notes" maxlength="3000">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                            <button class="btn btn-primary" type="submit">Guardar asignación</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    @endif
 @endsection
+
+@push('scripts')
+    <script>
+        (() => {
+            const selects = document.querySelectorAll('.js-ticket-meta');
+            if (!selects.length) {
+                return;
+            }
+
+            const notice = document.getElementById('ticketAjaxNotice');
+            const metaUrl = @json(route('maintenance.meta', $ticket));
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+
+            const renderNotice = (type, message) => {
+                if (!notice) return;
+                notice.innerHTML = `<div class="alert alert-${type} mb-0 py-3">${message}</div>`;
+                window.clearTimeout(renderNotice._timeoutId);
+                renderNotice._timeoutId = window.setTimeout(() => {
+                    notice.innerHTML = '';
+                }, 2500);
+            };
+
+            selects.forEach((select) => {
+                select.dataset.prevValue = select.value;
+                select.addEventListener('focus', () => {
+                    select.dataset.prevValue = select.value;
+                });
+
+                select.addEventListener('change', async () => {
+                    const field = select.dataset.field;
+                    const nextValue = select.value;
+                    const prevValue = select.dataset.prevValue ?? '';
+                    if (!field || nextValue === prevValue) {
+                        return;
+                    }
+
+                    select.disabled = true;
+                    try {
+                        const response = await fetch(metaUrl, {
+                            method: 'PATCH',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': csrfToken,
+                            },
+                            body: JSON.stringify({
+                                [field]: nextValue
+                            }),
+                        });
+
+                        const payload = await response.json().catch(() => ({}));
+                        if (!response.ok || payload.success === false) {
+                            throw new Error(payload.message || 'No fue posible guardar el cambio.');
+                        }
+
+                        select.dataset.prevValue = nextValue;
+                        renderNotice('success', payload.message || 'Guardado correctamente.');
+                    } catch (error) {
+                        select.value = prevValue;
+                        renderNotice('danger', error.message || 'Error al guardar.');
+                    } finally {
+                        select.disabled = false;
+                    }
+                });
+            });
+        })();
+    </script>
+@endpush
