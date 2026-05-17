@@ -28,7 +28,7 @@
                         Filtros
                     </button>
                     @if ($canManageProviders)
-                        <button class="btn btn-light-primary" data-bs-toggle="modal" data-bs-target="#createProviderModal">+ Nuevo técnico</button>
+                        <a class="btn btn-light-primary" href="{{ route('maintenance.technicians.index') }}">+ Nuevo técnico</a>
                     @endif
                 @endif
                 @if ($canCreateTicket)

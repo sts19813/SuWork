@@ -18,6 +18,7 @@ class UpdateMaintenanceTicketRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'property_id' => ['required', 'integer', 'exists:properties,id'],
             'category' => ['required', Rule::in(array_keys(MaintenanceTicket::CATEGORY_LABELS))],
             'priority' => ['required', Rule::in(array_keys(MaintenanceTicket::PRIORITY_LABELS))],
             'title' => ['required', 'string', 'max:190'],

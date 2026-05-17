@@ -106,17 +106,21 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <div class="text-muted mb-2">Categoría</div>
-                        <form method="POST" action="{{ route('maintenance.meta', $ticket) }}" class="d-flex gap-2">
-                            @csrf
-                            @method('PATCH')
-                            <select class="form-select form-select-sm" name="category">
-                                @foreach ($categoryOptions as $key => $label)
-                                    <option value="{{ $key }}" {{ $ticket->category === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                            <input type="hidden" name="priority" value="{{ $ticket->priority }}">
-                            <button class="btn btn-sm btn-light-primary">OK</button>
-                        </form>
+                        @if ($role === 'administrador')
+                            <form method="POST" action="{{ route('maintenance.meta', $ticket) }}" class="d-flex gap-2">
+                                @csrf
+                                @method('PATCH')
+                                <select class="form-select form-select-sm" name="category">
+                                    @foreach ($categoryOptions as $key => $label)
+                                        <option value="{{ $key }}" {{ $ticket->category === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                                <input type="hidden" name="priority" value="{{ $ticket->priority }}">
+                                <button class="btn btn-sm btn-light-primary">OK</button>
+                            </form>
+                        @else
+                            <div class="fw-bold">{{ $categoryOptions[$ticket->category] ?? $ticket->category }}</div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -124,17 +128,21 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <div class="text-muted mb-2">Prioridad</div>
-                        <form method="POST" action="{{ route('maintenance.meta', $ticket) }}" class="d-flex gap-2">
-                            @csrf
-                            @method('PATCH')
-                            <select class="form-select form-select-sm" name="priority">
-                                @foreach ($priorityOptions as $key => $label)
-                                    <option value="{{ $key }}" {{ $ticket->priority === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                            <input type="hidden" name="category" value="{{ $ticket->category }}">
-                            <button class="btn btn-sm btn-light-primary">OK</button>
-                        </form>
+                        @if ($role === 'administrador')
+                            <form method="POST" action="{{ route('maintenance.meta', $ticket) }}" class="d-flex gap-2">
+                                @csrf
+                                @method('PATCH')
+                                <select class="form-select form-select-sm" name="priority">
+                                    @foreach ($priorityOptions as $key => $label)
+                                        <option value="{{ $key }}" {{ $ticket->priority === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                                <input type="hidden" name="category" value="{{ $ticket->category }}">
+                                <button class="btn btn-sm btn-light-primary">OK</button>
+                            </form>
+                        @else
+                            <div class="fw-bold">{{ $priorityOptions[$ticket->priority] ?? $ticket->priority }}</div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -340,6 +348,16 @@
                         </div>
                         <div class="modal-body">
                             <div class="row g-4">
+                                <div class="col-md-12">
+                                    <label class="form-label required">Propiedad</label>
+                                    <select class="form-select" name="property_id" required>
+                                        @foreach ($properties as $property)
+                                            <option value="{{ $property->id }}" {{ $ticket->property_id === $property->id ? 'selected' : '' }}>
+                                                {{ $property->internal_name }}{{ $property->internal_reference ? ' - ' . $property->internal_reference : '' }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
                                 <div class="col-md-6">
                                     <label class="form-label required">Categoría</label>
                                     <select class="form-select" name="category" required>

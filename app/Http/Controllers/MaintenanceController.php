@@ -229,6 +229,27 @@ class MaintenanceController extends Controller
         ]);
     }
 
+    public function technicians(Request $request): View
+    {
+        $user = $request->user();
+        if ($this->resolveRole($user) !== 'administrador') {
+            abort(403);
+        }
+
+        $providers = MaintenanceProvider::query()
+            ->with('user:id,name,email')
+            ->orderBy('name')
+            ->get();
+        $users = User::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
+
+        return view('maintenance.technicians', [
+            'providers' => $providers,
+            'users' => $users,
+        ]);
+    }
+
     public function store(StoreMaintenanceTicketRequest $request): RedirectResponse
     {
         $user = $request->user();
@@ -318,6 +339,11 @@ class MaintenanceController extends Controller
         $users = User::query()
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
+        $properties = $role === 'administrador'
+            ? $this->accessiblePropertiesQuery($user, $role)
+                ->orderBy('internal_name')
+                ->get(['id', 'uuid', 'internal_name', 'internal_reference'])
+            : collect();
         $statusOptions = $role === 'administrador'
             ? MaintenanceTicket::STATUS_LABELS
             : array_intersect_key(
@@ -329,6 +355,7 @@ class MaintenanceController extends Controller
             'ticket' => $maintenance,
             'providers' => $providers,
             'users' => $users,
+            'properties' => $properties,
             'role' => $role,
             'statusOptions' => $statusOptions,
             'priorityOptions' => MaintenanceTicket::PRIORITY_LABELS,
@@ -354,7 +381,11 @@ class MaintenanceController extends Controller
         }
 
         $validated = $request->validated();
+        $property = $this->accessiblePropertiesQuery($user, $role)
+            ->where('id', (int) $validated['property_id'])
+            ->firstOrFail();
         $maintenance->update([
+            'property_id' => $property->id,
             'category' => (string) $validated['category'],
             'priority' => (string) $validated['priority'],
             'title' => trim((string) $validated['title']),
@@ -433,7 +464,7 @@ class MaintenanceController extends Controller
         $user = $request->user();
         $role = $this->resolveRole($user);
         $this->ensureTicketVisible($maintenance, $user, $role);
-        if (!in_array($role, ['administrador', 'tecnico'], true)) {
+        if ($role !== 'administrador') {
             abort(403);
         }
 
