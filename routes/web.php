@@ -111,9 +111,12 @@ Route::middleware(['auth'])
 
         Route::get('/mantenimiento', [MaintenanceController::class, 'index'])->name('maintenance.index');
         Route::post('/mantenimiento', [MaintenanceController::class, 'store'])->name('maintenance.store');
+        Route::get('/mantenimiento/tecnicos', [MaintenanceController::class, 'technicians'])->name('maintenance.technicians.index');
         Route::get('/mantenimiento/{maintenance}', [MaintenanceController::class, 'show'])->name('maintenance.show');
         Route::put('/mantenimiento/{maintenance}', [MaintenanceController::class, 'update'])->name('maintenance.update');
+        Route::patch('/mantenimiento/{maintenance}/meta', [MaintenanceController::class, 'updateMeta'])->name('maintenance.meta');
         Route::patch('/mantenimiento/{maintenance}/estado', [MaintenanceController::class, 'changeStatus'])->name('maintenance.status');
+        Route::patch('/mantenimiento/{maintenance}/programar-visita', [MaintenanceController::class, 'scheduleVisit'])->name('maintenance.schedule-visit');
         Route::post('/mantenimiento/{maintenance}/asignar', [MaintenanceController::class, 'assign'])->name('maintenance.assign');
         Route::put('/mantenimiento/{maintenance}/costos', [MaintenanceController::class, 'updateCosts'])->name('maintenance.costs');
         Route::post('/mantenimiento/{maintenance}/archivos', [MaintenanceController::class, 'uploadFiles'])->name('maintenance.files');
@@ -132,6 +135,9 @@ Route::middleware(['auth'])
 Route::get('/dashboard', function () {
     $user = auth()->user();
     if ($user && ($user->hasRole('inquilino') || $user->hasRole('tenant'))) {
+        return redirect()->route('maintenance.index');
+    }
+    if ($user && ($user->hasRole('tecnico') || $user->hasRole('technician'))) {
         return redirect()->route('maintenance.index');
     }
 

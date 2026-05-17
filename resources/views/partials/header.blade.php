@@ -5,13 +5,21 @@
         ->map(fn($word) => mb_substr($word, 0, 1))
         ->join('');
     $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
+    $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
+    $homeRoute = ($isTenant || $isTechnician) ? 'maintenance.index' : 'properties.index';
     $menuItems = $isTenant
         ? [
             ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza'],
             ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
             ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
         ]
-        : [
+        : ($isTechnician
+            ? [
+                ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
+                ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén'],
+                ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
+            ]
+            : [
             ['patterns' => ['dashboard'], 'route' => 'dashboard', 'label' => 'Dashboard'],
             ['patterns' => ['properties.*'], 'route' => 'properties.index', 'label' => 'Propiedades'],
             ['patterns' => ['owners.*'], 'route' => 'owners.index', 'label' => 'Propietarios'],
@@ -22,12 +30,12 @@
             ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
             ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén'],
             ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
-        ];
+        ]);
 @endphp
 
 <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm py-0">
     <div class="container-fluid px-4">
-        <a href="{{ route('properties.index') }}" class="d-flex align-items-center py-2 me-8">
+        <a href="{{ route($homeRoute) }}" class="d-flex align-items-center py-2 me-8">
             <img src="{{ asset('assets/img/suhomes-app-logo.svg') }}" alt="Logo SuHomes" height="45">
         </a>
 

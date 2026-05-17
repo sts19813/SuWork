@@ -14,32 +14,135 @@
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-6">
             <div>
                 <h1 class="mb-1 fw-bold">Mantenimiento</h1>
-                <div class="text-muted">Tickets, asignaciones, costos, evidencias, chat y métricas</div>
             </div>
-            @if ($canCreateTicket)
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createMaintenanceTicketModal">Nuevo ticket</button>
-            @endif
+            <div class="d-flex flex-wrap gap-2">
+                @if (!$isTenant)
+                    <button
+                        class="btn btn-light"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#maintenanceFiltersCollapse"
+                        aria-expanded="false"
+                        aria-controls="maintenanceFiltersCollapse"
+                    >
+                        Filtros
+                    </button>
+                    @if ($canManageProviders)
+                        <a class="btn btn-light-primary" href="{{ route('maintenance.technicians.index') }}">+ Nuevo técnico</a>
+                    @endif
+                @endif
+                @if ($canCreateTicket)
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createMaintenanceTicketModal">+ Nuevo ticket</button>
+                @endif
+            </div>
         </div>
 
         @if (!$isTenant)
+        <div class="collapse mb-6" id="maintenanceFiltersCollapse">
+            <div class="card">
+                <div class="card-body">
+                    <form class="row g-4 align-items-end" method="GET" action="{{ route('maintenance.index') }}">
+                        <input type="hidden" name="tab" value="{{ $activeTab }}">
+                        <div class="col-md-3">
+                            <label class="form-label">Buscar</label>
+                            <input type="text" class="form-control" name="q" value="{{ $search }}" placeholder="Título, folio, propiedad">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Propiedad</label>
+                            <select class="form-select" name="property">
+                                <option value="">Todas</option>
+                                @foreach ($properties as $property)
+                                    <option value="{{ $property->uuid }}" {{ $selectedProperty?->uuid === $property->uuid ? 'selected' : '' }}>
+                                        {{ $property->internal_name }}{{ $property->internal_reference ? ' - '.$property->internal_reference : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Estado</label>
+                            <select class="form-select" name="status">
+                                @foreach ($statusOptions as $statusKey => $statusLabel)
+                                    <option value="{{ $statusKey }}" {{ $status === $statusKey ? 'selected' : '' }}>{{ $statusLabel }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Prioridad</label>
+                            <select class="form-select" name="priority">
+                                @foreach ($priorityOptions as $priorityKey => $priorityLabel)
+                                    <option value="{{ $priorityKey }}" {{ $priority === $priorityKey ? 'selected' : '' }}>{{ $priorityLabel }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Categoría</label>
+                            <select class="form-select" name="category">
+                                @foreach ($categoryOptions as $categoryKey => $categoryLabel)
+                                    <option value="{{ $categoryKey }}" {{ $category === $categoryKey ? 'selected' : '' }}>{{ $categoryLabel }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <button class="btn btn-primary w-100">Buscar</button>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Desde</label>
+                            <input type="date" class="form-control" name="from" value="{{ $dateFrom }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Hasta</label>
+                            <input type="date" class="form-control" name="to" value="{{ $dateTo }}">
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <a class="btn btn-light w-100" href="{{ route('maintenance.index', ['tab' => $activeTab]) }}">Limpiar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <div class="row g-5 mb-6">
-            <div class="col-md-3">
+            <div class="col-xl-2 col-md-4 col-6">
                 <div class="card">
                     <div class="card-body">
-                        <div class="text-muted mb-1">Abiertos</div>
-                        <div class="fs-2 fw-bold">{{ number_format((int) $metrics['open']) }}</div>
+                        <div class="text-muted mb-1">Total incidencias</div>
+                        <div class="fs-2 fw-bold">{{ number_format((int) ($metrics['total'] ?? 0)) }}</div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-xl-2 col-md-4 col-6">
                 <div class="card">
                     <div class="card-body">
-                        <div class="text-muted mb-1">Urgentes</div>
-                        <div class="fs-2 fw-bold">{{ number_format((int) $metrics['urgent']) }}</div>
+                        <div class="text-muted mb-1">Tickets pendientes</div>
+                        <div class="fs-2 fw-bold">{{ number_format((int) ($metrics['pending'] ?? 0)) }}</div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="text-muted mb-1">Tickets urgentes</div>
+                        <div class="fs-2 fw-bold">{{ number_format((int) ($metrics['urgent'] ?? 0)) }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="text-muted mb-1">Tickets en proceso</div>
+                        <div class="fs-2 fw-bold">{{ number_format((int) ($metrics['in_progress'] ?? 0)) }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="text-muted mb-1">Tickets completados</div>
+                        <div class="fs-2 fw-bold">{{ number_format((int) ($metrics['completed'] ?? 0)) }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-md-4 col-6">
                 <div class="card">
                     <div class="card-body">
                         <div class="text-muted mb-1">Promedio resolución (h)</div>
@@ -47,108 +150,52 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="text-muted mb-1">Costo mensual ({{ $metrics['month_label'] }})</div>
-                        <div class="fs-2 fw-bold">${{ number_format((float) $metrics['monthly_cost'], 2) }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        @endif
-
-        @if (!$isTenant)
-        <div class="card mb-6">
-            <div class="card-body">
-                <form class="row g-4 align-items-end" method="GET" action="{{ route('maintenance.index') }}">
-                    <div class="col-md-3">
-                        <label class="form-label">Buscar</label>
-                        <input type="text" class="form-control" name="q" value="{{ $search }}" placeholder="Título, referencia, propiedad">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Propiedad</label>
-                        <select class="form-select" name="property">
-                            <option value="">Todas</option>
-                            @foreach ($properties as $property)
-                                <option value="{{ $property->uuid }}" {{ $selectedProperty?->uuid === $property->uuid ? 'selected' : '' }}>
-                                    {{ $property->internal_name }}{{ $property->internal_reference ? ' - '.$property->internal_reference : '' }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Estado</label>
-                        <select class="form-select" name="status">
-                            @foreach ($statusOptions as $statusKey => $statusLabel)
-                                <option value="{{ $statusKey }}" {{ $status === $statusKey ? 'selected' : '' }}>{{ $statusLabel }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Prioridad</label>
-                        <select class="form-select" name="priority">
-                            @foreach ($priorityOptions as $priorityKey => $priorityLabel)
-                                <option value="{{ $priorityKey }}" {{ $priority === $priorityKey ? 'selected' : '' }}>{{ $priorityLabel }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Categoría</label>
-                        <select class="form-select" name="category">
-                            @foreach ($categoryOptions as $categoryKey => $categoryLabel)
-                                <option value="{{ $categoryKey }}" {{ $category === $categoryKey ? 'selected' : '' }}>{{ $categoryLabel }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-1">
-                        <button class="btn btn-primary w-100">Filtrar</button>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Desde</label>
-                        <input type="date" class="form-control" name="from" value="{{ $dateFrom }}">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Hasta</label>
-                        <input type="date" class="form-control" name="to" value="{{ $dateTo }}">
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <a class="btn btn-light w-100" href="{{ route('maintenance.index') }}">Limpiar</a>
-                    </div>
-                </form>
-            </div>
         </div>
         @endif
 
         <div class="card mb-6">
+            <div class="card-header border-0 pb-0">
+                <ul class="nav nav-tabs nav-line-tabs">
+                    <li class="nav-item">
+                        <a class="nav-link {{ $activeTab === 'activos' ? 'active' : '' }}" href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'activos'])) }}">Activos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ $activeTab === 'completados' ? 'active' : '' }}" href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'completados'])) }}">Completados</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ $activeTab === 'cancelados' ? 'active' : '' }}" href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'cancelados'])) }}">Cancelados</a>
+                    </li>
+                </ul>
+            </div>
             <div class="card-body py-0">
                 <div class="table-responsive">
                     <table class="table align-middle">
                         <thead>
                             <tr class="text-muted">
+                                <th>Folio</th>
                                 <th>Ticket</th>
+                                <th>Solicitado fecha</th>
                                 <th>Propiedad</th>
                                 <th>Categoría</th>
-                                <th>Prioridad</th>
                                 <th>Estado</th>
                                 <th>Técnico/Proveedor</th>
-                                <th>Reporte</th>
                                 <th class="text-end">Acción</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($tickets as $ticket)
                                 <tr>
+                                    <td class="fw-semibold">{{ $ticket->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($ticket->uuid, 0, 8)) }}</td>
                                     <td>
                                         <div class="fw-bold">{{ $ticket->title }}</div>
-                                        <div class="text-muted fs-8">{{ $ticket->reference ?: $ticket->uuid }}</div>
+                                        <div class="text-muted fs-8">{{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}</div>
                                     </td>
+                                    <td>{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</td>
                                     <td>
                                         <div class="fw-bold">{{ $ticket->property?->internal_name ?? '-' }}</div>
                                         <div class="text-muted fs-8">{{ $ticket->property?->internal_reference ?: '-' }}</div>
                                     </td>
                                     <td>{{ \App\Models\MaintenanceTicket::CATEGORY_LABELS[$ticket->category] ?? $ticket->category }}</td>
-                                    <td>{{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}</td>
                                     <td><span class="badge badge-light">{{ \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status }}</span></td>
                                     <td>
                                         @if ($ticket->currentProvider)
@@ -157,10 +204,6 @@
                                         @else
                                             <span class="text-muted">Sin asignar</span>
                                         @endif
-                                    </td>
-                                    <td>
-                                        <div>{{ $ticket->reported_at?->format('d/m/Y H:i') }}</div>
-                                        <div class="text-muted fs-8">{{ $ticket->files_count }} archivos · {{ $ticket->messages_count }} mensajes</div>
                                     </td>
                                     <td class="text-end">
                                         <a href="{{ route('maintenance.show', $ticket) }}" class="btn btn-sm btn-light-primary">Abrir</a>
@@ -205,18 +248,27 @@
             <div class="col-lg-6">
                 <div class="card h-100">
                     <div class="card-header">
-                        <h3 class="card-title">Técnicos/proveedores más eficientes</h3>
+                        <h3 class="card-title">Actividades del equipo</h3>
                     </div>
                     <div class="card-body">
-                        @forelse ($metrics['top_providers'] as $item)
-                            <div class="d-flex justify-content-between py-2 border-bottom">
-                                <div>
-                                    <div class="fw-semibold">{{ $item->name }}</div>
-                                    <div class="text-muted fs-8">{{ \App\Models\MaintenanceProvider::TYPE_LABELS[$item->type] ?? $item->type }} · {{ $item->specialty ?: 'Sin especialidad' }}</div>
-                                </div>
-                                <div class="text-end">
-                                    <div class="fw-bold">{{ (int) $item->total_tickets }} tickets</div>
-                                    <div class="text-muted fs-8">{{ $item->avg_hours ? number_format((float) $item->avg_hours, 2) . ' h' : '-' }}</div>
+                        @forelse ($calendarItems as $item)
+                            <div class="py-3 border-bottom">
+                                <div class="row g-2">
+                                    <div class="col-md-7">
+                                        <div class="fw-semibold">Técnico: {{ $item->currentProvider?->name ?? 'Sin asignar' }}</div>
+                                    </div>
+                                    <div class="col-md-5 text-md-end">
+                                        <span class="fw-semibold">Folio: {{ $item->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($item->uuid, 0, 8)) }}</span>
+                                    </div>
+                                    <div class="col-md-7">
+                                        <span class="fw-semibold">Fecha programada:</span> {{ $item->scheduled_visit_at?->format('d/m/Y H:i') ?: '-' }}
+                                    </div>
+                                    <div class="col-md-5 text-md-end">
+                                        <span class="fw-semibold">Propiedad:</span> {{ $item->property?->internal_name ?? '-' }}
+                                    </div>
+                                    <div class="col-12">
+                                        <span class="fw-semibold">Ticket:</span> {{ $item->title }}
+                                    </div>
                                 </div>
                             </div>
                         @empty
@@ -229,7 +281,7 @@
         @endif
 
         @if (!$isTenant)
-        <div class="card mb-6">
+        <div class="card mb-6 d-none">
             <div class="card-header">
                 <h3 class="card-title">Calendario interno de mantenimiento</h3>
             </div>
@@ -269,7 +321,7 @@
         @endif
 
         @if ($canManageProviders)
-            <div class="card">
+            <div class="card d-none">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 class="card-title">Catálogo de técnicos/proveedores</h3>
                     <button class="btn btn-light-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createProviderModal">Nuevo</button>

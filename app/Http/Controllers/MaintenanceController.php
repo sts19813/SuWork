@@ -14,6 +14,7 @@ use App\Models\MaintenanceTicketNotification;
 use App\Models\Property;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -37,6 +38,7 @@ class MaintenanceController extends Controller
         $filters = $request->validate([
             'q' => ['nullable', 'string', 'max:190'],
             'property' => ['nullable', 'string', 'exists:properties,uuid'],
+            'tab' => ['nullable', Rule::in(['activos', 'completados', 'cancelados'])],
             'status' => ['nullable', Rule::in(array_merge([''], array_keys(MaintenanceTicket::STATUS_LABELS)))],
             'priority' => ['nullable', Rule::in(array_merge([''], array_keys(MaintenanceTicket::PRIORITY_LABELS)))],
             'category' => ['nullable', Rule::in(array_merge([''], array_keys(MaintenanceTicket::CATEGORY_LABELS)))],
@@ -51,6 +53,14 @@ class MaintenanceController extends Controller
         $category = (string) ($filters['category'] ?? '');
         $from = $filters['from'] ?? null;
         $to = $filters['to'] ?? null;
+        $activeTab = (string) ($filters['tab'] ?? 'activos');
+        $activeStatuses = ['pendiente', 'revisado', 'asignado', 'programado', 'en_proceso', 'esperando_material', 'reabierto'];
+        $pendingStatuses = ['pendiente', 'revisado', 'asignado', 'programado', 'esperando_material', 'reabierto'];
+        $tabStatuses = match ($activeTab) {
+            'completados' => ['completado'],
+            'cancelados' => ['cancelado'],
+            default => $activeStatuses,
+        };
 
         $properties = $this->accessiblePropertiesQuery($user, $role)
             ->orderBy('internal_name')
@@ -68,6 +78,7 @@ class MaintenanceController extends Controller
 
         $ticketsQuery = (clone $baseQuery)
             ->when($selectedPropertyId, fn(Builder $query) => $query->where('property_id', $selectedPropertyId))
+            ->whereIn('status', $tabStatuses)
             ->when($status !== '', fn(Builder $query) => $query->where('status', $status))
             ->when($priority !== '', fn(Builder $query) => $query->where('priority', $priority))
             ->when($category !== '', fn(Builder $query) => $query->where('category', $category))
@@ -94,9 +105,12 @@ class MaintenanceController extends Controller
 
         $metricsBase = (clone $baseQuery)
             ->when($selectedPropertyId, fn(Builder $query) => $query->where('property_id', $selectedPropertyId));
-        $openStatuses = ['pendiente', 'revisado', 'asignado', 'en_proceso', 'esperando_material', 'reabierto'];
-        $openCount = (clone $metricsBase)->whereIn('status', $openStatuses)->count();
-        $urgentCount = (clone $metricsBase)->whereIn('status', $openStatuses)->where('priority', 'urgente')->count();
+        $totalCount = (clone $metricsBase)->count();
+        $openCount = (clone $metricsBase)->whereIn('status', $activeStatuses)->count();
+        $pendingCount = (clone $metricsBase)->whereIn('status', $pendingStatuses)->count();
+        $urgentCount = (clone $metricsBase)->whereIn('status', $activeStatuses)->where('priority', 'urgente')->count();
+        $inProgressCount = (clone $metricsBase)->where('status', 'en_proceso')->count();
+        $completedCount = (clone $metricsBase)->where('status', 'completado')->count();
         $resolvedTickets = (clone $metricsBase)
             ->whereNotNull('completed_at')
             ->get(['reported_at', 'completed_at']);
@@ -163,7 +177,7 @@ class MaintenanceController extends Controller
             ->values();
         $calendarItems = (clone $metricsBase)
             ->whereNotNull('scheduled_visit_at')
-            ->whereIn('status', $openStatuses)
+            ->whereIn('status', $activeStatuses)
             ->with(['property:id,uuid,internal_name,internal_reference', 'currentProvider:id,name'])
             ->orderBy('scheduled_visit_at')
             ->limit(120)
@@ -186,6 +200,7 @@ class MaintenanceController extends Controller
             'status' => $status,
             'priority' => $priority,
             'category' => $category,
+            'activeTab' => $activeTab,
             'search' => $search,
             'dateFrom' => $from,
             'dateTo' => $to,
@@ -193,8 +208,12 @@ class MaintenanceController extends Controller
             'priorityOptions' => ['' => 'Todas'] + MaintenanceTicket::PRIORITY_LABELS,
             'categoryOptions' => ['' => 'Todas'] + MaintenanceTicket::CATEGORY_LABELS,
             'metrics' => [
+                'total' => $totalCount,
                 'open' => $openCount,
+                'pending' => $pendingCount,
                 'urgent' => $urgentCount,
+                'in_progress' => $inProgressCount,
+                'completed' => $completedCount,
                 'avg_resolution_hours' => $avgResolutionHours ? round((float) $avgResolutionHours, 2) : null,
                 'monthly_cost' => $monthlyCost,
                 'month_label' => Carbon::create(now()->year, now()->month, 1)->translatedFormat('M Y'),
@@ -203,7 +222,7 @@ class MaintenanceController extends Controller
             ],
             'calendarItems' => $calendarItems,
             'role' => $role,
-            'canCreateTicket' => in_array($role, ['administrador', 'inquilino'], true),
+            'canCreateTicket' => in_array($role, ['administrador', 'inquilino', 'tecnico'], true),
             'canManageProviders' => $role === 'administrador',
             'canManageAssignments' => $role === 'administrador',
             'canManageCosts' => $role === 'administrador',
@@ -211,11 +230,32 @@ class MaintenanceController extends Controller
         ]);
     }
 
+    public function technicians(Request $request): View
+    {
+        $user = $request->user();
+        if ($this->resolveRole($user) !== 'administrador') {
+            abort(403);
+        }
+
+        $providers = MaintenanceProvider::query()
+            ->with('user:id,name,email')
+            ->orderBy('name')
+            ->get();
+        $users = User::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
+
+        return view('maintenance.technicians', [
+            'providers' => $providers,
+            'users' => $users,
+        ]);
+    }
+
     public function store(StoreMaintenanceTicketRequest $request): RedirectResponse
     {
         $user = $request->user();
         $role = $this->resolveRole($user);
-        if (!in_array($role, ['administrador', 'inquilino'], true)) {
+        if (!in_array($role, ['administrador', 'inquilino', 'tecnico'], true)) {
             abort(403);
         }
 
@@ -278,7 +318,8 @@ class MaintenanceController extends Controller
         $this->ensureTicketVisible($maintenance, $user, $role);
 
         $maintenance->load([
-            'property:id,uuid,internal_name,internal_reference',
+            'property:id,uuid,tenant_id,internal_name,internal_reference,full_address,map_url,facade_photo_path,current_tenant_name',
+            'property.tenant:id,full_name,phone_primary,email',
             'reporter:id,name,email',
             'currentProvider:id,uuid,user_id,name,type,email,phone,specialty,average_cost,rating,availability',
             'assignments.provider:id,uuid,user_id,name,type,email,phone,specialty,average_cost,rating,availability',
@@ -299,22 +340,39 @@ class MaintenanceController extends Controller
         $users = User::query()
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
+        $properties = match ($role) {
+            'administrador' => $this->accessiblePropertiesQuery($user, $role)
+                ->orderBy('internal_name')
+                ->get(['id', 'uuid', 'internal_name', 'internal_reference']),
+            'tecnico' => Property::query()
+                ->orderBy('internal_name')
+                ->get(['id', 'uuid', 'internal_name', 'internal_reference']),
+            default => collect(),
+        };
+        $statusOptions = $role === 'administrador'
+            ? MaintenanceTicket::STATUS_LABELS
+            : array_intersect_key(
+                MaintenanceTicket::STATUS_LABELS,
+                array_flip(['revisado', 'programado', 'en_proceso', 'esperando_material', 'completado', 'cancelado', 'reabierto'])
+            );
 
         return view('maintenance.show', [
             'ticket' => $maintenance,
             'providers' => $providers,
             'users' => $users,
+            'properties' => $properties,
             'role' => $role,
-            'statusOptions' => MaintenanceTicket::STATUS_LABELS,
+            'statusOptions' => $statusOptions,
             'priorityOptions' => MaintenanceTicket::PRIORITY_LABELS,
             'categoryOptions' => MaintenanceTicket::CATEGORY_LABELS,
             'payerOptions' => MaintenanceTicket::PAYER_LABELS,
             'paymentRuleOptions' => MaintenanceTicket::PAYMENT_RULE_LABELS,
             'messageChannels' => MaintenanceTicketMessage::CHANNEL_LABELS,
-            'canManageAssignments' => $role === 'administrador',
+            'canManageAssignments' => in_array($role, ['administrador', 'tecnico'], true),
             'canManageCosts' => $role === 'administrador',
             'canEditTicket' => $role === 'administrador',
             'canChangeStatus' => in_array($role, ['administrador', 'tecnico'], true),
+            'canQuickScheduleVisit' => in_array($role, ['administrador', 'tecnico'], true),
         ]);
     }
 
@@ -328,7 +386,11 @@ class MaintenanceController extends Controller
         }
 
         $validated = $request->validated();
+        $property = $this->accessiblePropertiesQuery($user, $role)
+            ->where('id', (int) $validated['property_id'])
+            ->firstOrFail();
         $maintenance->update([
+            'property_id' => $property->id,
             'category' => (string) $validated['category'],
             'priority' => (string) $validated['priority'],
             'title' => trim((string) $validated['title']),
@@ -364,7 +426,7 @@ class MaintenanceController extends Controller
             abort(403);
         }
         if ($role !== 'administrador') {
-            $allowed = ['revisado', 'en_proceso', 'esperando_material', 'completado', 'cancelado', 'reabierto'];
+            $allowed = ['revisado', 'programado', 'en_proceso', 'esperando_material', 'completado', 'cancelado', 'reabierto'];
             if (!in_array($nextStatus, $allowed, true)) {
                 abort(403);
             }
@@ -402,12 +464,134 @@ class MaintenanceController extends Controller
         return redirect()->back()->with('success', 'Estado actualizado correctamente.');
     }
 
-    public function assign(Request $request, MaintenanceTicket $maintenance): RedirectResponse
+    public function updateMeta(Request $request, MaintenanceTicket $maintenance): RedirectResponse|JsonResponse
     {
         $user = $request->user();
         $role = $this->resolveRole($user);
         $this->ensureTicketVisible($maintenance, $user, $role);
-        if ($role !== 'administrador') {
+        if (!in_array($role, ['administrador', 'tecnico'], true)) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'category' => ['nullable', Rule::in(array_keys(MaintenanceTicket::CATEGORY_LABELS))],
+            'priority' => ['nullable', Rule::in(array_keys(MaintenanceTicket::PRIORITY_LABELS))],
+            'property_id' => ['nullable', 'integer', 'exists:properties,id'],
+            'provider_id' => ['nullable', 'integer', 'exists:maintenance_providers,id'],
+            'notes' => ['nullable', 'string', 'max:3000'],
+            'scheduled_visit_at' => ['nullable', 'date'],
+        ]);
+
+        $updates = [];
+        if (filled($validated['category'] ?? null)) {
+            $updates['category'] = (string) $validated['category'];
+        }
+        if (filled($validated['priority'] ?? null)) {
+            $updates['priority'] = (string) $validated['priority'];
+        }
+        if (filled($validated['property_id'] ?? null)) {
+            $property = $role === 'tecnico'
+                ? Property::query()->where('id', (int) $validated['property_id'])->firstOrFail()
+                : $this->accessiblePropertiesQuery($user, $role)
+                    ->where('id', (int) $validated['property_id'])
+                    ->firstOrFail();
+            $updates['property_id'] = $property->id;
+        }
+        $providerChanged = filled($validated['provider_id'] ?? null)
+            && (int) $validated['provider_id'] !== (int) $maintenance->current_provider_id;
+
+        if ($updates === [] && !$providerChanged) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Sin cambios por guardar.',
+                ]);
+            }
+            return redirect()->back();
+        }
+
+        DB::transaction(function () use ($maintenance, $updates, $providerChanged, $validated, $user): void {
+            if ($updates !== []) {
+                $maintenance->update($updates);
+            }
+            if ($providerChanged) {
+                $this->applyProviderAssignment(
+                    $maintenance,
+                    (int) $validated['provider_id'],
+                    $user?->id,
+                    $validated['notes'] ?? 'Asignación rápida desde ticket',
+                    $validated['scheduled_visit_at'] ?? null
+                );
+            }
+        });
+
+        $maintenance->refresh()->load('currentProvider:id,name');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Cambios guardados correctamente.',
+                'data' => [
+                    'category' => $maintenance->category,
+                    'priority' => $maintenance->priority,
+                    'property_id' => $maintenance->property_id,
+                    'provider_id' => $maintenance->current_provider_id,
+                    'provider_name' => $maintenance->currentProvider?->name,
+                ],
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Cambios guardados correctamente.');
+    }
+
+    public function scheduleVisit(Request $request, MaintenanceTicket $maintenance): RedirectResponse
+    {
+        $user = $request->user();
+        $role = $this->resolveRole($user);
+        $this->ensureTicketVisible($maintenance, $user, $role);
+        if (!in_array($role, ['administrador', 'tecnico'], true)) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'scheduled_visit_at' => ['required', 'date'],
+            'notes' => ['nullable', 'string', 'max:3000'],
+        ]);
+
+        $fromStatus = (string) $maintenance->status;
+        $nextStatus = in_array($fromStatus, ['pendiente', 'revisado', 'asignado', 'reabierto'], true)
+            ? 'programado'
+            : $fromStatus;
+        $notes = filled($validated['notes'] ?? null)
+            ? trim((string) $validated['notes'])
+            : 'Visita programada';
+
+        DB::transaction(function () use ($maintenance, $validated, $fromStatus, $nextStatus, $notes, $user): void {
+            $maintenance->scheduled_visit_at = Carbon::parse((string) $validated['scheduled_visit_at']);
+            $maintenance->status = $nextStatus;
+            $this->applyOperationalTimestampsForStatus($maintenance, $nextStatus, $fromStatus, $notes);
+            $maintenance->save();
+
+            if ($fromStatus !== $nextStatus) {
+                $maintenance->statusHistory()->create([
+                    'changed_by_user_id' => $user?->id,
+                    'from_status' => $fromStatus,
+                    'to_status' => $nextStatus,
+                    'notes' => $notes,
+                    'changed_at' => now(),
+                ]);
+            }
+        });
+
+        return redirect()->back()->with('success', 'Visita programada correctamente.');
+    }
+
+    public function assign(Request $request, MaintenanceTicket $maintenance): RedirectResponse|JsonResponse
+    {
+        $user = $request->user();
+        $role = $this->resolveRole($user);
+        $this->ensureTicketVisible($maintenance, $user, $role);
+        if (!in_array($role, ['administrador', 'tecnico'], true)) {
             abort(403);
         }
 
@@ -417,46 +601,27 @@ class MaintenanceController extends Controller
             'scheduled_visit_at' => ['nullable', 'date'],
         ]);
 
-        $provider = MaintenanceProvider::query()->findOrFail((int) $validated['provider_id']);
-
-        DB::transaction(function () use ($maintenance, $provider, $validated, $user): void {
-            $maintenance->assignments()
-                ->where('is_current', true)
-                ->update([
-                    'is_current' => false,
-                    'unassigned_at' => now(),
-                ]);
-
-            $maintenance->assignments()->create([
-                'provider_id' => $provider->id,
-                'assigned_by_user_id' => $user?->id,
-                'notes' => $validated['notes'] ?? null,
-                'assigned_at' => now(),
-                'is_current' => true,
-            ]);
-
-            $fromStatus = $maintenance->status;
-            $maintenance->update([
-                'current_provider_id' => $provider->id,
-                'assigned_at' => $maintenance->assigned_at ?: now(),
-                'scheduled_visit_at' => $validated['scheduled_visit_at'] ?? $maintenance->scheduled_visit_at,
-                'status' => in_array($maintenance->status, ['pendiente', 'revisado', 'reabierto'], true)
-                    ? 'asignado'
-                    : $maintenance->status,
-            ]);
-
-            if ($fromStatus !== $maintenance->status) {
-                $maintenance->statusHistory()->create([
-                    'changed_by_user_id' => $user?->id,
-                    'from_status' => $fromStatus,
-                    'to_status' => $maintenance->status,
-                    'notes' => 'Asignación de proveedor/técnico',
-                    'changed_at' => now(),
-                ]);
-            }
+        DB::transaction(function () use ($maintenance, $validated, $user): void {
+            $this->applyProviderAssignment(
+                $maintenance,
+                (int) $validated['provider_id'],
+                $user?->id,
+                $validated['notes'] ?? null,
+                $validated['scheduled_visit_at'] ?? null
+            );
         });
 
         $this->notifyTicketEvent($maintenance, 'asignacion', 'Ticket de mantenimiento asignado');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Asignación actualizada correctamente.',
+                'data' => [
+                    'provider_id' => $maintenance->current_provider_id,
+                ],
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Asignación actualizada correctamente.');
     }
@@ -847,13 +1012,58 @@ class MaintenanceController extends Controller
         }
     }
 
+    private function applyProviderAssignment(
+        MaintenanceTicket $maintenance,
+        int $providerId,
+        ?int $assignedByUserId,
+        ?string $notes,
+        mixed $scheduledVisitAt = null,
+    ): void {
+        $provider = MaintenanceProvider::query()->findOrFail($providerId);
+        $maintenance->assignments()
+            ->where('is_current', true)
+            ->update([
+                'is_current' => false,
+                'unassigned_at' => now(),
+            ]);
+
+        $maintenance->assignments()->create([
+            'provider_id' => $provider->id,
+            'assigned_by_user_id' => $assignedByUserId,
+            'notes' => $notes,
+            'assigned_at' => now(),
+            'is_current' => true,
+        ]);
+
+        $fromStatus = $maintenance->status;
+        $maintenance->current_provider_id = $provider->id;
+        $maintenance->assigned_at = $maintenance->assigned_at ?: now();
+        if (filled($scheduledVisitAt)) {
+            $maintenance->scheduled_visit_at = Carbon::parse((string) $scheduledVisitAt);
+        }
+        if (in_array($maintenance->status, ['pendiente', 'revisado', 'reabierto'], true)) {
+            $maintenance->status = 'asignado';
+        }
+        $maintenance->save();
+
+        if ($fromStatus !== $maintenance->status) {
+            $maintenance->statusHistory()->create([
+                'changed_by_user_id' => $assignedByUserId,
+                'from_status' => $fromStatus,
+                'to_status' => $maintenance->status,
+                'notes' => 'Asignación de proveedor/técnico',
+                'changed_at' => now(),
+            ]);
+        }
+    }
+
     private function applyOperationalTimestampsForStatus(
         MaintenanceTicket $ticket,
         string $status,
         ?string $fromStatus,
         ?string $notes,
     ): void {
-        if ($status === 'asignado' && !$ticket->assigned_at) {
+        if (in_array($status, ['asignado', 'programado'], true) && !$ticket->assigned_at) {
             $ticket->assigned_at = now();
         }
         if ($status === 'en_proceso' && !$ticket->started_at) {
@@ -873,7 +1083,7 @@ class MaintenanceController extends Controller
             $ticket->canceled_at = null;
             $ticket->cancel_reason = null;
         }
-        if ($fromStatus === 'asignado' && $status === 'pendiente') {
+        if (in_array($fromStatus, ['asignado', 'programado'], true) && $status === 'pendiente') {
             $ticket->assigned_at = null;
         }
     }
