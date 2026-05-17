@@ -33,6 +33,7 @@ class MaintenanceTicket extends Model
         'pendiente' => 'Pendiente',
         'revisado' => 'Revisado',
         'asignado' => 'Asignado',
+        'programado' => 'Programado',
         'en_proceso' => 'En proceso',
         'esperando_material' => 'Esperando piezas/material',
         'completado' => 'Completado',

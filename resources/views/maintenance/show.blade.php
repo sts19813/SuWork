@@ -11,199 +11,209 @@
             <div class="alert alert-danger mb-6">{{ session('error') }}</div>
         @endif
 
+        @php
+            $tenantName = $ticket->property?->tenant?->full_name
+                ?: ($ticket->property?->current_tenant_name
+                    ?: ($ticket->reported_by_role === 'inquilino' ? ($ticket->reported_by_name ?: '-') : '-'));
+            $tenantPhone = $ticket->property?->tenant?->phone_primary ?: '-';
+            $propertyPhoto = $ticket->property?->facade_photo_path
+                ? asset('storage/' . ltrim((string) $ticket->property->facade_photo_path, '/'))
+                : null;
+            $mapsLink = $ticket->property?->map_url;
+            if (!$mapsLink && filled($ticket->property?->full_address)) {
+                $mapsLink = 'https://www.google.com/maps/search/?api=1&query=' . urlencode((string) $ticket->property?->full_address);
+            }
+            $evidenceImages = $ticket->files
+                ->filter(fn($file) => str_starts_with((string) $file->mime_type, 'image/'))
+                ->values();
+        @endphp
+
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-6">
             <div>
-                <h1 class="mb-1 fw-bold">{{ $ticket->title }}</h1>
+                <h1 class="mb-1 fw-bold">Mantenimiento / Ticket</h1>
                 <div class="text-muted">
-                    {{ $ticket->reference ?: $ticket->uuid }} · {{ \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status }}
+                    Folio {{ $ticket->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($ticket->uuid, 0, 8)) }}
                 </div>
             </div>
-            <div class="d-flex gap-2">
-                <a class="btn btn-light" href="{{ route('maintenance.index') }}">Volver</a>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-light" href="{{ route('maintenance.index') }}">Regresar</a>
+                <a class="btn btn-light-primary" href="#ticket-history-section">Historial de cambios</a>
+                @if ($canManageAssignments)
+                    <button class="btn btn-light-primary" data-bs-toggle="modal" data-bs-target="#assignTechnicianModal">Asignar técnico</button>
+                @endif
+                @if ($canQuickScheduleVisit)
+                    <button
+                        class="btn btn-primary"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#quickScheduleCollapse"
+                        aria-expanded="false"
+                        aria-controls="quickScheduleCollapse"
+                    >
+                        Programar visita rápida
+                    </button>
+                @endif
             </div>
         </div>
 
+        @if ($canQuickScheduleVisit)
+            <div class="collapse mb-6" id="quickScheduleCollapse">
+                <div class="card">
+                    <div class="card-body">
+                        <form method="POST" action="{{ route('maintenance.schedule-visit', $ticket) }}" class="row g-3 align-items-end">
+                            @csrf
+                            @method('PATCH')
+                            <div class="col-md-5">
+                                <label class="form-label">Fecha programada</label>
+                                <input class="form-control" type="datetime-local" name="scheduled_visit_at" value="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i') }}" required>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label">Nota</label>
+                                <input class="form-control" type="text" name="notes" maxlength="3000" placeholder="Opcional">
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-primary w-100">Guardar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div class="row g-5 mb-6">
-            <div class="col-md-3">
-                <div class="card"><div class="card-body">
-                    <div class="text-muted">Propiedad</div>
-                    <div class="fw-bold">{{ $ticket->property?->internal_name ?? '-' }}</div>
-                    <div class="text-muted fs-8">{{ $ticket->property?->internal_reference ?: '-' }}</div>
-                </div></div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="text-muted mb-2">Foto propiedad</div>
+                        @if ($propertyPhoto)
+                            <img src="{{ $propertyPhoto }}" alt="Foto propiedad" class="w-100 rounded" style="height: 92px; object-fit: cover;">
+                        @else
+                            <div class="rounded bg-light d-flex align-items-center justify-content-center text-muted" style="height: 92px;">Sin foto</div>
+                        @endif
+                    </div>
+                </div>
             </div>
-            <div class="col-md-2">
-                <div class="card"><div class="card-body">
-                    <div class="text-muted">Categoría</div>
-                    <div class="fw-bold">{{ \App\Models\MaintenanceTicket::CATEGORY_LABELS[$ticket->category] ?? $ticket->category }}</div>
-                </div></div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="text-muted mb-2">Propiedad</div>
+                        <div class="fw-bold">{{ $ticket->property?->internal_name ?? '-' }}</div>
+                        <div class="text-muted fs-8">{{ $ticket->property?->internal_reference ?: '-' }}</div>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-2">
-                <div class="card"><div class="card-body">
-                    <div class="text-muted">Prioridad</div>
-                    <div class="fw-bold">{{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}</div>
-                </div></div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="text-muted mb-2">Categoría</div>
+                        <form method="POST" action="{{ route('maintenance.meta', $ticket) }}" class="d-flex gap-2">
+                            @csrf
+                            @method('PATCH')
+                            <select class="form-select form-select-sm" name="category">
+                                @foreach ($categoryOptions as $key => $label)
+                                    <option value="{{ $key }}" {{ $ticket->category === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <input type="hidden" name="priority" value="{{ $ticket->priority }}">
+                            <button class="btn btn-sm btn-light-primary">OK</button>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-2">
-                <div class="card"><div class="card-body">
-                    <div class="text-muted">Reportó</div>
-                    <div class="fw-bold">{{ $ticket->reported_by_name ?: ($ticket->reporter?->name ?? '-') }}</div>
-                    <div class="text-muted fs-8">{{ \App\Models\MaintenanceTicket::REPORTER_ROLE_LABELS[$ticket->reported_by_role] ?? $ticket->reported_by_role }}</div>
-                </div></div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="text-muted mb-2">Prioridad</div>
+                        <form method="POST" action="{{ route('maintenance.meta', $ticket) }}" class="d-flex gap-2">
+                            @csrf
+                            @method('PATCH')
+                            <select class="form-select form-select-sm" name="priority">
+                                @foreach ($priorityOptions as $key => $label)
+                                    <option value="{{ $key }}" {{ $ticket->priority === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <input type="hidden" name="category" value="{{ $ticket->category }}">
+                            <button class="btn btn-sm btn-light-primary">OK</button>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-3">
-                <div class="card"><div class="card-body">
-                    <div class="text-muted">Proveedor actual</div>
-                    <div class="fw-bold">{{ $ticket->currentProvider?->name ?? 'Sin asignar' }}</div>
-                    <div class="text-muted fs-8">{{ $ticket->currentProvider?->phone ?: ($ticket->currentProvider?->email ?: '-') }}</div>
-                </div></div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="text-muted mb-2">Inquilino</div>
+                        <div class="fw-bold">{{ $tenantName ?: '-' }}</div>
+                        <div class="text-muted fs-8">{{ $tenantPhone }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="text-muted mb-2">Técnico asignado</div>
+                        <div class="fw-bold">{{ $ticket->currentProvider?->name ?? 'Sin asignar' }}</div>
+                        <div class="text-muted fs-8">{{ $ticket->currentProvider?->phone ?: ($ticket->currentProvider?->email ?: '-') }}</div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="row g-5 mb-6">
             <div class="col-lg-7">
-                <div class="card mb-5">
-                    <div class="card-header"><h3 class="card-title">Detalle</h3></div>
-                    <div class="card-body">
-                        <div class="mb-3"><strong>Ubicación exacta:</strong> {{ $ticket->exact_location }}</div>
-                        <div class="mb-3"><strong>Descripción:</strong><br>{{ $ticket->description }}</div>
-                        <div class="mb-3"><strong>Notas adicionales:</strong><br>{{ $ticket->additional_notes ?: '-' }}</div>
-                        <div class="row g-3">
-                            <div class="col-md-6"><strong>Fecha de reporte:</strong> {{ $ticket->reported_at?->format('d/m/Y H:i') }}</div>
-                            <div class="col-md-6"><strong>Visita programada:</strong> {{ $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?: '-' }}</div>
-                            <div class="col-md-6"><strong>Quién paga:</strong> {{ $ticket->payer ? (\App\Models\MaintenanceTicket::PAYER_LABELS[$ticket->payer] ?? $ticket->payer) : '-' }}</div>
-                            <div class="col-md-6"><strong>Regla:</strong> {{ $ticket->payment_rule ? (\App\Models\MaintenanceTicket::PAYMENT_RULE_LABELS[$ticket->payment_rule] ?? $ticket->payment_rule) : '-' }}</div>
-                            <div class="col-12"><strong>Notas regla de pago:</strong> {{ $ticket->payment_rule_notes ?: '-' }}</div>
-                        </div>
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h3 class="card-title mb-0">Detalle del ticket</h3>
+                        @if ($canEditTicket)
+                            <button class="btn btn-light-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editTicketModal">Editar ticket</button>
+                        @endif
                     </div>
-                </div>
-
-                @if ($canEditTicket)
-                    <div class="card mb-5">
-                        <div class="card-header"><h3 class="card-title">Editar ticket</h3></div>
-                        <div class="card-body">
-                            <form method="POST" action="{{ route('maintenance.update', $ticket) }}" enctype="multipart/form-data" class="row g-4">
-                                @csrf
-                                @method('PUT')
-                                <div class="col-md-6">
-                                    <label class="form-label">Categoría</label>
-                                    <select class="form-select" name="category">
-                                        @foreach ($categoryOptions as $key => $label)
-                                            <option value="{{ $key }}" {{ $ticket->category === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Prioridad</label>
-                                    <select class="form-select" name="priority">
-                                        @foreach ($priorityOptions as $key => $label)
-                                            <option value="{{ $key }}" {{ $ticket->priority === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-8">
-                                    <label class="form-label">Nombre</label>
-                                    <input class="form-control" name="title" value="{{ $ticket->title }}" maxlength="190">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Referencia</label>
-                                    <input class="form-control" name="reference" value="{{ $ticket->reference }}" maxlength="190">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Ubicación</label>
-                                    <input class="form-control" name="exact_location" value="{{ $ticket->exact_location }}" maxlength="255">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Reporte</label>
-                                    <input class="form-control" type="datetime-local" name="reported_at" value="{{ $ticket->reported_at?->format('Y-m-d\\TH:i') }}">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Visita</label>
-                                    <input class="form-control" type="datetime-local" name="scheduled_visit_at" value="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i') }}">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Quién paga</label>
-                                    <select class="form-select" name="payer">
-                                        <option value="">Sin definir</option>
-                                        @foreach ($payerOptions as $key => $label)
-                                            <option value="{{ $key }}" {{ $ticket->payer === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Regla</label>
-                                    <select class="form-select" name="payment_rule">
-                                        <option value="">Sin definir</option>
-                                        @foreach ($paymentRuleOptions as $key => $label)
-                                            <option value="{{ $key }}" {{ $ticket->payment_rule === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Notas regla</label>
-                                    <input class="form-control" name="payment_rule_notes" value="{{ $ticket->payment_rule_notes }}" maxlength="3000">
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Descripción</label>
-                                    <textarea class="form-control" rows="4" name="description" maxlength="10000">{{ $ticket->description }}</textarea>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Notas adicionales</label>
-                                    <textarea class="form-control" rows="3" name="additional_notes" maxlength="10000">{{ $ticket->additional_notes }}</textarea>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Agregar archivos</label>
-                                    <input class="form-control" type="file" name="files[]" multiple>
-                                </div>
-                                <div class="col-12 text-end">
-                                    <button class="btn btn-primary">Guardar cambios</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                @endif
-
-                <div class="card mb-5">
-                    <div class="card-header"><h3 class="card-title">Chat y comentarios</h3></div>
                     <div class="card-body">
-                        <form method="POST" action="{{ route('maintenance.messages', $ticket) }}" class="row g-3 mb-5">
-                            @csrf
-                            <div class="col-md-4">
-                                <label class="form-label">Canal</label>
-                                <select class="form-select" name="channel">
-                                    @foreach ($messageChannels as $key => $label)
-                                        <option value="{{ $key }}">{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-8">
-                                <label class="form-label">Mensaje</label>
-                                <input class="form-control" name="message" maxlength="5000" required>
-                            </div>
-                            <div class="col-12 text-end">
-                                <button class="btn btn-light-primary">Enviar</button>
-                            </div>
-                        </form>
-                        <div class="d-flex flex-column gap-4">
-                            @forelse ($ticket->messages as $message)
-                                <div class="border rounded p-3">
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <div class="fw-semibold">{{ $message->sender?->name ?? 'Sistema' }}</div>
-                                        <div class="text-muted fs-8">{{ $message->created_at?->format('d/m/Y H:i') }}</div>
+                        <div class="mb-4">
+                            <div class="text-muted mb-1">Título</div>
+                            <div class="fw-semibold">{{ $ticket->title }}</div>
+                        </div>
+                        <div class="mb-4">
+                            <div class="text-muted mb-1">Descripción</div>
+                            <div>{{ $ticket->description }}</div>
+                        </div>
+                        <div>
+                            <div class="text-muted mb-2">Evidencias</div>
+                            <div class="row g-3">
+                                @forelse ($evidenceImages as $file)
+                                    <div class="col-md-4 col-6">
+                                        <a href="{{ $file->url }}" target="_blank">
+                                            <img src="{{ $file->url }}" alt="{{ $file->original_name }}" class="w-100 rounded" style="height: 120px; object-fit: cover;">
+                                        </a>
                                     </div>
-                                    <div class="text-muted fs-8 mb-1">{{ $messageChannels[$message->channel] ?? $message->channel }}</div>
-                                    <div>{{ $message->message }}</div>
-                                </div>
-                            @empty
-                                <div class="text-muted">Sin mensajes.</div>
-                            @endforelse
+                                @empty
+                                    <div class="col-12 text-muted">Sin evidencias.</div>
+                                @endforelse
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-
             <div class="col-lg-5">
                 <div class="card mb-5">
-                    <div class="card-header"><h3 class="card-title">Estado</h3></div>
+                    <div class="card-header">
+                        <h3 class="card-title mb-0">Contacto del inquilino</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2"><strong>Celular:</strong> {{ $tenantPhone }}</div>
+                        <div><strong>Ubicación de la propiedad:</strong>
+                            @if ($mapsLink)
+                                <a href="{{ $mapsLink }}" target="_blank">LINK</a>
+                            @else
+                                <span>-</span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title mb-0">Estado</h3>
+                    </div>
                     <div class="card-body">
                         @if ($canChangeStatus)
                             <form method="POST" action="{{ route('maintenance.status', $ticket) }}" class="row g-3 mb-4">
@@ -219,7 +229,7 @@
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Nota</label>
-                                    <textarea class="form-control" name="notes" rows="3" maxlength="3000"></textarea>
+                                    <textarea class="form-control" name="notes" rows="3" maxlength="3000" placeholder="Opcional"></textarea>
                                 </div>
                                 <div class="col-12 text-end">
                                     <button class="btn btn-primary">Actualizar estado</button>
@@ -236,190 +246,23 @@
                         </div>
                     </div>
                 </div>
-
-                @if ($canManageAssignments)
-                    <div class="card mb-5">
-                        <div class="card-header"><h3 class="card-title">Asignación de técnico/proveedor</h3></div>
-                        <div class="card-body">
-                            <form method="POST" action="{{ route('maintenance.assign', $ticket) }}" class="row g-3 mb-4">
-                                @csrf
-                                <div class="col-12">
-                                    <label class="form-label">Técnico/proveedor</label>
-                                    <select class="form-select" name="provider_id" required>
-                                        <option value="">Seleccionar...</option>
-                                        @foreach ($providers as $provider)
-                                            <option value="{{ $provider->id }}" {{ $ticket->current_provider_id === $provider->id ? 'selected' : '' }}>
-                                                {{ $provider->name }} · {{ \App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Agendar visita</label>
-                                    <input class="form-control" type="datetime-local" name="scheduled_visit_at" value="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i') }}">
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Nota</label>
-                                    <textarea class="form-control" name="notes" rows="2" maxlength="3000"></textarea>
-                                </div>
-                                <div class="col-12 text-end">
-                                    <button class="btn btn-light-primary">Asignar/Reasignar</button>
-                                </div>
-                            </form>
-                            <div class="d-flex flex-column gap-3">
-                                @forelse ($ticket->assignments as $assignment)
-                                    <div class="border rounded p-3">
-                                        <div class="fw-semibold">{{ $assignment->provider?->name ?? '-' }}</div>
-                                        <div class="text-muted fs-8">
-                                            {{ $assignment->assigned_at?->format('d/m/Y H:i') }} ·
-                                            {{ $assignment->is_current ? 'Actual' : 'Histórico' }}
-                                        </div>
-                                        <div class="text-muted fs-8">{{ $assignment->notes ?: '-' }}</div>
-                                    </div>
-                                @empty
-                                    <div class="text-muted">Sin historial de asignación.</div>
-                                @endforelse
-                            </div>
-                        </div>
-                    </div>
-                @endif
-
-                @if ($canManageCosts)
-                    <div class="card mb-5">
-                        <div class="card-header"><h3 class="card-title">Costos, facturas y evidencias</h3></div>
-                        <div class="card-body">
-                            @php
-                                $costRow = $ticket->costs->first();
-                            @endphp
-                            <form method="POST" action="{{ route('maintenance.costs', $ticket) }}" enctype="multipart/form-data" class="row g-3">
-                                @csrf
-                                @method('PUT')
-                                <div class="col-md-6">
-                                    <label class="form-label">Mano de obra</label>
-                                    <input class="form-control" type="number" name="labor_cost" step="0.01" min="0" value="{{ $costRow?->labor_cost ?? 0 }}">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Materiales</label>
-                                    <input class="form-control" type="number" name="material_cost" step="0.01" min="0" value="{{ $costRow?->material_cost ?? 0 }}">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Anticipo</label>
-                                    <input class="form-control" type="number" name="advance_cost" step="0.01" min="0" value="{{ $costRow?->advance_cost ?? 0 }}">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Costo final</label>
-                                    <input class="form-control" type="number" name="final_cost" step="0.01" min="0" value="{{ $costRow?->final_cost ?? 0 }}">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Moneda</label>
-                                    <input class="form-control" name="currency" value="{{ $costRow?->currency ?? 'MXN' }}" maxlength="10">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Quién paga</label>
-                                    <select class="form-select" name="payer">
-                                        <option value="">Sin definir</option>
-                                        @foreach ($payerOptions as $key => $label)
-                                            <option value="{{ $key }}" {{ $ticket->payer === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Regla</label>
-                                    <select class="form-select" name="payment_rule">
-                                        <option value="">Sin definir</option>
-                                        @foreach ($paymentRuleOptions as $key => $label)
-                                            <option value="{{ $key }}" {{ $ticket->payment_rule === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Notas regla</label>
-                                    <input class="form-control" name="payment_rule_notes" value="{{ $ticket->payment_rule_notes }}" maxlength="3000">
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Notas de costos</label>
-                                    <textarea class="form-control" rows="3" name="notes">{{ $costRow?->notes }}</textarea>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Facturas</label>
-                                    <input class="form-control" type="file" name="invoice_files[]" multiple>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Evidencias (foto/video/documento)</label>
-                                    <input class="form-control" type="file" name="evidence_files[]" multiple>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Firmas</label>
-                                    <input class="form-control" type="file" name="signature_files[]" multiple>
-                                </div>
-                                <div class="col-12 text-end">
-                                    <button class="btn btn-light-primary">Guardar costos y evidencias</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                @endif
-
-                <div class="card mb-5">
-                    <div class="card-header"><h3 class="card-title">Archivos y evidencias</h3></div>
-                    <div class="card-body">
-                        <form method="POST" action="{{ route('maintenance.files', $ticket) }}" enctype="multipart/form-data" class="row g-3 mb-4">
-                            @csrf
-                            <div class="col-md-4">
-                                <label class="form-label">Tipo</label>
-                                <select class="form-select" name="kind">
-                                    @foreach (\App\Models\MaintenanceTicketFile::KIND_LABELS as $key => $label)
-                                        <option value="{{ $key }}">{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-8">
-                                <label class="form-label">Archivos</label>
-                                <input class="form-control" type="file" name="files[]" multiple required>
-                            </div>
-                            <div class="col-12 text-end">
-                                <button class="btn btn-light-primary">Subir</button>
-                            </div>
-                        </form>
-                        <div class="table-responsive">
-                            <table class="table align-middle">
-                                <thead>
-                                    <tr class="text-muted">
-                                        <th>Tipo</th>
-                                        <th>Archivo</th>
-                                        <th>Subido por</th>
-                                        <th>Fecha</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @forelse ($ticket->files as $file)
-                                        <tr>
-                                            <td>{{ \App\Models\MaintenanceTicketFile::KIND_LABELS[$file->kind] ?? $file->kind }}</td>
-                                            <td>
-                                                <a href="{{ $file->url }}" target="_blank">{{ $file->original_name }}</a>
-                                                <div class="text-muted fs-8">{{ $file->mime_type }} · {{ number_format((int) $file->size / 1024, 0) }} KB · {{ $file->is_compressed ? 'comprimido' : 'original' }}</div>
-                                            </td>
-                                            <td>{{ $file->uploader?->name ?? '-' }}</td>
-                                            <td>{{ $file->created_at?->format('d/m/Y H:i') }}</td>
-                                        </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="4" class="text-center text-muted py-8">Sin archivos.</td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 
-        <div class="row g-5">
-            <div class="col-lg-6">
-                <div class="card h-100">
-                    <div class="card-header"><h3 class="card-title">Historial de cambios</h3></div>
-                    <div class="card-body">
+        <div class="card" id="ticket-history-section">
+            <div class="card-header border-0 pb-0">
+                <ul class="nav nav-tabs nav-line-tabs">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ticket-history-changes" type="button">Historial de cambios</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#ticket-history-notifications" type="button">Historial de notificaciones</button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="ticket-history-changes">
                         <div class="table-responsive">
                             <table class="table align-middle">
                                 <thead>
@@ -449,12 +292,7 @@
                             </table>
                         </div>
                     </div>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                <div class="card h-100">
-                    <div class="card-header"><h3 class="card-title">Historial de notificaciones</h3></div>
-                    <div class="card-body">
+                    <div class="tab-pane fade" id="ticket-history-notifications">
                         <div class="table-responsive">
                             <table class="table align-middle">
                                 <thead>
@@ -488,4 +326,142 @@
             </div>
         </div>
     </div>
+
+    @if ($canEditTicket)
+        <div class="modal fade" id="editTicketModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <form method="POST" action="{{ route('maintenance.update', $ticket) }}" enctype="multipart/form-data">
+                        @csrf
+                        @method('PUT')
+                        <div class="modal-header">
+                            <h3 class="modal-title">Editar ticket</h3>
+                            <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <label class="form-label required">Categoría</label>
+                                    <select class="form-select" name="category" required>
+                                        @foreach ($categoryOptions as $key => $label)
+                                            <option value="{{ $key }}" {{ $ticket->category === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label required">Prioridad</label>
+                                    <select class="form-select" name="priority" required>
+                                        @foreach ($priorityOptions as $key => $label)
+                                            <option value="{{ $key }}" {{ $ticket->priority === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label required">Título</label>
+                                    <input class="form-control" type="text" name="title" value="{{ $ticket->title }}" maxlength="190" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Referencia</label>
+                                    <input class="form-control" type="text" name="reference" value="{{ $ticket->reference }}" maxlength="190">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label required">Ubicación exacta</label>
+                                    <input class="form-control" type="text" name="exact_location" value="{{ $ticket->exact_location }}" maxlength="255" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label required">Fecha reporte</label>
+                                    <input class="form-control" type="datetime-local" name="reported_at" value="{{ $ticket->reported_at?->format('Y-m-d\\TH:i') }}" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Visita programada</label>
+                                    <input class="form-control" type="datetime-local" name="scheduled_visit_at" value="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i') }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Quién paga</label>
+                                    <select class="form-select" name="payer">
+                                        <option value="">Sin definir</option>
+                                        @foreach ($payerOptions as $key => $label)
+                                            <option value="{{ $key }}" {{ $ticket->payer === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Regla de pago</label>
+                                    <select class="form-select" name="payment_rule">
+                                        <option value="">Sin definir</option>
+                                        @foreach ($paymentRuleOptions as $key => $label)
+                                            <option value="{{ $key }}" {{ $ticket->payment_rule === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Notas regla pago</label>
+                                    <input class="form-control" type="text" name="payment_rule_notes" value="{{ $ticket->payment_rule_notes }}" maxlength="3000">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label required">Descripción</label>
+                                    <textarea class="form-control" rows="4" name="description" maxlength="10000" required>{{ $ticket->description }}</textarea>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Notas adicionales</label>
+                                    <textarea class="form-control" rows="3" name="additional_notes" maxlength="10000">{{ $ticket->additional_notes }}</textarea>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Agregar archivos</label>
+                                    <input class="form-control" type="file" name="files[]" multiple>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                            <button class="btn btn-primary" type="submit">Guardar cambios</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($canManageAssignments)
+        <div class="modal fade" id="assignTechnicianModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <form method="POST" action="{{ route('maintenance.assign', $ticket) }}">
+                        @csrf
+                        <div class="modal-header">
+                            <h3 class="modal-title">Asignar técnico/proveedor</h3>
+                            <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row g-4">
+                                <div class="col-12">
+                                    <label class="form-label required">Técnico/proveedor</label>
+                                    <select class="form-select" name="provider_id" required>
+                                        <option value="">Seleccionar...</option>
+                                        @foreach ($providers as $provider)
+                                            <option value="{{ $provider->id }}" {{ $ticket->current_provider_id === $provider->id ? 'selected' : '' }}>
+                                                {{ $provider->name }} · {{ \App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Visita programada</label>
+                                    <input class="form-control" type="datetime-local" name="scheduled_visit_at" value="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i') }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Nota</label>
+                                    <input class="form-control" type="text" name="notes" maxlength="3000">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                            <button class="btn btn-primary" type="submit">Guardar asignación</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
 @endsection
