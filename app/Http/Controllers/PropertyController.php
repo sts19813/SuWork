@@ -66,8 +66,7 @@ class PropertyController extends Controller
             ->when($request->filled('property_type_id'), fn($query) => $query->where('property_type_id', $request->integer('property_type_id')))
             ->when($request->filled('status'), fn($query) => $query->where('status', $request->string('status')->value()))
             ->latest()
-            ->paginate(10)
-            ->withQueryString();
+            ->get();
 
         return view('properties.index', [
             'properties' => $properties,
