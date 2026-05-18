@@ -16,9 +16,16 @@
                 <h1 class="mb-1 fw-bold text-dark">Documentos</h1>
                 <div class="text-muted fs-6">{{ $documents->total() }} documentos registrados</div>
             </div>
-            <a href="{{ route('properties.index') }}" class="btn btn-primary fw-bold">
-                <i class="ki-outline ki-folder fs-4 me-1"></i> Ver expedientes
-            </a>
+            <div class="d-flex gap-2">
+                @canany(['expedientes.ver_bitacora_eliminados', 'expedientes.eliminar_archivos'])
+                    <a href="{{ route('documents.deleted-files-log') }}" class="btn btn-light-danger fw-bold">
+                        <i class="ki-outline ki-archive fs-4 me-1"></i> Bitácora eliminados
+                    </a>
+                @endcanany
+                <a href="{{ route('properties.index') }}" class="btn btn-primary fw-bold">
+                    <i class="ki-outline ki-folder fs-4 me-1"></i> Ver expedientes
+                </a>
+            </div>
         </div>
 
         <div class="row g-5 mb-8">
@@ -68,6 +75,7 @@
                             <option value="">Todas las entidades</option>
                             <option value="property" {{ $filters['entity'] === 'property' ? 'selected' : '' }}>Propiedades</option>
                             <option value="tenant" {{ $filters['entity'] === 'tenant' ? 'selected' : '' }}>Inquilinos</option>
+                            <option value="owner" {{ $filters['entity'] === 'owner' ? 'selected' : '' }}>Propietarios</option>
                         </select>
                     </div>
                     <div class="col-lg-3">

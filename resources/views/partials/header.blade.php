@@ -6,6 +6,7 @@
         ->join('');
     $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
     $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
+    $canManageAccess = $user->can('usuarios.gestionar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $homeRoute = ($isTenant || $isTechnician) ? 'maintenance.index' : 'properties.index';
     $menuItems = $isTenant
         ? [
@@ -29,6 +30,7 @@
             ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos'],
             ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
             ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén'],
+            ...($canManageAccess ? [['patterns' => ['access.*'], 'route' => 'access.index', 'label' => 'Usuarios y permisos']] : []),
             ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
         ]);
 @endphp

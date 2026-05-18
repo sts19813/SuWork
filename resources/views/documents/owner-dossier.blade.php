@@ -53,9 +53,18 @@
                                 <span class="badge badge-light-info text-info ms-2">v{{ $versions->count() }}</span>
                             </div>
                             @if ($document->file_path)
-                                <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}" class="btn btn-sm btn-light-primary" target="_blank">
-                                    Ver archivo vigente
-                                </a>
+                                <div class="d-flex gap-2">
+                                    <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}" class="btn btn-sm btn-light-primary" target="_blank">
+                                        Ver archivo vigente
+                                    </a>
+                                    @if ($canDeleteDossierFiles)
+                                        <form method="POST" action="{{ route('dossiers.owners.documents.destroy', [$owner, $document->document_type]) }}" onsubmit="return confirm('¿Eliminar este documento y su historial de versiones?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="btn btn-sm btn-light-danger" type="submit">Eliminar documento</button>
+                                        </form>
+                                    @endif
+                                </div>
                             @endif
                         </div>
 
@@ -94,10 +103,19 @@
                                                 <td>{{ $version->original_name }}</td>
                                                 <td>{{ $version->uploaded_at?->format('d/m/Y H:i') ?: '-' }}</td>
                                                 <td class="text-end">
-                                                    <a href="{{ \Illuminate\Support\Facades\Storage::url($version->file_path) }}" target="_blank"
-                                                        class="btn btn-sm btn-light-primary">
-                                                        Ver
-                                                    </a>
+                                                    <div class="d-inline-flex gap-2">
+                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($version->file_path) }}" target="_blank"
+                                                            class="btn btn-sm btn-light-primary">
+                                                            Ver
+                                                        </a>
+                                                        @if ($canDeleteDossierFiles)
+                                                            <form method="POST" action="{{ route('dossiers.owners.documents.versions.destroy', [$owner, $document->document_type, $version]) }}" onsubmit="return confirm('¿Eliminar esta versión del expediente?');">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button type="submit" class="btn btn-sm btn-light-danger">Eliminar</button>
+                                                            </form>
+                                                        @endif
+                                                    </div>
                                                 </td>
                                             </tr>
                                         @endforeach
@@ -147,9 +165,18 @@
                                     <span class="badge badge-light-info text-info ms-2">v{{ $versions->count() }}</span>
                                 </div>
                                 @if ($document->file_path)
-                                    <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}" class="btn btn-sm btn-light-primary" target="_blank">
-                                        Ver archivo vigente
-                                    </a>
+                                    <div class="d-flex gap-2">
+                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($document->file_path) }}" class="btn btn-sm btn-light-primary" target="_blank">
+                                            Ver archivo vigente
+                                        </a>
+                                        @if ($canDeleteDossierFiles)
+                                            <form method="POST" action="{{ route('dossiers.owners.documents.destroy', [$owner, $document->document_type]) }}" onsubmit="return confirm('¿Eliminar este documento y su historial de versiones?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button class="btn btn-sm btn-light-danger" type="submit">Eliminar documento</button>
+                                            </form>
+                                        @endif
+                                    </div>
                                 @endif
                             </div>
 
@@ -188,10 +215,19 @@
                                                     <td>{{ $version->original_name }}</td>
                                                     <td>{{ $version->uploaded_at?->format('d/m/Y H:i') ?: '-' }}</td>
                                                     <td class="text-end">
-                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($version->file_path) }}" target="_blank"
-                                                            class="btn btn-sm btn-light-primary">
-                                                            Ver
-                                                        </a>
+                                                        <div class="d-inline-flex gap-2">
+                                                            <a href="{{ \Illuminate\Support\Facades\Storage::url($version->file_path) }}" target="_blank"
+                                                                class="btn btn-sm btn-light-primary">
+                                                                Ver
+                                                            </a>
+                                                            @if ($canDeleteDossierFiles)
+                                                                <form method="POST" action="{{ route('dossiers.owners.documents.versions.destroy', [$owner, $document->document_type, $version]) }}" onsubmit="return confirm('¿Eliminar esta versión del expediente?');">
+                                                                    @csrf
+                                                                    @method('DELETE')
+                                                                    <button type="submit" class="btn btn-sm btn-light-danger">Eliminar</button>
+                                                                </form>
+                                                            @endif
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             @endforeach
