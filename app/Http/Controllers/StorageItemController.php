@@ -11,10 +11,36 @@ use Illuminate\Support\Str;
 
 class StorageItemController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $items = StorageItem::orderBy('created_at', 'desc')->paginate(20);
-        return view('storage_items.index', compact('items'));
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:190'],
+            'view' => ['nullable', 'in:grid,table'],
+        ]);
+
+        $search = trim((string) ($filters['q'] ?? ''));
+        $viewMode = (string) ($filters['view'] ?? 'grid');
+
+        $baseQuery = StorageItem::query()
+            ->when($search !== '', function ($query) use ($search): void {
+                $like = "%{$search}%";
+                $query->where(function ($inner) use ($like): void {
+                    $inner->where('name', 'like', $like)
+                        ->orWhere('product_type', 'like', $like)
+                        ->orWhere('brand', 'like', $like);
+                });
+            })
+            ->orderByDesc('created_at');
+
+        $items = $viewMode === 'table'
+            ? $baseQuery->get()
+            : $baseQuery->paginate(20)->withQueryString();
+
+        return view('storage_items.index', [
+            'items' => $items,
+            'viewMode' => $viewMode,
+            'search' => $search,
+        ]);
     }
 
     public function create()
