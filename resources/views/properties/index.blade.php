@@ -16,7 +16,7 @@
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-8">
             <div>
                 <h1 class="mb-1 fw-bold text-dark">Propiedades</h1>
-                <div class="text-muted fs-6">{{ $properties->total() }} propiedades encontradas</div>
+                <div class="text-muted fs-6">{{ $properties->count() }} propiedades encontradas</div>
             </div>
             <a href="{{ route('properties.create') }}" class="btn btn-primary fw-bold">
                 <i class="ki-outline ki-plus fs-4 me-1"></i> Nueva Propiedad
@@ -69,8 +69,19 @@
 
         <div class="card">
             <div class="card-body py-0">
+                <div class="d-flex justify-content-end py-5">
+                    <div class="w-100 w-md-300px">
+                        <label for="properties_text_search" class="form-label fw-semibold mb-2">Buscar por texto</label>
+                        <input
+                            id="properties_text_search"
+                            type="text"
+                            class="form-control form-control-solid"
+                            placeholder="Nombre, tipo, zona, estado, inquilino..."
+                        >
+                    </div>
+                </div>
                 <div class="table-responsive">
-                    <table class="table table-row-bordered align-middle gy-5 mb-0">
+                    <table id="properties_table" class="table table-row-bordered align-middle gy-5 mb-0">
                         <thead>
                             <tr class="fw-bold text-muted text-uppercase gs-0">
                                 <th class="min-w-125px">Foto</th>
@@ -93,7 +104,13 @@
                                 @endphp
                                 <tr>
                                     <td>
-                                        <img src="{{ $photoUrl }}" class="property-thumb" alt="{{ $property->internal_name }}">
+                                        <img
+                                            src="{{ $photoUrl }}"
+                                            class="property-thumb"
+                                            alt="{{ $property->internal_name }}"
+                                            loading="lazy"
+                                            decoding="async"
+                                        >
                                     </td>
                                     <td>
                                         <a href="{{ route('properties.show', $property) }}"
@@ -102,7 +119,18 @@
                                         </a>
                                     </td>
                                     <td>{{ $property->type?->name ?? '-' }}</td>
-                                    <td>{{ $property->zone?->name ?? '-' }}</td>
+                                    <td>
+                                        @php
+                                            $zoneName = $property->zone?->name;
+                                            $zoneText = filled($property->zone_text) ? trim((string) $property->zone_text) : null;
+                                            $zoneDisplay = $zoneName ?: $zoneText ?: '-';
+                                            $showZoneTextDetail = $zoneName && $zoneText && strcasecmp($zoneName, $zoneText) !== 0;
+                                        @endphp
+                                        <div class="fw-semibold">{{ $zoneDisplay }}</div>
+                                        @if ($showZoneTextDetail)
+                                            <div class="text-muted fs-8">{{ $zoneText }}</div>
+                                        @endif
+                                    </td>
                                     <td>
                                         <span
                                             class="badge {{ $property->status_badge_class }}">{{ $property->status_label }}</span>
@@ -154,7 +182,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center py-16 text-muted">
+                                    <td colspan="9" class="text-center py-16 text-muted" data-empty-row="true">
                                         Aún no hay propiedades registradas.
                                     </td>
                                 </tr>
@@ -163,9 +191,58 @@
                     </table>
                 </div>
             </div>
-            <div class="card-footer">
-                {{ $properties->links() }}
-            </div>
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        (() => {
+            const tableElement = document.getElementById('properties_table');
+            if (!tableElement || typeof $ === 'undefined' || !$.fn.DataTable) {
+                return;
+            }
+
+            const emptyCell = tableElement.querySelector('td[data-empty-row="true"]');
+            if (emptyCell) {
+                emptyCell.closest('tr')?.remove();
+            }
+
+            const dataTable = $(tableElement).DataTable({
+                dom: "rt<'row align-items-center'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7 d-flex justify-content-md-end'p>>",
+                pageLength: 10,
+                lengthChange: false,
+                order: [],
+                info: true,
+                searching: true,
+                language: {
+                    search: 'Buscar:',
+                    searchPlaceholder: 'Buscar...',
+                    info: 'Mostrando _START_ a _END_ de _TOTAL_ propiedades',
+                    infoEmpty: 'Mostrando 0 a 0 de 0 propiedades',
+                    paginate: {
+                        first: 'Primera',
+                        last: 'Última',
+                        next: 'Siguiente',
+                        previous: 'Anterior',
+                    },
+                    emptyTable: 'Aún no hay propiedades registradas.',
+                    zeroRecords: 'No se encontraron coincidencias.',
+                },
+                columnDefs: [
+                    {
+                        targets: [0, 8],
+                        orderable: false,
+                    },
+                ],
+            });
+
+            const textSearchInput = document.getElementById('properties_text_search');
+            if (textSearchInput) {
+                textSearchInput.addEventListener('keyup', (event) => {
+                    dataTable.search(event.target.value).draw();
+                });
+            }
+        })();
+    </script>
+@endpush
