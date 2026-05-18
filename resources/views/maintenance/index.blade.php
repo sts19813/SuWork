@@ -384,153 +384,377 @@
         @endif
     </div>
 
-    @if ($canCreateTicket)
-        <div class="modal fade" id="createMaintenanceTicketModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                <div class="modal-content">
-                    <form method="POST" action="{{ route('maintenance.store') }}" enctype="multipart/form-data">
-                        @csrf
-                        <div class="modal-header">
-                            <h3 class="modal-title">Nuevo ticket de mantenimiento</h3>
-                            <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="row g-4">
-                                @if ($isTenant)
-                                    @if ($properties->count() === 1)
-                                        <div class="col-12">
-                                            <label class="form-label required">Propiedad</label>
-                                            <input class="form-control" type="text" value="{{ $properties->first()->internal_name }}{{ $properties->first()->internal_reference ? ' - '.$properties->first()->internal_reference : '' }}" disabled>
-                                            <input type="hidden" name="property_id" value="{{ $properties->first()->id }}">
-                                        </div>
-                                    @else
-                                        <div class="col-12">
-                                            <label class="form-label required">Propiedad</label>
-                                            <select class="form-select" name="property_id" required>
-                                                <option value="">Seleccionar...</option>
-                                                @foreach ($properties as $property)
-                                                    <option value="{{ $property->id }}" {{ old('property_id', $selectedProperty?->id) == $property->id ? 'selected' : '' }}>
-                                                        {{ $property->internal_name }}{{ $property->internal_reference ? ' - '.$property->internal_reference : '' }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                    @endif
+@if ($canCreateTicket)
+    <div class="modal fade"
+        id="createMaintenanceTicketModal"
+        tabindex="-1"
+        aria-hidden="true">
+
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content"
+                style="height: 90vh; max-height: 90vh; overflow: hidden;">
+
+                <form method="POST"
+                    action="{{ route('maintenance.store') }}"
+                    enctype="multipart/form-data"
+                    class="d-flex flex-column h-100">
+
+                    @csrf
+
+                    {{-- HEADER --}}
+                    <div class="modal-header flex-shrink-0">
+                        <h3 class="modal-title">
+                            Nuevo ticket de mantenimiento
+                        </h3>
+
+                        <button type="button"
+                            class="btn btn-icon btn-sm btn-light"
+                            data-bs-dismiss="modal">
+                            ×
+                        </button>
+                    </div>
+
+                    {{-- BODY CON SCROLL INTERNO --}}
+                    <div class="modal-body overflow-auto">
+                        <div class="row g-4">
+
+                            @if ($isTenant)
+
+                                @if ($properties->count() === 1)
                                     <div class="col-12">
-                                        <label class="form-label required">Título</label>
-                                        <input class="form-control" type="text" name="title" value="{{ old('title') }}" maxlength="190" required>
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label">Descripción</label>
-                                        <textarea class="form-control" rows="4" name="description" maxlength="10000">{{ old('description') }}</textarea>
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label required">Evidencia</label>
-                                        <input class="form-control" type="file" name="files[]" multiple required>
+                                        <label class="form-label required">
+                                            Propiedad
+                                        </label>
+
+                                        <input class="form-control"
+                                            type="text"
+                                            value="{{ $properties->first()->internal_name }}{{ $properties->first()->internal_reference ? ' - '.$properties->first()->internal_reference : '' }}"
+                                            disabled>
+
+                                        <input type="hidden"
+                                            name="property_id"
+                                            value="{{ $properties->first()->id }}">
                                     </div>
                                 @else
-                                    <div class="col-md-6">
-                                        <label class="form-label required">Propiedad</label>
-                                        <select class="form-select" name="property_id" required>
-                                            <option value="">Seleccionar...</option>
+                                    <div class="col-12">
+                                        <label class="form-label required">
+                                            Propiedad
+                                        </label>
+
+                                        <select class="form-select"
+                                            name="property_id"
+                                            required>
+
+                                            <option value="">
+                                                Seleccionar...
+                                            </option>
+
                                             @foreach ($properties as $property)
-                                                <option value="{{ $property->id }}" {{ old('property_id', $selectedProperty?->id) == $property->id ? 'selected' : '' }}>
-                                                    {{ $property->internal_name }}{{ $property->internal_reference ? ' - '.$property->internal_reference : '' }}
+                                                <option value="{{ $property->id }}"
+                                                    {{ old('property_id', $selectedProperty?->id) == $property->id ? 'selected' : '' }}>
+
+                                                    {{ $property->internal_name }}
+                                                    {{ $property->internal_reference ? ' - '.$property->internal_reference : '' }}
                                                 </option>
                                             @endforeach
+
                                         </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label required">Categoría</label>
-                                        <select class="form-select" name="category" required>
-                                            @foreach (\App\Models\MaintenanceTicket::CATEGORY_LABELS as $key => $label)
-                                                <option value="{{ $key }}" {{ old('category') === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label required">Prioridad</label>
-                                        <select class="form-select" name="priority" required>
-                                            @foreach (\App\Models\MaintenanceTicket::PRIORITY_LABELS as $key => $label)
-                                                <option value="{{ $key }}" {{ old('priority') === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-md-8">
-                                        <label class="form-label required">Nombre del ticket</label>
-                                        <input class="form-control" type="text" name="title" value="{{ old('title') }}" maxlength="190" required>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Referencia</label>
-                                        <input class="form-control" type="text" name="reference" value="{{ old('reference') }}" maxlength="190">
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label required">Ubicación exacta</label>
-                                        <input class="form-control" type="text" name="exact_location" value="{{ old('exact_location') }}" maxlength="255" required>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label required">Fecha del reporte</label>
-                                        <input class="form-control" type="datetime-local" name="reported_at" value="{{ old('reported_at', now()->format('Y-m-d\\TH:i')) }}" required>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Visita programada</label>
-                                        <input class="form-control" type="datetime-local" name="scheduled_visit_at" value="{{ old('scheduled_visit_at') }}">
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Quién paga</label>
-                                        <select class="form-select" name="payer">
-                                            <option value="">Sin definir</option>
-                                            @foreach (\App\Models\MaintenanceTicket::PAYER_LABELS as $key => $label)
-                                                <option value="{{ $key }}" {{ old('payer') === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Regla</label>
-                                        <select class="form-select" name="payment_rule">
-                                            <option value="">Sin definir</option>
-                                            @foreach (\App\Models\MaintenanceTicket::PAYMENT_RULE_LABELS as $key => $label)
-                                                <option value="{{ $key }}" {{ old('payment_rule') === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Estado inicial</label>
-                                        <select class="form-select" name="status">
-                                            @foreach (\App\Models\MaintenanceTicket::STATUS_LABELS as $key => $label)
-                                                <option value="{{ $key }}" {{ old('status', 'pendiente') === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label required">Descripción</label>
-                                        <textarea class="form-control" rows="4" name="description" maxlength="10000" required>{{ old('description') }}</textarea>
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label">Notas adicionales</label>
-                                        <textarea class="form-control" rows="3" name="additional_notes" maxlength="10000">{{ old('additional_notes') }}</textarea>
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label">Archivos (múltiples)</label>
-                                        <input class="form-control" type="file" name="files[]" multiple>
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label">Notas sobre regla de pago</label>
-                                        <textarea class="form-control" rows="2" name="payment_rule_notes" maxlength="3000">{{ old('payment_rule_notes') }}</textarea>
                                     </div>
                                 @endif
-                            </div>
+
+                                <div class="col-12">
+                                    <label class="form-label required">
+                                        Título
+                                    </label>
+
+                                    <input class="form-control"
+                                        type="text"
+                                        name="title"
+                                        value="{{ old('title') }}"
+                                        maxlength="190"
+                                        required>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">
+                                        Descripción
+                                    </label>
+
+                                    <textarea class="form-control"
+                                        rows="4"
+                                        name="description"
+                                        maxlength="10000">{{ old('description') }}</textarea>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label required">
+                                        Evidencia
+                                    </label>
+
+                                    <input class="form-control"
+                                        type="file"
+                                        name="files[]"
+                                        multiple
+                                        required>
+                                </div>
+
+                            @else
+
+                                <div class="col-md-6">
+                                    <label class="form-label required">
+                                        Propiedad
+                                    </label>
+
+                                    <select class="form-select"
+                                        name="property_id"
+                                        required>
+
+                                        <option value="">
+                                            Seleccionar...
+                                        </option>
+
+                                        @foreach ($properties as $property)
+                                            <option value="{{ $property->id }}"
+                                                {{ old('property_id', $selectedProperty?->id) == $property->id ? 'selected' : '' }}>
+
+                                                {{ $property->internal_name }}
+                                                {{ $property->internal_reference ? ' - '.$property->internal_reference : '' }}
+                                            </option>
+                                        @endforeach
+
+                                    </select>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label required">
+                                        Categoría
+                                    </label>
+
+                                    <select class="form-select"
+                                        name="category"
+                                        required>
+
+                                        @foreach (\App\Models\MaintenanceTicket::CATEGORY_LABELS as $key => $label)
+                                            <option value="{{ $key }}"
+                                                {{ old('category') === $key ? 'selected' : '' }}>
+                                                {{ $label }}
+                                            </option>
+                                        @endforeach
+
+                                    </select>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label required">
+                                        Prioridad
+                                    </label>
+
+                                    <select class="form-select"
+                                        name="priority"
+                                        required>
+
+                                        @foreach (\App\Models\MaintenanceTicket::PRIORITY_LABELS as $key => $label)
+                                            <option value="{{ $key }}"
+                                                {{ old('priority') === $key ? 'selected' : '' }}>
+                                                {{ $label }}
+                                            </option>
+                                        @endforeach
+
+                                    </select>
+                                </div>
+
+                                <div class="col-md-8">
+                                    <label class="form-label required">
+                                        Nombre del ticket
+                                    </label>
+
+                                    <input class="form-control"
+                                        type="text"
+                                        name="title"
+                                        value="{{ old('title') }}"
+                                        maxlength="190"
+                                        required>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label">
+                                        Referencia
+                                    </label>
+
+                                    <input class="form-control"
+                                        type="text"
+                                        name="reference"
+                                        value="{{ old('reference') }}"
+                                        maxlength="190">
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label required">
+                                        Ubicación exacta
+                                    </label>
+
+                                    <input class="form-control"
+                                        type="text"
+                                        name="exact_location"
+                                        value="{{ old('exact_location') }}"
+                                        maxlength="255"
+                                        required>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label required">
+                                        Fecha del reporte
+                                    </label>
+
+                                    <input class="form-control"
+                                        type="datetime-local"
+                                        name="reported_at"
+                                        value="{{ old('reported_at', now()->format('Y-m-d\\TH:i')) }}"
+                                        required>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label">
+                                        Visita programada
+                                    </label>
+
+                                    <input class="form-control"
+                                        type="datetime-local"
+                                        name="scheduled_visit_at"
+                                        value="{{ old('scheduled_visit_at') }}">
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label">
+                                        Quién paga
+                                    </label>
+
+                                    <select class="form-select"
+                                        name="payer">
+
+                                        <option value="">
+                                            Sin definir
+                                        </option>
+
+                                        @foreach (\App\Models\MaintenanceTicket::PAYER_LABELS as $key => $label)
+                                            <option value="{{ $key }}"
+                                                {{ old('payer') === $key ? 'selected' : '' }}>
+                                                {{ $label }}
+                                            </option>
+                                        @endforeach
+
+                                    </select>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label">
+                                        Regla
+                                    </label>
+
+                                    <select class="form-select"
+                                        name="payment_rule">
+
+                                        <option value="">
+                                            Sin definir
+                                        </option>
+
+                                        @foreach (\App\Models\MaintenanceTicket::PAYMENT_RULE_LABELS as $key => $label)
+                                            <option value="{{ $key }}"
+                                                {{ old('payment_rule') === $key ? 'selected' : '' }}>
+                                                {{ $label }}
+                                            </option>
+                                        @endforeach
+
+                                    </select>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label">
+                                        Estado inicial
+                                    </label>
+
+                                    <select class="form-select"
+                                        name="status">
+
+                                        @foreach (\App\Models\MaintenanceTicket::STATUS_LABELS as $key => $label)
+                                            <option value="{{ $key }}"
+                                                {{ old('status', 'pendiente') === $key ? 'selected' : '' }}>
+                                                {{ $label }}
+                                            </option>
+                                        @endforeach
+
+                                    </select>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label required">
+                                        Descripción
+                                    </label>
+
+                                    <textarea class="form-control"
+                                        rows="4"
+                                        name="description"
+                                        maxlength="10000"
+                                        required>{{ old('description') }}</textarea>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">
+                                        Notas adicionales
+                                    </label>
+
+                                    <textarea class="form-control"
+                                        rows="3"
+                                        name="additional_notes"
+                                        maxlength="10000">{{ old('additional_notes') }}</textarea>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">
+                                        Archivos (múltiples)
+                                    </label>
+
+                                    <input class="form-control"
+                                        type="file"
+                                        name="files[]"
+                                        multiple>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">
+                                        Notas sobre regla de pago
+                                    </label>
+
+                                    <textarea class="form-control"
+                                        rows="2"
+                                        name="payment_rule_notes"
+                                        maxlength="3000">{{ old('payment_rule_notes') }}</textarea>
+                                </div>
+
+                            @endif
+
                         </div>
-                        <div class="modal-footer">
-                            <button class="btn btn-light" type="button" data-bs-dismiss="modal">Cancelar</button>
-                            <button class="btn btn-primary" type="submit">Crear ticket</button>
-                        </div>
-                    </form>
-                </div>
+                    </div>
+
+                    {{-- FOOTER FIJO --}}
+                    <div class="modal-footer flex-shrink-0">
+                        <button class="btn btn-light"
+                            type="button"
+                            data-bs-dismiss="modal">
+                            Cancelar
+                        </button>
+
+                        <button class="btn btn-primary"
+                            type="submit">
+                            Crear ticket
+                        </button>
+                    </div>
+
+                </form>
             </div>
         </div>
-    @endif
-
+    </div>
+@endif
     @if ($canManageProviders)
         <div class="modal fade" id="createProviderModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg">
