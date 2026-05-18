@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DossierDeletedFile;
 use App\Models\Owner;
 use App\Models\OwnerDocument;
+use App\Models\OwnerDocumentVersion;
 use App\Models\Property;
 use App\Models\PropertyDocument;
+use App\Models\PropertyDocumentVersion;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
+use App\Models\TenantDocumentVersion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -19,6 +23,8 @@ use Illuminate\View\View;
 
 class DocumentController extends Controller
 {
+    private const DELETE_FILES_PERMISSION = 'expedientes.eliminar_archivos';
+
     private const STATUS_FILTERS = [
         'approved' => 'Vigentes',
         'pending_review' => 'Pend. revision',
@@ -112,6 +118,7 @@ class DocumentController extends Controller
             'property' => $property,
             'documents' => $documents,
             'customDocuments' => $customDocuments,
+            'canDeleteDossierFiles' => $this->canDeleteDossierFiles(request()),
         ]);
     }
 
@@ -141,6 +148,7 @@ class DocumentController extends Controller
             'tenant' => $tenant,
             'documents' => $documents,
             'customDocuments' => $customDocuments,
+            'canDeleteDossierFiles' => $this->canDeleteDossierFiles(request()),
         ]);
     }
 
@@ -170,6 +178,53 @@ class DocumentController extends Controller
             'owner' => $owner,
             'documents' => $documents,
             'customDocuments' => $customDocuments,
+            'canDeleteDossierFiles' => $this->canDeleteDossierFiles(request()),
+        ]);
+    }
+
+    public function deletedFilesLog(Request $request): View
+    {
+        if (!$request->user()?->can('expedientes.ver_bitacora_eliminados') && !$request->user()?->can(self::DELETE_FILES_PERMISSION)) {
+            abort(403);
+        }
+
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:180'],
+            'entity_type' => ['nullable', Rule::in(['property', 'tenant', 'owner'])],
+            'document_group' => ['nullable', Rule::in(['property', 'tenant', 'owner'])],
+        ]);
+
+        $search = trim((string) ($filters['q'] ?? ''));
+        $entityType = (string) ($filters['entity_type'] ?? '');
+        $documentGroup = (string) ($filters['document_group'] ?? '');
+
+        $deletedFiles = DossierDeletedFile::query()
+            ->with('deletedBy:id,name,email')
+            ->when($entityType !== '', fn($query) => $query->where('entity_type', $entityType))
+            ->when($documentGroup !== '', fn($query) => $query->where('document_group', $documentGroup))
+            ->when($search !== '', function ($query) use ($search): void {
+                $like = "%{$search}%";
+                $query->where(function ($inner) use ($like): void {
+                    $inner->where('entity_name', 'like', $like)
+                        ->orWhere('document_label', 'like', $like)
+                        ->orWhere('document_type', 'like', $like)
+                        ->orWhere('original_name', 'like', $like)
+                        ->orWhere('file_path', 'like', $like)
+                        ->orWhere('delete_reason', 'like', $like);
+                });
+            })
+            ->latest('deleted_at')
+            ->latest('id')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('documents.deleted-files-log', [
+            'deletedFiles' => $deletedFiles,
+            'filters' => [
+                'q' => $search,
+                'entity_type' => $entityType,
+                'document_group' => $documentGroup,
+            ],
         ]);
     }
 
@@ -452,6 +507,162 @@ class DocumentController extends Controller
         return back()->with('success', 'Documento personalizado agregado al expediente del propietario.');
     }
 
+    public function destroyPropertyDocument(Request $request, Property $property, string $documentType): RedirectResponse
+    {
+        $this->ensureDeleteDossierFilesPermission($request);
+
+        $document = $property->documents()->where('document_type', $documentType)->firstOrFail();
+        $isRequired = array_key_exists($documentType, PropertyDocument::REQUIRED_DOCUMENTS);
+        $this->deleteAllDocumentVersions(
+            request: $request,
+            entityType: 'property',
+            entityId: $property->id,
+            entityName: $property->internal_name,
+            documentGroup: 'property',
+            documentId: $document->id,
+            documentType: $document->document_type,
+            documentLabel: $document->label,
+            versions: $document->versions()->get(),
+            reason: $request->input('delete_reason'),
+        );
+        $document->versions()->delete();
+
+        if ($isRequired) {
+            $document->update([
+                'file_path' => null,
+                'uploaded_at' => null,
+                'expires_at' => null,
+                'status' => PropertyDocument::STATUS_PENDING,
+            ]);
+        } else {
+            $document->delete();
+        }
+
+        return back()->with('success', 'Documento eliminado del expediente de propiedad.');
+    }
+
+    public function destroyTenantDocument(Request $request, Tenant $tenant, string $documentType): RedirectResponse
+    {
+        $this->ensureDeleteDossierFilesPermission($request);
+
+        $document = $tenant->documents()->where('document_type', $documentType)->firstOrFail();
+        $isRequired = array_key_exists($documentType, TenantDocument::REQUIRED_DOCUMENTS);
+        $this->deleteAllDocumentVersions(
+            request: $request,
+            entityType: 'tenant',
+            entityId: $tenant->id,
+            entityName: $tenant->full_name,
+            documentGroup: 'tenant',
+            documentId: $document->id,
+            documentType: $document->document_type,
+            documentLabel: $document->label,
+            versions: $document->versions()->get(),
+            reason: $request->input('delete_reason'),
+        );
+        $document->versions()->delete();
+
+        if ($isRequired) {
+            $document->update([
+                'file_path' => null,
+                'uploaded_at' => null,
+                'expires_at' => null,
+                'status' => TenantDocument::STATUS_PENDING,
+            ]);
+        } else {
+            $document->delete();
+        }
+
+        return back()->with('success', 'Documento eliminado del expediente de inquilino.');
+    }
+
+    public function destroyOwnerDocument(Request $request, Owner $owner, string $documentType): RedirectResponse
+    {
+        $this->ensureDeleteDossierFilesPermission($request);
+
+        $document = $owner->documents()->where('document_type', $documentType)->firstOrFail();
+        $isRequired = array_key_exists($documentType, OwnerDocument::REQUIRED_DOCUMENTS);
+        $this->deleteAllDocumentVersions(
+            request: $request,
+            entityType: 'owner',
+            entityId: $owner->id,
+            entityName: $owner->name,
+            documentGroup: 'owner',
+            documentId: $document->id,
+            documentType: $document->document_type,
+            documentLabel: $document->label,
+            versions: $document->versions()->get(),
+            reason: $request->input('delete_reason'),
+        );
+        $document->versions()->delete();
+
+        if ($isRequired) {
+            $document->update([
+                'file_path' => null,
+                'uploaded_at' => null,
+                'expires_at' => null,
+                'status' => OwnerDocument::STATUS_PENDING,
+            ]);
+        } else {
+            $document->delete();
+        }
+
+        return back()->with('success', 'Documento eliminado del expediente de propietario.');
+    }
+
+    public function destroyPropertyDocumentVersion(
+        Request $request,
+        Property $property,
+        string $documentType,
+        PropertyDocumentVersion $version,
+    ): RedirectResponse {
+        $this->ensureDeleteDossierFilesPermission($request);
+
+        $document = $property->documents()->where('document_type', $documentType)->firstOrFail();
+        if ((int) $version->property_document_id !== (int) $document->id) {
+            abort(404);
+        }
+
+        $this->deleteSinglePropertyVersion($request, $property, $document, $version);
+
+        return back()->with('success', 'Versión eliminada del expediente de propiedad.');
+    }
+
+    public function destroyTenantDocumentVersion(
+        Request $request,
+        Tenant $tenant,
+        string $documentType,
+        TenantDocumentVersion $version,
+    ): RedirectResponse {
+        $this->ensureDeleteDossierFilesPermission($request);
+
+        $document = $tenant->documents()->where('document_type', $documentType)->firstOrFail();
+        if ((int) $version->tenant_document_id !== (int) $document->id) {
+            abort(404);
+        }
+
+        $this->deleteSingleTenantVersion($request, $tenant, $document, $version);
+
+        return back()->with('success', 'Versión eliminada del expediente de inquilino.');
+    }
+
+    public function destroyOwnerDocumentVersion(
+        Request $request,
+        Owner $owner,
+        string $documentType,
+        OwnerDocumentVersion $version,
+    ): RedirectResponse {
+        $this->ensureDeleteDossierFilesPermission($request);
+
+        $document = $owner->documents()->where('document_type', $documentType)->firstOrFail();
+        if ((int) $version->owner_document_id !== (int) $document->id) {
+            abort(404);
+        }
+
+        $this->deleteSingleOwnerVersion($request, $owner, $document, $version);
+
+        return back()->with('success', 'Versión eliminada del expediente de propietario.');
+    }
+
     private function buildDocumentsCollection(): Collection
     {
         $propertyDocuments = PropertyDocument::query()
@@ -646,5 +857,252 @@ class DocumentController extends Controller
         }
 
         return $candidate;
+    }
+
+    private function ensureDeleteDossierFilesPermission(Request $request): void
+    {
+        if (!$this->canDeleteDossierFiles($request)) {
+            abort(403);
+        }
+    }
+
+    private function canDeleteDossierFiles(Request $request): bool
+    {
+        return (bool) $request->user()?->can(self::DELETE_FILES_PERMISSION);
+    }
+
+    private function deleteSinglePropertyVersion(
+        Request $request,
+        Property $property,
+        PropertyDocument $document,
+        PropertyDocumentVersion $version,
+    ): void {
+        $this->deleteFileAndLog(
+            request: $request,
+            entityType: 'property',
+            entityId: $property->id,
+            entityName: $property->internal_name,
+            documentGroup: 'property',
+            documentId: $document->id,
+            documentType: $document->document_type,
+            documentLabel: $document->label,
+            versionId: $version->id,
+            versionNumber: $version->version_number,
+            originalName: $version->original_name,
+            filePath: $version->file_path,
+            mimeType: $version->mime_type,
+            fileSize: $version->file_size,
+            reason: $request->input('delete_reason'),
+        );
+        $version->delete();
+        $this->refreshPropertyDocumentAfterVersionDelete($document);
+    }
+
+    private function deleteSingleTenantVersion(
+        Request $request,
+        Tenant $tenant,
+        TenantDocument $document,
+        TenantDocumentVersion $version,
+    ): void {
+        $this->deleteFileAndLog(
+            request: $request,
+            entityType: 'tenant',
+            entityId: $tenant->id,
+            entityName: $tenant->full_name,
+            documentGroup: 'tenant',
+            documentId: $document->id,
+            documentType: $document->document_type,
+            documentLabel: $document->label,
+            versionId: $version->id,
+            versionNumber: $version->version_number,
+            originalName: $version->original_name,
+            filePath: $version->file_path,
+            mimeType: $version->mime_type,
+            fileSize: $version->file_size,
+            reason: $request->input('delete_reason'),
+        );
+        $version->delete();
+        $this->refreshTenantDocumentAfterVersionDelete($document);
+    }
+
+    private function deleteSingleOwnerVersion(
+        Request $request,
+        Owner $owner,
+        OwnerDocument $document,
+        OwnerDocumentVersion $version,
+    ): void {
+        $this->deleteFileAndLog(
+            request: $request,
+            entityType: 'owner',
+            entityId: $owner->id,
+            entityName: $owner->name,
+            documentGroup: 'owner',
+            documentId: $document->id,
+            documentType: $document->document_type,
+            documentLabel: $document->label,
+            versionId: $version->id,
+            versionNumber: $version->version_number,
+            originalName: $version->original_name,
+            filePath: $version->file_path,
+            mimeType: $version->mime_type,
+            fileSize: $version->file_size,
+            reason: $request->input('delete_reason'),
+        );
+        $version->delete();
+        $this->refreshOwnerDocumentAfterVersionDelete($document);
+    }
+
+    private function refreshPropertyDocumentAfterVersionDelete(PropertyDocument $document): void
+    {
+        $latest = $document->versions()->orderByDesc('version_number')->first();
+        if (!$latest) {
+            $isRequired = array_key_exists($document->document_type, PropertyDocument::REQUIRED_DOCUMENTS);
+            if ($isRequired) {
+                $document->update([
+                    'file_path' => null,
+                    'uploaded_at' => null,
+                    'expires_at' => null,
+                    'status' => PropertyDocument::STATUS_PENDING,
+                ]);
+            } else {
+                $document->delete();
+            }
+
+            return;
+        }
+
+        $document->update([
+            'file_path' => $latest->file_path,
+            'uploaded_at' => $latest->uploaded_at,
+            'status' => PropertyDocument::STATUS_UPLOADED,
+        ]);
+    }
+
+    private function refreshTenantDocumentAfterVersionDelete(TenantDocument $document): void
+    {
+        $latest = $document->versions()->orderByDesc('version_number')->first();
+        if (!$latest) {
+            $isRequired = array_key_exists($document->document_type, TenantDocument::REQUIRED_DOCUMENTS);
+            if ($isRequired) {
+                $document->update([
+                    'file_path' => null,
+                    'uploaded_at' => null,
+                    'expires_at' => null,
+                    'status' => TenantDocument::STATUS_PENDING,
+                ]);
+            } else {
+                $document->delete();
+            }
+
+            return;
+        }
+
+        $document->update([
+            'file_path' => $latest->file_path,
+            'uploaded_at' => $latest->uploaded_at,
+            'status' => TenantDocument::STATUS_UPLOADED,
+        ]);
+    }
+
+    private function refreshOwnerDocumentAfterVersionDelete(OwnerDocument $document): void
+    {
+        $latest = $document->versions()->orderByDesc('version_number')->first();
+        if (!$latest) {
+            $isRequired = array_key_exists($document->document_type, OwnerDocument::REQUIRED_DOCUMENTS);
+            if ($isRequired) {
+                $document->update([
+                    'file_path' => null,
+                    'uploaded_at' => null,
+                    'expires_at' => null,
+                    'status' => OwnerDocument::STATUS_PENDING,
+                ]);
+            } else {
+                $document->delete();
+            }
+
+            return;
+        }
+
+        $document->update([
+            'file_path' => $latest->file_path,
+            'uploaded_at' => $latest->uploaded_at,
+            'status' => OwnerDocument::STATUS_UPLOADED,
+        ]);
+    }
+
+    private function deleteAllDocumentVersions(
+        Request $request,
+        string $entityType,
+        int $entityId,
+        ?string $entityName,
+        string $documentGroup,
+        int $documentId,
+        string $documentType,
+        ?string $documentLabel,
+        Collection $versions,
+        ?string $reason,
+    ): void {
+        foreach ($versions as $version) {
+            $this->deleteFileAndLog(
+                request: $request,
+                entityType: $entityType,
+                entityId: $entityId,
+                entityName: $entityName,
+                documentGroup: $documentGroup,
+                documentId: $documentId,
+                documentType: $documentType,
+                documentLabel: $documentLabel,
+                versionId: (int) $version->id,
+                versionNumber: (int) $version->version_number,
+                originalName: $version->original_name,
+                filePath: $version->file_path,
+                mimeType: $version->mime_type,
+                fileSize: $version->file_size,
+                reason: $reason,
+            );
+        }
+    }
+
+    private function deleteFileAndLog(
+        Request $request,
+        string $entityType,
+        int $entityId,
+        ?string $entityName,
+        string $documentGroup,
+        int $documentId,
+        string $documentType,
+        ?string $documentLabel,
+        ?int $versionId,
+        ?int $versionNumber,
+        ?string $originalName,
+        ?string $filePath,
+        ?string $mimeType,
+        ?int $fileSize,
+        ?string $reason,
+    ): void {
+        $fileDeleted = false;
+        if (filled($filePath) && Storage::disk('public')->exists($filePath)) {
+            $fileDeleted = Storage::disk('public')->delete($filePath);
+        }
+
+        DossierDeletedFile::query()->create([
+            'entity_type' => $entityType,
+            'entity_id' => $entityId,
+            'entity_name' => $entityName,
+            'document_group' => $documentGroup,
+            'document_id' => $documentId,
+            'document_type' => $documentType,
+            'document_label' => $documentLabel,
+            'version_id' => $versionId,
+            'version_number' => $versionNumber,
+            'original_name' => $originalName,
+            'file_path' => $filePath,
+            'mime_type' => $mimeType,
+            'file_size' => $fileSize,
+            'file_deleted' => $fileDeleted,
+            'delete_reason' => filled($reason) ? trim((string) $reason) : null,
+            'deleted_by_user_id' => $request->user()?->id,
+            'deleted_at' => now(),
+        ]);
     }
 }

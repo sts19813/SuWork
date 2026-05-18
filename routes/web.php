@@ -10,6 +10,7 @@ use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\TenantController;
+use App\Http\Controllers\UserAccessController;
 use App\Http\Controllers\StorageItemController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LocaleController;
@@ -49,6 +50,8 @@ Route::middleware(['auth'])
         Route::get('/propiedades/{property}/expediente', [DocumentController::class, 'propertyDossier'])->name('dossiers.properties.show');
         Route::post('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadPropertyDocument'])->name('dossiers.properties.documents.upload');
         Route::post('/propiedades/{property}/expediente/documentos', [DocumentController::class, 'storeCustomPropertyDocument'])->name('dossiers.properties.documents.store');
+        Route::delete('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'destroyPropertyDocument'])->name('dossiers.properties.documents.destroy');
+        Route::delete('/propiedades/{property}/expediente/documentos/{documentType}/versiones/{version}', [DocumentController::class, 'destroyPropertyDocumentVersion'])->name('dossiers.properties.documents.versions.destroy');
 
         Route::get('/propiedades/{property}/inventario', [InventoryCheckController::class, 'index'])->name('inventory-checks.index');
         Route::get('/propiedades/{property}/inventario/historial', [InventoryCheckController::class, 'history'])->name('inventory-checks.history');
@@ -80,6 +83,8 @@ Route::middleware(['auth'])
         Route::get('/propietarios/{owner}/expediente', [DocumentController::class, 'ownerDossier'])->name('dossiers.owners.show');
         Route::post('/propietarios/{owner}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadOwnerDocument'])->name('dossiers.owners.documents.upload');
         Route::post('/propietarios/{owner}/expediente/documentos', [DocumentController::class, 'storeCustomOwnerDocument'])->name('dossiers.owners.documents.store');
+        Route::delete('/propietarios/{owner}/expediente/documentos/{documentType}', [DocumentController::class, 'destroyOwnerDocument'])->name('dossiers.owners.documents.destroy');
+        Route::delete('/propietarios/{owner}/expediente/documentos/{documentType}/versiones/{version}', [DocumentController::class, 'destroyOwnerDocumentVersion'])->name('dossiers.owners.documents.versions.destroy');
 
         Route::get('/inquilinos', [TenantController::class, 'index'])->name('tenants.index');
         Route::post('/inquilinos', [TenantController::class, 'store'])->name('tenants.store');
@@ -88,8 +93,19 @@ Route::middleware(['auth'])
         Route::get('/inquilinos/{tenant}/expediente', [DocumentController::class, 'tenantDossier'])->name('dossiers.tenants.show');
         Route::post('/inquilinos/{tenant}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadTenantDocument'])->name('dossiers.tenants.documents.upload');
         Route::post('/inquilinos/{tenant}/expediente/documentos', [DocumentController::class, 'storeCustomTenantDocument'])->name('dossiers.tenants.documents.store');
+        Route::delete('/inquilinos/{tenant}/expediente/documentos/{documentType}', [DocumentController::class, 'destroyTenantDocument'])->name('dossiers.tenants.documents.destroy');
+        Route::delete('/inquilinos/{tenant}/expediente/documentos/{documentType}/versiones/{version}', [DocumentController::class, 'destroyTenantDocumentVersion'])->name('dossiers.tenants.documents.versions.destroy');
 
         Route::get('/documentos', [DocumentController::class, 'index'])->name('documents.index');
+        Route::get('/documentos/bitacora-eliminados', [DocumentController::class, 'deletedFilesLog'])->name('documents.deleted-files-log');
+
+        Route::get('/seguridad/usuarios', [UserAccessController::class, 'index'])->name('access.index');
+        Route::post('/seguridad/usuarios', [UserAccessController::class, 'storeUser'])->name('access.users.store');
+        Route::put('/seguridad/usuarios/{user}', [UserAccessController::class, 'updateUser'])->name('access.users.update');
+        Route::post('/seguridad/roles', [UserAccessController::class, 'storeRole'])->name('access.roles.store');
+        Route::put('/seguridad/roles/{role}', [UserAccessController::class, 'updateRole'])->name('access.roles.update');
+        Route::post('/seguridad/permisos', [UserAccessController::class, 'storePermission'])->name('access.permissions.store');
+        Route::put('/seguridad/permisos/{permission}', [UserAccessController::class, 'updatePermission'])->name('access.permissions.update');
         Route::get('/cobranza', [ChargeController::class, 'index'])->name('charges.index');
         Route::put('/cobranza/propiedades/{property}/configuracion', [ChargeController::class, 'updatePropertySetup'])->name('charges.properties.setup');
         Route::post('/cobranza', [ChargeController::class, 'store'])->name('charges.store');
