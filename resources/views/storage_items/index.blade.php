@@ -23,10 +23,10 @@
             {{-- HEADER --}}
             <div class="card-header border-0 pt-7 pb-4">
 
-                <div class="d-flex flex-column flex-lg-row justify-content-between w-100 gap-5">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center w-100 gap-5">
 
                     <div class="d-flex align-items-center gap-4">
-                        <div class="symbol symbol-70px">
+                        <div class="symbol symbol-70px flex-shrink-0">
                             <div class="bg-light-primary">
                                 <i class="ki-duotone ki-package fs-1 text-primary">
                                     <span class="path1"></span>
@@ -46,19 +46,19 @@
                         </div>
                     </div>
 
-                    <div class="d-flex flex-wrap gap-2">
-                        <button type="button" class="btn btn-light-info fw-bold" data-bs-toggle="modal" data-bs-target="#warehouseCatalogModal">
-                            <i class="ki-duotone ki-home fs-5 me-1"></i>
+                    <div class="d-flex flex-wrap gap-2 flex-shrink-0">
+                        <button type="button" class="btn btn-light-info" data-bs-toggle="modal" data-bs-target="#warehouseCatalogModal">
+                            <i class="ki-duotone ki-home fs-6 me-1"></i>
                             Catálogo
                         </button>
 
-                        <a href="{{ route('storage_items.trashed') }}" class="btn btn-light-warning fw-bold">
-                            <i class="ki-duotone ki-trash fs-5 me-1"></i>
+                        <a href="{{ route('storage_items.trashed') }}" class="btn btn-light-warning">
+                            <i class="ki-duotone ki-trash fs-6 me-1"></i>
                             Eliminados
                         </a>
 
-                        <a href="{{ route('storage_items.create') }}" class="btn btn-primary fw-bold">
-                            <i class="ki-duotone ki-plus fs-5 me-1"></i>
+                        <a href="{{ route('storage_items.create') }}" class="btn btn-primary">
+                            <i class="ki-duotone ki-plus fs-6 me-1"></i>
                             Nuevo Item
                         </a>
 
