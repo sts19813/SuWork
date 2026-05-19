@@ -42,6 +42,8 @@ class StoreMaintenanceTicketRequest extends FormRequest
             'payer' => ['nullable', Rule::in(array_keys(MaintenanceTicket::PAYER_LABELS))],
             'payment_rule' => ['nullable', Rule::in(array_keys(MaintenanceTicket::PAYMENT_RULE_LABELS))],
             'payment_rule_notes' => ['nullable', 'string', 'max:3000'],
+            'provider_id' => ['nullable', 'integer', 'exists:maintenance_providers,id'],
+            'force_conflict' => ['nullable', 'boolean'],
             'files' => ['nullable', 'array', 'max:20'],
             'files.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,mp4,mov,avi,doc,docx,xls,xlsx,txt', 'max:51200'],
             'status' => ['nullable', Rule::in(array_keys(MaintenanceTicket::STATUS_LABELS))],

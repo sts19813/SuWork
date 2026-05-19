@@ -25,7 +25,11 @@
                 $mapsLink = 'https://www.google.com/maps/search/?api=1&query=' . urlencode((string) $ticket->property?->full_address);
             }
             $evidenceImages = $ticket->files
-                ->filter(fn($file) => str_starts_with((string) $file->mime_type, 'image/'))
+                ->map(function ($file) {
+                    $file->preview_url = $file->url ?: (filled($file->path) ? \Illuminate\Support\Facades\Storage::disk('public')->url($file->path) : null);
+                    return $file;
+                })
+                ->filter(fn($file) => str_starts_with((string) $file->mime_type, 'image/') && filled($file->preview_url))
                 ->values();
         @endphp
 
@@ -33,7 +37,7 @@
             <div>
                 <h1 class="mb-1 fw-bold">Mantenimiento / Ticket</h1>
                 <div class="text-muted">
-                    Folio {{ $ticket->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($ticket->uuid, 0, 8)) }}
+                    Folio {{ $ticket->display_reference }}
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-2">
@@ -58,12 +62,12 @@
             <div class="collapse mb-6" id="quickScheduleCollapse">
                 <div class="card">
                     <div class="card-body">
-                        <form method="POST" action="{{ route('maintenance.schedule-visit', $ticket) }}" class="row g-3 align-items-end">
+                        <form method="POST" action="{{ route('maintenance.schedule-visit', $ticket) }}" id="quickScheduleForm" class="row g-3 align-items-end">
                             @csrf
                             @method('PATCH')
                             <div class="col-md-5">
                                 <label class="form-label">Fecha programada</label>
-                                <input class="form-control" type="datetime-local" name="scheduled_visit_at" value="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i') }}" required>
+                                <input class="form-control" type="datetime-local" name="scheduled_visit_at" id="quickScheduleDate" value="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i') }}" required>
                             </div>
                             <div class="col-md-5">
                                 <label class="form-label">Nota</label>
@@ -72,6 +76,7 @@
                             <div class="col-md-2">
                                 <button class="btn btn-primary w-100">Guardar</button>
                             </div>
+                            <input type="hidden" name="force_conflict" value="0">
                         </form>
                     </div>
                 </div>
@@ -156,7 +161,8 @@
                     <div class="card-body">
                         <div class="text-muted mb-2">Técnico asignado</div>
                         @if (in_array($role, ['administrador', 'tecnico'], true))
-                            <select class="form-select form-select-sm js-ticket-meta" data-field="provider_id">
+                            <select class="form-select form-select-sm js-ticket-meta" data-field="provider_id" data-ticket-uuid="{{ $ticket->uuid }}" data-scheduled-visit-at="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i:s') }}">
+                                <option value="">Sin asignar</option>
                                 @foreach ($providers as $provider)
                                     <option value="{{ $provider->id }}" {{ $ticket->current_provider_id === $provider->id ? 'selected' : '' }}>
                                         {{ $provider->name }} · {{ \App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type }}
@@ -182,25 +188,55 @@
                         @endif
                     </div>
                     <div class="card-body">
-                        <div class="mb-4">
-                            <div class="text-muted mb-1">Título</div>
-                            <div class="fw-semibold">{{ $ticket->title }}</div>
-                        </div>
-                        <div class="mb-4">
-                            <div class="text-muted mb-1">Descripción</div>
-                            <div>{{ $ticket->description }}</div>
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-8">
+                                <div class="text-muted mb-1">Título</div>
+                                <div class="fw-semibold">{{ $ticket->title }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-muted mb-1">Ubicación exacta</div>
+                                <div class="fw-semibold">{{ $ticket->exact_location ?: '-' }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-muted mb-1">Fecha reporte</div>
+                                <div class="fw-semibold">{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-muted mb-1">Visita programada</div>
+                                <div class="fw-semibold">{{ $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?: '-' }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-muted mb-1">Regla de pago</div>
+                                <div class="fw-semibold">{{ $paymentRuleOptions[$ticket->payment_rule] ?? 'Sin definir' }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-muted mb-1">Quién paga</div>
+                                <div class="fw-semibold">{{ $payerOptions[$ticket->payer] ?? 'Sin definir' }}</div>
+                            </div>
+                            <div class="col-md-8">
+                                <div class="text-muted mb-1">Notas regla de pago</div>
+                                <div>{{ $ticket->payment_rule_notes ?: '-' }}</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="text-muted mb-1">Descripción</div>
+                                <div>{{ $ticket->description }}</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="text-muted mb-1">Notas adicionales</div>
+                                <div>{{ $ticket->additional_notes ?: '-' }}</div>
+                            </div>
                         </div>
                         <div>
-                            <div class="text-muted mb-2">Evidencias</div>
+                            <div class="text-muted mb-2">Imágenes del ticket</div>
                             <div class="row g-3">
                                 @forelse ($evidenceImages as $file)
                                     <div class="col-md-4 col-6">
-                                        <a href="{{ $file->url }}" target="_blank">
-                                            <img src="{{ $file->url }}" alt="{{ $file->original_name }}" class="w-100 rounded" style="height: 120px; object-fit: cover;">
+                                        <a href="{{ $file->preview_url }}" target="_blank">
+                                            <img src="{{ $file->preview_url }}" alt="{{ $file->original_name }}" class="w-100 rounded" style="height: 140px; object-fit: cover;">
                                         </a>
                                     </div>
                                 @empty
-                                    <div class="col-12 text-muted">Sin evidencias.</div>
+                                    <div class="col-12 text-muted">Sin imágenes.</div>
                                 @endforelse
                             </div>
                         </div>
@@ -385,8 +421,8 @@
                                     <input class="form-control" type="text" name="title" value="{{ $ticket->title }}" maxlength="190" required>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Referencia</label>
-                                    <input class="form-control" type="text" name="reference" value="{{ $ticket->reference }}" maxlength="190">
+                                    <label class="form-label">Folio</label>
+                                    <input class="form-control" type="text" value="{{ $ticket->display_reference }}" readonly>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label required">Ubicación exacta</label>
@@ -451,14 +487,54 @@
 @push('scripts')
     <script>
         (() => {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            const conflictUrl = @json(route('maintenance.technician-conflicts'));
+            const ticketUuid = @json($ticket->uuid);
+            const providerSelect = document.querySelector('.js-ticket-meta[data-field="provider_id"]');
+            const providerScheduledValue = () => providerSelect?.dataset.scheduledVisitAt || @json($ticket->scheduled_visit_at?->format('Y-m-d\\TH:i:s'));
+            const askConfirmation = async (message) => {
+                if (window.Swal?.fire) {
+                    const result = await window.Swal.fire({
+                        icon: 'warning',
+                        title: 'Conflicto de agenda',
+                        html: String(message || '').replace(/\n/g, '<br>'),
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, continuar',
+                        cancelButtonText: 'Cancelar',
+                    });
+                    return result.isConfirmed === true;
+                }
+                return window.confirm(message);
+            };
+            const checkConflicts = async (providerId, scheduledVisitAt) => {
+                if (!providerId || !scheduledVisitAt) return null;
+                const response = await fetch(conflictUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: JSON.stringify({
+                        provider_id: providerId,
+                        scheduled_visit_at: scheduledVisitAt,
+                        exclude_ticket_uuid: ticketUuid,
+                    }),
+                }).catch(() => null);
+                if (!response?.ok) return null;
+                const payload = await response.json().catch(() => null);
+                return payload?.has_conflicts ? payload : null;
+            };
+
             const selects = document.querySelectorAll('.js-ticket-meta');
             if (!selects.length) {
-                return;
+                const quickScheduleForm = document.getElementById('quickScheduleForm');
+                if (!quickScheduleForm) return;
             }
 
             const notice = document.getElementById('ticketAjaxNotice');
             const metaUrl = @json(route('maintenance.meta', $ticket));
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
             const renderNotice = (type, message) => {
                 if (!notice) return;
@@ -485,6 +561,21 @@
 
                     select.disabled = true;
                     try {
+                        const payloadData = {
+                            [field]: field === 'provider_id' && nextValue === '' ? null : nextValue
+                        };
+                        if (field === 'provider_id') {
+                            const scheduledVisitAt = providerScheduledValue();
+                            const conflicts = await checkConflicts(nextValue, scheduledVisitAt);
+                            if (conflicts) {
+                                const approved = await askConfirmation(conflicts.message || 'El técnico ya tiene otra asignación este día.');
+                                if (!approved) {
+                                    select.value = prevValue;
+                                    return;
+                                }
+                                payloadData.force_conflict = 1;
+                            }
+                        }
                         const response = await fetch(metaUrl, {
                             method: 'PATCH',
                             headers: {
@@ -493,9 +584,7 @@
                                 'X-Requested-With': 'XMLHttpRequest',
                                 'X-CSRF-TOKEN': csrfToken,
                             },
-                            body: JSON.stringify({
-                                [field]: nextValue
-                            }),
+                            body: JSON.stringify(payloadData),
                         });
 
                         const payload = await response.json().catch(() => ({}));
@@ -504,6 +593,9 @@
                         }
 
                         select.dataset.prevValue = nextValue;
+                        if (field === 'provider_id') {
+                            select.dataset.scheduledVisitAt = payload.data?.scheduled_visit_at || select.dataset.scheduledVisitAt || '';
+                        }
                         renderNotice('success', payload.message || 'Guardado correctamente.');
                     } catch (error) {
                         select.value = prevValue;
@@ -512,6 +604,27 @@
                         select.disabled = false;
                     }
                 });
+            });
+
+            const quickScheduleForm = document.getElementById('quickScheduleForm');
+            const quickScheduleDate = document.getElementById('quickScheduleDate');
+            const quickForce = quickScheduleForm?.querySelector('[name="force_conflict"]');
+            if (!quickScheduleForm || !providerSelect || !quickScheduleDate) return;
+
+            quickScheduleForm.addEventListener('submit', async (event) => {
+                if (!providerSelect.value || !quickScheduleDate.value || quickForce?.value === '1') {
+                    return;
+                }
+                event.preventDefault();
+                const conflicts = await checkConflicts(providerSelect.value, quickScheduleDate.value);
+                if (!conflicts) {
+                    quickScheduleForm.submit();
+                    return;
+                }
+                const approved = await askConfirmation(conflicts.message || 'El técnico ya tiene otra asignación este día.');
+                if (!approved) return;
+                if (quickForce) quickForce.value = '1';
+                quickScheduleForm.submit();
             });
         })();
     </script>
