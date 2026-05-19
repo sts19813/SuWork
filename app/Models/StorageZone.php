@@ -6,27 +6,22 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
-class StorageItem extends Model
+class StorageZone extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory;
 
     protected $fillable = [
-        'product_type',
         'storage_warehouse_id',
-        'storage_zone_id',
         'name',
-        'description',
-        'brand',
-        'condition',
-        'quantity',
-        'photo',
+        'is_default',
     ];
 
-    public function logs(): HasMany
+    protected function casts(): array
     {
-        return $this->hasMany(StorageItemLog::class);
+        return [
+            'is_default' => 'boolean',
+        ];
     }
 
     public function warehouse(): BelongsTo
@@ -34,8 +29,8 @@ class StorageItem extends Model
         return $this->belongsTo(StorageWarehouse::class, 'storage_warehouse_id');
     }
 
-    public function zone(): BelongsTo
+    public function items(): HasMany
     {
-        return $this->belongsTo(StorageZone::class, 'storage_zone_id');
+        return $this->hasMany(StorageItem::class, 'storage_zone_id');
     }
 }

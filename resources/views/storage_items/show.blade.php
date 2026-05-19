@@ -153,6 +153,31 @@
 
                         </div>
 
+                        <div class="col-md-6">
+                            <div class="border border-gray-200 rounded p-5 h-100">
+                                <div class="text-muted fs-7 fw-semibold mb-2">
+                                    Almacén
+                                </div>
+                                <div class="fw-bold text-dark fs-5">
+                                    {{ $item->warehouse?->name ?? '-' }}
+                                </div>
+                                <div class="text-muted fs-8 mt-1">
+                                    {{ $item->warehouse?->location ?: '-' }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="border border-gray-200 rounded p-5 h-100">
+                                <div class="text-muted fs-7 fw-semibold mb-2">
+                                    Zona
+                                </div>
+                                <div class="fw-bold text-dark fs-5">
+                                    {{ $item->zone?->name ?? '-' }}
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
 
                     {{-- Description --}}

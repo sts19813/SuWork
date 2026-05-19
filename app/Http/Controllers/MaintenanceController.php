@@ -251,7 +251,7 @@ class MaintenanceController extends Controller
         ]);
     }
 
-    public function store(StoreMaintenanceTicketRequest $request): RedirectResponse
+    public function store(StoreMaintenanceTicketRequest $request): RedirectResponse|JsonResponse
     {
         $user = $request->user();
         $role = $this->resolveRole($user);
@@ -266,10 +266,32 @@ class MaintenanceController extends Controller
         $status = $role === 'administrador' && filled($validated['status'] ?? null)
             ? (string) $validated['status']
             : 'pendiente';
+        $providerId = filled($validated['provider_id'] ?? null) ? (int) $validated['provider_id'] : null;
+        $scheduledVisitAt = filled($validated['scheduled_visit_at'] ?? null)
+            ? Carbon::parse((string) $validated['scheduled_visit_at'])
+            : null;
+        $forceConflict = $request->boolean('force_conflict');
+        if ($providerId && $scheduledVisitAt) {
+            $conflicts = $this->findTechnicianScheduleConflicts($providerId, $scheduledVisitAt);
+            if ($conflicts !== []) {
+                $message = $this->buildTechnicianConflictMessage($conflicts);
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'requires_confirmation' => true,
+                        'message' => $message,
+                        'conflicts' => $conflicts,
+                    ], 422);
+                }
+                if (!$forceConflict) {
+                    return redirect()->back()->withInput()->with('error', $message);
+                }
+            }
+        }
 
-        $ticket = DB::transaction(function () use ($validated, $user, $role, $status, $property, $request): MaintenanceTicket {
-            $category = (string) ($validated['category'] ?? array_key_first(MaintenanceTicket::CATEGORY_LABELS));
-            $priority = (string) ($validated['priority'] ?? 'media');
+        $ticket = DB::transaction(function () use ($validated, $user, $role, $status, $property, $request, $providerId, $scheduledVisitAt): MaintenanceTicket {
+            $category = (string) ($validated['category'] ?? 'sin_categoria');
+            $priority = (string) ($validated['priority'] ?? 'sin_asignar');
             $description = trim((string) ($validated['description'] ?? ''));
             $ticket = MaintenanceTicket::create([
                 'property_id' => $property->id,
@@ -280,16 +302,18 @@ class MaintenanceController extends Controller
                 'priority' => $priority,
                 'status' => $status,
                 'title' => trim((string) $validated['title']),
-                'reference' => filled($validated['reference'] ?? null) ? trim((string) $validated['reference']) : null,
+                'reference' => null,
                 'exact_location' => filled($validated['exact_location'] ?? null) ? trim((string) $validated['exact_location']) : null,
                 'description' => $description !== '' ? $description : trim((string) $validated['title']),
                 'additional_notes' => filled($validated['additional_notes'] ?? null) ? trim((string) $validated['additional_notes']) : null,
                 'reported_at' => $validated['reported_at'] ?? now(),
-                'scheduled_visit_at' => $validated['scheduled_visit_at'] ?? null,
+                'scheduled_visit_at' => $scheduledVisitAt,
                 'payer' => $validated['payer'] ?? null,
                 'payment_rule' => $validated['payment_rule'] ?? null,
                 'payment_rule_notes' => filled($validated['payment_rule_notes'] ?? null) ? trim((string) $validated['payment_rule_notes']) : null,
             ]);
+            $ticket->reference = str_pad((string) $ticket->id, 8, '0', STR_PAD_LEFT);
+            $ticket->save();
 
             $this->applyOperationalTimestampsForStatus($ticket, $status, null, null);
             $ticket->statusHistory()->create([
@@ -300,6 +324,15 @@ class MaintenanceController extends Controller
                 'changed_at' => now(),
             ]);
             $this->storeTicketFiles($ticket, (array) $request->file('files', []), 'reporte', $user?->id);
+            if ($providerId) {
+                $this->applyProviderAssignment(
+                    $ticket,
+                    $providerId,
+                    $user?->id,
+                    'Asignación inicial',
+                    $scheduledVisitAt
+                );
+            }
 
             return $ticket;
         });
@@ -394,7 +427,7 @@ class MaintenanceController extends Controller
             'category' => (string) $validated['category'],
             'priority' => (string) $validated['priority'],
             'title' => trim((string) $validated['title']),
-            'reference' => filled($validated['reference'] ?? null) ? trim((string) $validated['reference']) : null,
+            'reference' => $maintenance->reference ?: str_pad((string) $maintenance->id, 8, '0', STR_PAD_LEFT),
             'exact_location' => trim((string) $validated['exact_location']),
             'description' => trim((string) $validated['description']),
             'additional_notes' => filled($validated['additional_notes'] ?? null) ? trim((string) $validated['additional_notes']) : null,
@@ -480,6 +513,7 @@ class MaintenanceController extends Controller
             'provider_id' => ['nullable', 'integer', 'exists:maintenance_providers,id'],
             'notes' => ['nullable', 'string', 'max:3000'],
             'scheduled_visit_at' => ['nullable', 'date'],
+            'force_conflict' => ['nullable', 'boolean'],
         ]);
 
         $updates = [];
@@ -497,8 +531,38 @@ class MaintenanceController extends Controller
                     ->firstOrFail();
             $updates['property_id'] = $property->id;
         }
-        $providerChanged = filled($validated['provider_id'] ?? null)
-            && (int) $validated['provider_id'] !== (int) $maintenance->current_provider_id;
+        if (array_key_exists('scheduled_visit_at', $validated)) {
+            $updates['scheduled_visit_at'] = filled($validated['scheduled_visit_at'] ?? null)
+                ? Carbon::parse((string) $validated['scheduled_visit_at'])
+                : null;
+        }
+        $providerProvided = array_key_exists('provider_id', $validated);
+        $nextProviderId = filled($validated['provider_id'] ?? null) ? (int) $validated['provider_id'] : null;
+        $providerChanged = $providerProvided && $nextProviderId !== ($maintenance->current_provider_id ? (int) $maintenance->current_provider_id : null);
+        $providerIdForConflict = $providerChanged
+            ? (int) ($nextProviderId ?? 0)
+            : (int) ($maintenance->current_provider_id ?? 0);
+        $scheduledAtForConflict = $updates['scheduled_visit_at'] ?? $maintenance->scheduled_visit_at;
+        if ($providerIdForConflict > 0 && $scheduledAtForConflict) {
+            $conflicts = $this->findTechnicianScheduleConflicts(
+                $providerIdForConflict,
+                Carbon::parse((string) $scheduledAtForConflict),
+                $maintenance->id
+            );
+            if ($conflicts !== [] && !$request->boolean('force_conflict')) {
+                $message = $this->buildTechnicianConflictMessage($conflicts);
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'requires_confirmation' => true,
+                        'message' => $message,
+                        'conflicts' => $conflicts,
+                    ], 422);
+                }
+
+                return redirect()->back()->with('error', $message);
+            }
+        }
 
         if ($updates === [] && !$providerChanged) {
             if ($request->expectsJson()) {
@@ -510,18 +574,29 @@ class MaintenanceController extends Controller
             return redirect()->back();
         }
 
-        DB::transaction(function () use ($maintenance, $updates, $providerChanged, $validated, $user): void {
+        DB::transaction(function () use ($maintenance, $updates, $providerChanged, $nextProviderId, $validated, $user): void {
             if ($updates !== []) {
                 $maintenance->update($updates);
             }
             if ($providerChanged) {
-                $this->applyProviderAssignment(
-                    $maintenance,
-                    (int) $validated['provider_id'],
-                    $user?->id,
-                    $validated['notes'] ?? 'Asignación rápida desde ticket',
-                    $validated['scheduled_visit_at'] ?? null
-                );
+                if ($nextProviderId) {
+                    $this->applyProviderAssignment(
+                        $maintenance,
+                        $nextProviderId,
+                        $user?->id,
+                        $validated['notes'] ?? 'Asignación rápida desde ticket',
+                        $validated['scheduled_visit_at'] ?? null
+                    );
+                } else {
+                    $maintenance->assignments()
+                        ->where('is_current', true)
+                        ->update([
+                            'is_current' => false,
+                            'unassigned_at' => now(),
+                        ]);
+                    $maintenance->current_provider_id = null;
+                    $maintenance->save();
+                }
             }
         });
 
@@ -537,6 +612,7 @@ class MaintenanceController extends Controller
                     'property_id' => $maintenance->property_id,
                     'provider_id' => $maintenance->current_provider_id,
                     'provider_name' => $maintenance->currentProvider?->name,
+                    'scheduled_visit_at' => $maintenance->scheduled_visit_at?->format('Y-m-d H:i:s'),
                 ],
             ]);
         }
@@ -556,7 +632,19 @@ class MaintenanceController extends Controller
         $validated = $request->validate([
             'scheduled_visit_at' => ['required', 'date'],
             'notes' => ['nullable', 'string', 'max:3000'],
+            'force_conflict' => ['nullable', 'boolean'],
         ]);
+        $scheduledVisitAt = Carbon::parse((string) $validated['scheduled_visit_at']);
+        if ($maintenance->current_provider_id) {
+            $conflicts = $this->findTechnicianScheduleConflicts(
+                (int) $maintenance->current_provider_id,
+                $scheduledVisitAt,
+                $maintenance->id
+            );
+            if ($conflicts !== [] && !$request->boolean('force_conflict')) {
+                return redirect()->back()->with('error', $this->buildTechnicianConflictMessage($conflicts));
+            }
+        }
 
         $fromStatus = (string) $maintenance->status;
         $nextStatus = in_array($fromStatus, ['pendiente', 'revisado', 'asignado', 'reabierto'], true)
@@ -599,7 +687,31 @@ class MaintenanceController extends Controller
             'provider_id' => ['required', 'integer', 'exists:maintenance_providers,id'],
             'notes' => ['nullable', 'string', 'max:3000'],
             'scheduled_visit_at' => ['nullable', 'date'],
+            'force_conflict' => ['nullable', 'boolean'],
         ]);
+        $scheduledVisitAt = filled($validated['scheduled_visit_at'] ?? null)
+            ? Carbon::parse((string) $validated['scheduled_visit_at'])
+            : ($maintenance->scheduled_visit_at ? Carbon::parse((string) $maintenance->scheduled_visit_at) : null);
+        if ($scheduledVisitAt) {
+            $conflicts = $this->findTechnicianScheduleConflicts(
+                (int) $validated['provider_id'],
+                $scheduledVisitAt,
+                $maintenance->id
+            );
+            if ($conflicts !== [] && !$request->boolean('force_conflict')) {
+                $message = $this->buildTechnicianConflictMessage($conflicts);
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'requires_confirmation' => true,
+                        'message' => $message,
+                        'conflicts' => $conflicts,
+                    ], 422);
+                }
+
+                return redirect()->back()->with('error', $message);
+            }
+        }
 
         DB::transaction(function () use ($maintenance, $validated, $user): void {
             $this->applyProviderAssignment(
@@ -624,6 +736,41 @@ class MaintenanceController extends Controller
         }
 
         return redirect()->back()->with('success', 'Asignación actualizada correctamente.');
+    }
+
+    public function technicianConflicts(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $role = $this->resolveRole($user);
+        if (!in_array($role, ['administrador', 'tecnico'], true)) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'provider_id' => ['required', 'integer', 'exists:maintenance_providers,id'],
+            'scheduled_visit_at' => ['required', 'date'],
+            'exclude_ticket_uuid' => ['nullable', 'uuid'],
+        ]);
+
+        $excludeTicketId = null;
+        if (filled($validated['exclude_ticket_uuid'] ?? null)) {
+            $excludeTicketId = (int) (MaintenanceTicket::query()
+                ->where('uuid', (string) $validated['exclude_ticket_uuid'])
+                ->value('id') ?? 0);
+        }
+
+        $conflicts = $this->findTechnicianScheduleConflicts(
+            (int) $validated['provider_id'],
+            Carbon::parse((string) $validated['scheduled_visit_at']),
+            $excludeTicketId ?: null
+        );
+
+        return response()->json([
+            'success' => true,
+            'has_conflicts' => $conflicts !== [],
+            'message' => $conflicts !== [] ? $this->buildTechnicianConflictMessage($conflicts) : null,
+            'conflicts' => $conflicts,
+        ]);
     }
 
     public function updateCosts(Request $request, MaintenanceTicket $maintenance): RedirectResponse
@@ -1010,6 +1157,46 @@ class MaintenanceController extends Controller
         if (!$exists) {
             abort(403);
         }
+    }
+
+    private function findTechnicianScheduleConflicts(int $providerId, Carbon $scheduledVisitAt, ?int $excludeTicketId = null): array
+    {
+        $query = MaintenanceTicket::query()
+            ->with(['property:id,internal_name,internal_reference'])
+            ->where('current_provider_id', $providerId)
+            ->whereDate('scheduled_visit_at', $scheduledVisitAt->toDateString())
+            ->whereNotNull('scheduled_visit_at')
+            ->whereNotIn('status', ['cancelado'])
+            ->orderBy('scheduled_visit_at');
+        if ($excludeTicketId) {
+            $query->where('id', '!=', $excludeTicketId);
+        }
+
+        return $query->get()->map(function (MaintenanceTicket $ticket): array {
+            return [
+                'ticket_uuid' => (string) $ticket->uuid,
+                'reference' => (string) $ticket->display_reference,
+                'title' => (string) $ticket->title,
+                'property_name' => (string) ($ticket->property?->internal_name ?? '-'),
+                'property_reference' => (string) ($ticket->property?->internal_reference ?? ''),
+                'scheduled_at' => $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?? '-',
+            ];
+        })->values()->all();
+    }
+
+    private function buildTechnicianConflictMessage(array $conflicts): string
+    {
+        $items = collect($conflicts)->map(function (array $conflict): string {
+            $property = trim((string) ($conflict['property_name'] ?? '-'));
+            $reference = trim((string) ($conflict['property_reference'] ?? ''));
+            $propertyLabel = $reference !== '' ? "{$property} ({$reference})" : $property;
+            $hour = trim((string) ($conflict['scheduled_at'] ?? '-'));
+            $folio = trim((string) ($conflict['reference'] ?? '-'));
+
+            return "• {$propertyLabel} · {$hour} · Folio {$folio}";
+        })->implode("\n");
+
+        return "El técnico ya tiene asignaciones el mismo día:\n{$items}";
     }
 
     private function applyProviderAssignment(

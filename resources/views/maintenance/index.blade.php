@@ -4,6 +4,19 @@
 
 @section('content')
     <div class="py-10">
+        @php
+            $calendarEvents = $calendarItems->map(function ($item) {
+                return [
+                    'title' => ($item->currentProvider?->name ?? 'Sin asignar') . ' · ' . $item->display_reference,
+                    'start' => $item->scheduled_visit_at?->toIso8601String(),
+                    'url' => route('maintenance.show', $item),
+                    'extendedProps' => [
+                        'property' => $item->property?->internal_name ?? '-',
+                        'ticket' => $item->title,
+                    ],
+                ];
+            })->values()->all();
+        @endphp
         @if (session('success'))
             <div class="alert alert-success mb-6">{{ session('success') }}</div>
         @endif
@@ -185,7 +198,7 @@
                         <tbody>
                             @forelse ($tickets as $ticket)
                                 <tr>
-                                    <td class="fw-semibold">{{ $ticket->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($ticket->uuid, 0, 8)) }}</td>
+                                    <td class="fw-semibold">{{ $ticket->display_reference }}</td>
                                     <td>
                                         <div class="fw-bold">{{ $ticket->title }}</div>
                                         <div class="text-muted fs-8">{{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}</div>
@@ -251,29 +264,7 @@
                         <h3 class="card-title">Actividades del equipo</h3>
                     </div>
                     <div class="card-body">
-                        @forelse ($calendarItems as $item)
-                            <div class="py-3 border-bottom">
-                                <div class="row g-2">
-                                    <div class="col-md-7">
-                                        <div class="fw-semibold">Técnico: {{ $item->currentProvider?->name ?? 'Sin asignar' }}</div>
-                                    </div>
-                                    <div class="col-md-5 text-md-end">
-                                        <span class="fw-semibold">Folio: {{ $item->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($item->uuid, 0, 8)) }}</span>
-                                    </div>
-                                    <div class="col-md-7">
-                                        <span class="fw-semibold">Fecha programada:</span> {{ $item->scheduled_visit_at?->format('d/m/Y H:i') ?: '-' }}
-                                    </div>
-                                    <div class="col-md-5 text-md-end">
-                                        <span class="fw-semibold">Propiedad:</span> {{ $item->property?->internal_name ?? '-' }}
-                                    </div>
-                                    <div class="col-12">
-                                        <span class="fw-semibold">Ticket:</span> {{ $item->title }}
-                                    </div>
-                                </div>
-                            </div>
-                        @empty
-                            <div class="text-muted">Sin datos</div>
-                        @endforelse
+                        <div id="maintenance-team-calendar" style="min-height: 520px;"></div>
                     </div>
                 </div>
             </div>
@@ -397,6 +388,7 @@
                 <form method="POST"
                     action="{{ route('maintenance.store') }}"
                     enctype="multipart/form-data"
+                    id="createMaintenanceTicketForm"
                     class="d-flex flex-column h-100">
 
                     @csrf
@@ -536,7 +528,7 @@
 
                                         @foreach (\App\Models\MaintenanceTicket::CATEGORY_LABELS as $key => $label)
                                             <option value="{{ $key }}"
-                                                {{ old('category') === $key ? 'selected' : '' }}>
+                                                {{ old('category', 'sin_categoria') === $key ? 'selected' : '' }}>
                                                 {{ $label }}
                                             </option>
                                         @endforeach
@@ -555,7 +547,7 @@
 
                                         @foreach (\App\Models\MaintenanceTicket::PRIORITY_LABELS as $key => $label)
                                             <option value="{{ $key }}"
-                                                {{ old('priority') === $key ? 'selected' : '' }}>
+                                                {{ old('priority', 'sin_asignar') === $key ? 'selected' : '' }}>
                                                 {{ $label }}
                                             </option>
                                         @endforeach
@@ -563,7 +555,24 @@
                                     </select>
                                 </div>
 
-                                <div class="col-md-8">
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        Técnico asignado
+                                    </label>
+
+                                    <select class="form-select"
+                                        name="provider_id"
+                                        id="createTicketProvider">
+                                        <option value="">Sin asignar</option>
+                                        @foreach ($providers as $provider)
+                                            <option value="{{ $provider->id }}" {{ old('provider_id') == $provider->id ? 'selected' : '' }}>
+                                                {{ $provider->name }} · {{ \App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <div class="col-md-6">
                                     <label class="form-label required">
                                         Nombre del ticket
                                     </label>
@@ -574,18 +583,6 @@
                                         value="{{ old('title') }}"
                                         maxlength="190"
                                         required>
-                                </div>
-
-                                <div class="col-md-4">
-                                    <label class="form-label">
-                                        Referencia
-                                    </label>
-
-                                    <input class="form-control"
-                                        type="text"
-                                        name="reference"
-                                        value="{{ old('reference') }}"
-                                        maxlength="190">
                                 </div>
 
                                 <div class="col-md-6">
@@ -621,6 +618,7 @@
                                     <input class="form-control"
                                         type="datetime-local"
                                         name="scheduled_visit_at"
+                                        id="createTicketScheduledVisit"
                                         value="{{ old('scheduled_visit_at') }}">
                                 </div>
 
@@ -748,6 +746,7 @@
                             type="submit">
                             Crear ticket
                         </button>
+                        <input type="hidden" name="force_conflict" value="0">
                     </div>
 
                 </form>
@@ -954,6 +953,7 @@
 @endsection
 
 @push('scripts')
+    <script src="{{ asset('/metronic/assets/plugins/custom/fullcalendar/fullcalendar.bundle.js') }}"></script>
     @if ($errors->createMaintenanceTicket->any())
         <script>
             (() => {
@@ -963,4 +963,87 @@
             })();
         </script>
     @endif
+    <script>
+        (() => {
+            const calendarEl = document.getElementById('maintenance-team-calendar');
+            if (calendarEl && window.FullCalendar?.Calendar) {
+                const events = @json($calendarEvents);
+                const calendar = new FullCalendar.Calendar(calendarEl, {
+                    initialView: 'dayGridMonth',
+                    locale: 'es',
+                    headerToolbar: {
+                        left: 'prev,next today',
+                        center: 'title',
+                        right: 'dayGridMonth,timeGridWeek',
+                    },
+                    events: events.filter((event) => !!event.start),
+                    eventClick: (info) => {
+                        if (!info.event.url) return;
+                        info.jsEvent.preventDefault();
+                        window.location.href = info.event.url;
+                    },
+                    eventContent: (arg) => {
+                        const property = arg.event.extendedProps?.property ?? '-';
+                        const ticket = arg.event.extendedProps?.ticket ?? '';
+                        return { html: `<div class="fw-semibold">${arg.event.title}</div><div class="small">${property}</div><div class="small">${ticket}</div>` };
+                    },
+                });
+                calendar.render();
+            }
+
+            const form = document.getElementById('createMaintenanceTicketForm');
+            if (!form) return;
+            const providerInput = form.querySelector('[name="provider_id"]');
+            const scheduledInput = document.getElementById('createTicketScheduledVisit');
+            const forceInput = form.querySelector('[name="force_conflict"]');
+            const conflictUrl = @json(route('maintenance.technician-conflicts'));
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            const askConfirmation = async (message) => {
+                if (window.Swal?.fire) {
+                    const result = await window.Swal.fire({
+                        icon: 'warning',
+                        title: 'Conflicto de agenda',
+                        html: String(message || '').replace(/\n/g, '<br>'),
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, continuar',
+                        cancelButtonText: 'Cancelar',
+                    });
+                    return result.isConfirmed === true;
+                }
+                return window.confirm(message);
+            };
+            form.addEventListener('submit', async (event) => {
+                if (!providerInput?.value || !scheduledInput?.value || forceInput?.value === '1') {
+                    return;
+                }
+                event.preventDefault();
+                const response = await fetch(conflictUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        provider_id: providerInput.value,
+                        scheduled_visit_at: scheduledInput.value,
+                    }),
+                }).catch(() => null);
+                if (!response?.ok) {
+                    form.submit();
+                    return;
+                }
+                const payload = await response.json().catch(() => null);
+                if (!payload?.has_conflicts) {
+                    form.submit();
+                    return;
+                }
+                const approved = await askConfirmation(payload.message || 'El técnico ya tiene otra asignación este día.');
+                if (!approved) return;
+                forceInput.value = '1';
+                form.submit();
+            });
+        })();
+    </script>
 @endpush

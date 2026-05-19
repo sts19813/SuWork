@@ -85,6 +85,49 @@
                         </div>
 
                         <div class="row g-5 mb-8">
+                            <div class="col-md-6">
+                                <label class="form-label required fw-semibold fs-6">
+                                    Almacén
+                                </label>
+                                <div class="d-flex gap-2">
+                                    <select name="storage_warehouse_id"
+                                        id="storageWarehouseSelect"
+                                        class="form-select form-select-solid @error('storage_warehouse_id') is-invalid @enderror"
+                                        required>
+                                        @foreach ($warehouses as $warehouse)
+                                            <option value="{{ $warehouse->id }}" {{ (int) old('storage_warehouse_id', $defaultWarehouseId) === (int) $warehouse->id ? 'selected' : '' }}>
+                                                {{ $warehouse->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <button class="btn btn-light-primary"
+                                        type="button"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#createWarehouseModal">+</button>
+                                </div>
+                                @error('storage_warehouse_id')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label required fw-semibold fs-6">
+                                    Zona
+                                </label>
+                                <div class="d-flex gap-2">
+                                    <select name="storage_zone_id"
+                                        id="storageZoneSelect"
+                                        class="form-select form-select-solid @error('storage_zone_id') is-invalid @enderror"
+                                        required></select>
+                                    <button class="btn btn-light-primary"
+                                        type="button"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#createZoneModal">+</button>
+                                </div>
+                                @error('storage_zone_id')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                            </div>
 
                             <div class="col-md-6">
                                 <label class="form-label required fw-semibold fs-6">
@@ -275,4 +318,172 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="createWarehouseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="createWarehouseForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nuevo almacén</h5>
+                    <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-4">
+                        <label class="form-label required">Nombre</label>
+                        <input type="text" name="name" class="form-control" maxlength="190" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Ubicación</label>
+                        <input type="text" name="location" class="form-control" maxlength="255">
+                    </div>
+                    <div>
+                        <label class="form-label">URL Maps</label>
+                        <input type="url" name="maps_url" class="form-control" maxlength="500">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="createZoneModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="createZoneForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nueva zona</h5>
+                    <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-4">
+                        <label class="form-label required">Almacén</label>
+                        <select name="storage_warehouse_id" id="zoneWarehouseSelect" class="form-select" required>
+                            @foreach ($warehouses as $warehouse)
+                                <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label required">Nombre de zona</label>
+                        <input type="text" name="name" class="form-control" maxlength="190" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
+
+@php
+    $warehousesJson = $warehouses->map(function ($warehouse) {
+        return [
+            'id' => $warehouse->id,
+            'name' => $warehouse->name,
+            'zones' => $warehouse->zones->map(function ($zone) {
+                return [
+                    'id' => $zone->id,
+                    'name' => $zone->name,
+                ];
+            })->values()->all(),
+        ];
+    })->values()->all();
+@endphp
+
+@push('scripts')
+    <script>
+        (() => {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            const warehouses = @json($warehousesJson);
+            const defaultZoneId = @json((int) old('storage_zone_id', $defaultZoneId));
+            const warehouseSelect = document.getElementById('storageWarehouseSelect');
+            const zoneSelect = document.getElementById('storageZoneSelect');
+            const zoneWarehouseSelect = document.getElementById('zoneWarehouseSelect');
+            const renderZones = (warehouseId, preferred = null) => {
+                const w = warehouses.find((item) => String(item.id) === String(warehouseId));
+                const zones = w?.zones || [];
+                zoneSelect.innerHTML = '';
+                zones.forEach((z) => {
+                    const option = document.createElement('option');
+                    option.value = z.id;
+                    option.textContent = z.name;
+                    if (String(preferred ?? defaultZoneId) === String(z.id)) option.selected = true;
+                    zoneSelect.appendChild(option);
+                });
+                if (!zones.length) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'Sin zonas';
+                    zoneSelect.appendChild(option);
+                }
+            };
+            renderZones(warehouseSelect.value);
+            zoneWarehouseSelect.value = warehouseSelect.value;
+            warehouseSelect.addEventListener('change', () => {
+                renderZones(warehouseSelect.value);
+                zoneWarehouseSelect.value = warehouseSelect.value;
+            });
+
+            const createWarehouseForm = document.getElementById('createWarehouseForm');
+            createWarehouseForm?.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const formData = new FormData(createWarehouseForm);
+                const response = await fetch(@json(route('storage_items.warehouses.store')), {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                    body: formData,
+                }).catch(() => null);
+                if (!response?.ok) return;
+                const payload = await response.json().catch(() => null);
+                const warehouse = payload?.warehouse;
+                const defaultZone = payload?.default_zone;
+                if (!warehouse) return;
+                warehouses.push({ id: warehouse.id, name: warehouse.name, zones: defaultZone ? [{ id: defaultZone.id, name: defaultZone.name }] : [] });
+                const option = document.createElement('option');
+                option.value = warehouse.id;
+                option.textContent = warehouse.name;
+                option.selected = true;
+                warehouseSelect.appendChild(option);
+                const zoneOption = document.createElement('option');
+                zoneOption.value = warehouse.id;
+                zoneOption.textContent = warehouse.name;
+                zoneWarehouseSelect.appendChild(zoneOption);
+                renderZones(warehouse.id);
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('createWarehouseModal')).hide();
+                createWarehouseForm.reset();
+            });
+
+            const createZoneForm = document.getElementById('createZoneForm');
+            createZoneForm?.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const formData = new FormData(createZoneForm);
+                const response = await fetch(@json(route('storage_items.zones.store')), {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                    body: formData,
+                }).catch(() => null);
+                if (!response?.ok) return;
+                const payload = await response.json().catch(() => null);
+                const zone = payload?.zone;
+                if (!zone) return;
+                const warehouse = warehouses.find((item) => String(item.id) === String(zone.storage_warehouse_id));
+                if (warehouse) {
+                    if (!warehouse.zones.find((item) => String(item.id) === String(zone.id))) {
+                        warehouse.zones.push({ id: zone.id, name: zone.name });
+                    }
+                }
+                warehouseSelect.value = String(zone.storage_warehouse_id);
+                renderZones(zone.storage_warehouse_id, zone.id);
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('createZoneModal')).hide();
+                createZoneForm.reset();
+            });
+        })();
+    </script>
+@endpush

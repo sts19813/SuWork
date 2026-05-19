@@ -133,6 +133,7 @@ Route::middleware(['auth'])
         Route::patch('/mantenimiento/{maintenance}/meta', [MaintenanceController::class, 'updateMeta'])->name('maintenance.meta');
         Route::patch('/mantenimiento/{maintenance}/estado', [MaintenanceController::class, 'changeStatus'])->name('maintenance.status');
         Route::patch('/mantenimiento/{maintenance}/programar-visita', [MaintenanceController::class, 'scheduleVisit'])->name('maintenance.schedule-visit');
+        Route::post('/mantenimiento/conflictos-tecnico', [MaintenanceController::class, 'technicianConflicts'])->name('maintenance.technician-conflicts');
         Route::post('/mantenimiento/{maintenance}/asignar', [MaintenanceController::class, 'assign'])->name('maintenance.assign');
         Route::put('/mantenimiento/{maintenance}/costos', [MaintenanceController::class, 'updateCosts'])->name('maintenance.costs');
         Route::post('/mantenimiento/{maintenance}/archivos', [MaintenanceController::class, 'uploadFiles'])->name('maintenance.files');
@@ -142,6 +143,11 @@ Route::middleware(['auth'])
         
         // Almacén (storage items)
         Route::resource('storage_items', StorageItemController::class);
+        Route::post('storage_items/catalog/warehouse', [StorageItemController::class, 'storeWarehouse'])->name('storage_items.warehouses.store');
+        Route::put('storage_items/catalog/warehouse/{warehouse}', [StorageItemController::class, 'updateWarehouse'])->name('storage_items.warehouses.update');
+        Route::post('storage_items/catalog/zone', [StorageItemController::class, 'storeZone'])->name('storage_items.zones.store');
+        Route::put('storage_items/catalog/zone/{zone}', [StorageItemController::class, 'updateZone'])->name('storage_items.zones.update');
+        Route::delete('storage_items/catalog/zone/{zone}', [StorageItemController::class, 'destroyZone'])->name('storage_items.zones.destroy');
         Route::post('storage_items/{storage_item}/note', [StorageItemController::class, 'addNote'])->name('storage_items.addNote');
         Route::get('storage_items/trash/view', [StorageItemController::class, 'trashed'])->name('storage_items.trashed');
         Route::post('storage_items/{storage_item}/restore', [StorageItemController::class, 'restore'])->name('storage_items.restore');
