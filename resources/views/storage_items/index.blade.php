@@ -177,7 +177,7 @@
                                                     @if ($item->photo)
 
                                                         <img src="{{ asset('storage/' . $item->photo) }}"
-                                                            class="object-fit-cover rounded" alt="{{ $item->name }}">
+                                                            class="object-fit-contain rounded" alt="{{ $item->name }}">
 
                                                     @else
 
@@ -289,7 +289,7 @@
                                         @if ($item->photo)
 
                                             <img src="{{ asset('storage/' . $item->photo) }}" class="w-100 rounded-top"
-                                                style="height: 220px; object-fit: cover;" alt="{{ $item->name }}">
+                                                style="height: 220px; object-fit: contain; padding: 10px;" alt="{{ $item->name }}">
 
                                         @else
 
