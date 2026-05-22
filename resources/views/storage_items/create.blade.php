@@ -214,10 +214,11 @@
                             <input type="file"
                                    name="photo"
                                    accept="image/*"
+                                   capture="environment"
                                    class="form-control form-control-solid @error('photo') is-invalid @enderror">
 
                             <div class="text-muted fs-7 mt-2">
-                                Formatos permitidos: JPG, PNG, WEBP. Máximo 5MB.
+                                En teléfono puedes tomar la foto directo con la cámara. Formatos permitidos: JPG, PNG, WEBP. Máximo 5MB.
                             </div>
 
                             @error('photo')
