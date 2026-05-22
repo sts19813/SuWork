@@ -286,7 +286,7 @@
                                 <img src="{{ asset('storage/' . $item->photo) }}"
                                      alt="{{ $item->name }}"
                                      class="rounded shadow-sm"
-                                     style="width: 220px; height: 220px; object-fit: cover;">
+                                     style="width: 220px; height: 220px; object-fit: contain;">
 
                             </div>
 

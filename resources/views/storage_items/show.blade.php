@@ -58,10 +58,10 @@
                                 <img src="{{ asset('storage/'.$item->photo) }}"
                                      alt="{{ $item->name }}"
                                      class="w-100 rounded"
-                                     style="height: 440px; object-fit: cover;">
+                                     style="height: 440px; object-fit: contain;">
                             @else
                                 <div class="bg-light-primary rounded d-flex align-items-center justify-content-center"
-                                     style="height: 440px;">
+                                     style="height: 440px; object-fit: contain;">
                                     <i class="ki-duotone ki-picture fs-5x text-primary opacity-50">
                                         <span class="path1"></span>
                                         <span class="path2"></span>
