@@ -22,7 +22,9 @@ class StorageItemRequest extends FormRequest
             'brand' => 'nullable|string|max:255',
             'condition' => 'required|in:bueno,regular,malo',
             'quantity' => 'required|integer|min:1',
-            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            'photo_camera' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
         ];
     }
 }
+

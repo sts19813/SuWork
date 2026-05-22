@@ -66,8 +66,9 @@ class StorageItemController extends Controller
         }
         [$data['storage_warehouse_id'], $data['storage_zone_id']] = $this->resolveWarehouseAndZone((int) $data['storage_warehouse_id'], (int) $data['storage_zone_id']);
 
-        if ($request->hasFile('photo')) {
-            $data['photo'] = $this->saveCompressedImage($request->file('photo'));
+        $uploadedPhoto = $request->file('photo') ?? $request->file('photo_camera');
+        if ($uploadedPhoto) {
+            $data['photo'] = $this->saveCompressedImage($uploadedPhoto);
         }
 
         $item = StorageItem::create($data);
@@ -472,3 +473,4 @@ class StorageItemController extends Controller
         return $filename;
     }
 }
+

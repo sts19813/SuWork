@@ -248,27 +248,45 @@
                             </div>
                         </div>
 
-                        <div class="mb-8">
+                        <div class="row g-5 mb-8">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold fs-6">
+                                    Foto desde galería
+                                </label>
 
-                            <label class="form-label fw-semibold fs-6">
-                                Foto
-                            </label>
+                                <input type="file"
+                                       name="photo"
+                                       accept="image/*"
+                                       class="form-control form-control-solid @error('photo') is-invalid @enderror">
 
-                            <input type="file"
-                                   name="photo"
-                                   accept="image/*"
-                                   capture="environment"
-                                   class="form-control form-control-solid @error('photo') is-invalid @enderror">
-
-                            <div class="text-muted fs-7 mt-2">
-                                En teléfono puedes tomar la foto directo con la cámara. Formatos permitidos: JPG, PNG, WEBP. Máximo 5MB.
+                                @error('photo')
+                                    <div class="invalid-feedback d-block">
+                                        {{ $message }}
+                                    </div>
+                                @enderror
                             </div>
 
-                            @error('photo')
-                                <div class="invalid-feedback d-block">
-                                    {{ $message }}
-                                </div>
-                            @enderror
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold fs-6">
+                                    Foto desde cámara
+                                </label>
+
+                                <input type="file"
+                                       name="photo_camera"
+                                       accept="image/*"
+                                       capture="environment"
+                                       class="form-control form-control-solid @error('photo_camera') is-invalid @enderror">
+
+                                @error('photo_camera')
+                                    <div class="invalid-feedback d-block">
+                                        {{ $message }}
+                                    </div>
+                                @enderror
+                            </div>
+                        </div>
+
+                        <div class="text-muted fs-7 mt-n3 mb-2">
+                            Puedes elegir una imagen de galería o tomarla al momento con la cámara. Formatos permitidos: JPG, PNG, WEBP. Máximo 5MB.
                         </div>
 
                         {{-- Descripción --}}
