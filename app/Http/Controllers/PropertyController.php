@@ -7,6 +7,7 @@ use App\Models\Charge;
 use App\Models\ChargePayment;
 use App\Models\Expense;
 use App\Models\ExpenseNotificationSetting;
+use App\Models\MaintenanceTicket;
 use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
@@ -65,8 +66,7 @@ class PropertyController extends Controller
             ->when($request->filled('property_type_id'), fn($query) => $query->where('property_type_id', $request->integer('property_type_id')))
             ->when($request->filled('status'), fn($query) => $query->where('status', $request->string('status')->value()))
             ->latest()
-            ->paginate(10)
-            ->withQueryString();
+            ->get();
 
         return view('properties.index', [
             'properties' => $properties,
@@ -271,6 +271,17 @@ class PropertyController extends Controller
             ->orderBy('due_date', 'asc')
             ->orderBy('id', 'asc')
             ->get();
+        $propertyMaintenanceTickets = MaintenanceTicket::query()
+            ->with([
+                'currentProvider:id,uuid,name,type',
+                'reporter:id,name,email',
+            ])
+            ->withCount(['files', 'messages'])
+            ->where('property_id', $property->id)
+            ->orderByDesc('reported_at')
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
 
         $rentChargesTotal = Charge::query()
             ->where('property_id', $property->id)
@@ -353,6 +364,10 @@ class PropertyController extends Controller
         ];
         $globalExpenseNotificationSetup = ExpenseNotificationSetting::current();
         $resolvedPropertyExpenseNotificationSetup = $property->resolvedExpenseNotificationSetup($globalExpenseNotificationSetup);
+        $isTenantMaintenanceReporter = (bool) (
+            auth()->user()?->hasRole('inquilino')
+            || auth()->user()?->hasRole('tenant')
+        );
 
         return view('properties.show', [
             'property' => $property,
@@ -379,6 +394,18 @@ class PropertyController extends Controller
             'propertyExpenseSummary' => $propertyExpenseSummary,
             'globalExpenseNotificationSetup' => $globalExpenseNotificationSetup,
             'resolvedPropertyExpenseNotificationSetup' => $resolvedPropertyExpenseNotificationSetup,
+            'propertyMaintenanceTickets' => $propertyMaintenanceTickets,
+            'maintenanceCategoryOptions' => MaintenanceTicket::CATEGORY_LABELS,
+            'maintenancePriorityOptions' => MaintenanceTicket::PRIORITY_LABELS,
+            'canCreatePropertyMaintenanceTicket' => (bool) (
+                auth()->user()?->hasRole('administrador')
+                || auth()->user()?->hasRole('admin')
+                || auth()->user()?->hasRole('inquilino')
+                || auth()->user()?->hasRole('tenant')
+                || auth()->user()?->hasRole('tecnico')
+                || auth()->user()?->hasRole('technician')
+            ),
+            'isTenantMaintenanceReporter' => $isTenantMaintenanceReporter,
             'propertyChangeLogs' => $propertyChangeLogs,
             'propertyChangeFieldLabels' => $this->propertyChangeFieldLabels(),
         ]);

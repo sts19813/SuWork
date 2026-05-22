@@ -107,7 +107,7 @@ class MaintenanceModuleTest extends TestCase
         $ticket = MaintenanceTicket::query()->where('title', 'No hay agua caliente')->first();
         $this->assertNotNull($ticket);
         $response->assertRedirect(route('maintenance.show', $ticket));
-        $this->assertSame('media', $ticket->priority);
+        $this->assertSame('sin_asignar', $ticket->priority);
         $this->assertSame('pendiente', $ticket->status);
         $this->assertDatabaseCount('maintenance_ticket_files', 1);
     }

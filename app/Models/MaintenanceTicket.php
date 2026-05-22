@@ -13,6 +13,7 @@ class MaintenanceTicket extends Model
     use HasFactory;
 
     public const CATEGORY_LABELS = [
+        'sin_categoria' => 'Sin categoría',
         'plomeria' => 'Plomería',
         'electricidad' => 'Electricidad',
         'aire_acondicionado' => 'Aire acondicionado',
@@ -23,6 +24,7 @@ class MaintenanceTicket extends Model
     ];
 
     public const PRIORITY_LABELS = [
+        'sin_asignar' => 'Sin asignar',
         'baja' => 'Baja',
         'media' => 'Media',
         'alta' => 'Alta',
@@ -33,6 +35,7 @@ class MaintenanceTicket extends Model
         'pendiente' => 'Pendiente',
         'revisado' => 'Revisado',
         'asignado' => 'Asignado',
+        'programado' => 'Programado',
         'en_proceso' => 'En proceso',
         'esperando_material' => 'Esperando piezas/material',
         'completado' => 'Completado',
@@ -156,5 +159,18 @@ class MaintenanceTicket extends Model
     public function notifications(): HasMany
     {
         return $this->hasMany(MaintenanceTicketNotification::class, 'ticket_id')->latest();
+    }
+
+    public function getDisplayReferenceAttribute(): string
+    {
+        $reference = trim((string) $this->reference);
+        if ($reference !== '') {
+            return $reference;
+        }
+        if ($this->id) {
+            return str_pad((string) $this->id, 8, '0', STR_PAD_LEFT);
+        }
+
+        return Str::upper(Str::substr((string) $this->uuid, 0, 8));
     }
 }

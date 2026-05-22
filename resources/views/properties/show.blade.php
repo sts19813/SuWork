@@ -347,6 +347,12 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-maintenance-tab" data-bs-toggle="tab" data-bs-target="#tab-maintenance"
+                            type="button" role="tab" aria-controls="tab-maintenance" aria-selected="false">
+                            Mantenimiento
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link" id="tab-inventory-tab" data-bs-toggle="tab" data-bs-target="#tab-inventory"
                             type="button" role="tab" aria-controls="tab-inventory" aria-selected="false">
                             Inventario
@@ -1100,6 +1106,75 @@
 
                     @include('expenses.partials.property-tab')
 
+                    <div class="tab-pane fade property-tab-pane" id="tab-maintenance" role="tabpanel"
+                        aria-labelledby="tab-maintenance-tab">
+                        <div class="card property-block-card">
+                            <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h3 class="card-title fw-bold mb-1">Mantenimiento de la propiedad</h3>
+                                    <div class="text-muted fs-7">
+                                        Tickets históricos: {{ $propertyMaintenanceTickets->count() }}
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <a href="{{ route('maintenance.index', ['property' => $property->uuid]) }}" class="btn btn-sm btn-light-primary">
+                                        Abrir módulo
+                                    </a>
+                                    @if ($canCreatePropertyMaintenanceTicket)
+                                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createPropertyMaintenanceTicketModal">
+                                            Crear ticket
+                                        </button>
+                                    @endif
+                                </div>
+                            </div>
+                            <div class="card-body pt-0">
+                                <div class="table-responsive">
+                                    <table class="table table-row-bordered align-middle mb-0">
+                                        <thead>
+                                            <tr class="text-muted text-uppercase fs-8">
+                                                <th>Folio</th>
+                                                <th>Ticket</th>
+                                                <th>Categoría</th>
+                                                <th>Prioridad</th>
+                                                <th>Estado</th>
+                                                <th>Técnico/Proveedor</th>
+                                                <th>Fecha</th>
+                                                <th class="text-end">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @forelse ($propertyMaintenanceTickets as $ticket)
+                                                <tr>
+                                                    <td>{{ $ticket->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($ticket->uuid, 0, 8)) }}</td>
+                                                    <td>
+                                                        <div class="fw-semibold">{{ $ticket->title }}</div>
+                                                        <div class="text-muted fs-8">{{ $ticket->files_count }} archivos · {{ $ticket->messages_count }} mensajes</div>
+                                                    </td>
+                                                    <td>{{ \App\Models\MaintenanceTicket::CATEGORY_LABELS[$ticket->category] ?? $ticket->category }}</td>
+                                                    <td>{{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}</td>
+                                                    <td>
+                                                        <span class="badge badge-light">
+                                                            {{ \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status }}
+                                                        </span>
+                                                    </td>
+                                                    <td>{{ $ticket->currentProvider?->name ?: 'Sin asignar' }}</td>
+                                                    <td>{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                                    <td class="text-end">
+                                                        <a href="{{ route('maintenance.show', $ticket) }}" class="btn btn-sm btn-light">Ver</a>
+                                                    </td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="8" class="text-center py-8 text-muted">No hay tickets de mantenimiento para esta propiedad.</td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="tab-pane fade property-tab-pane" id="tab-inventory" role="tabpanel"
                         aria-labelledby="tab-inventory-tab">
                         <div class="card property-block-card">
@@ -1240,6 +1315,74 @@
             </div>
         </div>
     </div>
+
+    @if ($canCreatePropertyMaintenanceTicket)
+        <div class="modal fade" id="createPropertyMaintenanceTicketModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <form method="POST" action="{{ route('maintenance.store') }}" enctype="multipart/form-data">
+                        @csrf
+                        <input type="hidden" name="property_id" value="{{ $property->id }}">
+
+                        <div class="modal-header">
+                            <h3 class="modal-title">Nuevo ticket de mantenimiento</h3>
+                            <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="row g-4">
+                                @if (!$isTenantMaintenanceReporter)
+                                    <div class="col-md-4">
+                                        <label class="form-label required">Categoría</label>
+                                        <select class="form-select" name="category" required>
+                                            @foreach ($maintenanceCategoryOptions as $key => $label)
+                                                <option value="{{ $key }}">{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label required">Prioridad</label>
+                                        <select class="form-select" name="priority" required>
+                                            @foreach ($maintenancePriorityOptions as $key => $label)
+                                                <option value="{{ $key }}" {{ $key === 'media' ? 'selected' : '' }}>{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label required">Fecha reporte</label>
+                                        <input class="form-control" type="datetime-local" name="reported_at" value="{{ now()->format('Y-m-d\\TH:i') }}" required>
+                                    </div>
+                                @endif
+                                <div class="col-md-12">
+                                    <label class="form-label required">Título</label>
+                                    <input class="form-control" type="text" name="title" maxlength="190" required>
+                                </div>
+                                @if (!$isTenantMaintenanceReporter)
+                                    <div class="col-md-12">
+                                        <label class="form-label required">Ubicación exacta</label>
+                                        <input class="form-control" type="text" name="exact_location" maxlength="255" placeholder="Ej: Baño principal, recámara 2" required>
+                                    </div>
+                                @endif
+                                <div class="col-md-12">
+                                    <label class="form-label required">Descripción</label>
+                                    <textarea class="form-control" rows="4" name="description" maxlength="10000" required></textarea>
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label {{ $isTenantMaintenanceReporter ? 'required' : '' }}">Archivos {{ $isTenantMaintenanceReporter ? '(mínimo 1)' : '(opcional)' }}</label>
+                                    <input class="form-control" type="file" name="files[]" multiple {{ $isTenantMaintenanceReporter ? 'required' : '' }}>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Crear ticket</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
 @endsection
 
 @push('scripts')
@@ -1329,6 +1472,24 @@
 
                 history.replaceState(null, '', '#tab-expenses');
                 new bootstrap.Tab(tabButton).show();
+            })();
+        </script>
+    @endif
+
+    @if ($errors->createMaintenanceTicket->any())
+        <script>
+            (() => {
+                const tabButton = document.querySelector('#propertyTabs [data-bs-target="#tab-maintenance"]');
+                if (tabButton) {
+                    history.replaceState(null, '', '#tab-maintenance');
+                    new bootstrap.Tab(tabButton).show();
+                }
+
+                const modalEl = document.getElementById('createPropertyMaintenanceTicketModal');
+                if (!modalEl) {
+                    return;
+                }
+                new bootstrap.Modal(modalEl).show();
             })();
         </script>
     @endif
