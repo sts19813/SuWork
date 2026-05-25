@@ -4,35 +4,28 @@
     $initials = collect(explode(' ', $name))
         ->map(fn($word) => mb_substr($word, 0, 1))
         ->join('');
-    $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
-    $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
-    $canManageAccess = $user->can('usuarios.gestionar') || $user->hasRole('administrador') || $user->hasRole('admin');
-    $homeRoute = ($isTenant || $isTechnician) ? 'maintenance.index' : 'properties.index';
-    $menuItems = $isTenant
-        ? [
-            ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza'],
-            ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
-            ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
-        ]
-        : ($isTechnician
-            ? [
-                ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
-                ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén'],
-                ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
-            ]
-            : [
-            ['patterns' => ['dashboard'], 'route' => 'dashboard', 'label' => 'Dashboard'],
-            ['patterns' => ['properties.*'], 'route' => 'properties.index', 'label' => 'Propiedades'],
-            ['patterns' => ['owners.*'], 'route' => 'owners.index', 'label' => 'Propietarios'],
-            ['patterns' => ['tenants.*'], 'route' => 'tenants.index', 'label' => 'Inquilinos'],
-            ['patterns' => ['documents.*', 'dossiers.*'], 'route' => 'documents.index', 'label' => 'Documentos'],
-            ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza'],
-            ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos'],
-            ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
-            ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén'],
-            ...($canManageAccess ? [['patterns' => ['access.*'], 'route' => 'access.index', 'label' => 'Usuarios y permisos']] : []),
-            ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
-        ]);
+
+    $moduleItems = [
+        ['permission' => 'propiedades.ver', 'patterns' => ['properties.*', 'inventory.*', 'inventory-checks.*'], 'route' => 'properties.index', 'label' => 'Propiedades'],
+        ['permission' => 'propietarios.ver', 'patterns' => ['owners.*'], 'route' => 'owners.index', 'label' => 'Propietarios'],
+        ['permission' => 'inquilinos.ver', 'patterns' => ['tenants.*'], 'route' => 'tenants.index', 'label' => 'Inquilinos'],
+        ['permission' => 'expedientes.ver', 'patterns' => ['documents.*', 'dossiers.*'], 'route' => 'documents.index', 'label' => 'Documentos'],
+        ['permission' => 'cobranza.ver', 'patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza'],
+        ['permission' => 'gastos.ver', 'patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos'],
+        ['permission' => 'mantenimiento.ver', 'patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
+        ['permission' => 'almacen.ver', 'patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén'],
+        ['permission' => 'usuarios.gestionar', 'patterns' => ['access.*'], 'route' => 'access.index', 'label' => 'Usuarios y permisos'],
+    ];
+
+    $menuItems = collect($moduleItems)
+        ->filter(fn(array $item) => $user->can($item['permission']))
+        ->values()
+        ->all();
+
+    $menuItems[] = ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'];
+
+    $firstAllowedRoute = $user->firstAccessibleRouteName();
+    $homeRoute = $firstAllowedRoute ?: 'access.pending';
 @endphp
 
 <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm py-0">

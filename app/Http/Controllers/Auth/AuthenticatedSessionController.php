@@ -28,12 +28,7 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        $user = $request->user();
-        $defaultRoute = $user && ($user->hasRole('inquilino') || $user->hasRole('tenant'))
-            ? 'maintenance.index'
-            : 'dashboard';
-
-        return redirect()->intended(route($defaultRoute, absolute: false));
+        return redirect()->intended(route('dashboard', absolute: false));
     }
 
     /**

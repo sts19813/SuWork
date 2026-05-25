@@ -33,13 +33,27 @@ Route::post('/stripe/webhook', [ChargePaymentController::class, 'webhook'])
     ->name('stripe.webhook')
     ->withoutMiddleware([ValidateCsrfToken::class]);
 
-Route::middleware(['auth'])
-    ->group(function () {
-        Route::get('/perfil', [ProfileController::class, 'index'])->name('profile.index');
-        Route::post('/perfil/actualizar', [ProfileController::class, 'update'])->name('profile.update');
-        Route::post('/perfil/foto', [ProfileController::class, 'updatePhoto'])->name('profile.update.photo');
-        Route::post('/perfil/password', [ProfileController::class, 'updatePassword'])->name('profile.update.password');
+Route::middleware(['auth'])->group(function () {
+    Route::get('/acceso-pendiente', function () {
+        return view('access.pending');
+    })->name('access.pending');
 
+    Route::get('/dashboard', function () {
+        $routeName = auth()->user()?->firstAccessibleRouteName();
+
+        if ($routeName) {
+            return redirect()->route($routeName);
+        }
+
+        return redirect()->route('access.pending');
+    })->name('dashboard');
+
+    Route::get('/perfil', [ProfileController::class, 'index'])->name('profile.index');
+    Route::post('/perfil/actualizar', [ProfileController::class, 'update'])->name('profile.update');
+    Route::post('/perfil/foto', [ProfileController::class, 'updatePhoto'])->name('profile.update.photo');
+    Route::post('/perfil/password', [ProfileController::class, 'updatePassword'])->name('profile.update.password');
+
+    Route::middleware(['module.access', 'can:propiedades.ver'])->group(function () {
         Route::get('/propiedades', [PropertyController::class, 'index'])->name('properties.index');
         Route::get('/propiedades/nueva', [PropertyController::class, 'create'])->name('properties.create');
         Route::post('/propiedades', [PropertyController::class, 'store'])->name('properties.store');
@@ -47,11 +61,6 @@ Route::middleware(['auth'])
         Route::put('/propiedades/{property}', [PropertyController::class, 'update'])->name('properties.update');
         Route::put('/propiedades/{property}/inquilino', [PropertyController::class, 'updateTenant'])->name('properties.update.tenant');
         Route::get('/propiedades/{property}', [PropertyController::class, 'show'])->name('properties.show');
-        Route::get('/propiedades/{property}/expediente', [DocumentController::class, 'propertyDossier'])->name('dossiers.properties.show');
-        Route::post('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadPropertyDocument'])->name('dossiers.properties.documents.upload');
-        Route::post('/propiedades/{property}/expediente/documentos', [DocumentController::class, 'storeCustomPropertyDocument'])->name('dossiers.properties.documents.store');
-        Route::delete('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'destroyPropertyDocument'])->name('dossiers.properties.documents.destroy');
-        Route::delete('/propiedades/{property}/expediente/documentos/{documentType}/versiones/{version}', [DocumentController::class, 'destroyPropertyDocumentVersion'])->name('dossiers.properties.documents.versions.destroy');
 
         Route::get('/propiedades/{property}/inventario', [InventoryCheckController::class, 'index'])->name('inventory-checks.index');
         Route::get('/propiedades/{property}/inventario/historial', [InventoryCheckController::class, 'history'])->name('inventory-checks.history');
@@ -68,28 +77,41 @@ Route::middleware(['auth'])
         Route::get('/propiedades/{property}/inventario/items/{itemId}/historial', [InventoryCheckController::class, 'getItemHistory'])->name('inventory-checks.item-history');
         Route::post('/propiedades/{property}/inventario/{check}/nuevo-elemento', [InventoryCheckController::class, 'addNewItem'])->name('inventory-checks.add-new-item');
 
-        // Inventory management routes
         Route::post('/propiedades/{property}/inventario/areas', [InventoryCheckController::class, 'storeArea'])->name('inventory.areas.store');
         Route::patch('/propiedades/{property}/inventario/areas/{area}', [InventoryCheckController::class, 'updateArea'])->name('inventory.areas.update');
         Route::delete('/propiedades/{property}/inventario/areas/{area}', [InventoryCheckController::class, 'destroyArea'])->name('inventory.areas.destroy');
         Route::post('/propiedades/{property}/inventario/areas/{area}/items', [InventoryCheckController::class, 'storeItem'])->name('inventory.items.store');
         Route::patch('/propiedades/{property}/inventario/areas/{area}/items/{item}', [InventoryCheckController::class, 'updateInventoryItem'])->name('inventory.items.update');
         Route::delete('/propiedades/{property}/inventario/areas/{area}/items/{item}', [InventoryCheckController::class, 'destroyInventoryItem'])->name('inventory.items.destroy');
+    });
 
+    Route::middleware(['module.access', 'can:propietarios.ver'])->group(function () {
         Route::get('/propietarios', [OwnerController::class, 'index'])->name('owners.index');
         Route::post('/propietarios', [OwnerController::class, 'store'])->name('owners.store');
         Route::get('/propietarios/{owner}/editar', [OwnerController::class, 'edit'])->name('owners.edit');
         Route::put('/propietarios/{owner}', [OwnerController::class, 'update'])->name('owners.update');
+    });
+
+    Route::middleware(['module.access', 'can:inquilinos.ver'])->group(function () {
+        Route::get('/inquilinos', [TenantController::class, 'index'])->name('tenants.index');
+        Route::post('/inquilinos', [TenantController::class, 'store'])->name('tenants.store');
+        Route::get('/inquilinos/{tenant}/editar', [TenantController::class, 'edit'])->name('tenants.edit');
+        Route::put('/inquilinos/{tenant}', [TenantController::class, 'update'])->name('tenants.update');
+    });
+
+    Route::middleware(['module.access', 'can:expedientes.ver'])->group(function () {
+        Route::get('/propiedades/{property}/expediente', [DocumentController::class, 'propertyDossier'])->name('dossiers.properties.show');
+        Route::post('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadPropertyDocument'])->name('dossiers.properties.documents.upload');
+        Route::post('/propiedades/{property}/expediente/documentos', [DocumentController::class, 'storeCustomPropertyDocument'])->name('dossiers.properties.documents.store');
+        Route::delete('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'destroyPropertyDocument'])->name('dossiers.properties.documents.destroy');
+        Route::delete('/propiedades/{property}/expediente/documentos/{documentType}/versiones/{version}', [DocumentController::class, 'destroyPropertyDocumentVersion'])->name('dossiers.properties.documents.versions.destroy');
+
         Route::get('/propietarios/{owner}/expediente', [DocumentController::class, 'ownerDossier'])->name('dossiers.owners.show');
         Route::post('/propietarios/{owner}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadOwnerDocument'])->name('dossiers.owners.documents.upload');
         Route::post('/propietarios/{owner}/expediente/documentos', [DocumentController::class, 'storeCustomOwnerDocument'])->name('dossiers.owners.documents.store');
         Route::delete('/propietarios/{owner}/expediente/documentos/{documentType}', [DocumentController::class, 'destroyOwnerDocument'])->name('dossiers.owners.documents.destroy');
         Route::delete('/propietarios/{owner}/expediente/documentos/{documentType}/versiones/{version}', [DocumentController::class, 'destroyOwnerDocumentVersion'])->name('dossiers.owners.documents.versions.destroy');
 
-        Route::get('/inquilinos', [TenantController::class, 'index'])->name('tenants.index');
-        Route::post('/inquilinos', [TenantController::class, 'store'])->name('tenants.store');
-        Route::get('/inquilinos/{tenant}/editar', [TenantController::class, 'edit'])->name('tenants.edit');
-        Route::put('/inquilinos/{tenant}', [TenantController::class, 'update'])->name('tenants.update');
         Route::get('/inquilinos/{tenant}/expediente', [DocumentController::class, 'tenantDossier'])->name('dossiers.tenants.show');
         Route::post('/inquilinos/{tenant}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadTenantDocument'])->name('dossiers.tenants.documents.upload');
         Route::post('/inquilinos/{tenant}/expediente/documentos', [DocumentController::class, 'storeCustomTenantDocument'])->name('dossiers.tenants.documents.store');
@@ -98,7 +120,9 @@ Route::middleware(['auth'])
 
         Route::get('/documentos', [DocumentController::class, 'index'])->name('documents.index');
         Route::get('/documentos/bitacora-eliminados', [DocumentController::class, 'deletedFilesLog'])->name('documents.deleted-files-log');
+    });
 
+    Route::middleware(['module.access', 'can:usuarios.gestionar'])->group(function () {
         Route::get('/seguridad/usuarios', [UserAccessController::class, 'index'])->name('access.index');
         Route::post('/seguridad/usuarios', [UserAccessController::class, 'storeUser'])->name('access.users.store');
         Route::put('/seguridad/usuarios/{user}', [UserAccessController::class, 'updateUser'])->name('access.users.update');
@@ -106,6 +130,9 @@ Route::middleware(['auth'])
         Route::put('/seguridad/roles/{role}', [UserAccessController::class, 'updateRole'])->name('access.roles.update');
         Route::post('/seguridad/permisos', [UserAccessController::class, 'storePermission'])->name('access.permissions.store');
         Route::put('/seguridad/permisos/{permission}', [UserAccessController::class, 'updatePermission'])->name('access.permissions.update');
+    });
+
+    Route::middleware(['module.access', 'can:cobranza.ver'])->group(function () {
         Route::get('/cobranza', [ChargeController::class, 'index'])->name('charges.index');
         Route::put('/cobranza/propiedades/{property}/configuracion', [ChargeController::class, 'updatePropertySetup'])->name('charges.properties.setup');
         Route::post('/cobranza', [ChargeController::class, 'store'])->name('charges.store');
@@ -116,7 +143,9 @@ Route::middleware(['auth'])
         Route::post('/cobranza/{charge}/notificar', [ChargeController::class, 'sendReminder'])->name('charges.notify');
         Route::post('/cobranza/generar/preview', [ChargeController::class, 'previewBulk'])->name('charges.bulk.preview');
         Route::post('/cobranza/generar', [ChargeController::class, 'storeBulk'])->name('charges.bulk.store');
+    });
 
+    Route::middleware(['module.access', 'can:gastos.ver'])->group(function () {
         Route::get('/gastos', [ExpenseController::class, 'index'])->name('expenses.index');
         Route::post('/gastos', [ExpenseController::class, 'store'])->name('expenses.store');
         Route::put('/gastos/configuracion', [ExpenseController::class, 'updateGlobalSetup'])->name('expenses.setup.global');
@@ -124,7 +153,9 @@ Route::middleware(['auth'])
         Route::put('/gastos/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
         Route::post('/gastos/{expense}/marcar-pagado', [ExpenseController::class, 'markAsPaid'])->name('expenses.mark-paid');
         Route::delete('/gastos/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
+    });
 
+    Route::middleware(['module.access', 'can:mantenimiento.ver'])->group(function () {
         Route::get('/mantenimiento', [MaintenanceController::class, 'index'])->name('maintenance.index');
         Route::post('/mantenimiento', [MaintenanceController::class, 'store'])->name('maintenance.store');
         Route::get('/mantenimiento/tecnicos', [MaintenanceController::class, 'technicians'])->name('maintenance.technicians.index');
@@ -140,8 +171,9 @@ Route::middleware(['auth'])
         Route::post('/mantenimiento/{maintenance}/mensajes', [MaintenanceController::class, 'storeMessage'])->name('maintenance.messages');
         Route::post('/mantenimiento/proveedores', [MaintenanceController::class, 'storeProvider'])->name('maintenance.providers.store');
         Route::put('/mantenimiento/proveedores/{provider}', [MaintenanceController::class, 'updateProvider'])->name('maintenance.providers.update');
-        
-        // Almacén (storage items)
+    });
+
+    Route::middleware(['module.access', 'can:almacen.ver'])->group(function () {
         Route::resource('storage_items', StorageItemController::class);
         Route::post('storage_items/catalog/warehouse', [StorageItemController::class, 'storeWarehouse'])->name('storage_items.warehouses.store');
         Route::put('storage_items/catalog/warehouse/{warehouse}', [StorageItemController::class, 'updateWarehouse'])->name('storage_items.warehouses.update');
@@ -153,18 +185,7 @@ Route::middleware(['auth'])
         Route::post('storage_items/{storage_item}/restore', [StorageItemController::class, 'restore'])->name('storage_items.restore');
         Route::post('storage_items/{storage_item}/delete-with-note', [StorageItemController::class, 'deleteWithNote'])->name('storage_items.deleteWithNote');
     });
-
-Route::get('/dashboard', function () {
-    $user = auth()->user();
-    if ($user && ($user->hasRole('inquilino') || $user->hasRole('tenant'))) {
-        return redirect()->route('maintenance.index');
-    }
-    if ($user && ($user->hasRole('tecnico') || $user->hasRole('technician'))) {
-        return redirect()->route('maintenance.index');
-    }
-
-    return redirect()->route('properties.index');
-})->middleware(['auth'])->name('dashboard');
+});
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

@@ -15,6 +15,18 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, HasRoles;
 
+    public const MODULE_PERMISSION_ROUTE_MAP = [
+        'propiedades.ver' => 'properties.index',
+        'propietarios.ver' => 'owners.index',
+        'inquilinos.ver' => 'tenants.index',
+        'expedientes.ver' => 'documents.index',
+        'cobranza.ver' => 'charges.index',
+        'gastos.ver' => 'expenses.index',
+        'mantenimiento.ver' => 'maintenance.index',
+        'almacen.ver' => 'storage_items.index',
+        'usuarios.gestionar' => 'access.index',
+    ];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -69,5 +81,31 @@ class User extends Authenticatable
     public function maintenanceTicketsReported(): HasMany
     {
         return $this->hasMany(MaintenanceTicket::class, 'reported_by_user_id');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function modulePermissions(): array
+    {
+        return array_keys(self::MODULE_PERMISSION_ROUTE_MAP);
+    }
+
+    public function hasAnyModulePermission(): bool
+    {
+        return $this->hasAnyPermission(self::modulePermissions());
+    }
+
+    public function firstAccessibleRouteName(): ?string
+    {
+        $permissions = $this->getAllPermissions()->pluck('name');
+
+        foreach (self::MODULE_PERMISSION_ROUTE_MAP as $permission => $routeName) {
+            if ($permissions->contains($permission)) {
+                return $routeName;
+            }
+        }
+
+        return null;
     }
 }
