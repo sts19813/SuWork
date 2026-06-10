@@ -14,7 +14,7 @@
     @stack('styles')
 </head>
 
-<body class="bg-light-primary">
+<body @include('partials.suwork-flash-attrs') class="bg-light-primary">
     <div class="d-flex flex-column min-vh-100">
         <header class="py-8">
             <div class="container">
@@ -39,6 +39,7 @@
 
     <script src="{{ asset('/metronic/assets/plugins/global/plugins.bundle.js') }}"></script>
     <script src="{{ asset('/metronic/assets/js/scripts.bundle.js') }}"></script>
+    @include('partials.suwork-toasts')
     @stack('scripts')
 </body>
 

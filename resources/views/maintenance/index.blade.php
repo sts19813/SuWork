@@ -3,7 +3,7 @@
 @section('title', 'Mantenimiento | SuWork')
 
 @section('content')
-    <div class="py-10">
+    <div class="maintenance-module py-8">
         @php
             $calendarEvents = $calendarItems->map(function ($item) {
                 return [
@@ -17,48 +17,128 @@
                     ],
                 ];
             })->values()->all();
+
+            $statusTone = fn ($value) => match ($value) {
+                'completado' => 'green',
+                'cancelado' => 'red',
+                'en_proceso' => 'purple',
+                'programado', 'asignado' => 'blue',
+                'pendiente', 'revisado', 'esperando_material', 'reabierto' => 'amber',
+                default => 'neutral',
+            };
+            $priorityTone = fn ($value) => match ($value) {
+                'baja' => 'green',
+                'media' => 'blue',
+                'alta' => 'amber',
+                'urgente' => 'red',
+                default => 'neutral',
+            };
+
+            $roleTitle = match ($role) {
+                'inquilino' => 'Mis reportes de mantenimiento',
+                'tecnico' => 'Mis tickets asignados',
+                default => 'Mantenimiento',
+            };
+            $roleSubtitle = match ($role) {
+                'inquilino' => 'Consulta tus tickets y levanta nuevos reportes para tus propiedades asignadas.',
+                'tecnico' => 'Agenda de campo, evidencias, estados y comunicación del ticket.',
+                default => 'Operación diaria de tickets, técnicos, propiedades y visitas programadas.',
+            };
+
+            $ticketCollection = $tickets->getCollection();
+            $ticketBuckets = [
+                'attention' => collect(),
+                'work' => collect(),
+                'scheduled' => collect(),
+                'done' => collect(),
+                'other' => collect(),
+            ];
+            foreach ($ticketCollection as $ticketRow) {
+                $bucket = 'other';
+                if (in_array($ticketRow->status, ['completado', 'cancelado'], true)) {
+                    $bucket = 'done';
+                } elseif ($ticketRow->priority === 'urgente' || !$ticketRow->currentProvider || in_array($ticketRow->status, ['pendiente', 'reabierto'], true)) {
+                    $bucket = 'attention';
+                } elseif (in_array($ticketRow->status, ['en_proceso', 'esperando_material'], true)) {
+                    $bucket = 'work';
+                } elseif (in_array($ticketRow->status, ['asignado', 'programado', 'revisado'], true)) {
+                    $bucket = 'scheduled';
+                }
+                $ticketBuckets[$bucket]->push($ticketRow);
+            }
+            $bucketMeta = [
+                'attention' => ['title' => 'Requiere atención', 'hint' => 'Urgentes, pendientes o sin técnico', 'icon' => 'bi-exclamation-triangle', 'tone' => 'red'],
+                'work' => ['title' => 'En trabajo activo', 'hint' => 'Atención en proceso o esperando material', 'icon' => 'bi-tools', 'tone' => 'purple'],
+                'scheduled' => ['title' => 'Agendados y revisados', 'hint' => 'Con técnico, revisión o visita programada', 'icon' => 'bi-calendar2-check', 'tone' => 'blue'],
+                'done' => ['title' => 'Cerrados', 'hint' => 'Tickets completados o cancelados', 'icon' => 'bi-check2-circle', 'tone' => 'green'],
+                'other' => ['title' => 'Otros tickets', 'hint' => 'Sin agrupación operativa', 'icon' => 'bi-list-task', 'tone' => 'neutral'],
+            ];
+            $kpis = [
+                ['label' => 'Total', 'value' => number_format((int) ($metrics['total'] ?? 0)), 'sub' => 'Incidencias visibles', 'tone' => '#334155'],
+                ['label' => 'Pendientes', 'value' => number_format((int) ($metrics['pending'] ?? 0)), 'sub' => 'Por atender', 'tone' => '#b45309'],
+                ['label' => 'Urgentes', 'value' => number_format((int) ($metrics['urgent'] ?? 0)), 'sub' => 'Prioridad urgente', 'tone' => '#b42318'],
+                ['label' => 'En proceso', 'value' => number_format((int) ($metrics['in_progress'] ?? 0)), 'sub' => 'Trabajo activo', 'tone' => '#6d28d9'],
+                ['label' => 'Completados', 'value' => number_format((int) ($metrics['completed'] ?? 0)), 'sub' => 'Histórico filtrado', 'tone' => '#15803d'],
+                [
+                    'label' => 'Resolución',
+                    'value' => $metrics['avg_resolution_hours'] !== null ? number_format((float) $metrics['avg_resolution_hours'], 2) . 'h' : '-',
+                    'sub' => 'Promedio',
+                    'tone' => '#1d4ed8',
+                ],
+            ];
         @endphp
-        @if (session('success'))
-            <div class="alert alert-success mb-6">{{ session('success') }}</div>
-        @endif
-        @if (session('error'))
-            <div class="alert alert-danger mb-6">{{ session('error') }}</div>
-        @endif
 
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-6">
-            <div>
-                <h1 class="mb-1 fw-bold">Mantenimiento</h1>
-            </div>
-            <div class="d-flex flex-wrap gap-2">
-                @if (!$isTenant)
-                    <button class="btn btn-light" type="button" data-bs-toggle="collapse"
-                        data-bs-target="#maintenanceFiltersCollapse" aria-expanded="false"
-                        aria-controls="maintenanceFiltersCollapse">
-                        Filtros
-                    </button>
-                    @if ($canManageProviders)
-                        <a class="btn btn-light-primary" href="{{ route('maintenance.technicians.index') }}">+ Nuevo técnico</a>
+        <div class="maintenance-page">
+            @if (session('success'))
+                <div class="alert alert-success mb-0">{{ session('success') }}</div>
+            @endif
+            @if (session('error'))
+                <div class="alert alert-danger mb-0">{{ session('error') }}</div>
+            @endif
+
+            <div class="maintenance-hero">
+                <div>
+                    <div class="maintenance-kicker">Operaciones</div>
+                    <h1 class="maintenance-title">{{ $roleTitle }}</h1>
+                    <div class="maintenance-subtitle">
+                        {{ $roleSubtitle }}
+                        @if ($selectedProperty)
+                            <span class="maintenance-chip maintenance-chip-blue ms-2">{{ $selectedProperty->internal_name }}</span>
+                        @endif
+                    </div>
+                </div>
+                <div class="maintenance-actions">
+                    @if (!$isTenant)
+                        <button class="maintenance-plain-btn" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#maintenanceFiltersCollapse" aria-expanded="false"
+                            aria-controls="maintenanceFiltersCollapse">
+                            <i class="bi bi-sliders"></i> Filtros
+                        </button>
+                        @if ($canManageProviders)
+                            <a class="maintenance-soft-btn" href="{{ route('maintenance.technicians.index') }}">
+                                <i class="bi bi-person-gear"></i> Técnicos
+                            </a>
+                        @endif
                     @endif
-                @endif
-                @if ($canCreateTicket)
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createMaintenanceTicketModal">+
-                        Nuevo ticket</button>
-                @endif
+                    @if ($canCreateTicket)
+                        <button class="maintenance-primary-btn" data-bs-toggle="modal" data-bs-target="#createMaintenanceTicketModal">
+                            <i class="bi bi-plus-lg"></i> Nuevo ticket
+                        </button>
+                    @endif
+                </div>
             </div>
-        </div>
 
-        @if (!$isTenant)
-            <div class="collapse mb-6" id="maintenanceFiltersCollapse">
-                <div class="card">
-                    <div class="card-body">
+            @if (!$isTenant)
+                <div class="collapse" id="maintenanceFiltersCollapse">
+                    <div class="maintenance-filter-panel">
                         <form class="row g-4 align-items-end" method="GET" action="{{ route('maintenance.index') }}">
                             <input type="hidden" name="tab" value="{{ $activeTab }}">
-                            <div class="col-md-3">
+                            <div class="col-xl-3 col-md-6">
                                 <label class="form-label">Buscar</label>
                                 <input type="text" class="form-control" name="q" value="{{ $search }}"
                                     placeholder="Título, folio, propiedad">
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-xl-3 col-md-6">
                                 <label class="form-label">Propiedad</label>
                                 <select class="form-select" name="property">
                                     <option value="">Todas</option>
@@ -69,340 +149,275 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-xl-2 col-md-4">
                                 <label class="form-label">Estado</label>
                                 <select class="form-select" name="status">
                                     @foreach ($statusOptions as $statusKey => $statusLabel)
-                                        <option value="{{ $statusKey }}" {{ $status === $statusKey ? 'selected' : '' }}>
-                                            {{ $statusLabel }}</option>
+                                        <option value="{{ $statusKey }}" {{ $status === $statusKey ? 'selected' : '' }}>{{ $statusLabel }}</option>
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-xl-2 col-md-4">
                                 <label class="form-label">Prioridad</label>
                                 <select class="form-select" name="priority">
                                     @foreach ($priorityOptions as $priorityKey => $priorityLabel)
-                                        <option value="{{ $priorityKey }}" {{ $priority === $priorityKey ? 'selected' : '' }}>
-                                            {{ $priorityLabel }}</option>
+                                        <option value="{{ $priorityKey }}" {{ $priority === $priorityKey ? 'selected' : '' }}>{{ $priorityLabel }}</option>
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-xl-2 col-md-4">
                                 <label class="form-label">Categoría</label>
                                 <select class="form-select" name="category">
                                     @foreach ($categoryOptions as $categoryKey => $categoryLabel)
-                                        <option value="{{ $categoryKey }}" {{ $category === $categoryKey ? 'selected' : '' }}>
-                                            {{ $categoryLabel }}</option>
+                                        <option value="{{ $categoryKey }}" {{ $category === $categoryKey ? 'selected' : '' }}>{{ $categoryLabel }}</option>
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-1">
-                                <button class="btn btn-primary w-100">Buscar</button>
-                            </div>
-                            <div class="col-md-2">
+                            <div class="col-md-3">
                                 <label class="form-label">Desde</label>
                                 <input type="date" class="form-control" name="from" value="{{ $dateFrom }}">
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-md-3">
                                 <label class="form-label">Hasta</label>
                                 <input type="date" class="form-control" name="to" value="{{ $dateTo }}">
                             </div>
-                            <div class="col-md-2 d-flex align-items-end">
-                                <a class="btn btn-light w-100"
-                                    href="{{ route('maintenance.index', ['tab' => $activeTab]) }}">Limpiar</a>
+                            <div class="col-md-3 d-grid">
+                                <button class="maintenance-primary-btn">Aplicar filtros</button>
+                            </div>
+                            <div class="col-md-3 d-grid">
+                                <a class="maintenance-plain-btn" href="{{ route('maintenance.index', ['tab' => $activeTab]) }}">Limpiar</a>
                             </div>
                         </form>
                     </div>
                 </div>
-            </div>
 
-            <div class="row g-5 mb-6">
-                <div class="col-xl-2 col-md-4 col-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="text-muted mb-1">Total incidencias</div>
-                            <div class="fs-2 fw-bold">{{ number_format((int) ($metrics['total'] ?? 0)) }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-2 col-md-4 col-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="text-muted mb-1">Tickets pendientes</div>
-                            <div class="fs-2 fw-bold">{{ number_format((int) ($metrics['pending'] ?? 0)) }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-2 col-md-4 col-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="text-muted mb-1">Tickets urgentes</div>
-                            <div class="fs-2 fw-bold">{{ number_format((int) ($metrics['urgent'] ?? 0)) }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-2 col-md-4 col-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="text-muted mb-1">Tickets en proceso</div>
-                            <div class="fs-2 fw-bold">{{ number_format((int) ($metrics['in_progress'] ?? 0)) }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-2 col-md-4 col-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="text-muted mb-1">Tickets completados</div>
-                            <div class="fs-2 fw-bold">{{ number_format((int) ($metrics['completed'] ?? 0)) }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-2 col-md-4 col-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="text-muted mb-1">Promedio resolución (h)</div>
-                            <div class="fs-2 fw-bold">
-                                {{ $metrics['avg_resolution_hours'] !== null ? number_format((float) $metrics['avg_resolution_hours'], 2) : '-' }}
+                <div class="maintenance-kpi-strip">
+                    @foreach ($kpis as $kpi)
+                        <div class="maintenance-kpi">
+                            <div class="maintenance-kpi-label">
+                                <span class="maintenance-kpi-dot" style="background: {{ $kpi['tone'] }}"></span>
+                                {{ $kpi['label'] }}
                             </div>
+                            <div class="maintenance-kpi-value">{{ $kpi['value'] }}</div>
+                            <div class="maintenance-kpi-sub">{{ $kpi['sub'] }}</div>
                         </div>
+                    @endforeach
+                </div>
+            @else
+                <div class="maintenance-tenant-summary">
+                    <div class="maintenance-kpi">
+                        <div class="maintenance-kpi-label"><span class="maintenance-kpi-dot" style="background:#334155"></span>Mis tickets</div>
+                        <div class="maintenance-kpi-value">{{ number_format((int) ($metrics['total'] ?? 0)) }}</div>
+                        <div class="maintenance-kpi-sub">De tus propiedades</div>
+                    </div>
+                    <div class="maintenance-kpi">
+                        <div class="maintenance-kpi-label"><span class="maintenance-kpi-dot" style="background:#b45309"></span>Pendientes</div>
+                        <div class="maintenance-kpi-value">{{ number_format((int) ($metrics['pending'] ?? 0)) }}</div>
+                        <div class="maintenance-kpi-sub">Por revisar</div>
+                    </div>
+                    <div class="maintenance-kpi">
+                        <div class="maintenance-kpi-label"><span class="maintenance-kpi-dot" style="background:#15803d"></span>Cerrados</div>
+                        <div class="maintenance-kpi-value">{{ number_format((int) ($metrics['completed'] ?? 0)) }}</div>
+                        <div class="maintenance-kpi-sub">Completados</div>
                     </div>
                 </div>
-            </div>
-        @endif
+            @endif
 
-        <div class="card mb-6">
-            <div class="card-header border-0 pb-0">
-                <ul class="nav nav-tabs nav-line-tabs">
-                    <li class="nav-item">
-                        <a class="nav-link {{ $activeTab === 'activos' ? 'active' : '' }}"
-                            href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'activos'])) }}">Activos</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ $activeTab === 'completados' ? 'active' : '' }}"
-                            href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'completados'])) }}">Completados</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ $activeTab === 'cancelados' ? 'active' : '' }}"
-                            href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'cancelados'])) }}">Cancelados</a>
-                    </li>
-                </ul>
+            <div class="maintenance-tabs">
+                <a class="maintenance-tab {{ $activeTab === 'activos' ? 'active' : '' }}"
+                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'activos'])) }}">
+                    Activos
+                </a>
+                <a class="maintenance-tab {{ $activeTab === 'completados' ? 'active' : '' }}"
+                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'completados'])) }}">
+                    Completados
+                </a>
+                <a class="maintenance-tab {{ $activeTab === 'cancelados' ? 'active' : '' }}"
+                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'cancelados'])) }}">
+                    Cancelados
+                </a>
             </div>
-            <div class="card-body py-0">
-                <div class="table-responsive">
-                    <table class="table align-middle">
-                        <thead>
-                            <tr class="text-muted">
-                                <th>Folio</th>
-                                <th>Ticket</th>
-                                <th>Solicitado fecha</th>
-                                <th>Propiedad</th>
-                                <th>Categoría</th>
-                                <th>Estado</th>
-                                <th>Técnico/Proveedor</th>
-                                <th class="text-end">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($tickets as $ticket)
-                                <tr>
-                                    <td class="fw-semibold">{{ $ticket->display_reference }}</td>
-                                    <td>
-                                        <div class="fw-bold">{{ $ticket->title }}</div>
 
-                                        @php
-                                            $priorityBadgeClass = match ($ticket->priority) {
-                                                'baja' => 'badge-light-success',
-                                                'media' => 'badge-light-info',
-                                                'alta' => 'badge-light-warning',
-                                                'urgente' => 'badge-light-danger',
-                                                default => 'badge-light'
-                                            };
-                                        @endphp
-                                        <span
-                                            class="badge {{ $priorityBadgeClass }}">{{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}</span>
-                                    </td>
-                                    </td>
-                                    <td>{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</td>
-                                    <td>
-                                        <div class="fw-bold">{{ $ticket->property?->internal_name ?? '-' }}</div>
-                                        <div class="text-muted fs-8">{{ $ticket->property?->internal_reference ?: '-' }}</div>
-                                    </td>
-                                    <td>{{ \App\Models\MaintenanceTicket::CATEGORY_LABELS[$ticket->category] ?? $ticket->category }}
-                                    </td>
-                                    <td><span
-                                            class="badge badge-light">{{ \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status }}</span>
-                                    </td>
-                                    <td>
-                                        @if ($ticket->currentProvider)
-                                            <div class="fw-semibold">{{ $ticket->currentProvider->name }}</div>
-                                            <div class="text-muted fs-8">
-                                                {{ \App\Models\MaintenanceProvider::TYPE_LABELS[$ticket->currentProvider->type] ?? $ticket->currentProvider->type }}
-                                            </div>
-                                        @else
-                                            <span class="text-muted">Sin asignar</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-end">
-                                        <a href="{{ route('maintenance.show', $ticket) }}"
-                                            class="btn btn-sm btn-light-primary">Abrir</a>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="8" class="text-center py-12 text-muted">No hay tickets de mantenimiento.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="card-footer">
-                {{ $tickets->links() }}
-            </div>
-        </div>
-
-        @if (!$isTenant)
-            <div class="row g-5 mb-6">
-                <div class="col-lg-6">
-                    <div class="card h-100">
-                        <div class="card-header">
-                            <h3 class="card-title">Propiedades con más incidencias</h3>
+            <div class="maintenance-layout {{ $isTenant ? 'maintenance-layout-single' : '' }}">
+                <div class="maintenance-worklist">
+                    <div class="maintenance-panel">
+                        <div class="maintenance-list-toolbar">
+                            <div>
+                                <div class="maintenance-list-title">{{ $isTenant ? 'Tus tickets' : 'Lista operativa' }}</div>
+                                <div class="maintenance-list-count">
+                                    Mostrando {{ $tickets->count() }} de {{ $tickets->total() }} tickets
+                                </div>
+                            </div>
+                            @if (!$isTenant && ($search || $status || $priority || $category || $dateFrom || $dateTo || $selectedProperty))
+                                <span class="maintenance-chip maintenance-chip-blue">Filtros activos</span>
+                            @endif
                         </div>
-                        <div class="card-body">
-                            @forelse ($metrics['top_properties'] as $item)
-                                <div class="d-flex justify-content-between py-2 border-bottom">
-                                    <div>
-                                        <div class="fw-semibold">{{ $item->property?->internal_name ?? 'Sin propiedad' }}</div>
-                                        <div class="text-muted fs-8">{{ $item->property?->internal_reference ?: '-' }}</div>
+                    </div>
+
+                    @forelse ($ticketBuckets as $bucketKey => $bucketTickets)
+                        @continue($bucketTickets->isEmpty())
+                        @php $meta = $bucketMeta[$bucketKey]; @endphp
+                        <div class="maintenance-group">
+                            <div class="maintenance-group-header">
+                                <span class="maintenance-group-icon maintenance-chip-{{ $meta['tone'] }}">
+                                    <i class="bi {{ $meta['icon'] }}"></i>
+                                </span>
+                                <div class="min-w-0">
+                                    <div class="maintenance-group-title">{{ $meta['title'] }}</div>
+                                    <div class="maintenance-group-hint">{{ $meta['hint'] }}</div>
+                                </div>
+                                <span class="maintenance-chip maintenance-chip-neutral ms-auto">{{ $bucketTickets->count() }}</span>
+                            </div>
+                            <div class="maintenance-list-header">
+                                <span></span>
+                                <span>Folio</span>
+                                <span>Ticket</span>
+                                <span>Propiedad</span>
+                                <span>Técnico</span>
+                                <span>Estado</span>
+                            </div>
+                            @foreach ($bucketTickets as $ticket)
+                                @php
+                                    $providerName = $ticket->currentProvider?->name;
+                                    $providerInitials = collect(explode(' ', trim((string) $providerName)))
+                                        ->filter()
+                                        ->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))
+                                        ->take(2)
+                                        ->implode('');
+                                @endphp
+                                <a href="{{ route('maintenance.show', $ticket) }}" class="maintenance-ticket-row">
+                                    <span class="maintenance-priority-bar maintenance-priority-{{ $ticket->priority }}"></span>
+                                    <span>
+                                        <span class="maintenance-reference">#{{ $ticket->display_reference }}</span>
+                                        <span class="maintenance-chip maintenance-chip-{{ $priorityTone($ticket->priority) }} mt-2">
+                                            {{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}
+                                        </span>
+                                    </span>
+                                    <span class="maintenance-ticket-main">
+                                        <span class="maintenance-ticket-name">{{ $ticket->title }}</span>
+                                        <span class="maintenance-ticket-meta">
+                                            <span><i class="bi bi-tools me-1"></i>{{ \App\Models\MaintenanceTicket::CATEGORY_LABELS[$ticket->category] ?? $ticket->category }}</span>
+                                            <span><i class="bi bi-clock me-1"></i>{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</span>
+                                            @if ((int) $ticket->messages_count > 0)
+                                                <span><i class="bi bi-chat-dots me-1"></i>{{ (int) $ticket->messages_count }}</span>
+                                            @endif
+                                            @if ((int) $ticket->files_count > 0)
+                                                <span><i class="bi bi-paperclip me-1"></i>{{ (int) $ticket->files_count }}</span>
+                                            @endif
+                                        </span>
+                                    </span>
+                                    <span class="maintenance-property-cell">
+                                        <span class="maintenance-cell-icon"><i class="bi bi-house-door"></i></span>
+                                        <span class="min-w-0">
+                                            <span class="maintenance-cell-title">{{ $ticket->property?->internal_name ?? '-' }}</span>
+                                            <span class="maintenance-cell-subtitle">{{ $ticket->property?->internal_reference ?: 'Sin referencia' }}</span>
+                                        </span>
+                                    </span>
+                                    <span class="maintenance-provider-cell">
+                                        @if ($ticket->currentProvider)
+                                            <span class="maintenance-avatar">{{ $providerInitials ?: 'T' }}</span>
+                                            <span class="min-w-0">
+                                                <span class="maintenance-cell-title">{{ $ticket->currentProvider->name }}</span>
+                                                <span class="maintenance-cell-subtitle">{{ \App\Models\MaintenanceProvider::TYPE_LABELS[$ticket->currentProvider->type] ?? $ticket->currentProvider->type }}</span>
+                                            </span>
+                                        @else
+                                            <span class="maintenance-cell-icon"><i class="bi bi-person-plus"></i></span>
+                                            <span class="maintenance-cell-title text-warning">Sin asignar</span>
+                                        @endif
+                                    </span>
+                                    <span>
+                                        <span class="maintenance-chip maintenance-chip-{{ $statusTone($ticket->status) }}">
+                                            {{ \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status }}
+                                        </span>
+                                    </span>
+                                </a>
+                            @endforeach
+                        </div>
+                    @empty
+                        <div class="maintenance-panel maintenance-empty">
+                            No hay tickets de mantenimiento.
+                        </div>
+                    @endforelse
+
+                    @if ($ticketCollection->isEmpty())
+                        <div class="maintenance-panel maintenance-empty">
+                            {{ $isTenant ? 'Aún no tienes tickets registrados.' : 'No hay tickets de mantenimiento para los filtros seleccionados.' }}
+                        </div>
+                    @endif
+
+                    <div class="maintenance-pagination">
+                        {{ $tickets->links() }}
+                    </div>
+                </div>
+
+                @if (!$isTenant)
+                    <aside class="maintenance-side">
+                        <div class="maintenance-side-panel">
+                            <h3 class="maintenance-panel-title">Agenda del equipo</h3>
+                            <div id="maintenance-team-calendar" style="min-height: 470px;"></div>
+                        </div>
+
+                        <div class="maintenance-side-panel">
+                            <h3 class="maintenance-panel-title">Próximas visitas</h3>
+                            @forelse ($calendarItems->take(5) as $item)
+                                <div class="maintenance-mini-row">
+                                    <div class="min-w-0">
+                                        <div class="maintenance-cell-title">{{ $item->title }}</div>
+                                        <div class="maintenance-cell-subtitle">
+                                            {{ $item->scheduled_visit_at?->format('d/m/Y H:i') }} · {{ $item->property?->internal_name ?? '-' }}
+                                        </div>
                                     </div>
-                                    <div class="fw-bold">{{ $item->total }}</div>
+                                    <a class="maintenance-icon-btn" href="{{ route('maintenance.show', $item) }}" aria-label="Abrir ticket">
+                                        <i class="bi bi-arrow-right"></i>
+                                    </a>
                                 </div>
                             @empty
-                                <div class="text-muted">Sin datos</div>
+                                <div class="text-muted fs-7">No hay visitas programadas.</div>
                             @endforelse
                         </div>
-                    </div>
-                </div>
-                <div class="col-lg-6">
-                    <div class="card h-100">
-                        <div class="card-header">
-                            <h3 class="card-title">Actividades del equipo</h3>
-                        </div>
-                        <div class="card-body">
-                            <div id="maintenance-team-calendar" style="min-height: 520px;"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        @endif
 
-        @if (!$isTenant)
-            <div class="card mb-6 d-none">
-                <div class="card-header">
-                    <h3 class="card-title">Calendario interno de mantenimiento</h3>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table align-middle">
-                            <thead>
-                                <tr class="text-muted">
-                                    <th>Visita programada</th>
-                                    <th>Ticket</th>
-                                    <th>Propiedad</th>
-                                    <th>Técnico/Proveedor</th>
-                                    <th>Disponibilidad</th>
-                                    <th>Estado</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse ($calendarItems as $item)
-                                    <tr>
-                                        <td>{{ $item->scheduled_visit_at?->format('d/m/Y H:i') }}</td>
-                                        <td><a href="{{ route('maintenance.show', $item) }}">{{ $item->title }}</a></td>
-                                        <td>{{ $item->property?->internal_name ?? '-' }}</td>
-                                        <td>{{ $item->currentProvider?->name ?? 'Sin asignar' }}</td>
-                                        <td>{{ $item->currentProvider?->availability ?? '-' }}</td>
-                                        <td>{{ \App\Models\MaintenanceTicket::STATUS_LABELS[$item->status] ?? $item->status }}</td>
-                                    </tr>
+                        @if ($canManageProviders)
+                            <div class="maintenance-side-panel">
+                                <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+                                    <h3 class="maintenance-panel-title mb-0">Equipo</h3>
+                                    <a class="maintenance-soft-btn py-2" href="{{ route('maintenance.technicians.index') }}">Gestionar</a>
+                                </div>
+                                @forelse ($providers->take(5) as $provider)
+                                    <div class="maintenance-mini-row">
+                                        <div class="min-w-0">
+                                            <div class="maintenance-cell-title">{{ $provider->name }}</div>
+                                            <div class="maintenance-cell-subtitle">
+                                                {{ $provider->specialty ?: (\App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type) }}
+                                            </div>
+                                        </div>
+                                        <span class="maintenance-chip maintenance-chip-{{ $provider->is_active ? 'green' : 'neutral' }}">
+                                            {{ $provider->is_active ? 'Activo' : 'Inactivo' }}
+                                        </span>
+                                    </div>
                                 @empty
-                                    <tr>
-                                        <td colspan="6" class="text-center text-muted py-10">No hay visitas programadas.</td>
-                                    </tr>
+                                    <div class="text-muted fs-7">No hay técnicos/proveedores.</div>
                                 @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        @endif
+                            </div>
+                        @endif
 
-        @if ($canManageProviders)
-            <div class="card d-none">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h3 class="card-title">Catálogo de técnicos/proveedores</h3>
-                    <button class="btn btn-light-primary btn-sm" data-bs-toggle="modal"
-                        data-bs-target="#createProviderModal">Nuevo</button>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table align-middle">
-                            <thead>
-                                <tr class="text-muted">
-                                    <th>Nombre</th>
-                                    <th>Tipo</th>
-                                    <th>Contacto</th>
-                                    <th>Cuenta sistema</th>
-                                    <th>Especialidad</th>
-                                    <th>Costo promedio</th>
-                                    <th>Calificación</th>
-                                    <th>Disponibilidad</th>
-                                    <th>Estado</th>
-                                    <th class="text-end">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse ($providers as $provider)
-                                    <tr>
-                                        <td>{{ $provider->name }}</td>
-                                        <td>{{ \App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type }}
-                                        </td>
-                                        <td>
-                                            <div>{{ $provider->email ?: '-' }}</div>
-                                            <div class="text-muted fs-8">{{ $provider->phone ?: '-' }}</div>
-                                        </td>
-                                        <td>
-                                            @if ($provider->user)
-                                                <div class="fw-semibold">{{ $provider->user->name }}</div>
-                                                <div class="text-muted fs-8">{{ $provider->user->email }}</div>
-                                            @else
-                                                <span class="text-muted">Sin cuenta</span>
-                                            @endif
-                                        </td>
-                                        <td>{{ $provider->specialty ?: '-' }}</td>
-                                        <td>{{ $provider->average_cost !== null ? '$' . number_format((float) $provider->average_cost, 2) : '-' }}
-                                        </td>
-                                        <td>{{ $provider->rating !== null ? number_format((float) $provider->rating, 2) : '-' }}
-                                        </td>
-                                        <td>{{ $provider->availability ?: '-' }}</td>
-                                        <td>{{ $provider->is_active ? 'Activo' : 'Inactivo' }}</td>
-                                        <td class="text-end">
-                                            <button class="btn btn-sm btn-light-primary" data-bs-toggle="modal"
-                                                data-bs-target="#editProviderModal-{{ $provider->id }}">
-                                                Editar
-                                            </button>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="10" class="text-center text-muted py-10">No hay técnicos/proveedores.</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                        <div class="maintenance-side-panel">
+                            <h3 class="maintenance-panel-title">Propiedades con más incidencias</h3>
+                            @forelse ($metrics['top_properties'] as $item)
+                                <div class="maintenance-mini-row">
+                                    <div class="min-w-0">
+                                        <div class="maintenance-cell-title">{{ $item->property?->internal_name ?? 'Sin propiedad' }}</div>
+                                        <div class="maintenance-cell-subtitle">{{ $item->property?->internal_reference ?: '-' }}</div>
+                                    </div>
+                                    <span class="maintenance-chip maintenance-chip-amber">{{ $item->total }}</span>
+                                </div>
+                            @empty
+                                <div class="text-muted fs-7">Sin datos</div>
+                            @endforelse
+                        </div>
+                    </aside>
+                @endif
             </div>
-        @endif
+        </div>
     </div>
 
     @if ($canCreateTicket)

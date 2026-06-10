@@ -112,6 +112,34 @@ class MaintenanceModuleTest extends TestCase
         $this->assertDatabaseCount('maintenance_ticket_files', 1);
     }
 
+    public function test_maintenance_ticket_detail_displays_operational_sections(): void
+    {
+        $user = User::factory()->create();
+        $property = $this->createPropertyFixture($user);
+        $ticket = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'alta',
+            'status' => 'pendiente',
+            'title' => 'Filtro de agua con fuga',
+            'exact_location' => 'Cocina',
+            'description' => 'Goteo constante en filtro bajo tarja',
+            'reported_at' => now(),
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('maintenance.show', $ticket));
+
+        $response->assertOk();
+        $response->assertSee('Evidencias y archivos');
+        $response->assertSee('Chat');
+        $response->assertSee('Costos, evidencias de cierre y firma');
+    }
+
     public function test_ticket_can_be_assigned_and_completed(): void
     {
         Mail::fake();

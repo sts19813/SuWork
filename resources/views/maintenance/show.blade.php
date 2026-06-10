@@ -3,15 +3,7 @@
 @section('title', 'Ticket mantenimiento | SuWork')
 
 @section('content')
-    <div class="py-10">
-        @if (session('success'))
-            <div class="alert alert-success mb-6">{{ session('success') }}</div>
-        @endif
-        @if (session('error'))
-            <div class="alert alert-danger mb-6">{{ session('error') }}</div>
-        @endif
-        <div id="ticketAjaxNotice" class="mb-6"></div>
-
+    <div class="maintenance-module py-8">
         @php
             $tenantName = $ticket->property?->tenant?->full_name
                 ?: ($ticket->property?->current_tenant_name
@@ -24,44 +16,116 @@
             if (!$mapsLink && filled($ticket->property?->full_address)) {
                 $mapsLink = 'https://www.google.com/maps/search/?api=1&query=' . urlencode((string) $ticket->property?->full_address);
             }
-            $evidenceImages = $ticket->files
+            $allFiles = $ticket->files
                 ->map(function ($file) {
                     $file->preview_url = $file->url ?: (filled($file->path) ? \Illuminate\Support\Facades\Storage::disk('public')->url($file->path) : null);
                     return $file;
                 })
-                ->filter(fn($file) => str_starts_with((string) $file->mime_type, 'image/') && filled($file->preview_url))
                 ->values();
+            $evidenceImages = $allFiles
+                ->filter(fn ($file) => str_starts_with((string) $file->mime_type, 'image/') && filled($file->preview_url))
+                ->values();
+            $statusTone = match ($ticket->status) {
+                'completado' => 'green',
+                'cancelado' => 'red',
+                'en_proceso' => 'purple',
+                'programado', 'asignado' => 'blue',
+                default => 'amber',
+            };
+            $priorityTone = match ($ticket->priority) {
+                'baja' => 'green',
+                'media' => 'blue',
+                'alta' => 'amber',
+                'urgente' => 'red',
+                default => 'neutral',
+            };
+            $cost = $ticket->costs->sortByDesc('updated_at')->first();
+            $visibleMessages = $ticket->messages
+                ->filter(function ($message) use ($role) {
+                    if ($role === 'inquilino') {
+                        return $message->channel === 'inquilino_admin';
+                    }
+                    if ($role === 'tecnico') {
+                        return in_array($message->channel, ['inquilino_admin', 'admin_tecnico'], true);
+                    }
+                    return true;
+                })
+                ->sortBy('created_at')
+                ->values();
+            $messageFormChannels = match ($role) {
+                'administrador' => [
+                    'inquilino_admin' => $messageChannels['inquilino_admin'] ?? 'Inquilino - Administración',
+                    'admin_tecnico' => $messageChannels['admin_tecnico'] ?? 'Administración - Técnico',
+                    'interno' => $messageChannels['interno'] ?? 'Interno',
+                ],
+                'tecnico' => [
+                    'admin_tecnico' => $messageChannels['admin_tecnico'] ?? 'Administración - Técnico',
+                ],
+                'inquilino' => [
+                    'inquilino_admin' => $messageChannels['inquilino_admin'] ?? 'Inquilino - Administración',
+                ],
+                default => [],
+            };
         @endphp
 
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-6">
-            <div>
-                <h1 class="mb-1 fw-bold">Mantenimiento / Ticket</h1>
-                <div class="text-muted">
-                    Folio {{ $ticket->display_reference }}
+        <div class="ticket-page">
+            @if (session('success'))
+                <div class="alert alert-success mb-0">{{ session('success') }}</div>
+            @endif
+            @if (session('error'))
+                <div class="alert alert-danger mb-0">{{ session('error') }}</div>
+            @endif
+            <div id="ticketAjaxNotice"></div>
+
+            <div class="ticket-hero">
+                <div class="ticket-hero-main">
+                    @if ($propertyPhoto)
+                        <img src="{{ $propertyPhoto }}" alt="Foto propiedad" class="ticket-hero-photo">
+                    @else
+                        <div class="ticket-photo-placeholder"><i class="bi bi-house-door fs-1"></i></div>
+                    @endif
+                    <div class="min-w-0">
+                        <div class="ticket-kicker">Folio #{{ $ticket->display_reference }}</div>
+                        <h1 class="ticket-title">{{ $ticket->title }}</h1>
+                        <div class="ticket-subtitle">
+                            {{ $ticket->property?->internal_name ?? '-' }}
+                            @if ($ticket->property?->internal_reference)
+                                · {{ $ticket->property->internal_reference }}
+                            @endif
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            <span class="maintenance-chip maintenance-chip-{{ $statusTone }}">
+                                {{ \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status }}
+                            </span>
+                            <span class="maintenance-chip maintenance-chip-{{ $priorityTone }}">
+                                {{ $priorityOptions[$ticket->priority] ?? $ticket->priority }}
+                            </span>
+                            <span class="maintenance-chip maintenance-chip-neutral">
+                                {{ $categoryOptions[$ticket->category] ?? $ticket->category }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="maintenance-actions">
+                    <a class="maintenance-plain-btn" href="{{ route('maintenance.index') }}">
+                        <i class="bi bi-arrow-left"></i> Regresar
+                    </a>
+                    <a class="maintenance-plain-btn" href="#ticket-chat-section">
+                        <i class="bi bi-chat-dots"></i> Chat
+                    </a>
+                    @if ($canQuickScheduleVisit)
+                        <button class="maintenance-primary-btn" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#quickScheduleCollapse" aria-expanded="false"
+                            aria-controls="quickScheduleCollapse">
+                            <i class="bi bi-calendar2-plus"></i> Programar
+                        </button>
+                    @endif
                 </div>
             </div>
-            <div class="d-flex flex-wrap gap-2">
-                <a class="btn btn-light" href="{{ route('maintenance.index') }}">Regresar</a>
-                <a class="btn btn-light-primary" href="#ticket-history-section">Historial de cambios</a>
-                @if ($canQuickScheduleVisit)
-                    <button
-                        class="btn btn-primary"
-                        type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#quickScheduleCollapse"
-                        aria-expanded="false"
-                        aria-controls="quickScheduleCollapse"
-                    >
-                        Programar visita rápida
-                    </button>
-                @endif
-            </div>
-        </div>
 
-        @if ($canQuickScheduleVisit)
-            <div class="collapse mb-6" id="quickScheduleCollapse">
-                <div class="card">
-                    <div class="card-body">
+            @if ($canQuickScheduleVisit)
+                <div class="collapse" id="quickScheduleCollapse">
+                    <div class="ticket-panel">
                         <form method="POST" action="{{ route('maintenance.schedule-visit', $ticket) }}" id="quickScheduleForm" class="row g-3 align-items-end">
                             @csrf
                             @method('PATCH')
@@ -73,198 +137,348 @@
                                 <label class="form-label">Nota</label>
                                 <input class="form-control" type="text" name="notes" maxlength="3000" placeholder="Opcional">
                             </div>
-                            <div class="col-md-2">
-                                <button class="btn btn-primary w-100">Guardar</button>
+                            <div class="col-md-2 d-grid">
+                                <button class="maintenance-primary-btn">Guardar</button>
                             </div>
                             <input type="hidden" name="force_conflict" value="0">
                         </form>
                     </div>
                 </div>
-            </div>
-        @endif
+            @endif
 
-        <div class="row g-5 mb-6">
-            <div class="col-xl-2 col-md-4 col-6">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="text-muted mb-2">Foto propiedad</div>
-                        @if ($propertyPhoto)
-                            <img src="{{ $propertyPhoto }}" alt="Foto propiedad" class="w-100 rounded" style="height: 92px; object-fit: cover;">
-                        @else
-                            <div class="rounded bg-light d-flex align-items-center justify-content-center text-muted" style="height: 92px;">Sin foto</div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-            <div class="col-xl-2 col-md-4 col-6">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="text-muted mb-2">Propiedad</div>
-                        @if (in_array($role, ['administrador', 'tecnico'], true))
-                            <select disabled class="form-select form-select-sm js-ticket-meta" data-field="property_id">
-                                @foreach ($properties as $property)
-                                    <option value="{{ $property->id }}" {{ $ticket->property_id === $property->id ? 'selected' : '' }}>
-                                        {{ $property->internal_name }}{{ $property->internal_reference ? ' - ' . $property->internal_reference : '' }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        @else
-                            <div class="fw-bold">{{ $ticket->property?->internal_name ?? '-' }}</div>
-                            <div class="text-muted fs-8">{{ $ticket->property?->internal_reference ?: '-' }}</div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-            <div class="col-xl-2 col-md-4 col-6">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="text-muted mb-2">Categoría</div>
-                        @if (in_array($role, ['administrador', 'tecnico'], true))
-                            <select class="form-select form-select-sm js-ticket-meta" data-field="category">
-                                @foreach ($categoryOptions as $key => $label)
-                                    <option value="{{ $key }}" {{ $ticket->category === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        @else
-                            <div class="fw-bold">{{ $categoryOptions[$ticket->category] ?? $ticket->category }}</div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-            <div class="col-xl-2 col-md-4 col-6">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="text-muted mb-2">Prioridad</div>
-                        @if (in_array($role, ['administrador', 'tecnico'], true))
-                            <select class="form-select form-select-sm js-ticket-meta" data-field="priority">
-                                @foreach ($priorityOptions as $key => $label)
-                                    <option value="{{ $key }}" {{ $ticket->priority === $key ? 'selected' : '' }}>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        @else
-                            <div class="fw-bold">{{ $priorityOptions[$ticket->priority] ?? $ticket->priority }}</div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-            <div class="col-xl-2 col-md-4 col-6">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="text-muted mb-2">Inquilino</div>
-                        <div class="fw-bold">{{ $tenantName ?: '-' }}</div>
-                        <div class="text-muted fs-8">{{ $tenantPhone }}</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-xl-2 col-md-4 col-6">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="text-muted mb-2">Técnico asignado</div>
-                        @if (in_array($role, ['administrador', 'tecnico'], true))
-                            <select class="form-select form-select-sm js-ticket-meta" data-field="provider_id" data-ticket-uuid="{{ $ticket->uuid }}" data-scheduled-visit-at="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i:s') }}">
-                                <option value="">Sin asignar</option>
-                                @foreach ($providers as $provider)
-                                    <option value="{{ $provider->id }}" {{ $ticket->current_provider_id === $provider->id ? 'selected' : '' }}>
-                                        {{ $provider->name }} · {{ \App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        @else
-                            <div class="fw-bold">{{ $ticket->currentProvider?->name ?? 'Sin asignar' }}</div>
-                            <div class="text-muted fs-8">{{ $ticket->currentProvider?->phone ?: ($ticket->currentProvider?->email ?: '-') }}</div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row g-5 mb-6">
-            <div class="col-lg-7">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h3 class="card-title mb-0">Detalle del ticket</h3>
-                        @if ($canEditTicket)
-                            <button class="btn btn-light-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editTicketModal">Editar ticket</button>
-                        @endif
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-4 mb-4">
-                            <div class="col-md-8">
-                                <div class="text-muted mb-1">Título</div>
-                                <div class="fw-semibold">{{ $ticket->title }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-muted mb-1">Ubicación exacta</div>
-                                <div class="fw-semibold">{{ $ticket->exact_location ?: '-' }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-muted mb-1">Fecha reporte</div>
-                                <div class="fw-semibold">{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-muted mb-1">Visita programada</div>
-                                <div class="fw-semibold">{{ $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?: '-' }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-muted mb-1">Regla de pago</div>
-                                <div class="fw-semibold">{{ $paymentRuleOptions[$ticket->payment_rule] ?? 'Sin definir' }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-muted mb-1">Quién paga</div>
-                                <div class="fw-semibold">{{ $payerOptions[$ticket->payer] ?? 'Sin definir' }}</div>
-                            </div>
-                            <div class="col-md-8">
-                                <div class="text-muted mb-1">Notas regla de pago</div>
-                                <div>{{ $ticket->payment_rule_notes ?: '-' }}</div>
-                            </div>
-                            <div class="col-12">
-                                <div class="text-muted mb-1">Descripción</div>
-                                <div>{{ $ticket->description }}</div>
-                            </div>
-                            <div class="col-12">
-                                <div class="text-muted mb-1">Notas adicionales</div>
-                                <div>{{ $ticket->additional_notes ?: '-' }}</div>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="text-muted mb-2">Imágenes del ticket</div>
-                            <div class="row g-3">
-                                @forelse ($evidenceImages as $file)
-                                    <div class="col-md-4 col-6">
-                                        <a href="{{ $file->preview_url }}" target="_blank">
-                                            <img src="{{ $file->preview_url }}" alt="{{ $file->original_name }}" class="w-100 rounded" style="height: 140px; object-fit: cover;">
-                                        </a>
-                                    </div>
-                                @empty
-                                    <div class="col-12 text-muted">Sin imágenes.</div>
-                                @endforelse
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-5">
-                <div class="card mb-5">
-                    <div class="card-header">
-                        <h3 class="card-title mb-0">Contacto del inquilino</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-2"><strong>Celular:</strong> {{ $tenantPhone }}</div>
-                        <div><strong>Ubicación de la propiedad:</strong>
-                            @if ($mapsLink)
-                                <a href="{{ $mapsLink }}" target="_blank">LINK</a>
-                            @else
-                                <span>-</span>
+            <div class="ticket-grid">
+                <main class="ticket-stack">
+                    <section class="ticket-panel">
+                        <div class="ticket-panel-header">
+                            <h2 class="ticket-panel-title">Trabajo</h2>
+                            @if ($canEditTicket)
+                                <button class="maintenance-soft-btn py-2" data-bs-toggle="modal" data-bs-target="#editTicketModal">
+                                    <i class="bi bi-pencil"></i> Editar
+                                </button>
                             @endif
                         </div>
-                    </div>
-                </div>
+                        <div class="ticket-info-grid mb-4">
+                            <div class="ticket-info-item">
+                                <div class="ticket-info-label">Ubicación exacta</div>
+                                <div class="ticket-info-value">{{ $ticket->exact_location ?: '-' }}</div>
+                            </div>
+                            <div class="ticket-info-item">
+                                <div class="ticket-info-label">Reporte</div>
+                                <div class="ticket-info-value">{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</div>
+                            </div>
+                            <div class="ticket-info-item">
+                                <div class="ticket-info-label">Visita</div>
+                                <div class="ticket-info-value">{{ $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?: 'Sin programar' }}</div>
+                            </div>
+                            <div class="ticket-info-item">
+                                <div class="ticket-info-label">Quién paga</div>
+                                <div class="ticket-info-value">{{ $payerOptions[$ticket->payer] ?? 'Sin definir' }}</div>
+                            </div>
+                            <div class="ticket-info-item">
+                                <div class="ticket-info-label">Regla</div>
+                                <div class="ticket-info-value">{{ $paymentRuleOptions[$ticket->payment_rule] ?? 'Sin definir' }}</div>
+                            </div>
+                            <div class="ticket-info-item">
+                                <div class="ticket-info-label">Reportó</div>
+                                <div class="ticket-info-value">{{ $ticket->reporter?->name ?: ($ticket->reported_by_name ?: '-') }}</div>
+                            </div>
+                        </div>
+                        <div class="ticket-description">
+                            <strong>Descripción:</strong> {{ $ticket->description ?: '-' }}
+                        </div>
+                        @if ($ticket->additional_notes || $ticket->payment_rule_notes)
+                            <div class="ticket-description mt-3">
+                                @if ($ticket->additional_notes)
+                                    <div><strong>Notas adicionales:</strong> {{ $ticket->additional_notes }}</div>
+                                @endif
+                                @if ($ticket->payment_rule_notes)
+                                    <div><strong>Notas regla de pago:</strong> {{ $ticket->payment_rule_notes }}</div>
+                                @endif
+                            </div>
+                        @endif
+                    </section>
 
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title mb-0">Estado</h3>
-                    </div>
-                    <div class="card-body">
+                    <section class="ticket-panel">
+                        <div class="ticket-panel-header">
+                            <h2 class="ticket-panel-title">Evidencias y archivos</h2>
+                            <span class="maintenance-chip maintenance-chip-neutral">{{ $allFiles->count() }} archivos</span>
+                        </div>
+                        <div class="ticket-file-grid mb-4">
+                            @forelse ($evidenceImages as $file)
+                                <a href="{{ $file->preview_url }}" target="_blank" class="ticket-file-thumb">
+                                    <img src="{{ $file->preview_url }}" alt="{{ $file->original_name }}">
+                                </a>
+                            @empty
+                                <div class="text-muted">Sin imágenes.</div>
+                            @endforelse
+                        </div>
+
+                        <div class="ticket-file-list mb-4">
+                            @forelse ($allFiles as $file)
+                                <div class="ticket-file-row">
+                                    <div class="min-w-0">
+                                        <div class="maintenance-cell-title">{{ $file->original_name }}</div>
+                                        <div class="maintenance-cell-subtitle">
+                                            {{ \App\Models\MaintenanceTicketFile::KIND_LABELS[$file->kind] ?? $file->kind }} · {{ $file->created_at?->format('d/m/Y H:i') ?: '-' }}
+                                        </div>
+                                    </div>
+                                    @if ($file->preview_url)
+                                        <a class="maintenance-icon-btn" href="{{ $file->preview_url }}" target="_blank" aria-label="Abrir archivo">
+                                            <i class="bi bi-box-arrow-up-right"></i>
+                                        </a>
+                                    @endif
+                                </div>
+                            @empty
+                                <div class="text-muted">No hay archivos cargados.</div>
+                            @endforelse
+                        </div>
+
+                        <form method="POST" action="{{ route('maintenance.files', $ticket) }}" enctype="multipart/form-data" class="row g-3 align-items-end">
+                            @csrf
+                            <div class="col-md-4">
+                                <label class="form-label">Tipo</label>
+                                <select class="form-select" name="kind" required>
+                                    @foreach (\App\Models\MaintenanceTicketFile::KIND_LABELS as $key => $label)
+                                        <option value="{{ $key }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label">Archivos</label>
+                                <input class="form-control" type="file" name="files[]" multiple required>
+                            </div>
+                            <div class="col-md-3 d-grid">
+                                <button class="maintenance-primary-btn">
+                                    <i class="bi bi-upload"></i> Subir
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <section class="ticket-panel" id="ticket-chat-section">
+                        <div class="ticket-panel-header">
+                            <h2 class="ticket-panel-title">Chat</h2>
+                            <span class="maintenance-chip maintenance-chip-blue">{{ $visibleMessages->count() }} mensajes</span>
+                        </div>
+                        <div class="ticket-chat-log mb-4">
+                            @forelse ($visibleMessages as $message)
+                                <div class="ticket-message {{ (int) $message->sender_user_id === (int) auth()->id() ? 'is-own' : '' }}">
+                                    <div class="ticket-message-meta">
+                                        <span>{{ $message->sender?->name ?: 'Sistema' }}</span>
+                                        <span>{{ $message->created_at?->format('d/m/Y H:i') }}</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <span class="maintenance-chip maintenance-chip-neutral">
+                                            {{ $messageChannels[$message->channel] ?? $message->channel }}
+                                        </span>
+                                    </div>
+                                    <div>{{ $message->message }}</div>
+                                </div>
+                            @empty
+                                <div class="text-muted">Sin mensajes todavía.</div>
+                            @endforelse
+                        </div>
+
+                        @if ($messageFormChannels !== [])
+                            <form method="POST" action="{{ route('maintenance.messages', $ticket) }}" class="row g-3">
+                                @csrf
+                                @if (count($messageFormChannels) === 1)
+                                    <input type="hidden" name="channel" value="{{ array_key_first($messageFormChannels) }}">
+                                @else
+                                    <div class="col-md-6">
+                                        <label class="form-label">Canal</label>
+                                        <select class="form-select" name="channel" required>
+                                            @foreach ($messageFormChannels as $key => $label)
+                                                <option value="{{ $key }}">{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                @endif
+                                @if (in_array($role, ['administrador', 'tecnico'], true))
+                                    <div class="col-md-6">
+                                        <label class="form-label">Destinatario</label>
+                                        <select class="form-select" name="recipient_user_id">
+                                            <option value="">Sin destinatario específico</option>
+                                            @foreach ($users as $userRow)
+                                                <option value="{{ $userRow->id }}">{{ $userRow->name }} · {{ $userRow->email }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                @endif
+                                <div class="col-12">
+                                    <label class="form-label">Mensaje</label>
+                                    <textarea class="form-control" name="message" rows="3" maxlength="5000" required></textarea>
+                                </div>
+                                <div class="col-12 text-end">
+                                    <button class="maintenance-primary-btn">
+                                        <i class="bi bi-send"></i> Enviar mensaje
+                                    </button>
+                                </div>
+                            </form>
+                        @endif
+                    </section>
+
+                    @if ($canManageCosts)
+                        <section class="ticket-panel">
+                            <div class="ticket-panel-header">
+                                <h2 class="ticket-panel-title">Costos, evidencias de cierre y firma</h2>
+                                <span class="maintenance-chip maintenance-chip-green">
+                                    {{ $cost ? '$' . number_format((float) $cost->final_cost, 2) : 'Sin costo final' }}
+                                </span>
+                            </div>
+                            <form method="POST" action="{{ route('maintenance.costs', $ticket) }}" enctype="multipart/form-data" class="row g-3">
+                                @csrf
+                                @method('PUT')
+                                <div class="col-md-3">
+                                    <label class="form-label">Mano de obra</label>
+                                    <input class="form-control" type="number" step="0.01" min="0" name="labor_cost" value="{{ old('labor_cost', $cost?->labor_cost ?? 0) }}" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Materiales</label>
+                                    <input class="form-control" type="number" step="0.01" min="0" name="material_cost" value="{{ old('material_cost', $cost?->material_cost ?? 0) }}" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Anticipo</label>
+                                    <input class="form-control" type="number" step="0.01" min="0" name="advance_cost" value="{{ old('advance_cost', $cost?->advance_cost ?? 0) }}" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Final</label>
+                                    <input class="form-control" type="number" step="0.01" min="0" name="final_cost" value="{{ old('final_cost', $cost?->final_cost ?? 0) }}" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Moneda</label>
+                                    <input class="form-control" type="text" name="currency" maxlength="10" value="{{ old('currency', $cost?->currency ?? 'MXN') }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Quién paga</label>
+                                    <select class="form-select" name="payer">
+                                        <option value="">Sin definir</option>
+                                        @foreach ($payerOptions as $key => $label)
+                                            <option value="{{ $key }}" {{ old('payer', $ticket->payer) === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Regla de pago</label>
+                                    <select class="form-select" name="payment_rule">
+                                        <option value="">Sin definir</option>
+                                        @foreach ($paymentRuleOptions as $key => $label)
+                                            <option value="{{ $key }}" {{ old('payment_rule', $ticket->payment_rule) === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Facturas</label>
+                                    <input class="form-control" type="file" name="invoice_files[]" multiple>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Evidencia final</label>
+                                    <input class="form-control" type="file" name="evidence_files[]" multiple>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Firma del inquilino</label>
+                                    <input class="form-control" type="file" name="signature_files[]" multiple>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Notas regla pago</label>
+                                    <input class="form-control" type="text" name="payment_rule_notes" maxlength="3000" value="{{ old('payment_rule_notes', $ticket->payment_rule_notes) }}">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Notas de costo</label>
+                                    <textarea class="form-control" name="notes" rows="3" maxlength="5000">{{ old('notes', $cost?->notes) }}</textarea>
+                                </div>
+                                <div class="col-12 text-end">
+                                    <button class="maintenance-primary-btn">Guardar costos</button>
+                                </div>
+                            </form>
+                        </section>
+                    @endif
+
+                    <section class="ticket-panel" id="ticket-history-section">
+                        <div class="ticket-panel-header">
+                            <h2 class="ticket-panel-title">Historial</h2>
+                        </div>
+                        <ul class="nav nav-tabs nav-line-tabs mb-4">
+                            <li class="nav-item">
+                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ticket-history-changes" type="button">Cambios</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#ticket-history-notifications" type="button">Notificaciones</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="ticket-history-changes">
+                                <div class="table-responsive">
+                                    <table class="table align-middle">
+                                        <thead>
+                                            <tr class="text-muted">
+                                                <th>Fecha</th>
+                                                <th>De</th>
+                                                <th>A</th>
+                                                <th>Usuario</th>
+                                                <th>Nota</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @forelse ($ticket->statusHistory as $row)
+                                                <tr>
+                                                    <td>{{ $row->changed_at?->format('d/m/Y H:i') }}</td>
+                                                    <td>{{ $row->from_status ? (\App\Models\MaintenanceTicket::STATUS_LABELS[$row->from_status] ?? $row->from_status) : '-' }}</td>
+                                                    <td>{{ \App\Models\MaintenanceTicket::STATUS_LABELS[$row->to_status] ?? $row->to_status }}</td>
+                                                    <td>{{ $row->changedBy?->name ?? '-' }}</td>
+                                                    <td>{{ $row->notes ?: '-' }}</td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="5" class="text-center text-muted py-8">Sin historial.</td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="ticket-history-notifications">
+                                <div class="table-responsive">
+                                    <table class="table align-middle">
+                                        <thead>
+                                            <tr class="text-muted">
+                                                <th>Fecha</th>
+                                                <th>Evento</th>
+                                                <th>Canal</th>
+                                                <th>Destino</th>
+                                                <th>Envío</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @forelse ($ticket->notifications as $notification)
+                                                <tr>
+                                                    <td>{{ $notification->created_at?->format('d/m/Y H:i') }}</td>
+                                                    <td>{{ $notification->event }}</td>
+                                                    <td>{{ $notification->channel }}</td>
+                                                    <td>{{ $notification->recipient ?: '-' }}</td>
+                                                    <td>{{ $notification->was_sent ? 'Enviado' : 'Falló' }}</td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="5" class="text-center text-muted py-8">Sin notificaciones.</td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </main>
+
+                <aside class="ticket-stack">
+                    <section class="ticket-panel">
+                        <div class="ticket-panel-header">
+                            <h2 class="ticket-panel-title">Estado</h2>
+                            <span class="maintenance-chip maintenance-chip-{{ $statusTone }}">
+                                {{ \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status }}
+                            </span>
+                        </div>
                         @if ($canChangeStatus)
                             <form method="POST" action="{{ route('maintenance.status', $ticket) }}" class="row g-3 mb-4">
                                 @csrf
@@ -281,99 +495,128 @@
                                     <label class="form-label">Nota</label>
                                     <textarea class="form-control" name="notes" rows="3" maxlength="3000" placeholder="Opcional"></textarea>
                                 </div>
-                                <div class="col-12 text-end">
-                                    <button class="btn btn-primary">Actualizar estado</button>
+                                <div class="col-12 d-grid">
+                                    <button class="maintenance-primary-btn">Actualizar estado</button>
                                 </div>
                             </form>
                         @endif
-                        <div class="d-flex flex-column gap-2 fs-8">
-                            <div><strong>Creado:</strong> {{ $ticket->created_at?->format('d/m/Y H:i') ?: '-' }}</div>
-                            <div><strong>Asignado:</strong> {{ $ticket->assigned_at?->format('d/m/Y H:i') ?: '-' }}</div>
-                            <div><strong>Iniciado:</strong> {{ $ticket->started_at?->format('d/m/Y H:i') ?: '-' }}</div>
-                            <div><strong>Terminado:</strong> {{ $ticket->completed_at?->format('d/m/Y H:i') ?: '-' }}</div>
-                            <div><strong>Cancelado:</strong> {{ $ticket->canceled_at?->format('d/m/Y H:i') ?: '-' }}</div>
-                            <div><strong>Motivo cancelación:</strong> {{ $ticket->cancel_reason ?: '-' }}</div>
+                        <div class="ticket-timeline">
+                            @foreach ([
+                                ['label' => 'Creado', 'value' => $ticket->created_at?->format('d/m/Y H:i') ?: '-'],
+                                ['label' => 'Asignado', 'value' => $ticket->assigned_at?->format('d/m/Y H:i') ?: '-'],
+                                ['label' => 'Iniciado', 'value' => $ticket->started_at?->format('d/m/Y H:i') ?: '-'],
+                                ['label' => 'Terminado', 'value' => $ticket->completed_at?->format('d/m/Y H:i') ?: '-'],
+                                ['label' => 'Cancelado', 'value' => $ticket->canceled_at?->format('d/m/Y H:i') ?: '-'],
+                            ] as $row)
+                                <div class="ticket-timeline-item">
+                                    <span class="ticket-timeline-dot"><i class="bi bi-clock"></i></span>
+                                    <span>
+                                        <span class="maintenance-cell-title">{{ $row['label'] }}</span>
+                                        <span class="maintenance-cell-subtitle">{{ $row['value'] }}</span>
+                                    </span>
+                                </div>
+                            @endforeach
+                            @if ($ticket->cancel_reason)
+                                <div class="ticket-description"><strong>Motivo cancelación:</strong> {{ $ticket->cancel_reason }}</div>
+                            @endif
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+                    </section>
 
-        <div class="card" id="ticket-history-section">
-            <div class="card-header border-0 pb-0">
-                <ul class="nav nav-tabs nav-line-tabs">
-                    <li class="nav-item">
-                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ticket-history-changes" type="button">Historial de cambios</button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#ticket-history-notifications" type="button">Historial de notificaciones</button>
-                    </li>
-                </ul>
+                    <section class="ticket-panel">
+                        <div class="ticket-panel-header">
+                            <h2 class="ticket-panel-title">Asignación</h2>
+                        </div>
+                        <div class="d-flex flex-column gap-3">
+                            <div>
+                                <label class="form-label">Categoría</label>
+                                @if (in_array($role, ['administrador', 'tecnico'], true))
+                                    <select class="form-select js-ticket-meta" data-field="category">
+                                        @foreach ($categoryOptions as $key => $label)
+                                            <option value="{{ $key }}" {{ $ticket->category === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                @else
+                                    <div class="ticket-info-value">{{ $categoryOptions[$ticket->category] ?? $ticket->category }}</div>
+                                @endif
+                            </div>
+                            <div>
+                                <label class="form-label">Prioridad</label>
+                                @if (in_array($role, ['administrador', 'tecnico'], true))
+                                    <select class="form-select js-ticket-meta" data-field="priority">
+                                        @foreach ($priorityOptions as $key => $label)
+                                            <option value="{{ $key }}" {{ $ticket->priority === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                @else
+                                    <div class="ticket-info-value">{{ $priorityOptions[$ticket->priority] ?? $ticket->priority }}</div>
+                                @endif
+                            </div>
+                            <div>
+                                <label class="form-label">Técnico asignado</label>
+                                @if (in_array($role, ['administrador', 'tecnico'], true))
+                                    <select class="form-select js-ticket-meta" data-field="provider_id" data-ticket-uuid="{{ $ticket->uuid }}" data-scheduled-visit-at="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i:s') }}">
+                                        <option value="">Sin asignar</option>
+                                        @foreach ($providers as $provider)
+                                            <option value="{{ $provider->id }}" {{ $ticket->current_provider_id === $provider->id ? 'selected' : '' }}>
+                                                {{ $provider->name }} · {{ \App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                @else
+                                    <div class="ticket-info-value">{{ $ticket->currentProvider?->name ?? 'Sin asignar' }}</div>
+                                    <div class="maintenance-cell-subtitle">{{ $ticket->currentProvider?->phone ?: ($ticket->currentProvider?->email ?: '-') }}</div>
+                                @endif
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="ticket-panel">
+                        <div class="ticket-panel-header">
+                            <h2 class="ticket-panel-title">Propiedad e inquilino</h2>
+                        </div>
+                        <div class="ticket-info-grid" style="grid-template-columns: 1fr;">
+                            <div class="ticket-info-item">
+                                <div class="ticket-info-label">Propiedad</div>
+                                <div class="ticket-info-value">{{ $ticket->property?->internal_name ?? '-' }}</div>
+                                <div class="maintenance-cell-subtitle">{{ $ticket->property?->full_address ?: '-' }}</div>
+                            </div>
+                            <div class="ticket-info-item">
+                                <div class="ticket-info-label">Inquilino</div>
+                                <div class="ticket-info-value">{{ $tenantName ?: '-' }}</div>
+                                <div class="maintenance-cell-subtitle">{{ $tenantPhone }}</div>
+                            </div>
+                        </div>
+                        <div class="d-grid gap-2 mt-3">
+                            @if ($mapsLink)
+                                <a class="maintenance-plain-btn" href="{{ $mapsLink }}" target="_blank">
+                                    <i class="bi bi-geo-alt"></i> Abrir ubicación
+                                </a>
+                            @endif
+                            @if ($tenantPhone && $tenantPhone !== '-')
+                                <a class="maintenance-soft-btn" href="tel:{{ preg_replace('/\D+/', '', $tenantPhone) }}">
+                                    <i class="bi bi-telephone"></i> Llamar inquilino
+                                </a>
+                            @endif
+                        </div>
+                    </section>
+                </aside>
             </div>
-            <div class="card-body">
-                <div class="tab-content">
-                    <div class="tab-pane fade show active" id="ticket-history-changes">
-                        <div class="table-responsive">
-                            <table class="table align-middle">
-                                <thead>
-                                    <tr class="text-muted">
-                                        <th>Fecha</th>
-                                        <th>De</th>
-                                        <th>A</th>
-                                        <th>Usuario</th>
-                                        <th>Nota</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @forelse ($ticket->statusHistory as $row)
-                                        <tr>
-                                            <td>{{ $row->changed_at?->format('d/m/Y H:i') }}</td>
-                                            <td>{{ $row->from_status ? (\App\Models\MaintenanceTicket::STATUS_LABELS[$row->from_status] ?? $row->from_status) : '-' }}</td>
-                                            <td>{{ \App\Models\MaintenanceTicket::STATUS_LABELS[$row->to_status] ?? $row->to_status }}</td>
-                                            <td>{{ $row->changedBy?->name ?? '-' }}</td>
-                                            <td>{{ $row->notes ?: '-' }}</td>
-                                        </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="5" class="text-center text-muted py-8">Sin historial.</td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="tab-pane fade" id="ticket-history-notifications">
-                        <div class="table-responsive">
-                            <table class="table align-middle">
-                                <thead>
-                                    <tr class="text-muted">
-                                        <th>Fecha</th>
-                                        <th>Evento</th>
-                                        <th>Canal</th>
-                                        <th>Destino</th>
-                                        <th>Envío</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @forelse ($ticket->notifications as $notification)
-                                        <tr>
-                                            <td>{{ $notification->created_at?->format('d/m/Y H:i') }}</td>
-                                            <td>{{ $notification->event }}</td>
-                                            <td>{{ $notification->channel }}</td>
-                                            <td>{{ $notification->recipient ?: '-' }}</td>
-                                            <td>{{ $notification->was_sent ? 'Enviado' : 'Falló' }}</td>
-                                        </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="5" class="text-center text-muted py-8">Sin notificaciones.</td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+
+            @if ($canChangeStatus && !in_array($ticket->status, ['completado', 'cancelado'], true))
+                <div class="ticket-mobile-actionbar">
+                    <a class="maintenance-icon-btn" href="#ticket-chat-section" aria-label="Abrir chat">
+                        <i class="bi bi-chat-dots"></i>
+                    </a>
+                    <form method="POST" action="{{ route('maintenance.status', $ticket) }}" class="flex-grow-1">
+                        @csrf
+                        @method('PATCH')
+                        <input type="hidden" name="status" value="completado">
+                        <button class="maintenance-primary-btn w-100">
+                            <i class="bi bi-check-circle"></i> Marcar terminado
+                        </button>
+                    </form>
                 </div>
-            </div>
+            @endif
         </div>
     </div>
 
@@ -533,16 +776,10 @@
                 if (!quickScheduleForm) return;
             }
 
-            const notice = document.getElementById('ticketAjaxNotice');
             const metaUrl = @json(route('maintenance.meta', $ticket));
 
             const renderNotice = (type, message) => {
-                if (!notice) return;
-                notice.innerHTML = `<div class="alert alert-${type} mb-0 py-3">${message}</div>`;
-                window.clearTimeout(renderNotice._timeoutId);
-                renderNotice._timeoutId = window.setTimeout(() => {
-                    notice.innerHTML = '';
-                }, 2500);
+                window.SuWorkToast?.fire(type, message);
             };
 
             selects.forEach((select) => {
