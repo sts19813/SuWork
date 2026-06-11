@@ -285,13 +285,36 @@
                                         ->take(2)
                                         ->implode('');
                                 @endphp
-                                <a href="{{ route('maintenance.show', $ticket) }}" class="maintenance-ticket-row">
+                                <div class="maintenance-ticket-row" role="link" tabindex="0" data-maintenance-row-url="{{ route('maintenance.show', $ticket) }}">
                                     <span class="maintenance-priority-bar maintenance-priority-{{ $ticket->priority }}"></span>
-                                    <span>
+                                    <span class="maintenance-priority-cell">
                                         <span class="maintenance-reference">#{{ $ticket->display_reference }}</span>
-                                        <span class="maintenance-chip maintenance-chip-{{ $priorityTone($ticket->priority) }} mt-2">
-                                            {{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}
-                                        </span>
+                                        @if ($canUpdateTicketMeta)
+                                            <span class="dropdown maintenance-inline-dropdown mt-2" data-maintenance-row-action>
+                                                <button class="maintenance-chip maintenance-chip-button maintenance-chip-{{ $priorityTone($ticket->priority) }} dropdown-toggle"
+                                                    type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                                                    aria-label="Cambiar urgencia de {{ $ticket->display_reference }}">
+                                                    {{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}
+                                                </button>
+                                                <div class="dropdown-menu maintenance-inline-menu">
+                                                    @foreach (\App\Models\MaintenanceTicket::PRIORITY_LABELS as $priorityKey => $priorityLabel)
+                                                        <form method="POST" action="{{ route('maintenance.meta', $ticket) }}" class="js-maintenance-inline-meta">
+                                                            @csrf
+                                                            @method('PATCH')
+                                                            <input type="hidden" name="priority" value="{{ $priorityKey }}">
+                                                            <button class="dropdown-item maintenance-inline-option {{ $ticket->priority === $priorityKey ? 'active' : '' }}"
+                                                                type="submit" {{ $ticket->priority === $priorityKey ? 'disabled' : '' }}>
+                                                                <span class="maintenance-chip maintenance-chip-{{ $priorityTone($priorityKey) }}">{{ $priorityLabel }}</span>
+                                                            </button>
+                                                        </form>
+                                                    @endforeach
+                                                </div>
+                                            </span>
+                                        @else
+                                            <span class="maintenance-chip maintenance-chip-{{ $priorityTone($ticket->priority) }} mt-2">
+                                                {{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}
+                                            </span>
+                                        @endif
                                     </span>
                                     <span class="maintenance-ticket-main">
                                         <span class="maintenance-ticket-name">{{ $ticket->title }}</span>
@@ -314,7 +337,64 @@
                                         </span>
                                     </span>
                                     <span class="maintenance-provider-cell">
-                                        @if ($ticket->currentProvider)
+                                        @if ($canUpdateTicketMeta)
+                                            <span class="dropdown maintenance-inline-dropdown maintenance-provider-dropdown" data-maintenance-row-action>
+                                                <button class="maintenance-provider-trigger dropdown-toggle" type="button"
+                                                    data-bs-toggle="dropdown" aria-expanded="false"
+                                                    aria-label="Cambiar técnico de {{ $ticket->display_reference }}">
+                                                    @if ($ticket->currentProvider)
+                                                        <span class="maintenance-avatar">{{ $providerInitials ?: 'T' }}</span>
+                                                        <span class="min-w-0">
+                                                            <span class="maintenance-cell-title">{{ $ticket->currentProvider->name }}</span>
+                                                            <span class="maintenance-cell-subtitle">{{ \App\Models\MaintenanceProvider::TYPE_LABELS[$ticket->currentProvider->type] ?? $ticket->currentProvider->type }}</span>
+                                                        </span>
+                                                    @else
+                                                        <span class="maintenance-cell-icon"><i class="bi bi-person-plus"></i></span>
+                                                        <span class="maintenance-cell-title text-warning">Sin asignar</span>
+                                                    @endif
+                                                </button>
+                                                <div class="dropdown-menu maintenance-inline-menu maintenance-provider-menu">
+                                                    <form method="POST" action="{{ route('maintenance.meta', $ticket) }}" class="js-maintenance-inline-meta">
+                                                        @csrf
+                                                        @method('PATCH')
+                                                        <input type="hidden" name="provider_id" value="">
+                                                        <button class="dropdown-item maintenance-provider-option {{ !$ticket->currentProvider ? 'active' : '' }}"
+                                                            type="submit" {{ !$ticket->currentProvider ? 'disabled' : '' }}>
+                                                            <span class="maintenance-cell-icon"><i class="bi bi-person-dash"></i></span>
+                                                            <span class="min-w-0">
+                                                                <span class="maintenance-cell-title">Sin asignar</span>
+                                                                <span class="maintenance-cell-subtitle">Quitar técnico actual</span>
+                                                            </span>
+                                                        </button>
+                                                    </form>
+                                                    @foreach ($providers as $provider)
+                                                        @php
+                                                            $optionInitials = collect(explode(' ', trim((string) $provider->name)))
+                                                                ->filter()
+                                                                ->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))
+                                                                ->take(2)
+                                                                ->implode('');
+                                                        @endphp
+                                                        <form method="POST" action="{{ route('maintenance.meta', $ticket) }}" class="js-maintenance-inline-meta">
+                                                            @csrf
+                                                            @method('PATCH')
+                                                            <input type="hidden" name="provider_id" value="{{ $provider->id }}">
+                                                            <input type="hidden" name="notes" value="Asignación rápida desde panel">
+                                                            <button class="dropdown-item maintenance-provider-option {{ (int) $ticket->current_provider_id === (int) $provider->id ? 'active' : '' }}"
+                                                                type="submit" {{ (int) $ticket->current_provider_id === (int) $provider->id ? 'disabled' : '' }}>
+                                                                <span class="maintenance-avatar">{{ $optionInitials ?: 'T' }}</span>
+                                                                <span class="min-w-0">
+                                                                    <span class="maintenance-cell-title">{{ $provider->name }}</span>
+                                                                    <span class="maintenance-cell-subtitle">
+                                                                        {{ \App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type }}{{ $provider->is_active ? '' : ' · Inactivo' }}
+                                                                    </span>
+                                                                </span>
+                                                            </button>
+                                                        </form>
+                                                    @endforeach
+                                                </div>
+                                            </span>
+                                        @elseif ($ticket->currentProvider)
                                             <span class="maintenance-avatar">{{ $providerInitials ?: 'T' }}</span>
                                             <span class="min-w-0">
                                                 <span class="maintenance-cell-title">{{ $ticket->currentProvider->name }}</span>
@@ -330,7 +410,7 @@
                                             {{ \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status }}
                                         </span>
                                     </span>
-                                </a>
+                                </div>
                             @endforeach
                         </div>
                     @empty
@@ -1071,12 +1151,6 @@
                 calendar.render();
             }
 
-            const form = document.getElementById('createMaintenanceTicketForm');
-            if (!form) return;
-            const providerInput = form.querySelector('[name="provider_id"]');
-            const scheduledInput = document.getElementById('createTicketScheduledVisit');
-            const forceInput = form.querySelector('[name="force_conflict"]');
-            const conflictUrl = @json(route('maintenance.technician-conflicts'));
             const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
             const askConfirmation = async (message) => {
                 if (window.Swal?.fire) {
@@ -1092,6 +1166,91 @@
                 }
                 return window.confirm(message);
             };
+
+            const rowIgnoreSelector = 'a, button, input, select, textarea, label, form, .dropdown-menu, [data-maintenance-row-action]';
+            document.querySelectorAll('[data-maintenance-row-url]').forEach((row) => {
+                const openTicket = () => {
+                    const url = row.dataset.maintenanceRowUrl;
+                    if (url) window.location.href = url;
+                };
+
+                row.addEventListener('click', (event) => {
+                    if (event.target.closest(rowIgnoreSelector)) return;
+                    openTicket();
+                });
+
+                row.addEventListener('keydown', (event) => {
+                    if (event.key !== 'Enter') return;
+                    if (event.target.closest(rowIgnoreSelector)) return;
+                    event.preventDefault();
+                    openTicket();
+                });
+            });
+
+            const renderNotice = (type, message) => {
+                if (window.SuWorkToast?.fire) {
+                    window.SuWorkToast.fire(type, message);
+                    return;
+                }
+                console[type === 'danger' || type === 'error' ? 'error' : 'log'](message);
+            };
+
+            const submitInlineMeta = async (inlineForm, forceConflict = false) => {
+                const data = new FormData(inlineForm);
+                if (forceConflict) {
+                    data.set('force_conflict', '1');
+                }
+
+                const response = await fetch(inlineForm.action, {
+                    method: (inlineForm.method || 'POST').toUpperCase(),
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: data,
+                });
+                const payload = await response.json().catch(() => ({}));
+
+                if (response.status === 422 && payload.requires_confirmation) {
+                    const approved = await askConfirmation(payload.message || 'El técnico ya tiene otra asignación este día.');
+                    if (!approved) return false;
+                    return submitInlineMeta(inlineForm, true);
+                }
+
+                if (!response.ok || payload.success === false) {
+                    const errors = payload.errors ? Object.values(payload.errors).flat() : [];
+                    throw new Error(errors[0] || payload.message || 'No fue posible guardar el cambio.');
+                }
+
+                renderNotice('success', payload.message || 'Guardado correctamente.');
+                window.location.reload();
+                return true;
+            };
+
+            document.querySelectorAll('.js-maintenance-inline-meta').forEach((inlineForm) => {
+                inlineForm.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+                    const submitButton = inlineForm.querySelector('[type="submit"]');
+                    if (submitButton?.disabled) return;
+                    if (submitButton) submitButton.disabled = true;
+
+                    try {
+                        const saved = await submitInlineMeta(inlineForm);
+                        if (!saved && submitButton) submitButton.disabled = false;
+                    } catch (error) {
+                        renderNotice('danger', error.message || 'No fue posible guardar el cambio.');
+                        if (submitButton) submitButton.disabled = false;
+                    }
+                });
+            });
+
+            const form = document.getElementById('createMaintenanceTicketForm');
+            if (!form) return;
+            const providerInput = form.querySelector('[name="provider_id"]');
+            const scheduledInput = document.getElementById('createTicketScheduledVisit');
+            const forceInput = form.querySelector('[name="force_conflict"]');
+            const conflictUrl = @json(route('maintenance.technician-conflicts'));
             form.addEventListener('submit', async (event) => {
                 if (!providerInput?.value || !scheduledInput?.value || forceInput?.value === '1') {
                     return;

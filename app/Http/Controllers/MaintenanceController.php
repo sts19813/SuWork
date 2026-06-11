@@ -225,6 +225,7 @@ class MaintenanceController extends Controller
             'canCreateTicket' => in_array($role, ['administrador', 'inquilino', 'tecnico'], true),
             'canManageProviders' => $role === 'administrador',
             'canManageAssignments' => $role === 'administrador',
+            'canUpdateTicketMeta' => in_array($role, ['administrador', 'tecnico'], true),
             'canManageCosts' => $role === 'administrador',
             'isTenant' => $role === 'inquilino',
         ]);

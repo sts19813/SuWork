@@ -692,7 +692,7 @@ td .btn {
 }
 
 .maintenance-group {
-    overflow: hidden;
+    overflow: visible;
 }
 
 .maintenance-group-header {
@@ -746,6 +746,7 @@ td .btn {
 
 .maintenance-ticket-row {
     position: relative;
+    cursor: pointer;
     padding: 16px;
     color: var(--maint-text);
     background: #ffffff;
@@ -761,6 +762,11 @@ td .btn {
 
 .maintenance-ticket-row:last-child {
     border-bottom: 0;
+}
+
+.maintenance-ticket-row:focus-visible {
+    outline: 2px solid var(--maint-primary);
+    outline-offset: -2px;
 }
 
 .maintenance-priority-bar {
@@ -792,6 +798,78 @@ td .btn {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
     font-weight: 800;
+}
+
+.maintenance-priority-cell {
+    min-width: 0;
+}
+
+.maintenance-chip-button {
+    border: 0;
+    cursor: pointer;
+}
+
+.maintenance-chip-button.dropdown-toggle::after {
+    margin-left: 2px;
+}
+
+.maintenance-inline-dropdown {
+    display: inline-flex;
+    max-width: 100%;
+}
+
+.maintenance-inline-menu {
+    min-width: 180px;
+    padding: 6px;
+    border: 1px solid var(--maint-border);
+    border-radius: 8px;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.14);
+}
+
+.maintenance-inline-option,
+.maintenance-provider-option {
+    border-radius: 7px;
+}
+
+.maintenance-inline-option {
+    display: flex;
+    align-items: center;
+    padding: 7px;
+}
+
+.maintenance-provider-dropdown,
+.maintenance-provider-trigger {
+    width: 100%;
+    min-width: 0;
+}
+
+.maintenance-provider-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    text-align: left;
+}
+
+.maintenance-provider-trigger.dropdown-toggle::after {
+    margin-left: auto;
+    color: var(--maint-faint);
+}
+
+.maintenance-provider-menu {
+    min-width: 270px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.maintenance-provider-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px;
 }
 
 .maintenance-ticket-name {
