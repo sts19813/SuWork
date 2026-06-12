@@ -78,6 +78,7 @@ class Property extends Model
         'contract_expires_at',
         'onboarding_step',
         'created_by',
+        'advisor_user_id',
     ];
 
     protected function casts(): array
@@ -139,6 +140,11 @@ class Property extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function advisor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'advisor_user_id');
     }
 
     public function tenant(): BelongsTo

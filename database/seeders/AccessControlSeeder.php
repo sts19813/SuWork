@@ -17,6 +17,7 @@ class AccessControlSeeder extends Seeder
             'usuarios.gestionar',
             'expedientes.eliminar_archivos',
             'expedientes.ver_bitacora_eliminados',
+            'propiedades.control_ver',
         ];
 
         $permissions = collect($permissionNames)

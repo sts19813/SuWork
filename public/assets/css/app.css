@@ -397,6 +397,123 @@ td .btn {
     border-radius: 10px;
 }
 
+.executive-kpi-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f7fb;
+    font-size: 18px;
+}
+
+.executive-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-flex;
+}
+
+.executive-alert {
+    border: 1px solid #edf1fb;
+    border-radius: 16px;
+    padding: 18px 20px;
+    transition: all 0.2s ease;
+}
+
+.executive-alert:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.executive-alert__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.executive-alert-success {
+    background: #effaf5;
+    border-color: #c8f1dd;
+}
+
+.executive-alert-success .executive-alert__icon {
+    background: #d4f7e5;
+    color: #0bb783;
+}
+
+.executive-alert-warning {
+    background: #fff8dd;
+    border-color: #ffe79a;
+}
+
+.executive-alert-warning .executive-alert__icon {
+    background: #fff1b8;
+    color: #f59e0b;
+}
+
+.executive-alert-danger {
+    background: #fff5f8;
+    border-color: #f7c7d3;
+}
+
+.executive-alert-danger .executive-alert__icon {
+    background: #ffd6e0;
+    color: #f1416c;
+}
+
+.executive-summary-box {
+    background: #f8faff;
+    border: 1px solid #edf1fb;
+    border-radius: 16px;
+    padding: 18px;
+    height: 100%;
+}
+
+.property-control-hero {
+    border: 0;
+    background: linear-gradient(135deg, #4f46e5 0%, #6d28d9 100%);
+}
+
+.property-control-hero__ring {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    border: 6px solid rgba(255, 255, 255, 0.28);
+    border-top-color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 800;
+    font-size: 18px;
+}
+
+.property-control-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-weight: 600;
+}
+
+.property-control-check.is-complete {
+    color: #0bb783;
+    background: #effaf5;
+}
+
+.property-control-check.is-missing {
+    color: #7e8299;
+    background: #f8faff;
+}
+
 @media (max-width: 991px) {
     .property-stepper {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -405,6 +522,10 @@ td .btn {
 
     .property-stepper .step-item::after {
         display: none;
+    }
+
+    .executive-summary-box {
+        min-height: 112px;
     }
 }
 

@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
 
 /**
  * @extends Factory<User>
@@ -29,8 +30,20 @@ class UserFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
+            'is_active' => true,
             'remember_token' => Str::random(10),
         ];
+    }
+
+    public function configure(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            $permission = Permission::findOrCreate('system.test_access', 'web');
+
+            if (!$user->hasDirectPermission($permission->name)) {
+                $user->givePermissionTo($permission);
+            }
+        });
     }
 
     /**

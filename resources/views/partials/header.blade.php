@@ -9,7 +9,8 @@
     $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
     $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
     $canManageAccess = $user->can('usuarios.gestionar') || $user->hasRole('administrador') || $user->hasRole('admin');
-    $homeRoute = ($isTenant || $isTechnician) ? 'maintenance.index' : 'properties.index';
+    $canViewPropertyControl = $user->can('propiedades.control_ver') || $user->hasRole('administrador') || $user->hasRole('admin');
+    $homeRoute = ($isTenant || $isTechnician) ? 'maintenance.index' : 'dashboard';
     $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : 'Panel SuWork');
     $currentHour = now()->hour;
     $greeting = $currentHour < 12 ? 'Buenos días' : ($currentHour < 19 ? 'Buenas tardes' : 'Buenas noches');
@@ -27,7 +28,8 @@
             ]
             : [
             ['patterns' => ['dashboard'], 'route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'bi-speedometer2'],
-            ['patterns' => ['properties.*'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
+            ...($canViewPropertyControl ? [['patterns' => ['properties.control'], 'route' => 'properties.control', 'label' => 'Control propiedades', 'icon' => 'bi-clipboard-data']] : []),
+            ['patterns' => ['properties.index', 'properties.create', 'properties.show', 'properties.edit', 'properties.inventory.edit'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
             ['patterns' => ['owners.*'], 'route' => 'owners.index', 'label' => 'Propietarios', 'icon' => 'bi-person-vcard'],
             ['patterns' => ['tenants.*'], 'route' => 'tenants.index', 'label' => 'Inquilinos', 'icon' => 'bi-people'],
             ['patterns' => ['documents.*', 'dossiers.*'], 'route' => 'documents.index', 'label' => 'Documentos', 'icon' => 'bi-folder2-open'],
@@ -50,7 +52,7 @@
                 ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
             ]
             : [
-                ['patterns' => ['properties.*', 'dashboard'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
+                ['patterns' => ['properties.index', 'properties.create', 'properties.show', 'properties.edit', 'properties.inventory.edit', 'dashboard'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
                 ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
                 ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
             ]);
