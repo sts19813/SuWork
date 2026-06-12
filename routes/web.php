@@ -12,6 +12,8 @@ use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\TenantController;
 use App\Http\Controllers\UserAccessController;
 use App\Http\Controllers\StorageItemController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PropertyControlController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LocaleController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -33,7 +35,7 @@ Route::post('/stripe/webhook', [ChargePaymentController::class, 'webhook'])
     ->name('stripe.webhook')
     ->withoutMiddleware([ValidateCsrfToken::class]);
 
-Route::middleware(['auth'])
+Route::middleware(['auth', 'system.access'])
     ->group(function () {
         Route::get('/perfil', [ProfileController::class, 'index'])->name('profile.index');
         Route::post('/perfil/actualizar', [ProfileController::class, 'update'])->name('profile.update');
@@ -41,6 +43,7 @@ Route::middleware(['auth'])
         Route::post('/perfil/password', [ProfileController::class, 'updatePassword'])->name('profile.update.password');
 
         Route::get('/propiedades', [PropertyController::class, 'index'])->name('properties.index');
+        Route::get('/propiedades/control', [PropertyControlController::class, 'index'])->name('properties.control');
         Route::get('/propiedades/nueva', [PropertyController::class, 'create'])->name('properties.create');
         Route::post('/propiedades', [PropertyController::class, 'store'])->name('properties.store');
         Route::get('/propiedades/{property}/editar', [PropertyController::class, 'edit'])->name('properties.edit');
@@ -154,19 +157,11 @@ Route::middleware(['auth'])
         Route::post('storage_items/{storage_item}/delete-with-note', [StorageItemController::class, 'deleteWithNote'])->name('storage_items.deleteWithNote');
     });
 
-Route::get('/dashboard', function () {
-    $user = auth()->user();
-    if ($user && ($user->hasRole('inquilino') || $user->hasRole('tenant'))) {
-        return redirect()->route('maintenance.index');
-    }
-    if ($user && ($user->hasRole('tecnico') || $user->hasRole('technician'))) {
-        return redirect()->route('maintenance.index');
-    }
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'system.access'])
+    ->name('dashboard');
 
-    return redirect()->route('properties.index');
-})->middleware(['auth'])->name('dashboard');
-
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'system.access'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

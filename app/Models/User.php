@@ -53,6 +53,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'google_token_expires_at' => 'datetime',
+            'is_active' => 'boolean',
         ];
     }
 
@@ -69,5 +70,19 @@ class User extends Authenticatable
     public function maintenanceTicketsReported(): HasMany
     {
         return $this->hasMany(MaintenanceTicket::class, 'reported_by_user_id');
+    }
+
+    public function assignedProperties(): HasMany
+    {
+        return $this->hasMany(Property::class, 'advisor_user_id');
+    }
+
+    public function hasSystemAccess(): bool
+    {
+        if (!$this->is_active) {
+            return false;
+        }
+
+        return $this->roles()->exists() || $this->permissions()->exists();
     }
 }

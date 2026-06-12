@@ -39,6 +39,7 @@
     data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true"
     data-kt-app-sidebar-push-toolbar="true" data-kt-app-sidebar-push-footer="true" data-kt-app-aside-enabled="true"
     data-kt-app-aside-fixed="true" data-kt-app-aside-push-toolbar="true" data-kt-app-aside-push-footer="true"
+    @include('partials.suwork-flash-attrs')
     class="app-default">
     <!--begin::Theme mode setup on page load-->
     <script>
@@ -99,6 +100,8 @@
             document.documentElement.setAttribute('data-bs-theme', mode);
         }
     </script>
+
+    @include('partials.suwork-toasts')
 
     @stack('scripts')
 </body>

@@ -112,6 +112,34 @@ class MaintenanceModuleTest extends TestCase
         $this->assertDatabaseCount('maintenance_ticket_files', 1);
     }
 
+    public function test_maintenance_ticket_detail_displays_operational_sections(): void
+    {
+        $user = User::factory()->create();
+        $property = $this->createPropertyFixture($user);
+        $ticket = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'alta',
+            'status' => 'pendiente',
+            'title' => 'Filtro de agua con fuga',
+            'exact_location' => 'Cocina',
+            'description' => 'Goteo constante en filtro bajo tarja',
+            'reported_at' => now(),
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('maintenance.show', $ticket));
+
+        $response->assertOk();
+        $response->assertSee('Evidencias y archivos');
+        $response->assertSee('Chat');
+        $response->assertSee('Costos, evidencias de cierre y firma');
+    }
+
     public function test_ticket_can_be_assigned_and_completed(): void
     {
         Mail::fake();
@@ -169,6 +197,62 @@ class MaintenanceModuleTest extends TestCase
         $this->assertDatabaseHas('maintenance_ticket_status_histories', [
             'ticket_id' => $ticket->id,
             'to_status' => 'completado',
+        ]);
+    }
+
+    public function test_ticket_priority_and_provider_can_be_changed_from_index_panel(): void
+    {
+        $user = User::factory()->create();
+        $property = $this->createPropertyFixture($user);
+        $ticket = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'media',
+            'status' => 'pendiente',
+            'title' => 'Llave con fuga',
+            'exact_location' => 'Baño',
+            'description' => 'Fuga constante',
+            'reported_at' => now(),
+        ]);
+        $provider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Santos Tecnico',
+            'email' => 'santos@example.com',
+            'specialty' => 'Plomería',
+            'is_active' => true,
+        ]);
+
+        $indexResponse = $this
+            ->actingAs($user)
+            ->get(route('maintenance.index'));
+
+        $indexResponse->assertOk();
+        $indexResponse->assertSee('Cambiar urgencia de', false);
+        $indexResponse->assertSee('Cambiar técnico de', false);
+        $indexResponse->assertSee(route('maintenance.meta', $ticket), false);
+
+        $response = $this
+            ->actingAs($user)
+            ->from(route('maintenance.index'))
+            ->patch(route('maintenance.meta', $ticket), [
+                'priority' => 'urgente',
+                'provider_id' => $provider->id,
+                'notes' => 'Asignación rápida desde panel',
+            ]);
+
+        $response->assertRedirect(route('maintenance.index'));
+        $ticket->refresh();
+
+        $this->assertSame('urgente', $ticket->priority);
+        $this->assertSame($provider->id, $ticket->current_provider_id);
+        $this->assertSame('asignado', $ticket->status);
+        $this->assertDatabaseHas('maintenance_ticket_assignments', [
+            'ticket_id' => $ticket->id,
+            'provider_id' => $provider->id,
+            'is_current' => true,
         ]);
     }
 

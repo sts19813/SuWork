@@ -29,6 +29,16 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = $request->user();
+        if (!$user || !$user->hasSystemAccess()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()
+                ->route('login')
+                ->with('warning', 'Tu usuario aún no tiene acceso al sistema. Espera a que se te asigne un rol o permiso.');
+        }
+
         $defaultRoute = $user && ($user->hasRole('inquilino') || $user->hasRole('tenant'))
             ? 'maintenance.index'
             : 'dashboard';

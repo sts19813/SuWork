@@ -30,7 +30,7 @@
 
     @stack('styles')
 </head>
-<body id="kt_body" class="app-blank">
+<body id="kt_body" @include('partials.suwork-flash-attrs') class="app-blank">
     <script>
         var defaultThemeMode = "light";
         var themeMode;
@@ -91,6 +91,7 @@
     <script>var hostUrl = "{{ asset('metronic/assets') }}/";</script>
     <script src="{{ asset('metronic/assets/plugins/global/plugins.bundle.js') }}"></script>
     <script src="{{ asset('metronic/assets/js/scripts.bundle.js') }}"></script>
+    @include('partials.suwork-toasts')
 
     @stack('scripts')
 </body>

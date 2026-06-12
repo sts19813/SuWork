@@ -123,6 +123,7 @@
         $existingFacadePhoto = $isEdit && $property ? $property->facade_photo_path : null;
         $selectedType = (string) $fieldValue('property_type_id');
         $selectedZone = (string) $fieldValue('zone_id');
+        $selectedAdvisorId = (string) old('advisor_user_id', $isEdit && $property ? ($property->advisor_user_id ?: '') : (auth()->id() ?: ''));
         $selectedTenantId = (string) old('tenant_id', $isEdit && $property ? ($property->tenant_id ?: '') : '');
         $initialRentChargePlan = old('rent_charge_plan', $isEdit && $property ? ($property->rent_charge_plan ?? []) : []);
         $initialRentChargePlan = collect($initialRentChargePlan)
@@ -160,6 +161,10 @@
                 }
                 if ($errorKey === 'tenant_id') {
                     $initialStep = 6;
+                    break;
+                }
+                if ($errorKey === 'advisor_user_id') {
+                    $initialStep = 1;
                     break;
                 }
                 if ($errorKey === 'contract_starts_at' || $errorKey === 'contract_expires_at') {
@@ -331,6 +336,21 @@
                             <input type="number" name="maintenance_fee" class="form-control @error('maintenance_fee') is-invalid @enderror"
                                 value="{{ $fieldValue('maintenance_fee') }}" placeholder="0.00" step="0.01">
                             @error('maintenance_fee')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-lg-6">
+                            <label class="form-label required">Asesor responsable</label>
+                            <select name="advisor_user_id" class="form-select @error('advisor_user_id') is-invalid @enderror">
+                                <option value="">Selecciona un usuario</option>
+                                @foreach ($availableAdvisors as $advisor)
+                                    <option value="{{ $advisor->id }}" {{ $selectedAdvisorId === (string) $advisor->id ? 'selected' : '' }}>
+                                        {{ $advisor->name }}{{ $advisor->email ? ' · ' . $advisor->email : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('advisor_user_id')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>

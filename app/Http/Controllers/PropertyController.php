@@ -16,6 +16,7 @@ use App\Models\PropertyInventoryPhoto;
 use App\Models\PropertyType;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
+use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
@@ -58,7 +59,7 @@ class PropertyController extends Controller
         $zones = $this->getZonesCatalog();
 
         $properties = Property::query()
-            ->with(['type', 'zone', 'tenant'])
+            ->with(['type', 'zone', 'tenant', 'advisor'])
             ->withCount([
                 'documents as incidents_count' => fn($query) => $query->where('status', PropertyDocument::STATUS_PENDING),
             ])
@@ -106,6 +107,7 @@ class PropertyController extends Controller
             'inventoryAreas.items',
             'inventoryAreas.photos',
             'tenant',
+            'advisor',
         ]);
 
         return view('properties.create', $this->formViewData($property, true));
@@ -201,6 +203,7 @@ class PropertyController extends Controller
             'inventoryAreas.items.photos',
             'inventoryAreas.photos',
             'tenant.documents.versions',
+            'advisor',
         ]);
         $propertyChangeLogs = $property->changeLogs()
             ->with('user:id,name')
@@ -445,6 +448,7 @@ class PropertyController extends Controller
             'contract_starts_at' => 'Contrato inicia',
             'contract_expires_at' => 'Contrato vence',
             'onboarding_step' => 'Paso onboarding',
+            'advisor_user_id' => 'Asesor responsable',
         ];
     }
 
@@ -467,6 +471,14 @@ class PropertyController extends Controller
             ],
             'availableOwners' => Owner::query()->where('is_active', true)->orderBy('name')->get(),
             'availableTenants' => Tenant::query()->where('is_active', true)->orderBy('full_name')->get(),
+            'availableAdvisors' => User::query()
+                ->where('is_active', true)
+                ->where(function ($query): void {
+                    $query->whereHas('roles')
+                        ->orWhereHas('permissions');
+                })
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']),
             'customPropertyDocuments' => $property
                 ? $property->documents
                     ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
@@ -503,6 +515,7 @@ class PropertyController extends Controller
                 'onboarding_step' => 5,
                 'monthly_rent_price' => $validated['monthly_rent_price'] ?? null,
                 'maintenance_fee' => $validated['maintenance_fee'] ?? null,
+                'advisor_user_id' => $validated['advisor_user_id'] ?? $request->user()?->id,
             ];
 
             if (array_key_exists('tenant_id', $validated)) {
