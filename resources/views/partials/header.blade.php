@@ -1,41 +1,129 @@
 @php
     $user = Auth::user();
-    $name = $user->name;
-    $initials = collect(explode(' ', $name))
+    $name = trim($user->name);
+    $nameParts = collect(preg_split('/\s+/', $name ?: '', -1, PREG_SPLIT_NO_EMPTY));
+    $firstName = $nameParts->first() ?: $name;
+    $initials = $nameParts
         ->map(fn($word) => mb_substr($word, 0, 1))
         ->join('');
     $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
     $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
     $canManageAccess = $user->can('usuarios.gestionar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $homeRoute = ($isTenant || $isTechnician) ? 'maintenance.index' : 'properties.index';
+    $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : 'Panel SuWork');
+    $currentHour = now()->hour;
+    $greeting = $currentHour < 12 ? 'Buenos días' : ($currentHour < 19 ? 'Buenas tardes' : 'Buenas noches');
     $menuItems = $isTenant
         ? [
-            ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza'],
-            ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
-            ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
+            ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
+            ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
+            ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'],
         ]
         : ($isTechnician
             ? [
-                ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
-                ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén'],
-                ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
+                ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
+                ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
+                ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'],
             ]
             : [
-            ['patterns' => ['dashboard'], 'route' => 'dashboard', 'label' => 'Dashboard'],
-            ['patterns' => ['properties.*'], 'route' => 'properties.index', 'label' => 'Propiedades'],
-            ['patterns' => ['owners.*'], 'route' => 'owners.index', 'label' => 'Propietarios'],
-            ['patterns' => ['tenants.*'], 'route' => 'tenants.index', 'label' => 'Inquilinos'],
-            ['patterns' => ['documents.*', 'dossiers.*'], 'route' => 'documents.index', 'label' => 'Documentos'],
-            ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza'],
-            ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos'],
-            ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento'],
-            ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén'],
-            ...($canManageAccess ? [['patterns' => ['access.*'], 'route' => 'access.index', 'label' => 'Usuarios y permisos']] : []),
-            ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil'],
+            ['patterns' => ['dashboard'], 'route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'bi-speedometer2'],
+            ['patterns' => ['properties.*'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
+            ['patterns' => ['owners.*'], 'route' => 'owners.index', 'label' => 'Propietarios', 'icon' => 'bi-person-vcard'],
+            ['patterns' => ['tenants.*'], 'route' => 'tenants.index', 'label' => 'Inquilinos', 'icon' => 'bi-people'],
+            ['patterns' => ['documents.*', 'dossiers.*'], 'route' => 'documents.index', 'label' => 'Documentos', 'icon' => 'bi-folder2-open'],
+            ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
+            ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos', 'icon' => 'bi-receipt'],
+            ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
+            ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
+            ...($canManageAccess ? [['patterns' => ['access.*'], 'route' => 'access.index', 'label' => 'Usuarios y permisos', 'icon' => 'bi-shield-lock']] : []),
+            ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'],
         ]);
+
+    $mobilePrimaryItems = $isTenant
+        ? [
+            ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
+            ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
+        ]
+        : ($isTechnician
+            ? [
+                ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
+                ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
+            ]
+            : [
+                ['patterns' => ['properties.*', 'dashboard'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
+                ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
+                ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
+            ]);
+
+    $mobileSecondaryItems = collect($menuItems)
+        ->reject(function ($item) use ($mobilePrimaryItems) {
+            return collect($mobilePrimaryItems)->contains(fn($primaryItem) => $primaryItem['route'] === $item['route']);
+        })
+        ->values();
+
+    $currentSection = collect($menuItems)
+        ->first(fn($item) => request()->routeIs(...$item['patterns']))['label'] ?? 'Tu espacio';
+
+    $isMobileMoreActive = $mobileSecondaryItems->contains(
+        fn($item) => request()->routeIs(...$item['patterns'])
+    );
 @endphp
 
-<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm py-0">
+<div class="su-mobile-topbar">
+    <div class="su-mobile-topbar__content">
+        <div class="su-mobile-topbar__copy">
+            <span class="su-mobile-topbar__eyebrow">{{ $greeting }}, {{ $firstName }}</span>
+            <strong class="su-mobile-topbar__title">{{ $currentSection }}</strong>
+            <span class="su-mobile-topbar__subtitle">{{ $roleLabel }}</span>
+        </div>
+
+        <div class="su-mobile-topbar__actions">
+            <button type="button" class="su-mobile-icon-btn is-disabled" aria-label="Notificaciones" disabled>
+                <i class="bi bi-bell"></i>
+            </button>
+
+            <div class="dropdown">
+                <button type="button" class="su-mobile-avatar" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Abrir menú de perfil">
+                    @if ($user->profile_photo)
+                        <img src="{{ asset($user->profile_photo) }}" alt="user">
+                    @else
+                        <span>{{ $initials }}</span>
+                    @endif
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-end p-0 shadow-sm su-mobile-profile-menu">
+                    <div class="px-4 py-3 border-bottom d-flex align-items-center">
+                        <div class="symbol symbol-45px me-3">
+                            @if ($user->profile_photo)
+                                <img src="{{ asset($user->profile_photo) }}" class="symbol-label" alt="avatar">
+                            @else
+                                <div class="symbol-label fw-bold d-flex justify-content-center align-items-center text-white"
+                                    style="background:#0d6efd;">
+                                    {{ $initials }}
+                                </div>
+                            @endif
+                        </div>
+                        <div>
+                            <div class="fw-bold">{{ $user->name }}</div>
+                            <div class="text-muted small">{{ $user->email }}</div>
+                        </div>
+                    </div>
+
+                    <a href="{{ route('profile.index') }}" class="dropdown-item px-4 py-3">Mi perfil</a>
+
+                    <div class="dropdown-divider my-0"></div>
+
+                    <a href="#" class="dropdown-item text-danger px-4 py-3"
+                        onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                        <i class="ki-outline ki-exit-right me-2"></i> Cerrar sesión
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm py-0 su-desktop-header">
     <div class="container-fluid px-4">
         <a href="{{ route($homeRoute) }}" class="d-flex align-items-center py-2 me-8">
             <img src="{{ asset('assets/img/suhomes-app-logo.svg') }}" alt="Logo SuHomes" height="45">
@@ -104,6 +192,60 @@
         </div>
     </div>
 </nav>
+
+<div class="su-mobile-tabbar">
+    <div class="su-mobile-tabbar__inner" style="--su-mobile-tab-count: {{ count($mobilePrimaryItems) + 1 }};">
+        @foreach ($mobilePrimaryItems as $item)
+            <a href="{{ route($item['route']) }}"
+                class="su-mobile-tabbar__item {{ request()->routeIs(...$item['patterns']) ? 'is-active' : '' }}">
+                <i class="bi {{ $item['icon'] }}"></i>
+                <span>{{ $item['label'] }}</span>
+            </a>
+        @endforeach
+
+        <button type="button" class="su-mobile-tabbar__item {{ $isMobileMoreActive ? 'is-active' : '' }}"
+            data-bs-toggle="offcanvas" data-bs-target="#suMobileMoreMenu" aria-controls="suMobileMoreMenu">
+            <i class="bi bi-grid"></i>
+            <span>Más</span>
+        </button>
+    </div>
+</div>
+
+<div class="offcanvas offcanvas-bottom su-mobile-more-sheet" tabindex="-1" id="suMobileMoreMenu"
+    aria-labelledby="suMobileMoreMenuLabel">
+    <div class="offcanvas-header">
+        <div>
+            <div class="su-mobile-more-sheet__eyebrow">{{ $roleLabel }}</div>
+            <h5 class="offcanvas-title mb-0" id="suMobileMoreMenuLabel">Accesos</h5>
+        </div>
+        <button type="button" class="btn btn-sm btn-icon btn-light" data-bs-dismiss="offcanvas" aria-label="Cerrar">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <div class="offcanvas-body pt-0">
+        <div class="su-mobile-sheet-links">
+            @foreach ($mobileSecondaryItems as $item)
+                <a href="{{ route($item['route']) }}"
+                    class="su-mobile-sheet-link {{ request()->routeIs(...$item['patterns']) ? 'is-active' : '' }}">
+                    <span class="su-mobile-sheet-link__icon">
+                        <i class="bi {{ $item['icon'] ?? 'bi-circle' }}"></i>
+                    </span>
+                    <span class="su-mobile-sheet-link__label">{{ $item['label'] }}</span>
+                    <i class="bi bi-chevron-right su-mobile-sheet-link__arrow"></i>
+                </a>
+            @endforeach
+
+            <a href="#" class="su-mobile-sheet-link text-danger"
+                onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                <span class="su-mobile-sheet-link__icon">
+                    <i class="bi bi-box-arrow-right"></i>
+                </span>
+                <span class="su-mobile-sheet-link__label">Cerrar sesión</span>
+                <i class="bi bi-chevron-right su-mobile-sheet-link__arrow"></i>
+            </a>
+        </div>
+    </div>
+</div>
 
 <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
     @csrf
