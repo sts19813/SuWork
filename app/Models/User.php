@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
@@ -91,5 +92,26 @@ class User extends Authenticatable
         }
 
         return $this->roles()->exists() || $this->permissions()->exists();
+    }
+
+    public function profilePhotoUrl(): string
+    {
+        if (!$this->profile_photo) {
+            return asset('metronic/assets/media/svg/avatars/blank.svg');
+        }
+
+        if (
+            str_starts_with($this->profile_photo, 'http://')
+            || str_starts_with($this->profile_photo, 'https://')
+            || str_starts_with($this->profile_photo, '/storage/')
+        ) {
+            return $this->profile_photo;
+        }
+
+        if (Storage::disk('public')->exists($this->profile_photo)) {
+            return Storage::url($this->profile_photo);
+        }
+
+        return asset($this->profile_photo);
     }
 }

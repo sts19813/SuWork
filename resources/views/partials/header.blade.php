@@ -87,7 +87,7 @@
             <div class="dropdown">
                 <button type="button" class="su-mobile-avatar" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Abrir menú de perfil">
                     @if ($user->profile_photo)
-                        <img src="{{ asset($user->profile_photo) }}" alt="user">
+                        <img src="{{ $user->profilePhotoUrl() }}" alt="user">
                     @else
                         <span>{{ $initials }}</span>
                     @endif
@@ -97,7 +97,7 @@
                     <div class="px-4 py-3 border-bottom d-flex align-items-center">
                         <div class="symbol symbol-45px me-3">
                             @if ($user->profile_photo)
-                                <img src="{{ asset($user->profile_photo) }}" class="symbol-label" alt="avatar">
+                                <img src="{{ $user->profilePhotoUrl() }}" class="symbol-label" alt="avatar">
                             @else
                                 <div class="symbol-label fw-bold d-flex justify-content-center align-items-center text-white"
                                     style="background:#0d6efd;">
@@ -151,7 +151,7 @@
             <div class="dropdown d-flex align-items-center gap-3">
                 <div class="cursor-pointer symbol symbol-circle symbol-40px" data-bs-toggle="dropdown" aria-expanded="false">
                     @if ($user->profile_photo)
-                        <img src="{{ asset($user->profile_photo) }}" alt="user" class="symbol-label"
+                        <img src="{{ $user->profilePhotoUrl() }}" alt="user" class="symbol-label"
                             style="object-fit: cover;">
                     @else
                         <div class="symbol-label fw-bold d-flex justify-content-center align-items-center text-white"
@@ -167,7 +167,7 @@
                     <div class="px-4 py-3 border-bottom d-flex align-items-center">
                         <div class="symbol symbol-45px me-3">
                             @if ($user->profile_photo)
-                                <img src="{{ asset($user->profile_photo) }}" class="symbol-label" alt="avatar">
+                                <img src="{{ $user->profilePhotoUrl() }}" class="symbol-label" alt="avatar">
                             @else
                                 <div class="symbol-label fw-bold d-flex justify-content-center align-items-center text-white"
                                     style="background:#0d6efd;">

@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\PasswordUpdatedMail;
+
 class ProfileController extends Controller
 {
     public function index()
@@ -41,33 +42,30 @@ class ProfileController extends Controller
         ]);
 
         $user = Auth::user();
+        $previousPhoto = $user->profile_photo;
+        $path = $request->file('profile_photo')->store('profile_photos', 'public');
 
-        // Carpeta donde se guardará dentro de /public/
-        $destination = public_path('profile_photos');
-
-        // Crear carpeta si no existe
-        if (!file_exists($destination)) {
-            mkdir($destination, 0777, true);
-        }
-
-        // Eliminar foto anterior si existe en public
-        if ($user->profile_photo && file_exists(public_path($user->profile_photo))) {
-            unlink(public_path($user->profile_photo));
-        }
-
-        // Preparar nombre del archivo
-        $file = $request->file('profile_photo');
-        $filename = uniqid() . '.' . $file->getClientOriginalExtension();
-
-        // Mover la foto a /public/profile_photos/
-        $file->move($destination, $filename);
-
-        // Guardar ruta relativa (para usar con asset())
-        $relativePath = 'profile_photos/' . $filename;
-
-        $user->update(['profile_photo' => $relativePath]);
+        $user->update(['profile_photo' => $path]);
+        $this->deleteProfilePhoto($previousPhoto);
 
         return back()->with('success', 'Foto de perfil actualizada.');
+    }
+
+    private function deleteProfilePhoto(?string $path): void
+    {
+        if (!$path || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return;
+        }
+
+        if (Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+            return;
+        }
+
+        $legacyPublicPath = public_path($path);
+        if (file_exists($legacyPublicPath) && is_file($legacyPublicPath)) {
+            unlink($legacyPublicPath);
+        }
     }
 
 

@@ -87,7 +87,7 @@
             <div class="dropdown">
                 <button type="button" class="su-mobile-avatar" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Abrir menú de perfil">
                     @if ($user->profile_photo)
-                        <img src="{{ asset($user->profile_photo) }}" alt="user">
+                        <img src="{{ $user->profilePhotoUrl() }}" alt="user">
                     @else
                         <span>{{ $initials }}</span>
                     @endif
@@ -97,7 +97,7 @@
                     <div class="px-4 py-3 border-bottom d-flex align-items-center">
                         <div class="symbol symbol-45px me-3">
                             @if ($user->profile_photo)
-                                <img src="{{ asset($user->profile_photo) }}" class="symbol-label" alt="avatar">
+                                <img src="{{ $user->profilePhotoUrl() }}" class="symbol-label" alt="avatar">
                             @else
                                 <div class="symbol-label fw-bold d-flex justify-content-center align-items-center text-white bg-primary">
                                     {{ $initials }}
@@ -177,7 +177,7 @@
                         aria-expanded="false"
                         aria-label="Abrir menú de perfil">
                         @if ($user->profile_photo)
-                            <img src="{{ asset($user->profile_photo) }}" alt="{{ $user->name }}" class="w-100 h-100 rounded-circle" style="object-fit: cover;">
+                            <img src="{{ $user->profilePhotoUrl() }}" alt="{{ $user->name }}" class="w-100 h-100 rounded-circle" style="object-fit: cover;">
                         @else
                             <span class="symbol-label bg-primary text-white fw-bold w-100 h-100 d-flex align-items-center justify-content-center">{{ $initials }}</span>
                         @endif
@@ -206,7 +206,7 @@
                         <div class="px-4 py-3 border-bottom d-flex align-items-center">
                             <div class="symbol symbol-45px me-3">
                                 @if ($user->profile_photo)
-                                    <img src="{{ asset($user->profile_photo) }}" class="symbol-label" alt="avatar">
+                                    <img src="{{ $user->profilePhotoUrl() }}" class="symbol-label" alt="avatar">
                                 @else
                                     <div class="symbol-label fw-bold d-flex justify-content-center align-items-center text-white bg-primary">
                                         {{ $initials }}
@@ -234,7 +234,7 @@
                         <div class="d-flex align-items-center gap-3 mb-3">
                             <div class="symbol symbol-45px">
                                 @if ($user->profile_photo)
-                                    <img src="{{ asset($user->profile_photo) }}" alt="{{ $user->name }}" class="w-100 h-100 rounded-circle" style="object-fit: cover;">
+                                    <img src="{{ $user->profilePhotoUrl() }}" alt="{{ $user->name }}" class="w-100 h-100 rounded-circle" style="object-fit: cover;">
                                 @else
                                     <div class="symbol-label bg-primary text-white fw-bold fs-5">{{ $initials }}</div>
                                 @endif
