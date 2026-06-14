@@ -69,31 +69,15 @@
 
             <div class="tab-content">
                 <div class="tab-pane fade {{ $activeTab === 'users' ? 'show active' : '' }}" id="access-users-tab" role="tabpanel">
-                    <form method="GET" action="{{ route('access.index') }}" class="row g-3 align-items-end mb-6" data-access-filter>
-                        <input type="hidden" name="tab" value="users">
-                        <div class="col-lg-6">
+                    <div class="row g-3 align-items-end mb-6">
+                        <div class="col-lg-5">
                             <label class="form-label">Buscar usuario</label>
-                            <input type="text" class="form-control form-control-solid" name="q" value="{{ $filters['q'] }}" placeholder="Nombre o correo">
+                            <input type="text" class="form-control form-control-solid" id="accessUsersSearch" placeholder="Nombre, correo, rol o permiso">
                         </div>
-                        <div class="col-lg-3">
-                            <label class="form-label">Rol</label>
-                            <select class="form-select form-select-solid" name="role">
-                                <option value="">Todos</option>
-                                @foreach ($roles as $role)
-                                    <option value="{{ $role->name }}" {{ $filters['role'] === $role->name ? 'selected' : '' }}>{{ $role->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-lg-3 d-flex gap-2">
-                            <button type="submit" class="btn btn-primary flex-fill">
-                                <i class="bi bi-search me-1"></i> Filtrar
-                            </button>
-                            <a href="{{ route('access.index', ['tab' => 'users']) }}" class="btn btn-light flex-fill" data-access-page>Limpiar</a>
-                        </div>
-                    </form>
+                    </div>
 
                     <div class="table-responsive">
-                        <table class="table table-row-dashed align-middle mb-0">
+                        <table class="table table-row-dashed align-middle mb-0" data-access-datatable data-access-search-input="#accessUsersSearch">
                             <thead>
                                 <tr class="text-muted text-uppercase fs-8">
                                     <th>Usuario</th>
@@ -150,9 +134,6 @@
                         </table>
                     </div>
 
-                    <div class="mt-6">
-                        {{ $users->appends(['tab' => 'users'])->links() }}
-                    </div>
                 </div>
 
                 <div class="tab-pane fade {{ $activeTab === 'roles' ? 'show active' : '' }}" id="access-roles-tab" role="tabpanel">

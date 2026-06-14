@@ -9,7 +9,7 @@ class PropertyControlService
 {
     private const CHECK_LABELS = [
         'general_info' => 'Información general',
-        'advisor' => 'Asesor responsable',
+        'advisor' => 'Asesores responsables',
         'owner' => 'Propietario',
         'tenant' => 'Inquilino',
         'contract' => 'Contrato',
@@ -32,7 +32,7 @@ class PropertyControlService
 
         $checks = [
             'general_info' => $this->hasGeneralInfo($property),
-            'advisor' => filled($property->advisor_user_id),
+            'advisor' => $property->advisors->isNotEmpty() || filled($property->advisor_user_id),
             'owner' => $property->owners->isNotEmpty(),
             'tenant' => filled($property->tenant_id),
             'contract' => filled($property->contract_starts_at) && filled($property->contract_expires_at),
@@ -69,13 +69,14 @@ class PropertyControlService
             'missing_labels' => $missingChecks->all(),
             'status_label' => $statusLabel,
             'status_tone' => $statusTone,
-            'advisor_name' => $property->advisor?->name,
+            'advisor_name' => $property->advisors->pluck('name')->implode(', ') ?: $property->advisor?->name,
             'tenant_name' => $property->tenant?->full_name ?: $property->current_tenant_name,
             'inventory_items_count' => $inventoryItemsCount,
             'search_text' => mb_strtolower(implode(' ', array_filter([
                 $property->internal_name,
                 $property->internal_reference,
                 $property->full_address,
+                $property->advisors->pluck('name')->implode(' '),
                 $property->advisor?->name,
                 $property->tenant?->full_name,
             ]))),

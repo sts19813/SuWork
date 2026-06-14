@@ -17,7 +17,14 @@ class DashboardController extends Controller
     {
         $validated = $request->validate([
             'month' => ['nullable', 'date_format:Y-m'],
+            'property_scope' => ['nullable', 'in:mine,all'],
         ]);
+
+        $isAdvisorUser = $this->isAdvisorUser($request);
+        $propertyScope = $isAdvisorUser && (($validated['property_scope'] ?? 'mine') === 'all') ? 'all' : 'mine';
+        $visiblePropertyIds = $isAdvisorUser && $propertyScope === 'mine'
+            ? $this->advisorPropertyIds($request)
+            : null;
 
         $selectedMonth = isset($validated['month'])
             ? Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth()
@@ -26,15 +33,17 @@ class DashboardController extends Controller
         $periodStart = $selectedMonth->copy()->startOfMonth();
         $periodEnd = $selectedMonth->copy()->endOfMonth();
 
-        $kpis = $this->buildKpis($periodStart, $periodEnd);
-        $collectionSummary = $this->buildCollectionSummary($periodStart, $periodEnd, $selectedMonth);
-        $alerts = $this->buildImportantAlerts($periodStart, $periodEnd, $selectedMonth);
-        $propertySummaries = $this->buildPropertySummaries($selectedMonth);
-        $profitability = $this->buildProfitabilitySummary($selectedMonth);
+        $kpis = $this->buildKpis($periodStart, $periodEnd, $visiblePropertyIds);
+        $collectionSummary = $this->buildCollectionSummary($periodStart, $periodEnd, $selectedMonth, $visiblePropertyIds);
+        $alerts = $this->buildImportantAlerts($periodStart, $periodEnd, $selectedMonth, $visiblePropertyIds);
+        $propertySummaries = $this->buildPropertySummaries($selectedMonth, $visiblePropertyIds);
+        $profitability = $this->buildProfitabilitySummary($selectedMonth, $visiblePropertyIds);
 
         return view('dashboard', [
             'selectedMonth' => $selectedMonth,
             'monthOptions' => $this->monthOptions($selectedMonth, 12),
+            'isAdvisorUser' => $isAdvisorUser,
+            'propertyScope' => $propertyScope,
             'dashboardKpis' => $kpis,
             'collectionSummary' => $collectionSummary,
             'importantAlerts' => $alerts,
@@ -43,27 +52,43 @@ class DashboardController extends Controller
         ]);
     }
 
-    private function buildKpis(Carbon $periodStart, Carbon $periodEnd): array
+    private function buildKpis(Carbon $periodStart, Carbon $periodEnd, ?Collection $visiblePropertyIds): array
     {
         $chargesForMonth = Charge::query()
             ->where('status', '!=', Charge::STATUS_CANCELED)
             ->whereBetween('due_date', [$periodStart->toDateString(), $periodEnd->toDateString()]);
+        $this->applyPropertyIdFilter($chargesForMonth, $visiblePropertyIds);
 
         $expectedIncome = (float) (clone $chargesForMonth)->sum('amount');
         $pendingOutstanding = (float) (clone $chargesForMonth)
             ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
             ->sum(\Illuminate\Support\Facades\DB::raw('amount - paid_amount'));
 
+        $propertiesQuery = Property::query();
+        $this->applyPropertyPrimaryKeyFilter($propertiesQuery, $visiblePropertyIds);
+
+        $occupiedPropertiesQuery = Property::query()->whereIn('status', $this->occupiedStatuses());
+        $this->applyPropertyPrimaryKeyFilter($occupiedPropertiesQuery, $visiblePropertyIds);
+
+        $paymentsQuery = ChargePayment::query()
+            ->where('status', ChargePayment::STATUS_SUCCEEDED)
+            ->whereBetween('paid_at', [$periodStart->copy()->startOfDay(), $periodEnd->copy()->endOfDay()]);
+        $this->applyPaymentPropertyFilter($paymentsQuery, $visiblePropertyIds);
+
+        $expensesQuery = Expense::query()
+            ->whereBetween('due_date', [$periodStart->toDateString(), $periodEnd->toDateString()]);
+        $this->applyPropertyIdFilter($expensesQuery, $visiblePropertyIds);
+
         return [
             [
                 'label' => 'Total de propiedades',
-                'value' => number_format((int) Property::query()->count()),
+                'value' => number_format((int) $propertiesQuery->count()),
                 'icon' => 'bi-house-door',
                 'tone' => 'primary',
             ],
             [
                 'label' => 'Propiedades ocupadas',
-                'value' => number_format((int) Property::query()->whereIn('status', $this->occupiedStatuses())->count()),
+                'value' => number_format((int) $occupiedPropertiesQuery->count()),
                 'icon' => 'bi-buildings',
                 'tone' => 'success',
             ],
@@ -75,10 +100,7 @@ class DashboardController extends Controller
             ],
             [
                 'label' => 'Cobrado de este mes',
-                'value' => $this->money((float) ChargePayment::query()
-                    ->where('status', ChargePayment::STATUS_SUCCEEDED)
-                    ->whereBetween('paid_at', [$periodStart->copy()->startOfDay(), $periodEnd->copy()->endOfDay()])
-                    ->sum('amount')),
+                'value' => $this->money((float) $paymentsQuery->sum('amount')),
                 'icon' => 'bi-check2-circle',
                 'tone' => 'success',
             ],
@@ -90,21 +112,20 @@ class DashboardController extends Controller
             ],
             [
                 'label' => 'Gastos totales del mes',
-                'value' => $this->money((float) Expense::query()
-                    ->whereBetween('due_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
-                    ->sum('amount')),
+                'value' => $this->money((float) $expensesQuery->sum('amount')),
                 'icon' => 'bi-receipt-cutoff',
                 'tone' => 'danger',
             ],
         ];
     }
 
-    private function buildCollectionSummary(Carbon $periodStart, Carbon $periodEnd, Carbon $selectedMonth): array
+    private function buildCollectionSummary(Carbon $periodStart, Carbon $periodEnd, Carbon $selectedMonth, ?Collection $visiblePropertyIds): array
     {
         $charges = Charge::query()
             ->where('status', '!=', Charge::STATUS_CANCELED)
-            ->whereBetween('due_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
-            ->get();
+            ->whereBetween('due_date', [$periodStart->toDateString(), $periodEnd->toDateString()]);
+        $this->applyPropertyIdFilter($charges, $visiblePropertyIds);
+        $charges = $charges->get();
 
         $paid = 0.0;
         $pending = 0.0;
@@ -153,11 +174,13 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildImportantAlerts(Carbon $periodStart, Carbon $periodEnd, Carbon $selectedMonth): Collection
+    private function buildImportantAlerts(Carbon $periodStart, Carbon $periodEnd, Carbon $selectedMonth, ?Collection $visiblePropertyIds): Collection
     {
         $contractAlerts = Property::query()
             ->with(['tenant:id,full_name'])
-            ->whereBetween('contract_expires_at', [$periodStart->toDateString(), $periodEnd->toDateString()])
+            ->whereBetween('contract_expires_at', [$periodStart->toDateString(), $periodEnd->toDateString()]);
+        $this->applyPropertyPrimaryKeyFilter($contractAlerts, $visiblePropertyIds);
+        $contractAlerts = $contractAlerts
             ->orderBy('contract_expires_at')
             ->get()
             ->map(function (Property $property): array {
@@ -174,7 +197,9 @@ class DashboardController extends Controller
         $overdueAlerts = Charge::query()
             ->with(['property:id,uuid,internal_name', 'tenant:id,full_name'])
             ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL])
-            ->whereBetween('due_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
+            ->whereBetween('due_date', [$periodStart->toDateString(), $periodEnd->toDateString()]);
+        $this->applyPropertyIdFilter($overdueAlerts, $visiblePropertyIds);
+        $overdueAlerts = $overdueAlerts
             ->orderBy('due_date')
             ->get()
             ->filter(fn (Charge $charge) => $this->isChargeOverdueForMonth($charge, $selectedMonth))
@@ -195,21 +220,25 @@ class DashboardController extends Controller
             ->values();
     }
 
-    private function buildPropertySummaries(Carbon $selectedMonth): Collection
+    private function buildPropertySummaries(Carbon $selectedMonth, ?Collection $visiblePropertyIds): Collection
     {
         $referenceDate = $this->referenceDateForMonth($selectedMonth);
 
-        return Property::query()
+        $query = Property::query()
             ->with([
                 'tenant:id,full_name',
                 'advisor:id,name',
+                'advisors:id,name',
                 'charges' => fn ($query) => $query
                     ->where('status', '!=', Charge::STATUS_CANCELED)
                     ->whereDate('due_date', '<=', $referenceDate->toDateString())
                     ->orderBy('due_date'),
             ])
             ->whereIn('status', $this->occupiedStatuses())
-            ->orderBy('internal_name')
+            ->orderBy('internal_name');
+        $this->applyPropertyPrimaryKeyFilter($query, $visiblePropertyIds);
+
+        return $query
             ->get()
             ->map(function (Property $property) use ($selectedMonth): array {
                 $overdueAmount = 0.0;
@@ -237,7 +266,7 @@ class DashboardController extends Controller
                 return [
                     'property' => $property,
                     'tenant_name' => $property->tenant?->full_name ?: $property->current_tenant_name ?: '-',
-                    'advisor_name' => $property->advisor?->name ?: 'Sin asesor',
+                    'advisor_name' => $property->advisors->pluck('name')->implode(', ') ?: ($property->advisor?->name ?: 'Sin asesor'),
                     'rent_amount' => (float) ($property->monthly_rent_price ?? 0),
                     'status_label' => $statusLabel,
                     'status_tone' => $tone,
@@ -247,27 +276,29 @@ class DashboardController extends Controller
             });
     }
 
-    private function buildProfitabilitySummary(Carbon $selectedMonth): array
+    private function buildProfitabilitySummary(Carbon $selectedMonth, ?Collection $visiblePropertyIds): array
     {
         $months = collect(range(5, 0))->map(fn ($offset) => $selectedMonth->copy()->subMonths($offset));
 
-        $series = $months->map(function (Carbon $month): array {
+        $series = $months->map(function (Carbon $month) use ($visiblePropertyIds): array {
             $monthStart = $month->copy()->startOfMonth();
             $monthEnd = $month->copy()->endOfMonth();
-            $income = (float) ChargePayment::query()
+            $incomeQuery = ChargePayment::query()
                 ->where('status', ChargePayment::STATUS_SUCCEEDED)
-                ->whereBetween('paid_at', [$monthStart->copy()->startOfDay(), $monthEnd->copy()->endOfDay()])
-                ->sum('amount');
+                ->whereBetween('paid_at', [$monthStart->copy()->startOfDay(), $monthEnd->copy()->endOfDay()]);
+            $this->applyPaymentPropertyFilter($incomeQuery, $visiblePropertyIds);
+            $income = (float) $incomeQuery->sum('amount');
 
-            $expenses = (float) Expense::query()
+            $expensesQuery = Expense::query()
                 ->where(function ($query) use ($monthStart, $monthEnd): void {
                     $query->whereBetween('paid_at', [$monthStart->copy()->startOfDay(), $monthEnd->copy()->endOfDay()])
                         ->orWhere(function ($nested) use ($monthStart, $monthEnd): void {
                             $nested->whereNull('paid_at')
                                 ->whereBetween('due_date', [$monthStart->toDateString(), $monthEnd->toDateString()]);
                         });
-                })
-                ->sum('amount');
+                });
+            $this->applyPropertyIdFilter($expensesQuery, $visiblePropertyIds);
+            $expenses = (float) $expensesQuery->sum('amount');
 
             return [
                 'label' => ucfirst($month->translatedFormat('M')),
@@ -330,5 +361,52 @@ class DashboardController extends Controller
     private function money(float $amount): string
     {
         return '$' . number_format($amount, 2);
+    }
+
+    private function isAdvisorUser(Request $request): bool
+    {
+        $user = $request->user();
+
+        return (bool) $user
+            && !$user->hasRole('administrador')
+            && !$user->hasRole('admin')
+            && ($user->hasRole('asesores') || $user->can('propiedades.ver_propias'));
+    }
+
+    private function advisorPropertyIds(Request $request): Collection
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return collect();
+        }
+
+        return $user->advisorProperties()
+            ->select('properties.id')
+            ->pluck('properties.id')
+            ->merge(Property::query()->where('advisor_user_id', $user->id)->pluck('id'))
+            ->unique()
+            ->values();
+    }
+
+    private function applyPropertyIdFilter($query, ?Collection $visiblePropertyIds): void
+    {
+        if ($visiblePropertyIds !== null) {
+            $query->whereIn('property_id', $visiblePropertyIds->all());
+        }
+    }
+
+    private function applyPropertyPrimaryKeyFilter($query, ?Collection $visiblePropertyIds): void
+    {
+        if ($visiblePropertyIds !== null) {
+            $query->whereIn('id', $visiblePropertyIds->all());
+        }
+    }
+
+    private function applyPaymentPropertyFilter($query, ?Collection $visiblePropertyIds): void
+    {
+        if ($visiblePropertyIds !== null) {
+            $query->whereHas('charge', fn ($chargeQuery) => $chargeQuery->whereIn('property_id', $visiblePropertyIds->all()));
+        }
     }
 }

@@ -192,12 +192,8 @@ class UserAccessController extends Controller
     private function accessData(Request $request): array
     {
         $filters = $request->validate([
-            'q' => ['nullable', 'string', 'max:190'],
-            'role' => ['nullable', 'string', 'max:190'],
             'tab' => ['nullable', 'string', Rule::in(['users', 'roles', 'permissions'])],
         ]);
-        $search = trim((string) ($filters['q'] ?? ''));
-        $roleFilter = trim((string) ($filters['role'] ?? ''));
         $activeTab = (string) ($filters['tab'] ?? 'users');
 
         $roles = Role::query()->with('permissions')->orderBy('name')->get();
@@ -205,26 +201,13 @@ class UserAccessController extends Controller
 
         $users = User::query()
             ->with(['roles:name,id', 'permissions:name,id'])
-            ->when($search !== '', function ($query) use ($search): void {
-                $like = "%{$search}%";
-                $query->where(function ($inner) use ($like): void {
-                    $inner->where('name', 'like', $like)
-                        ->orWhere('email', 'like', $like);
-                });
-            })
-            ->when($roleFilter !== '', fn($query) => $query->role($roleFilter))
             ->orderBy('name')
-            ->paginate(15)
-            ->withQueryString();
+            ->get();
 
         return [
             'users' => $users,
             'roles' => $roles,
             'permissions' => $permissions,
-            'filters' => [
-                'q' => $search,
-                'role' => $roleFilter,
-            ],
             'activeTab' => $activeTab,
             'usersTotal' => User::query()->count(),
             'activeUsers' => User::query()->where('is_active', true)->count(),

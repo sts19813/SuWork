@@ -147,6 +147,12 @@ class Property extends Model
         return $this->belongsTo(User::class, 'advisor_user_id');
     }
 
+    public function advisors(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'property_advisor')
+            ->withTimestamps();
+    }
+
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);

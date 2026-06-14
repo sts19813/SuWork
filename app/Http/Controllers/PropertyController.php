@@ -53,19 +53,31 @@ class PropertyController extends Controller
             'zone_id' => ['nullable', 'integer', 'exists:zones,id'],
             'property_type_id' => ['nullable', 'integer', 'exists:property_types,id'],
             'status' => ['nullable', Rule::in(array_keys(Property::STATUS_LABELS))],
+            'advisor_user_id' => ['nullable', 'integer', 'exists:users,id'],
+            'property_scope' => ['nullable', Rule::in(['mine', 'all'])],
         ]);
 
         $propertyTypes = $this->getPropertyTypesCatalog();
         $zones = $this->getZonesCatalog();
+        $availableAdvisors = $this->availableAdvisors();
+        $propertyScope = $this->resolveAdvisorScope($request);
 
         $properties = Property::query()
-            ->with(['type', 'zone', 'tenant', 'advisor'])
+            ->with(['type', 'zone', 'tenant', 'advisor', 'advisors:id,name,email'])
             ->withCount([
                 'documents as incidents_count' => fn($query) => $query->where('status', PropertyDocument::STATUS_PENDING),
             ])
             ->when($request->filled('zone_id'), fn($query) => $query->where('zone_id', $request->integer('zone_id')))
             ->when($request->filled('property_type_id'), fn($query) => $query->where('property_type_id', $request->integer('property_type_id')))
             ->when($request->filled('status'), fn($query) => $query->where('status', $request->string('status')->value()))
+            ->when($request->filled('advisor_user_id'), function ($query) use ($request): void {
+                $advisorId = $request->integer('advisor_user_id');
+                $query->where(function ($inner) use ($advisorId): void {
+                    $inner->where('advisor_user_id', $advisorId)
+                        ->orWhereHas('advisors', fn($advisorQuery) => $advisorQuery->whereKey($advisorId));
+                });
+            })
+            ->when($propertyScope === 'mine', fn($query) => $this->scopeQueryToAdvisor($query, $request->user()))
             ->latest()
             ->get();
 
@@ -73,18 +85,25 @@ class PropertyController extends Controller
             'properties' => $properties,
             'zones' => $zones,
             'propertyTypes' => $propertyTypes,
+            'availableAdvisors' => $availableAdvisors,
             'filters' => $filters,
+            'propertyScope' => $propertyScope,
+            'isAdvisorUser' => $this->isAdvisorUser($request->user()),
             'statusOptions' => Property::STATUS_LABELS,
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
+        $this->ensureAdvisorIsReadOnly($request);
+
         return view('properties.create', $this->formViewData());
     }
 
     public function store(StorePropertyRequest $request): RedirectResponse|JsonResponse
     {
+        $this->ensureAdvisorIsReadOnly($request);
+
         $property = $this->saveProperty($request);
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
@@ -99,8 +118,10 @@ class PropertyController extends Controller
             ->with('success', 'La propiedad se registró correctamente.');
     }
 
-    public function edit(Property $property): View
+    public function edit(Request $request, Property $property): View
     {
+        $this->ensureAdvisorIsReadOnly($request);
+
         $property->load([
             'owners',
             'documents.versions',
@@ -108,6 +129,7 @@ class PropertyController extends Controller
             'inventoryAreas.photos',
             'tenant',
             'advisor',
+            'advisors',
         ]);
 
         return view('properties.create', $this->formViewData($property, true));
@@ -115,6 +137,8 @@ class PropertyController extends Controller
 
     public function update(StorePropertyRequest $request, Property $property): RedirectResponse|JsonResponse
     {
+        $this->ensureAdvisorIsReadOnly($request);
+
         $property = $this->saveProperty($request, $property);
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
@@ -129,16 +153,55 @@ class PropertyController extends Controller
             ->with('success', 'La propiedad se actualizó correctamente.');
     }
 
-    public function editInventory(Property $property): RedirectResponse
+    public function editInventory(Request $request, Property $property): RedirectResponse
     {
+        $this->ensureAdvisorIsReadOnly($request);
+
         return redirect()->route('properties.edit', [
             'property' => $property,
             'step' => 5,
         ]);
     }
 
+    public function updateAdvisors(Request $request, Property $property): RedirectResponse|JsonResponse
+    {
+        $this->ensureCanManagePropertyAssignments($request);
+
+        $validated = $request->validate([
+            'advisor_user_ids' => ['nullable', 'array'],
+            'advisor_user_ids.*' => ['integer', 'exists:users,id'],
+        ]);
+
+        $advisorIds = collect($validated['advisor_user_ids'] ?? [])
+            ->map(fn ($advisorId) => (int) $advisorId)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $property->advisors()->sync($advisorIds->all());
+        $property->update([
+            'advisor_user_id' => $advisorIds->first(),
+        ]);
+
+        $message = 'Asesores responsables actualizados correctamente.';
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'reload' => true,
+            ]);
+        }
+
+        return redirect()
+            ->route('properties.index')
+            ->with('success', $message);
+    }
+
     public function updateTenant(Request $request, Property $property): RedirectResponse
     {
+        $this->ensureAdvisorIsReadOnly($request);
+
         $request->validate([
             'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
             'force_assignment' => ['nullable', 'boolean'],
@@ -204,6 +267,7 @@ class PropertyController extends Controller
             'inventoryAreas.photos',
             'tenant.documents.versions',
             'advisor',
+            'advisors:id,name,email',
         ]);
         $propertyChangeLogs = $property->changeLogs()
             ->with('user:id,name')
@@ -449,6 +513,7 @@ class PropertyController extends Controller
             'contract_expires_at' => 'Contrato vence',
             'onboarding_step' => 'Paso onboarding',
             'advisor_user_id' => 'Asesor responsable',
+            'property_advisors' => 'Asesores responsables',
         ];
     }
 
@@ -471,14 +536,7 @@ class PropertyController extends Controller
             ],
             'availableOwners' => Owner::query()->where('is_active', true)->orderBy('name')->get(),
             'availableTenants' => Tenant::query()->where('is_active', true)->orderBy('full_name')->get(),
-            'availableAdvisors' => User::query()
-                ->where('is_active', true)
-                ->where(function ($query): void {
-                    $query->whereHas('roles')
-                        ->orWhereHas('permissions');
-                })
-                ->orderBy('name')
-                ->get(['id', 'name', 'email']),
+            'availableAdvisors' => $this->availableAdvisors(),
             'customPropertyDocuments' => $property
                 ? $property->documents
                     ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
@@ -553,6 +611,9 @@ class PropertyController extends Controller
                 $validated['owner_ids'] ?? [],
                 $validated['new_owners'] ?? [],
             );
+            if (filled($property->advisor_user_id)) {
+                $property->advisors()->syncWithoutDetaching([(int) $property->advisor_user_id]);
+            }
             $this->syncDocuments($property, $request);
             $this->syncCustomDocuments($property, $request);
             $this->syncInventory($property, $validated['inventory_areas'] ?? [], $request);
@@ -560,6 +621,68 @@ class PropertyController extends Controller
 
             return $property->fresh();
         });
+    }
+
+    private function availableAdvisors(): Collection
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->where(function ($query): void {
+                $query->whereHas('roles')
+                    ->orWhereHas('permissions');
+            })
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
+    }
+
+    private function resolveAdvisorScope(Request $request): ?string
+    {
+        if (!$this->isAdvisorUser($request->user())) {
+            return null;
+        }
+
+        return $request->query('property_scope') === 'all' ? 'all' : 'mine';
+    }
+
+    private function scopeQueryToAdvisor($query, ?User $user): void
+    {
+        if (!$user) {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        $query->where(function ($inner) use ($user): void {
+            $inner->where('advisor_user_id', $user->id)
+                ->orWhereHas('advisors', fn($advisorQuery) => $advisorQuery->whereKey($user->id));
+        });
+    }
+
+    private function isAdvisorUser(?User $user): bool
+    {
+        return (bool) $user
+            && !$this->isAdminUser($user)
+            && ($user->hasRole('asesores') || $user->can('propiedades.ver_propias'));
+    }
+
+    private function isAdminUser(?User $user): bool
+    {
+        return (bool) $user && ($user->hasRole('administrador') || $user->hasRole('admin'));
+    }
+
+    private function ensureCanManagePropertyAssignments(Request $request): void
+    {
+        $user = $request->user();
+
+        if (!$this->isAdminUser($user) && !$user?->can('propiedades.asignar_asesores')) {
+            abort(403);
+        }
+    }
+
+    private function ensureAdvisorIsReadOnly(Request $request): void
+    {
+        if ($this->isAdvisorUser($request->user())) {
+            abort(403);
+        }
     }
 
     private function getTenantAssignmentMissingRequirements(Tenant $tenant): array

@@ -127,15 +127,24 @@
 
                 document.querySelectorAll(`${moduleSelector} table[data-access-datatable]`).forEach((table) => {
                     if ($.fn.DataTable.isDataTable(table)) return;
+                    const searchInputSelector = table.dataset.accessSearchInput;
 
-                    $(table).DataTable({
+                    const dataTable = $(table).DataTable({
                         pageLength: 10,
                         order: [],
                         responsive: true,
+                        dom: searchInputSelector ? 'rt<"d-flex flex-wrap justify-content-between align-items-center gap-3 pt-5"ip>' : undefined,
                         language: {
                             url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
                         }
                     });
+
+                    const searchInput = searchInputSelector ? document.querySelector(searchInputSelector) : null;
+                    if (searchInput) {
+                        searchInput.addEventListener('input', (event) => {
+                            dataTable.search(event.target.value || '').draw();
+                        });
+                    }
                 });
             };
 
@@ -173,7 +182,7 @@
             document.addEventListener('submit', async (event) => {
                 const form = event.target;
                 if (!(form instanceof HTMLFormElement) || !form.closest(moduleSelector)) return;
-                if (!form.matches('[data-access-form], [data-access-filter]')) return;
+                if (!form.matches('[data-access-form]')) return;
 
                 event.preventDefault();
                 clearValidation(form);
@@ -186,13 +195,6 @@
                 }
 
                 try {
-                    if (form.matches('[data-access-filter]')) {
-                        const params = new URLSearchParams(new FormData(form));
-                        const nextUrl = buildUrl(`${form.action}?${params.toString()}`, 'users');
-                        await loadModule(nextUrl);
-                        return;
-                    }
-
                     const response = await fetch(form.action, {
                         method: form.method || 'POST',
                         headers: {
@@ -228,7 +230,7 @@
             document.addEventListener('click', async (event) => {
                 if (!(event.target instanceof Element)) return;
 
-                const pageLink = event.target.closest(`${moduleSelector} a[data-access-page], ${moduleSelector} .pagination a`);
+                const pageLink = event.target.closest(`${moduleSelector} a[data-access-page]`);
                 if (pageLink) {
                     event.preventDefault();
                     try {
