@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -75,6 +76,12 @@ class User extends Authenticatable
     public function assignedProperties(): HasMany
     {
         return $this->hasMany(Property::class, 'advisor_user_id');
+    }
+
+    public function advisorProperties(): BelongsToMany
+    {
+        return $this->belongsToMany(Property::class, 'property_advisor')
+            ->withTimestamps();
     }
 
     public function hasSystemAccess(): bool

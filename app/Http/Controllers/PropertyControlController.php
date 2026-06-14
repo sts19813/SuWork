@@ -36,6 +36,7 @@ class PropertyControlController extends Controller
         $properties = Property::query()
             ->with([
                 'advisor:id,name,email',
+                'advisors:id,name,email',
                 'tenant:id,full_name',
                 'owners.documents:id,owner_id,file_path',
                 'documents:id,property_id,file_path',

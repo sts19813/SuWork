@@ -102,7 +102,7 @@
                         <thead>
                             <tr class="fw-bold text-muted text-uppercase fs-8">
                                 <th class="ps-7 min-w-220px">Propiedad</th>
-                                <th class="min-w-180px">Asesor responsable</th>
+                                <th class="min-w-180px">Asesores responsables</th>
                                 <th class="min-w-220px">Avance</th>
                                 <th class="min-w-160px">Estado</th>
                                 <th class="min-w-100px text-end pe-7">Acciones</th>

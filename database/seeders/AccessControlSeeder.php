@@ -18,6 +18,7 @@ class AccessControlSeeder extends Seeder
             'expedientes.eliminar_archivos',
             'expedientes.ver_bitacora_eliminados',
             'propiedades.control_ver',
+            'propiedades.ver_propias',
         ];
 
         $permissions = collect($permissionNames)
@@ -40,6 +41,14 @@ class AccessControlSeeder extends Seeder
         Role::query()->firstOrCreate([
             'name' => 'tecnico',
             'guard_name' => 'web',
+        ]);
+
+        $advisorRole = Role::query()->firstOrCreate([
+            'name' => 'asesores',
+            'guard_name' => 'web',
+        ]);
+        $advisorRole->syncPermissions([
+            Permission::findOrCreate('propiedades.ver_propias', 'web'),
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

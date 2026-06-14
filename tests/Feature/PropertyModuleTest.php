@@ -12,6 +12,7 @@ use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PropertyModuleTest extends TestCase
@@ -54,6 +55,81 @@ class PropertyModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Nueva Propiedad');
+    }
+
+    public function test_advisor_role_sees_assigned_properties_by_default_and_can_view_all(): void
+    {
+        $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $advisor = User::factory()->create();
+        $advisor->assignRole($advisorRole);
+        $otherUser = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+
+        $assignedProperty = Property::create([
+            'internal_name' => 'Casa Asignada',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Asignada',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $otherUser->id,
+        ]);
+        $assignedProperty->advisors()->attach($advisor->id);
+
+        Property::create([
+            'internal_name' => 'Casa General',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle General',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $otherUser->id,
+        ]);
+
+        $this->actingAs($advisor)
+            ->get(route('properties.index'))
+            ->assertOk()
+            ->assertSee('Casa Asignada')
+            ->assertDontSee('Casa General');
+
+        $this->actingAs($advisor)
+            ->get(route('properties.index', ['property_scope' => 'all']))
+            ->assertOk()
+            ->assertSee('Casa Asignada')
+            ->assertSee('Casa General');
+    }
+
+    public function test_admin_can_assign_responsible_advisors_from_properties_index(): void
+    {
+        $adminRole = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        $admin = User::factory()->create();
+        $admin->assignRole($adminRole);
+        $advisor = User::factory()->create(['name' => 'Asesor Demo']);
+        $advisor->assignRole(Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']));
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        $property = Property::create([
+            'internal_name' => 'Casa con Asesor',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Asesor',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->putJson(route('properties.update.advisors', $property), [
+                'advisor_user_ids' => [$advisor->id],
+            ])
+            ->assertOk()
+            ->assertJson([
+                'success' => true,
+            ]);
+
+        $this->assertDatabaseHas('property_advisor', [
+            'property_id' => $property->id,
+            'user_id' => $advisor->id,
+        ]);
+        $this->assertSame($advisor->id, $property->fresh()->advisor_user_id);
     }
 
     public function test_property_can_be_created_with_new_owner(): void
