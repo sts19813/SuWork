@@ -107,8 +107,10 @@ Route::middleware(['auth', 'system.access'])
         Route::put('/seguridad/usuarios/{user}', [UserAccessController::class, 'updateUser'])->name('access.users.update');
         Route::post('/seguridad/roles', [UserAccessController::class, 'storeRole'])->name('access.roles.store');
         Route::put('/seguridad/roles/{role}', [UserAccessController::class, 'updateRole'])->name('access.roles.update');
+        Route::delete('/seguridad/roles/{role}', [UserAccessController::class, 'destroyRole'])->name('access.roles.destroy');
         Route::post('/seguridad/permisos', [UserAccessController::class, 'storePermission'])->name('access.permissions.store');
         Route::put('/seguridad/permisos/{permission}', [UserAccessController::class, 'updatePermission'])->name('access.permissions.update');
+        Route::delete('/seguridad/permisos/{permission}', [UserAccessController::class, 'destroyPermission'])->name('access.permissions.destroy');
         Route::get('/cobranza', [ChargeController::class, 'index'])->name('charges.index');
         Route::put('/cobranza/propiedades/{property}/configuracion', [ChargeController::class, 'updatePropertySetup'])->name('charges.properties.setup');
         Route::post('/cobranza', [ChargeController::class, 'store'])->name('charges.store');
