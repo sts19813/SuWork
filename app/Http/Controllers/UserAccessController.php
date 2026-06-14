@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -16,42 +18,16 @@ class UserAccessController extends Controller
     {
         $this->ensureAccess($request);
 
-        $filters = $request->validate([
-            'q' => ['nullable', 'string', 'max:190'],
-            'role' => ['nullable', 'string', 'max:190'],
-        ]);
-        $search = trim((string) ($filters['q'] ?? ''));
-        $roleFilter = trim((string) ($filters['role'] ?? ''));
+        $data = $this->accessData($request);
 
-        $roles = Role::query()->with('permissions')->orderBy('name')->get();
-        $permissions = Permission::query()->orderBy('name')->get();
+        if ($request->ajax() && !$request->wantsJson()) {
+            return view('access.partials.module', $data);
+        }
 
-        $users = User::query()
-            ->with(['roles:name,id', 'permissions:name,id'])
-            ->when($search !== '', function ($query) use ($search): void {
-                $like = "%{$search}%";
-                $query->where(function ($inner) use ($like): void {
-                    $inner->where('name', 'like', $like)
-                        ->orWhere('email', 'like', $like);
-                });
-            })
-            ->when($roleFilter !== '', fn($query) => $query->role($roleFilter))
-            ->orderBy('name')
-            ->paginate(15)
-            ->withQueryString();
-
-        return view('access.index', [
-            'users' => $users,
-            'roles' => $roles,
-            'permissions' => $permissions,
-            'filters' => [
-                'q' => $search,
-                'role' => $roleFilter,
-            ],
-        ]);
+        return view('access.index', $data);
     }
 
-    public function storeUser(Request $request): RedirectResponse
+    public function storeUser(Request $request): RedirectResponse|JsonResponse
     {
         $this->ensureAccess($request);
 
@@ -75,10 +51,10 @@ class UserAccessController extends Controller
         $user->syncRoles($validated['role_names'] ?? []);
         $user->syncPermissions($validated['permission_names'] ?? []);
 
-        return back()->with('success', 'Usuario creado correctamente.');
+        return $this->respond($request, 'Usuario creado correctamente.', 'users');
     }
 
-    public function updateUser(Request $request, User $user): RedirectResponse
+    public function updateUser(Request $request, User $user): RedirectResponse|JsonResponse
     {
         $this->ensureAccess($request);
 
@@ -106,10 +82,10 @@ class UserAccessController extends Controller
         $user->syncRoles($validated['role_names'] ?? []);
         $user->syncPermissions($validated['permission_names'] ?? []);
 
-        return back()->with('success', 'Usuario actualizado correctamente.');
+        return $this->respond($request, 'Usuario actualizado correctamente.', 'users');
     }
 
-    public function storeRole(Request $request): RedirectResponse
+    public function storeRole(Request $request): RedirectResponse|JsonResponse
     {
         $this->ensureAccess($request);
 
@@ -125,10 +101,10 @@ class UserAccessController extends Controller
         ]);
         $role->syncPermissions($validated['permission_names'] ?? []);
 
-        return back()->with('success', 'Rol creado correctamente.');
+        return $this->respond($request, 'Rol creado correctamente.', 'roles');
     }
 
-    public function updateRole(Request $request, Role $role): RedirectResponse
+    public function updateRole(Request $request, Role $role): RedirectResponse|JsonResponse
     {
         $this->ensureAccess($request);
 
@@ -143,10 +119,25 @@ class UserAccessController extends Controller
         ]);
         $role->syncPermissions($validated['permission_names'] ?? []);
 
-        return back()->with('success', 'Rol actualizado correctamente.');
+        return $this->respond($request, 'Rol actualizado correctamente.', 'roles');
     }
 
-    public function storePermission(Request $request): RedirectResponse
+    public function destroyRole(Request $request, Role $role): RedirectResponse|JsonResponse
+    {
+        $this->ensureAccess($request);
+
+        if ($role->users()->exists()) {
+            throw ValidationException::withMessages([
+                'role' => 'No puedes eliminar un rol que todavía tiene usuarios asignados.',
+            ]);
+        }
+
+        $role->delete();
+
+        return $this->respond($request, 'Rol eliminado correctamente.', 'roles');
+    }
+
+    public function storePermission(Request $request): RedirectResponse|JsonResponse
     {
         $this->ensureAccess($request);
 
@@ -159,10 +150,10 @@ class UserAccessController extends Controller
             'guard_name' => 'web',
         ]);
 
-        return back()->with('success', 'Permiso creado correctamente.');
+        return $this->respond($request, 'Permiso creado correctamente.', 'permissions');
     }
 
-    public function updatePermission(Request $request, Permission $permission): RedirectResponse
+    public function updatePermission(Request $request, Permission $permission): RedirectResponse|JsonResponse
     {
         $this->ensureAccess($request);
 
@@ -174,7 +165,88 @@ class UserAccessController extends Controller
             'name' => trim((string) $validated['name']),
         ]);
 
-        return back()->with('success', 'Permiso actualizado correctamente.');
+        return $this->respond($request, 'Permiso actualizado correctamente.', 'permissions');
+    }
+
+    public function destroyPermission(Request $request, Permission $permission): RedirectResponse|JsonResponse
+    {
+        $this->ensureAccess($request);
+
+        if ($permission->roles()->exists()) {
+            throw ValidationException::withMessages([
+                'permission' => 'No puedes eliminar un permiso que todavía está asignado a roles.',
+            ]);
+        }
+
+        if (method_exists($permission, 'users') && $permission->users()->exists()) {
+            throw ValidationException::withMessages([
+                'permission' => 'No puedes eliminar un permiso que todavía está asignado a usuarios.',
+            ]);
+        }
+
+        $permission->delete();
+
+        return $this->respond($request, 'Permiso eliminado correctamente.', 'permissions');
+    }
+
+    private function accessData(Request $request): array
+    {
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:190'],
+            'role' => ['nullable', 'string', 'max:190'],
+            'tab' => ['nullable', 'string', Rule::in(['users', 'roles', 'permissions'])],
+        ]);
+        $search = trim((string) ($filters['q'] ?? ''));
+        $roleFilter = trim((string) ($filters['role'] ?? ''));
+        $activeTab = (string) ($filters['tab'] ?? 'users');
+
+        $roles = Role::query()->with('permissions')->orderBy('name')->get();
+        $permissions = Permission::query()->orderBy('name')->get();
+
+        $users = User::query()
+            ->with(['roles:name,id', 'permissions:name,id'])
+            ->when($search !== '', function ($query) use ($search): void {
+                $like = "%{$search}%";
+                $query->where(function ($inner) use ($like): void {
+                    $inner->where('name', 'like', $like)
+                        ->orWhere('email', 'like', $like);
+                });
+            })
+            ->when($roleFilter !== '', fn($query) => $query->role($roleFilter))
+            ->orderBy('name')
+            ->paginate(15)
+            ->withQueryString();
+
+        return [
+            'users' => $users,
+            'roles' => $roles,
+            'permissions' => $permissions,
+            'filters' => [
+                'q' => $search,
+                'role' => $roleFilter,
+            ],
+            'activeTab' => $activeTab,
+            'usersTotal' => User::query()->count(),
+            'activeUsers' => User::query()->where('is_active', true)->count(),
+            'rolesCount' => $roles->count(),
+            'permissionsCount' => $permissions->count(),
+        ];
+    }
+
+    private function respond(Request $request, string $message, string $tab): RedirectResponse|JsonResponse
+    {
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'type' => 'success',
+                'tab' => $tab,
+            ]);
+        }
+
+        return redirect()
+            ->route('access.index', ['tab' => $tab])
+            ->with('success', $message);
     }
 
     private function ensureAccess(Request $request): void
@@ -186,4 +258,3 @@ class UserAccessController extends Controller
         }
     }
 }
-
