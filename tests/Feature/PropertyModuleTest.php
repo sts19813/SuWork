@@ -12,6 +12,7 @@ use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -130,6 +131,41 @@ class PropertyModuleTest extends TestCase
             'user_id' => $advisor->id,
         ]);
         $this->assertSame($advisor->id, $property->fresh()->advisor_user_id);
+    }
+
+    public function test_property_advisor_assignment_requires_specific_permission(): void
+    {
+        $manager = User::factory()->create();
+        Permission::findOrCreate('usuarios.gestionar', 'web');
+        Permission::findOrCreate('propiedades.asignar_asesores', 'web');
+        $manager->givePermissionTo('usuarios.gestionar');
+        $advisor = User::factory()->create(['name' => 'Asesor Demo']);
+        $advisor->assignRole(Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']));
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        $property = Property::create([
+            'internal_name' => 'Casa Permiso Asesor',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Permiso',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $manager->id,
+        ]);
+
+        $this->actingAs($manager)
+            ->putJson(route('properties.update.advisors', $property), [
+                'advisor_user_ids' => [$advisor->id],
+            ])
+            ->assertForbidden();
+
+        $manager->givePermissionTo('propiedades.asignar_asesores');
+
+        $this->actingAs($manager)
+            ->putJson(route('properties.update.advisors', $property), [
+                'advisor_user_ids' => [$advisor->id],
+            ])
+            ->assertOk()
+            ->assertJson(['success' => true]);
     }
 
     public function test_property_can_be_created_with_new_owner(): void

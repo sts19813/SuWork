@@ -673,7 +673,7 @@ class PropertyController extends Controller
     {
         $user = $request->user();
 
-        if (!$this->isAdminUser($user) && !$user?->can('usuarios.gestionar')) {
+        if (!$this->isAdminUser($user) && !$user?->can('propiedades.asignar_asesores')) {
             abort(403);
         }
     }

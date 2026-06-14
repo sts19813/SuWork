@@ -6,7 +6,7 @@
     @php
         $canManagePropertyAdvisors = auth()->user()?->hasRole('administrador')
             || auth()->user()?->hasRole('admin')
-            || auth()->user()?->can('usuarios.gestionar');
+            || auth()->user()?->can('propiedades.asignar_asesores');
     @endphp
 
     <div class="py-10 property-module">
@@ -136,6 +136,15 @@
                                         ->unique()
                                         ->values();
                                     $assignedAdvisors = $availableAdvisors->whereIn('id', $assignedAdvisorIds);
+                                    $assignedAdvisorNames = $assignedAdvisors->pluck('name')->implode(' ');
+                                    $primaryAdvisor = $assignedAdvisors->first();
+                                    $primaryAdvisorInitials = $primaryAdvisor
+                                        ? collect(explode(' ', trim((string) $primaryAdvisor->name)))
+                                            ->filter()
+                                            ->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))
+                                            ->take(2)
+                                            ->implode('')
+                                        : '';
                                 @endphp
                                 <tr>
                                     <td>
@@ -171,14 +180,78 @@
                                             class="badge {{ $property->status_badge_class }}">{{ $property->status_label }}</span>
                                     </td>
                                     <td>{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}</td>
-                                    <td>
-                                        <div class="d-flex flex-wrap gap-1">
-                                            @forelse ($assignedAdvisors as $advisor)
-                                                <span class="badge badge-light-primary">{{ $advisor->name }}</span>
-                                            @empty
-                                                <span class="text-muted">Sin asesor</span>
-                                            @endforelse
-                                        </div>
+                                    <td data-search="{{ $assignedAdvisorNames ?: 'Sin asesor' }}">
+                                        @if ($canManagePropertyAdvisors)
+                                            <span class="dropdown maintenance-inline-dropdown maintenance-provider-dropdown" data-property-advisor-action>
+                                                <button class="maintenance-provider-trigger dropdown-toggle" type="button"
+                                                    data-bs-toggle="dropdown" aria-expanded="false"
+                                                    aria-label="Cambiar asesor responsable de {{ $property->internal_name }}">
+                                                    @if ($primaryAdvisor)
+                                                        <span class="maintenance-avatar">{{ $primaryAdvisorInitials ?: 'A' }}</span>
+                                                        <span class="min-w-0">
+                                                            <span class="maintenance-cell-title">{{ $primaryAdvisor->name }}</span>
+                                                            <span class="maintenance-cell-subtitle">
+                                                                {{ $primaryAdvisor->email ?: 'Asesor responsable' }}
+                                                                @if ($assignedAdvisors->count() > 1)
+                                                                    · +{{ $assignedAdvisors->count() - 1 }}
+                                                                @endif
+                                                            </span>
+                                                        </span>
+                                                    @else
+                                                        <span class="maintenance-cell-icon"><i class="bi bi-person-plus"></i></span>
+                                                        <span class="maintenance-cell-title text-warning">Sin asesor</span>
+                                                    @endif
+                                                </button>
+                                                <div class="dropdown-menu maintenance-inline-menu maintenance-provider-menu">
+                                                    <form method="POST" action="{{ route('properties.update.advisors', $property) }}" class="js-property-advisors-inline-form" data-no-ajax>
+                                                        @csrf
+                                                        @method('PUT')
+                                                        <button class="dropdown-item maintenance-provider-option {{ $assignedAdvisors->isEmpty() ? 'active' : '' }}"
+                                                            type="submit" {{ $assignedAdvisors->isEmpty() ? 'disabled' : '' }}
+                                                            data-property-name="{{ $property->internal_name }}"
+                                                            data-advisor-name="Sin asesor">
+                                                            <span class="maintenance-cell-icon"><i class="bi bi-person-dash"></i></span>
+                                                            <span class="min-w-0">
+                                                                <span class="maintenance-cell-title">Sin asesor</span>
+                                                                <span class="maintenance-cell-subtitle">Quitar asesor actual</span>
+                                                            </span>
+                                                        </button>
+                                                    </form>
+                                                    @foreach ($availableAdvisors as $advisor)
+                                                        @php
+                                                            $advisorInitials = collect(explode(' ', trim((string) $advisor->name)))
+                                                                ->filter()
+                                                                ->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))
+                                                                ->take(2)
+                                                                ->implode('');
+                                                        @endphp
+                                                        <form method="POST" action="{{ route('properties.update.advisors', $property) }}" class="js-property-advisors-inline-form" data-no-ajax>
+                                                            @csrf
+                                                            @method('PUT')
+                                                            <input type="hidden" name="advisor_user_ids[]" value="{{ $advisor->id }}">
+                                                            <button class="dropdown-item maintenance-provider-option {{ $assignedAdvisorIds->contains($advisor->id) && $assignedAdvisorIds->count() === 1 ? 'active' : '' }}"
+                                                                type="submit" {{ $assignedAdvisorIds->contains($advisor->id) && $assignedAdvisorIds->count() === 1 ? 'disabled' : '' }}
+                                                                data-property-name="{{ $property->internal_name }}"
+                                                                data-advisor-name="{{ $advisor->name }}">
+                                                                <span class="maintenance-avatar">{{ $advisorInitials ?: 'A' }}</span>
+                                                                <span class="min-w-0">
+                                                                    <span class="maintenance-cell-title">{{ $advisor->name }}</span>
+                                                                    <span class="maintenance-cell-subtitle">{{ $advisor->email ?: 'Asesor' }}</span>
+                                                                </span>
+                                                            </button>
+                                                        </form>
+                                                    @endforeach
+                                                </div>
+                                            </span>
+                                        @else
+                                            <div class="d-flex flex-wrap gap-1">
+                                                @forelse ($assignedAdvisors as $advisor)
+                                                    <span class="badge badge-light-primary">{{ $advisor->name }}</span>
+                                                @empty
+                                                    <span class="text-muted">Sin asesor</span>
+                                                @endforelse
+                                            </div>
+                                        @endif
                                     </td>
                                     <td>
                                         {{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}
@@ -199,11 +272,6 @@
                                                 class="btn btn-xs btn-light-primary">
                                                 Ver
                                             </a>
-                                            @if ($canManagePropertyAdvisors)
-                                                <button type="button" class="btn btn-xs btn-light-info" data-bs-toggle="modal" data-bs-target="#propertyAdvisorsModal-{{ $property->id }}">
-                                                    Asesores
-                                                </button>
-                                            @endif
 
                                             {{--
 
@@ -242,65 +310,6 @@
             </div>
         </div>
 
-        @if ($canManagePropertyAdvisors)
-            @foreach ($properties as $property)
-                @php
-                    $assignedAdvisorIds = $property->advisors->pluck('id')
-                        ->push($property->advisor_user_id)
-                        ->filter()
-                        ->unique()
-                        ->map(fn ($advisorId) => (int) $advisorId)
-                        ->values()
-                        ->all();
-                @endphp
-                <div class="modal fade" id="propertyAdvisorsModal-{{ $property->id }}" tabindex="-1" aria-hidden="true">
-                    <div class="modal-dialog modal-lg">
-                        <div class="modal-content">
-                            <form method="POST" action="{{ route('properties.update.advisors', $property) }}" class="js-property-advisors-form" data-no-ajax>
-                                @csrf
-                                @method('PUT')
-                                <div class="modal-header">
-                                    <div>
-                                        <h5 class="modal-title">Asesores responsables</h5>
-                                        <div class="text-muted fs-7">{{ $property->internal_name }}</div>
-                                    </div>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="row g-3">
-                                        @forelse ($availableAdvisors as $advisor)
-                                            <div class="col-md-6">
-                                                <label class="form-check form-switch form-check-custom form-check-solid border rounded p-4 h-100">
-                                                    <input
-                                                        class="form-check-input"
-                                                        type="checkbox"
-                                                        name="advisor_user_ids[]"
-                                                        value="{{ $advisor->id }}"
-                                                        {{ in_array((int) $advisor->id, $assignedAdvisorIds, true) ? 'checked' : '' }}
-                                                    >
-                                                    <span class="form-check-label">
-                                                        <span class="d-block fw-semibold">{{ $advisor->name }}</span>
-                                                        <span class="d-block text-muted fs-8">{{ $advisor->email }}</span>
-                                                    </span>
-                                                </label>
-                                            </div>
-                                        @empty
-                                            <div class="col-12">
-                                                <div class="alert alert-warning mb-0">No hay usuarios activos disponibles para asignar.</div>
-                                            </div>
-                                        @endforelse
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                                    <button type="submit" class="btn btn-primary">Guardar asesores</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            @endforeach
-        @endif
     </div>
 @endsection
 
@@ -353,13 +362,19 @@
                 });
             }
 
-            document.querySelectorAll('.js-property-advisors-form').forEach((form) => {
+            document.querySelectorAll('.js-property-advisors-inline-form').forEach((form) => {
                 form.addEventListener('submit', async (event) => {
                     event.preventDefault();
 
-                    const checkedCount = form.querySelectorAll('input[name="advisor_user_ids[]"]:checked').length;
-                    const message = checkedCount
-                        ? `Se asignarán ${checkedCount} asesor(es) responsable(s) a esta propiedad.`
+                    const submitButton = form.querySelector('[type="submit"]');
+                    if (submitButton?.disabled) {
+                        return;
+                    }
+
+                    const propertyName = submitButton?.dataset.propertyName || 'esta propiedad';
+                    const advisorName = submitButton?.dataset.advisorName || 'Sin asesor';
+                    const message = advisorName !== 'Sin asesor'
+                        ? `${propertyName} quedará asignada a ${advisorName}.`
                         : 'La propiedad quedará sin asesores responsables.';
 
                     if (window.Swal?.fire) {
@@ -370,6 +385,11 @@
                             showCancelButton: true,
                             confirmButtonText: 'Sí, guardar',
                             cancelButtonText: 'Revisar',
+                            buttonsStyling: false,
+                            customClass: {
+                                confirmButton: 'btn btn-primary',
+                                cancelButton: 'btn btn-light',
+                            },
                         });
 
                         if (!result.isConfirmed) {
@@ -379,8 +399,9 @@
                         return;
                     }
 
-                    const submitButton = form.querySelector('button[type="submit"]');
-                    submitButton?.setAttribute('disabled', 'disabled');
+                    if (submitButton) {
+                        submitButton.disabled = true;
+                    }
 
                     try {
                         const response = await fetch(form.action, {
@@ -401,11 +422,13 @@
                         }
 
                         window.SuWorkToast?.fire('success', payload.message || 'Asignación guardada.');
-                        window.location.reload();
+                        setTimeout(() => window.location.reload(), 450);
                     } catch (error) {
                         window.SuWorkToast?.fire('danger', error.message || 'No fue posible guardar la asignación.');
                     } finally {
-                        submitButton?.removeAttribute('disabled');
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                        }
                     }
                 });
             });

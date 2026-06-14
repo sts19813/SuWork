@@ -19,6 +19,7 @@ class AccessControlSeeder extends Seeder
             'expedientes.ver_bitacora_eliminados',
             'propiedades.control_ver',
             'propiedades.ver_propias',
+            'propiedades.asignar_asesores',
         ];
 
         $permissions = collect($permissionNames)
