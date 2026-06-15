@@ -1519,6 +1519,12 @@ td .btn {
     min-width: 270px;
     max-height: 320px;
     overflow-y: auto;
+    z-index: 1100 !important;
+}
+
+.property-advisor-menu-portal {
+    position: fixed !important;
+    z-index: 2000 !important;
 }
 
 .maintenance-provider-option {

@@ -182,7 +182,7 @@
                                     <td>{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}</td>
                                     <td data-search="{{ $assignedAdvisorNames ?: 'Sin asesor' }}">
                                         @if ($canManagePropertyAdvisors)
-                                            <span class="dropdown maintenance-inline-dropdown maintenance-provider-dropdown" data-property-advisor-action>
+                                            <span class="dropup dropdown maintenance-inline-dropdown maintenance-provider-dropdown" data-property-advisor-action>
                                                 <button class="maintenance-provider-trigger dropdown-toggle" type="button"
                                                     data-bs-toggle="dropdown" aria-expanded="false"
                                                     aria-label="Cambiar asesor responsable de {{ $property->internal_name }}">
@@ -328,7 +328,7 @@
 
             const dataTable = $(tableElement).DataTable({
                 dom: "rt<'row align-items-center'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7 d-flex justify-content-md-end'p>>",
-                pageLength: 10,
+                pageLength: 30,
                 lengthChange: false,
                 order: [],
                 info: true,
@@ -360,6 +360,78 @@
                 textSearchInput.addEventListener('keyup', (event) => {
                     dataTable.search(event.target.value).draw();
                 });
+            }
+
+            if (window.bootstrap?.Dropdown) {
+                const openAdvisorMenus = new Set();
+                const positionAdvisorMenu = (trigger, menu) => {
+                    const margin = 12;
+                    const triggerRect = trigger.getBoundingClientRect();
+                    const menuWidth = menu.offsetWidth;
+                    const menuHeight = menu.offsetHeight;
+                    const left = Math.min(
+                        Math.max(triggerRect.left, margin),
+                        Math.max(margin, window.innerWidth - menuWidth - margin),
+                    );
+                    const top = Math.max(margin, triggerRect.top - menuHeight - margin);
+
+                    menu.style.position = 'fixed';
+                    menu.style.inset = 'auto auto auto auto';
+                    menu.style.left = `${left}px`;
+                    menu.style.top = `${top}px`;
+                    menu.style.transform = 'none';
+                };
+                const repositionOpenAdvisorMenus = () => {
+                    openAdvisorMenus.forEach((trigger) => {
+                        const menu = trigger.__propertyAdvisorMenu;
+
+                        if (menu?.classList.contains('show')) {
+                            positionAdvisorMenu(trigger, menu);
+                        }
+                    });
+                };
+
+                tableElement.querySelectorAll('[data-property-advisor-action] [data-bs-toggle="dropdown"]').forEach((trigger) => {
+                    const dropdown = trigger.closest('[data-property-advisor-action]');
+                    const menu = dropdown?.querySelector('.dropdown-menu');
+
+                    if (!dropdown || !menu) {
+                        return;
+                    }
+
+                    const originalParent = menu.parentElement;
+                    const originalNextSibling = menu.nextSibling;
+
+                    trigger.__propertyAdvisorMenu = menu;
+                    window.bootstrap.Dropdown.getOrCreateInstance(trigger, {
+                        display: 'static',
+                    });
+
+                    trigger.addEventListener('show.bs.dropdown', () => {
+                        document.body.appendChild(menu);
+                        menu.classList.add('property-advisor-menu-portal');
+                        openAdvisorMenus.add(trigger);
+                    });
+
+                    trigger.addEventListener('shown.bs.dropdown', () => {
+                        positionAdvisorMenu(trigger, menu);
+                    });
+
+                    trigger.addEventListener('hidden.bs.dropdown', () => {
+                        openAdvisorMenus.delete(trigger);
+                        menu.classList.remove('property-advisor-menu-portal');
+                        menu.removeAttribute('style');
+
+                        if (originalNextSibling?.parentElement === originalParent) {
+                            originalParent.insertBefore(menu, originalNextSibling);
+                        } else {
+                            originalParent.appendChild(menu);
+                        }
+                    });
+                });
+
+                window.addEventListener('resize', repositionOpenAdvisorMenus);
+                window.addEventListener('scroll', repositionOpenAdvisorMenus, true);
             }
 
             document.querySelectorAll('.js-property-advisors-inline-form').forEach((form) => {
