@@ -155,7 +155,7 @@
                                         <tr class="fw-bold text-muted text-uppercase fs-8">
                                             <th>Propiedad</th>
                                             <th>Asesor</th>
-                                            <th>Inquilino</th>
+                                            
                                             <th class="text-end">Renta</th>
                                             <th class="text-end">Atrasado</th>
                                             <th class="text-end">Estado</th>
@@ -170,7 +170,7 @@
                                                     </a>
                                                 </td>
                                                 <td class="text-gray-700">{{ $summary['advisor_name'] }}</td>
-                                                <td class="text-gray-700">{{ $summary['tenant_name'] }}</td>
+                                                
                                                 <td class="text-end fw-bold">{{ '$' . number_format($summary['rent_amount'], 2) }}</td>
                                                 <td class="text-end {{ $summary['overdue_amount'] > 0 ? 'text-danger fw-bold' : 'text-muted' }}">
                                                     {{ $summary['overdue_amount'] > 0 ? '$' . number_format($summary['overdue_amount'], 2) : '-' }}
