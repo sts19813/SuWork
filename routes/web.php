@@ -106,6 +106,7 @@ Route::middleware(['auth', 'system.access'])
         Route::get('/documentos/bitacora-eliminados', [DocumentController::class, 'deletedFilesLog'])->name('documents.deleted-files-log');
 
         Route::get('/configuracion/expedientes', [DossierConfigurationController::class, 'index'])->name('settings.dossiers.index');
+        Route::get('/configuracion/almacenamiento-expedientes', [DossierConfigurationController::class, 'storage'])->name('settings.dossiers.storage');
         Route::post('/configuracion/expedientes/documentos', [DossierConfigurationController::class, 'store'])->name('settings.dossiers.requirements.store');
         Route::put('/configuracion/expedientes/documentos/{requirement}', [DossierConfigurationController::class, 'update'])->name('settings.dossiers.requirements.update');
         Route::delete('/configuracion/expedientes/documentos/{requirement}', [DossierConfigurationController::class, 'destroy'])->name('settings.dossiers.requirements.destroy');

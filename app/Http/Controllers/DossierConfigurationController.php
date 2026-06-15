@@ -30,6 +30,13 @@ class DossierConfigurationController extends Controller
         return view('settings.dossiers.index', $this->viewData($request));
     }
 
+    public function storage(Request $request): View
+    {
+        $this->ensureAccess($request);
+
+        return view('settings.dossiers.storage', $this->storageViewData());
+    }
+
     public function store(Request $request): JsonResponse
     {
         $this->ensureAccess($request);
@@ -134,7 +141,20 @@ class DossierConfigurationController extends Controller
             'dossiers.storage_warning_percent' => $validated['storage_warning_percent'],
         ]);
 
-        return $this->jsonModule($request, 'Configuración de almacenamiento actualizada.');
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Configuración de almacenamiento actualizada.',
+                'type' => 'success',
+                'html' => view('settings.dossiers.partials.storage-module', $this->storageViewData())->render(),
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Configuración de almacenamiento actualizada.',
+            'redirect' => route('settings.dossiers.storage'),
+        ]);
     }
 
     private function viewData(Request $request): array
@@ -153,6 +173,12 @@ class DossierConfigurationController extends Controller
             'entityLabels' => DossierDocumentRequirement::ENTITY_LABELS,
             'activeEntity' => $activeEntity,
             'requirementsByEntity' => $requirementsByEntity,
+        ];
+    }
+
+    private function storageViewData(): array
+    {
+        return [
             'dossierStorage' => app(DossierStorageUsage::class)->summary(),
             'dossierUploadLimit' => DossierSettings::uploadLimit(),
             'dossierStorageSettings' => [

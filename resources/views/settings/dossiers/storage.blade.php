@@ -1,54 +1,50 @@
 @extends('layouts.app')
 
-@section('title', 'Configuración de Expedientes | SuWork')
+@section('title', 'Configuración de Almacenamiento | SuWork')
 
 @push('styles')
     <style>
-        .dossier-settings .settings-stat {
-            border: 1px solid var(--border-soft);
-            border-radius: 8px;
-            background: #fff;
-            min-height: 88px;
-        }
-
-        .dossier-settings .settings-empty {
-            border: 1px dashed #dce2ec;
-            border-radius: 8px;
-            background: #fbfcff;
-        }
-
-        .dossier-settings .document-row {
-            border: 1px solid #edf0f5;
-            border-radius: 8px;
-            background: #fff;
-        }
-
-        .dossier-settings .document-row.is-inactive {
-            background: #fafafa;
-        }
-
-        .dossier-settings .nav-line-tabs .nav-link {
+        .dossier-settings .storage-panel {
             border: 0;
-            border-bottom: 2px solid transparent;
-            color: var(--text-muted);
+            border-radius: 8px;
+            background: #111827;
+            color: #fff;
+            overflow: hidden;
         }
 
-        .dossier-settings .nav-line-tabs .nav-link.active {
-            color: var(--sw-primary);
-            border-bottom-color: var(--sw-primary);
+        .dossier-settings .storage-panel .text-muted {
+            color: rgba(255, 255, 255, .68) !important;
         }
 
+        .dossier-settings .storage-meter {
+            height: 12px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .16);
+        }
+
+        .dossier-settings .storage-meter-bar {
+            height: 100%;
+            border-radius: inherit;
+            background: #28d17c;
+        }
+
+        .dossier-settings .storage-soft-stat {
+            border-radius: 8px;
+            background: rgba(255, 255, 255, .1);
+            padding: 14px;
+        }
     </style>
 @endpush
 
 @section('content')
-    @include('settings.dossiers.partials.module')
+    @include('settings.dossiers.partials.storage-module')
 @endsection
 
 @push('scripts')
     <script>
         (() => {
-            const moduleSelector = '#dossier-settings-module';
+            const moduleSelector = '#dossier-storage-module';
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
             const showToast = (type, message) => {
@@ -57,17 +53,6 @@
                     return;
                 }
                 console[type === 'danger' || type === 'error' ? 'error' : 'log'](message);
-            };
-
-            const activeEntity = () => {
-                return document.querySelector(`${moduleSelector} [data-bs-toggle="tab"].active`)?.dataset.entity || 'property';
-            };
-
-            const refreshModule = (html) => {
-                const moduleEl = document.querySelector(moduleSelector);
-                if (moduleEl && html) {
-                    moduleEl.outerHTML = html;
-                }
             };
 
             const setValidation = (form, payload) => {
@@ -82,19 +67,10 @@
                 });
             };
 
-            document.addEventListener('shown.bs.tab', (event) => {
-                const entity = event.target?.dataset?.entity;
-                if (!entity || !event.target.closest(moduleSelector)) return;
-
-                const url = new URL(window.location.href);
-                url.searchParams.set('entity', entity);
-                window.history.replaceState({}, '', url.toString());
-            });
-
             document.addEventListener('submit', async (event) => {
                 const form = event.target;
                 if (!(form instanceof HTMLFormElement) || !form.closest(moduleSelector)) return;
-                if (!form.matches('[data-dossier-settings-form]')) return;
+                if (!form.matches('[data-dossier-storage-form]')) return;
 
                 event.preventDefault();
                 setValidation(form, {errors: {}});
@@ -126,7 +102,10 @@
                     }
 
                     showToast(payload.type || 'success', payload.message || 'Guardado correctamente.');
-                    refreshModule(payload.html);
+                    const moduleEl = document.querySelector(moduleSelector);
+                    if (moduleEl && payload.html) {
+                        moduleEl.outerHTML = payload.html;
+                    }
                 } catch (error) {
                     showToast('danger', error.message || 'No fue posible enviar la solicitud.');
                 } finally {
@@ -136,34 +115,6 @@
                     }
                 }
             }, true);
-
-            document.addEventListener('click', async (event) => {
-                if (!(event.target instanceof Element)) return;
-
-                const deleteButton = event.target.closest('[data-dossier-delete]');
-                if (!deleteButton || !deleteButton.closest(moduleSelector)) return;
-
-                event.preventDefault();
-                const form = deleteButton.closest('form');
-                if (!form) return;
-
-                if (window.Swal?.fire) {
-                    const result = await window.Swal.fire({
-                        icon: 'warning',
-                        title: '¿Eliminar documento?',
-                        text: 'Los archivos ya cargados no se eliminan; este documento dejará de ser requisito inicial.',
-                        showCancelButton: true,
-                        confirmButtonText: 'Eliminar',
-                        cancelButtonText: 'Cancelar',
-                        confirmButtonColor: '#d9214e'
-                    });
-                    if (!result.isConfirmed) return;
-                } else if (!window.confirm('¿Eliminar documento de la configuración?')) {
-                    return;
-                }
-
-                form.requestSubmit(deleteButton);
-            });
         })();
     </script>
 @endpush

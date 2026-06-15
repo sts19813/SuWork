@@ -10,6 +10,7 @@
     $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
     $canManageAccess = $user->can('usuarios.gestionar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canViewPropertyControl = $user->can('propiedades.control_ver') || $user->hasRole('administrador') || $user->hasRole('admin');
+    $canConfigureDossiers = $user->can('expedientes.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $homeRoute = ($isTenant || $isTechnician) ? 'maintenance.index' : 'dashboard';
     $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : 'Panel SuWork');
     $currentHour = now()->hour;
@@ -37,9 +38,22 @@
             ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos', 'icon' => 'bi-receipt'],
             ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
             ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
+            ...($canConfigureDossiers ? [[
+                'patterns' => ['settings.dossiers.*'],
+                'label' => 'Configuración',
+                'icon' => 'bi-gear',
+                'children' => [
+                    ['patterns' => ['settings.dossiers.index', 'settings.dossiers.requirements.*'], 'route' => 'settings.dossiers.index', 'label' => 'Expedientes', 'icon' => 'bi-sliders'],
+                    ['patterns' => ['settings.dossiers.storage', 'settings.dossiers.storage.*'], 'route' => 'settings.dossiers.storage', 'label' => 'Almacenamiento', 'icon' => 'bi-hdd'],
+                ],
+            ]] : []),
             ...($canManageAccess ? [['patterns' => ['access.*'], 'route' => 'access.index', 'label' => 'Usuarios y permisos', 'icon' => 'bi-shield-lock']] : []),
             ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'],
         ]);
+
+    $flatMenuItems = collect($menuItems)
+        ->flatMap(fn ($item) => $item['children'] ?? [$item])
+        ->values();
 
     $mobilePrimaryItems = $isTenant
         ? [
@@ -57,13 +71,13 @@
                 ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
             ]);
 
-    $mobileSecondaryItems = collect($menuItems)
+    $mobileSecondaryItems = $flatMenuItems
         ->reject(function ($item) use ($mobilePrimaryItems) {
             return collect($mobilePrimaryItems)->contains(fn($primaryItem) => $primaryItem['route'] === $item['route']);
         })
         ->values();
 
-    $currentSection = collect($menuItems)
+    $currentSection = $flatMenuItems
         ->first(fn($item) => request()->routeIs(...$item['patterns']))['label'] ?? 'Tu espacio';
 
     $isMobileMoreActive = $mobileSecondaryItems->contains(
@@ -139,12 +153,35 @@
         <div class="collapse navbar-collapse" id="mainHeaderNav">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-lg-2">
                 @foreach ($menuItems as $item)
-                    <li class="nav-item">
-                        <a class="nav-link fw-semibold {{ request()->routeIs(...$item['patterns']) ? 'active text-primary' : 'text-gray-700' }}"
-                            href="{{ route($item['route']) }}">
-                            {{ $item['label'] }}
-                        </a>
-                    </li>
+                    @php
+                        $children = collect($item['children'] ?? []);
+                    @endphp
+
+                    @if ($children->isNotEmpty())
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle fw-semibold {{ request()->routeIs(...$item['patterns']) ? 'active text-primary' : 'text-gray-700' }}"
+                                href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                {{ $item['label'] }}
+                            </a>
+                            <ul class="dropdown-menu">
+                                @foreach ($children as $child)
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs(...$child['patterns']) ? 'active' : '' }}"
+                                            href="{{ route($child['route']) }}">
+                                            {{ $child['label'] }}
+                                        </a>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </li>
+                    @else
+                        <li class="nav-item">
+                            <a class="nav-link fw-semibold {{ request()->routeIs(...$item['patterns']) ? 'active text-primary' : 'text-gray-700' }}"
+                                href="{{ route($item['route']) }}">
+                                {{ $item['label'] }}
+                            </a>
+                        </li>
+                    @endif
                 @endforeach
             </ul>
 

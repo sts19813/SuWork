@@ -38,10 +38,22 @@
                 ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos', 'icon' => 'bi-receipt'],
                 ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
                 ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
-                ...($canConfigureDossiers ? [['patterns' => ['settings.dossiers.*'], 'route' => 'settings.dossiers.index', 'label' => 'Config. expedientes', 'icon' => 'bi-sliders']] : []),
+                ...($canConfigureDossiers ? [[
+                    'patterns' => ['settings.dossiers.*'],
+                    'label' => 'Configuración',
+                    'icon' => 'bi-gear',
+                    'children' => [
+                        ['patterns' => ['settings.dossiers.index', 'settings.dossiers.requirements.*'], 'route' => 'settings.dossiers.index', 'label' => 'Expedientes', 'icon' => 'bi-sliders'],
+                        ['patterns' => ['settings.dossiers.storage', 'settings.dossiers.storage.*'], 'route' => 'settings.dossiers.storage', 'label' => 'Almacenamiento', 'icon' => 'bi-hdd'],
+                    ],
+                ]] : []),
                 ...($canManageAccess ? [['patterns' => ['access.*'], 'route' => 'access.index', 'label' => 'Usuarios y permisos', 'icon' => 'bi-shield-lock']] : []),
                 ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'],
             ]);
+
+    $flatMenuItems = collect($menuItems)
+        ->flatMap(fn ($item) => $item['children'] ?? [$item])
+        ->values();
 
     $mobilePrimaryItems = $isTenant
         ? [
@@ -59,13 +71,13 @@
                 ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
             ]);
 
-    $mobileSecondaryItems = collect($menuItems)
+    $mobileSecondaryItems = $flatMenuItems
         ->reject(function ($item) use ($mobilePrimaryItems) {
             return collect($mobilePrimaryItems)->contains(fn($primaryItem) => $primaryItem['route'] === $item['route']);
         })
         ->values();
 
-    $currentSection = collect($menuItems)
+    $currentSection = $flatMenuItems
         ->first(fn($item) => request()->routeIs(...$item['patterns']))['label'] ?? 'Tu espacio';
 
     $isMobileMoreActive = $mobileSecondaryItems->contains(
@@ -157,16 +169,51 @@
                     </div>
 
                     @foreach ($menuItems as $item)
-                        <div class="menu-item">
-                            <a class="menu-link {{ request()->routeIs(...$item['patterns']) ? 'active' : '' }}"
-                                href="{{ route($item['route']) }}">
-                                <span class="menu-icon"><i class="bi {{ $item['icon'] }} fs-2"></i></span>
-                                <span class="menu-title">{{ $item['label'] }}</span>
-                            </a>
-                            <div class="sidebar-hover-card">
-                                <a href="{{ route($item['route']) }}" class="sidebar-hover-title">{{ $item['label'] }}</a>
+                        @php
+                            $children = collect($item['children'] ?? []);
+                            $isParentActive = request()->routeIs(...$item['patterns']);
+                        @endphp
+
+                        @if ($children->isNotEmpty())
+                            <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isParentActive ? 'show' : '' }}">
+                                <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
+                                    <span class="menu-icon"><i class="bi {{ $item['icon'] }} fs-2"></i></span>
+                                    <span class="menu-title">{{ $item['label'] }}</span>
+                                    <span class="menu-arrow"></span>
+                                </span>
+                                <div class="menu-sub menu-sub-accordion">
+                                    @foreach ($children as $child)
+                                        <div class="menu-item">
+                                            <a class="menu-link {{ request()->routeIs(...$child['patterns']) ? 'active' : '' }}"
+                                                href="{{ route($child['route']) }}">
+                                                <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                                                <span class="menu-title">{{ $child['label'] }}</span>
+                                            </a>
+                                        </div>
+                                    @endforeach
+                                </div>
+                                <div class="sidebar-hover-card">
+                                    <div class="sidebar-hover-title">{{ $item['label'] }}</div>
+                                    @foreach ($children as $child)
+                                        <a href="{{ route($child['route']) }}"
+                                            class="sidebar-hover-link {{ request()->routeIs(...$child['patterns']) ? 'active' : '' }}">
+                                            {{ $child['label'] }}
+                                        </a>
+                                    @endforeach
+                                </div>
                             </div>
-                        </div>
+                        @else
+                            <div class="menu-item">
+                                <a class="menu-link {{ request()->routeIs(...$item['patterns']) ? 'active' : '' }}"
+                                    href="{{ route($item['route']) }}">
+                                    <span class="menu-icon"><i class="bi {{ $item['icon'] }} fs-2"></i></span>
+                                    <span class="menu-title">{{ $item['label'] }}</span>
+                                </a>
+                                <div class="sidebar-hover-card">
+                                    <a href="{{ route($item['route']) }}" class="sidebar-hover-title">{{ $item['label'] }}</a>
+                                </div>
+                            </div>
+                        @endif
                     @endforeach
                 </div>
             </div>
