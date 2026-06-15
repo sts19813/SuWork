@@ -7,6 +7,8 @@ use App\Models\OwnerDocument;
 use App\Models\PropertyDocument;
 use App\Models\TenantDocument;
 use App\Services\DossierDocumentRequirementService;
+use App\Support\DossierSettings;
+use App\Support\DossierStorageUsage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -113,6 +115,28 @@ class DossierConfigurationController extends Controller
         return $this->jsonModule($request, 'Orden actualizado correctamente.');
     }
 
+    public function updateStorage(Request $request): JsonResponse
+    {
+        $this->ensureAccess($request);
+
+        $validated = $request->validate([
+            'storage_limit_gb' => ['required', 'numeric', 'min:1', 'max:10240'],
+            'max_file_size_mb' => ['required', 'integer', 'min:1', 'max:51200'],
+            'storage_warning_percent' => ['required', 'integer', 'min:50', 'max:100'],
+        ], [
+            'storage_limit_gb.min' => 'La capacidad contratada debe ser de al menos 1 GB.',
+            'max_file_size_mb.min' => 'El tamano maximo por archivo debe ser de al menos 1 MB.',
+        ]);
+
+        DossierSettings::setMany([
+            'dossiers.storage_limit_gb' => $validated['storage_limit_gb'],
+            'dossiers.max_file_size_mb' => $validated['max_file_size_mb'],
+            'dossiers.storage_warning_percent' => $validated['storage_warning_percent'],
+        ]);
+
+        return $this->jsonModule($request, 'Configuración de almacenamiento actualizada.');
+    }
+
     private function viewData(Request $request): array
     {
         $activeEntity = $request->query('entity', DossierDocumentRequirement::ENTITY_PROPERTY);
@@ -129,6 +153,13 @@ class DossierConfigurationController extends Controller
             'entityLabels' => DossierDocumentRequirement::ENTITY_LABELS,
             'activeEntity' => $activeEntity,
             'requirementsByEntity' => $requirementsByEntity,
+            'dossierStorage' => app(DossierStorageUsage::class)->summary(),
+            'dossierUploadLimit' => DossierSettings::uploadLimit(),
+            'dossierStorageSettings' => [
+                'storage_limit_gb' => DossierSettings::storageLimitGb(),
+                'max_file_size_mb' => DossierSettings::maxFileSizeMb(),
+                'storage_warning_percent' => DossierSettings::storageWarningPercent(),
+            ],
         ];
     }
 

@@ -13,25 +13,22 @@ use App\Models\Tenant;
 use App\Models\TenantDocument;
 use App\Models\TenantDocumentVersion;
 use App\Services\DossierDocumentRequirementService;
+use App\Support\DossierSettings;
+use App\Support\DossierStorageUsage;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class DocumentController extends Controller
 {
     private const DELETE_FILES_PERMISSION = 'expedientes.eliminar_archivos';
-
-    private const STATUS_FILTERS = [
-        'approved' => 'Vigentes',
-        'pending_review' => 'Pend. revision',
-        'expired' => 'Vencidos',
-        'rejected' => 'Rechazados',
-    ];
 
     public function __construct(private readonly DossierDocumentRequirementService $requirements)
     {
@@ -42,12 +39,12 @@ class DocumentController extends Controller
         $filters = $request->validate([
             'q' => ['nullable', 'string', 'max:120'],
             'entity' => ['nullable', Rule::in(['property', 'tenant', 'owner'])],
-            'status' => ['nullable', Rule::in(array_keys(self::STATUS_FILTERS))],
+            'view' => ['nullable', Rule::in(['all', 'expired'])],
         ]);
 
         $search = trim((string) ($filters['q'] ?? ''));
         $entityFilter = (string) ($filters['entity'] ?? '');
-        $statusFilter = (string) ($filters['status'] ?? '');
+        $activeView = (string) ($filters['view'] ?? 'all');
 
         $documents = $this->buildDocumentsCollection();
 
@@ -69,15 +66,15 @@ class DocumentController extends Controller
             });
 
         $stats = [
-            'approved' => $documents->filter(fn (array $document) => $this->matchesStatusFilter($document['status'], 'approved'))->count(),
-            'pending_review' => $documents->filter(fn (array $document) => $this->matchesStatusFilter($document['status'], 'pending_review'))->count(),
-            'expired' => $documents->filter(fn (array $document) => $this->matchesStatusFilter($document['status'], 'expired'))->count(),
-            'rejected' => $documents->filter(fn (array $document) => $this->matchesStatusFilter($document['status'], 'rejected'))->count(),
+            'total' => $documents->count(),
+            'with_file' => $documents->whereNotNull('file_url')->count(),
+            'missing' => $documents->whereNull('file_url')->count(),
+            'expired' => $documents->filter(fn (array $document) => $document['is_expired'])->count(),
         ];
 
-        if ($statusFilter !== '') {
+        if ($activeView === 'expired') {
             $documents = $documents
-                ->filter(fn (array $document) => $this->matchesStatusFilter($document['status'], $statusFilter))
+                ->filter(fn (array $document) => $document['is_expired'])
                 ->values();
         }
 
@@ -88,11 +85,18 @@ class DocumentController extends Controller
             'filters' => [
                 'q' => $search,
                 'entity' => $entityFilter,
-                'status' => $statusFilter,
+                'view' => $activeView,
             ],
-            'statusFilters' => self::STATUS_FILTERS,
             'stats' => $stats,
+            'dossierStorage' => app(DossierStorageUsage::class)->summary(),
         ]);
+    }
+
+    public function expired(Request $request): View
+    {
+        $request->merge(['view' => 'expired']);
+
+        return $this->index($request);
     }
 
     public function propertyDossier(Property $property): View
@@ -125,6 +129,8 @@ class DocumentController extends Controller
             'documents' => $documents,
             'customDocuments' => $customDocuments,
             'canDeleteDossierFiles' => $this->canDeleteDossierFiles(request()),
+            'dossierStorage' => app(DossierStorageUsage::class)->summary(),
+            'dossierUploadLimit' => DossierSettings::uploadLimit(),
         ]);
     }
 
@@ -156,6 +162,8 @@ class DocumentController extends Controller
             'documents' => $documents,
             'customDocuments' => $customDocuments,
             'canDeleteDossierFiles' => $this->canDeleteDossierFiles(request()),
+            'dossierStorage' => app(DossierStorageUsage::class)->summary(),
+            'dossierUploadLimit' => DossierSettings::uploadLimit(),
         ]);
     }
 
@@ -187,6 +195,8 @@ class DocumentController extends Controller
             'documents' => $documents,
             'customDocuments' => $customDocuments,
             'canDeleteDossierFiles' => $this->canDeleteDossierFiles(request()),
+            'dossierStorage' => app(DossierStorageUsage::class)->summary(),
+            'dossierUploadLimit' => DossierSettings::uploadLimit(),
         ]);
     }
 
@@ -236,12 +246,9 @@ class DocumentController extends Controller
         ]);
     }
 
-    public function uploadPropertyDocument(Request $request, Property $property, string $documentType): RedirectResponse
+    public function uploadPropertyDocument(Request $request, Property $property, string $documentType): RedirectResponse|JsonResponse
     {
-        $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
-            'expires_at' => ['nullable', 'date'],
-        ]);
+        $validated = $request->validate($this->documentUploadRules());
 
         $document = $property->documents()->where('document_type', $documentType)->first();
         $requiredLabel = $this->requirements->labelFor('property', $documentType);
@@ -269,6 +276,7 @@ class DocumentController extends Controller
         }
 
         $file = $validated['file'];
+        $this->ensureDossierStorageCapacity((int) $file->getSize());
         $storedPath = $file->store("properties/{$property->id}/documents", 'public');
         $nextVersion = ((int) $document->versions()->max('version_number')) + 1;
 
@@ -289,15 +297,12 @@ class DocumentController extends Controller
             'expires_at' => $validated['expires_at'] ?? $document->expires_at,
         ]);
 
-        return back()->with('success', 'Documento de propiedad actualizado. Se genero una nueva version.');
+        return $this->uploadResponse($request, 'Documento de propiedad actualizado. Se genero una nueva version.');
     }
 
-    public function uploadTenantDocument(Request $request, Tenant $tenant, string $documentType): RedirectResponse
+    public function uploadTenantDocument(Request $request, Tenant $tenant, string $documentType): RedirectResponse|JsonResponse
     {
-        $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
-            'expires_at' => ['nullable', 'date'],
-        ]);
+        $validated = $request->validate($this->documentUploadRules());
 
         $document = $tenant->documents()->where('document_type', $documentType)->first();
         $requiredLabel = $this->requirements->labelFor('tenant', $documentType);
@@ -325,6 +330,7 @@ class DocumentController extends Controller
         }
 
         $file = $validated['file'];
+        $this->ensureDossierStorageCapacity((int) $file->getSize());
         $storedPath = $file->store("tenants/{$tenant->id}/documents", 'public');
         $nextVersion = ((int) $document->versions()->max('version_number')) + 1;
 
@@ -345,15 +351,12 @@ class DocumentController extends Controller
             'expires_at' => $validated['expires_at'] ?? $document->expires_at,
         ]);
 
-        return back()->with('success', 'Documento de inquilino actualizado. Se genero una nueva version.');
+        return $this->uploadResponse($request, 'Documento de inquilino actualizado. Se genero una nueva version.');
     }
 
-    public function uploadOwnerDocument(Request $request, Owner $owner, string $documentType): RedirectResponse
+    public function uploadOwnerDocument(Request $request, Owner $owner, string $documentType): RedirectResponse|JsonResponse
     {
-        $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
-            'expires_at' => ['nullable', 'date'],
-        ]);
+        $validated = $request->validate($this->documentUploadRules());
 
         $document = $owner->documents()->where('document_type', $documentType)->first();
         $requiredLabel = $this->requirements->labelFor('owner', $documentType);
@@ -381,6 +384,7 @@ class DocumentController extends Controller
         }
 
         $file = $validated['file'];
+        $this->ensureDossierStorageCapacity((int) $file->getSize());
         $storedPath = $file->store("owners/{$owner->id}/documents", 'public');
         $nextVersion = ((int) $document->versions()->max('version_number')) + 1;
 
@@ -401,14 +405,14 @@ class DocumentController extends Controller
             'expires_at' => $validated['expires_at'] ?? $document->expires_at,
         ]);
 
-        return back()->with('success', 'Documento de propietario actualizado. Se genero una nueva version.');
+        return $this->uploadResponse($request, 'Documento de propietario actualizado. Se genero una nueva version.');
     }
 
-    public function storeCustomPropertyDocument(Request $request, Property $property): RedirectResponse
+    public function storeCustomPropertyDocument(Request $request, Property $property): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'label' => ['required', 'string', 'max:150'],
-            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'file' => $this->documentFileRules(),
             'expires_at' => ['nullable', 'date'],
         ]);
 
@@ -418,6 +422,7 @@ class DocumentController extends Controller
         );
 
         $file = $validated['file'];
+        $this->ensureDossierStorageCapacity((int) $file->getSize());
         $storedPath = $file->store("properties/{$property->id}/documents", 'public');
 
         $document = $property->documents()->create([
@@ -439,14 +444,14 @@ class DocumentController extends Controller
             'uploaded_at' => now(),
         ]);
 
-        return back()->with('success', 'Documento personalizado agregado al expediente de la propiedad.');
+        return $this->uploadResponse($request, 'Documento personalizado agregado al expediente de la propiedad.');
     }
 
-    public function storeCustomTenantDocument(Request $request, Tenant $tenant): RedirectResponse
+    public function storeCustomTenantDocument(Request $request, Tenant $tenant): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'label' => ['required', 'string', 'max:150'],
-            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'file' => $this->documentFileRules(),
             'expires_at' => ['nullable', 'date'],
         ]);
 
@@ -456,6 +461,7 @@ class DocumentController extends Controller
         );
 
         $file = $validated['file'];
+        $this->ensureDossierStorageCapacity((int) $file->getSize());
         $storedPath = $file->store("tenants/{$tenant->id}/documents", 'public');
 
         $document = $tenant->documents()->create([
@@ -477,14 +483,14 @@ class DocumentController extends Controller
             'uploaded_at' => now(),
         ]);
 
-        return back()->with('success', 'Documento personalizado agregado al expediente del inquilino.');
+        return $this->uploadResponse($request, 'Documento personalizado agregado al expediente del inquilino.');
     }
 
-    public function storeCustomOwnerDocument(Request $request, Owner $owner): RedirectResponse
+    public function storeCustomOwnerDocument(Request $request, Owner $owner): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'label' => ['required', 'string', 'max:150'],
-            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'file' => $this->documentFileRules(),
             'expires_at' => ['nullable', 'date'],
         ]);
 
@@ -494,6 +500,7 @@ class DocumentController extends Controller
         );
 
         $file = $validated['file'];
+        $this->ensureDossierStorageCapacity((int) $file->getSize());
         $storedPath = $file->store("owners/{$owner->id}/documents", 'public');
 
         $document = $owner->documents()->create([
@@ -515,7 +522,7 @@ class DocumentController extends Controller
             'uploaded_at' => now(),
         ]);
 
-        return back()->with('success', 'Documento personalizado agregado al expediente del propietario.');
+        return $this->uploadResponse($request, 'Documento personalizado agregado al expediente del propietario.');
     }
 
     public function destroyPropertyDocument(Request $request, Property $property, string $documentType): RedirectResponse
@@ -707,10 +714,8 @@ class DocumentController extends Controller
             'entity_type_label' => 'Propiedad',
             'entity_name' => $document->property?->internal_name ?? 'Propiedad eliminada',
             'entity_url' => $document->property ? route('dossiers.properties.show', $document->property) : null,
-            'status' => $document->status,
-            'status_label' => $document->status_label,
-            'status_badge_class' => $document->status_badge_class,
             'expires_at' => $document->expires_at,
+            'is_expired' => $document->expires_at?->lt(today()) ?? false,
             'file_name' => $document->latestVersion?->original_name,
             'file_url' => $document->file_path ? Storage::url($document->file_path) : null,
             'versions_count' => $document->versions_count,
@@ -728,10 +733,8 @@ class DocumentController extends Controller
             'entity_type_label' => 'Inquilino',
             'entity_name' => $document->tenant?->full_name ?? 'Inquilino eliminado',
             'entity_url' => $document->tenant ? route('dossiers.tenants.show', $document->tenant) : null,
-            'status' => $document->status,
-            'status_label' => $document->status_label,
-            'status_badge_class' => $document->status_badge_class,
             'expires_at' => $document->expires_at,
+            'is_expired' => $document->expires_at?->lt(today()) ?? false,
             'file_name' => $document->latestVersion?->original_name,
             'file_url' => $document->file_path ? Storage::url($document->file_path) : null,
             'versions_count' => $document->versions_count,
@@ -749,10 +752,8 @@ class DocumentController extends Controller
             'entity_type_label' => 'Propietario',
             'entity_name' => $document->owner?->name ?? 'Propietario eliminado',
             'entity_url' => $document->owner ? route('dossiers.owners.show', $document->owner) : null,
-            'status' => $document->status,
-            'status_label' => $document->status_label,
-            'status_badge_class' => $document->status_badge_class,
             'expires_at' => $document->expires_at,
+            'is_expired' => $document->expires_at?->lt(today()) ?? false,
             'file_name' => $document->latestVersion?->original_name,
             'file_url' => $document->file_path ? Storage::url($document->file_path) : null,
             'versions_count' => $document->versions_count,
@@ -772,21 +773,10 @@ class DocumentController extends Controller
             $perPage,
             $page,
             [
-                'path' => route('documents.index'),
+                'path' => $request->url(),
                 'query' => $request->query(),
             ],
         );
-    }
-
-    private function matchesStatusFilter(string $status, string $filter): bool
-    {
-        return match ($filter) {
-            'approved' => $status === PropertyDocument::STATUS_APPROVED || $status === TenantDocument::STATUS_APPROVED,
-            'pending_review' => in_array($status, [PropertyDocument::STATUS_PENDING, PropertyDocument::STATUS_UPLOADED, TenantDocument::STATUS_PENDING, TenantDocument::STATUS_UPLOADED], true),
-            'expired' => $status === PropertyDocument::STATUS_EXPIRED || $status === TenantDocument::STATUS_EXPIRED,
-            'rejected' => $status === PropertyDocument::STATUS_REJECTED || $status === TenantDocument::STATUS_REJECTED,
-            default => true,
-        };
     }
 
     private function ensurePropertyDocuments(Property $property): void
@@ -880,6 +870,49 @@ class DocumentController extends Controller
     private function canDeleteDossierFiles(Request $request): bool
     {
         return (bool) $request->user()?->can(self::DELETE_FILES_PERMISSION);
+    }
+
+    private function documentUploadRules(): array
+    {
+        return [
+            'file' => $this->documentFileRules(),
+            'expires_at' => ['nullable', 'date'],
+        ];
+    }
+
+    private function documentFileRules(): array
+    {
+        return [
+            'required',
+            'file',
+            'mimes:pdf,jpg,jpeg,png,zip',
+            'max:' . DossierSettings::uploadLimit()['effective_kilobytes'],
+        ];
+    }
+
+    private function ensureDossierStorageCapacity(int $fileSize): void
+    {
+        $storage = app(DossierStorageUsage::class)->summary();
+
+        if ($storage['limit_bytes'] > 0 && $fileSize > $storage['available_bytes']) {
+            throw ValidationException::withMessages([
+                'file' => 'No hay espacio suficiente en el plan contratado. Disponible: ' . $storage['available_label'] . '.',
+            ]);
+        }
+    }
+
+    private function uploadResponse(Request $request, string $message): RedirectResponse|JsonResponse
+    {
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'type' => 'success',
+                'reload' => true,
+            ]);
+        }
+
+        return back()->with('success', $message);
     }
 
     private function deleteSinglePropertyVersion(

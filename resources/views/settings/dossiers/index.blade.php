@@ -37,6 +37,37 @@
             color: var(--sw-primary);
             border-bottom-color: var(--sw-primary);
         }
+
+        .dossier-settings .storage-panel {
+            border: 0;
+            border-radius: 8px;
+            background: #111827;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        .dossier-settings .storage-panel .text-muted {
+            color: rgba(255, 255, 255, .68) !important;
+        }
+
+        .dossier-settings .storage-meter {
+            height: 12px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .16);
+        }
+
+        .dossier-settings .storage-meter-bar {
+            height: 100%;
+            border-radius: inherit;
+            background: #28d17c;
+        }
+
+        .dossier-settings .storage-soft-stat {
+            border-radius: 8px;
+            background: rgba(255, 255, 255, .1);
+            padding: 14px;
+        }
     </style>
 @endpush
 

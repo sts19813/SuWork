@@ -102,6 +102,7 @@ Route::middleware(['auth', 'system.access'])
         Route::delete('/inquilinos/{tenant}/expediente/documentos/{documentType}/versiones/{version}', [DocumentController::class, 'destroyTenantDocumentVersion'])->name('dossiers.tenants.documents.versions.destroy');
 
         Route::get('/documentos', [DocumentController::class, 'index'])->name('documents.index');
+        Route::get('/documentos/vencidos', [DocumentController::class, 'expired'])->name('documents.expired');
         Route::get('/documentos/bitacora-eliminados', [DocumentController::class, 'deletedFilesLog'])->name('documents.deleted-files-log');
 
         Route::get('/configuracion/expedientes', [DossierConfigurationController::class, 'index'])->name('settings.dossiers.index');
@@ -109,6 +110,7 @@ Route::middleware(['auth', 'system.access'])
         Route::put('/configuracion/expedientes/documentos/{requirement}', [DossierConfigurationController::class, 'update'])->name('settings.dossiers.requirements.update');
         Route::delete('/configuracion/expedientes/documentos/{requirement}', [DossierConfigurationController::class, 'destroy'])->name('settings.dossiers.requirements.destroy');
         Route::post('/configuracion/expedientes/orden', [DossierConfigurationController::class, 'reorder'])->name('settings.dossiers.requirements.reorder');
+        Route::patch('/configuracion/expedientes/almacenamiento', [DossierConfigurationController::class, 'updateStorage'])->name('settings.dossiers.storage.update');
 
         Route::get('/seguridad/usuarios', [UserAccessController::class, 'index'])->name('access.index');
         Route::post('/seguridad/usuarios', [UserAccessController::class, 'storeUser'])->name('access.users.store');
