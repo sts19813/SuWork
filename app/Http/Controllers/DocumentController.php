@@ -47,6 +47,7 @@ class DocumentController extends Controller
         $activeView = (string) ($filters['view'] ?? 'all');
 
         $documents = $this->buildDocumentsCollection();
+        $documents = $documents->whereNotNull('file_url')->values();
 
         $documents = $documents
             ->when($search !== '', function (Collection $collection) use ($search): Collection {
@@ -67,8 +68,9 @@ class DocumentController extends Controller
 
         $stats = [
             'total' => $documents->count(),
-            'with_file' => $documents->whereNotNull('file_url')->count(),
-            'missing' => $documents->whereNull('file_url')->count(),
+            'properties' => $documents->where('entity_type', 'property')->count(),
+            'tenants' => $documents->where('entity_type', 'tenant')->count(),
+            'owners' => $documents->where('entity_type', 'owner')->count(),
             'expired' => $documents->filter(fn (array $document) => $document['is_expired'])->count(),
         ];
 

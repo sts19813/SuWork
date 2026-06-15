@@ -22,6 +22,8 @@ class DocumentModuleTest extends TestCase
 
     public function test_documents_index_displays_property_and_tenant_documents(): void
     {
+        Storage::fake('public');
+
         $user = User::factory()->create();
         $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
         $zone = Zone::create(['name' => 'Montebello', 'slug' => 'montebello', 'is_active' => true]);
@@ -50,14 +52,36 @@ class DocumentModuleTest extends TestCase
             'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
         ])->assertSessionHasNoErrors();
 
+        $property = Property::query()->where('internal_name', 'Casa Docs 1')->firstOrFail();
+        $propertyDocumentType = DossierDocumentRequirement::query()
+            ->where('entity_type', 'property')
+            ->orderBy('sort_order')
+            ->value('document_type');
+
+        $this->actingAs($user)->post(route('dossiers.properties.documents.upload', [$property, $propertyDocumentType]), [
+            'file' => UploadedFile::fake()->create('predial-general.pdf', 90, 'application/pdf'),
+        ])->assertSessionHasNoErrors();
+
+        $tenant = Tenant::query()->where('full_name', 'Inquilino Documentado')->firstOrFail();
+        $tenantDocumentType = DossierDocumentRequirement::query()
+            ->where('entity_type', 'tenant')
+            ->orderBy('sort_order')
+            ->value('document_type');
+
+        $this->actingAs($user)->post(route('dossiers.tenants.documents.upload', [$tenant, $tenantDocumentType]), [
+            'file' => UploadedFile::fake()->create('ine-general.pdf', 80, 'application/pdf'),
+        ])->assertSessionHasNoErrors();
+
         $response = $this
             ->actingAs($user)
             ->get(route('documents.index'));
 
         $response->assertOk();
-        $response->assertSee('Documentos');
-        $response->assertSee('Predial');
-        $response->assertSee('Identificacion');
+        $response->assertSee('Documentos actuales');
+        $response->assertSee('predial-general.pdf');
+        $response->assertSee('ine-general.pdf');
+        $response->assertSee('Casa Docs 1');
+        $response->assertSee('Inquilino Documentado');
     }
 
     public function test_property_document_uploads_create_versions(): void
