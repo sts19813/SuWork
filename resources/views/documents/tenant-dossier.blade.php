@@ -13,6 +13,7 @@
         'backLabel' => 'Volver a inquilino',
         'storeRoute' => route('dossiers.tenants.documents.store', $tenant),
         'uploadRouteResolver' => fn ($document) => route('dossiers.tenants.documents.upload', [$tenant, $document->document_type]),
+        'metadataUpdateRouteResolver' => fn ($document) => route('dossiers.tenants.documents.update', [$tenant, $document->document_type]),
         'destroyRouteResolver' => fn ($document) => route('dossiers.tenants.documents.destroy', [$tenant, $document->document_type]),
         'versionDestroyRouteResolver' => fn ($document, $version) => route('dossiers.tenants.documents.versions.destroy', [$tenant, $document->document_type, $version]),
     ])

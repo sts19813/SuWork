@@ -256,4 +256,84 @@ class DocumentModuleTest extends TestCase
             'version_number' => 1,
         ]);
     }
+
+    public function test_tenant_document_metadata_can_be_updated(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('tenants.store'), [
+            'full_name' => 'Tenant Metadata',
+            'phone_primary' => '9993434343',
+            'email' => 'tenant.metadata@example.com',
+            'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
+        ])->assertSessionHasNoErrors();
+
+        $tenant = Tenant::query()->where('full_name', 'Tenant Metadata')->firstOrFail();
+        $documentType = DossierDocumentRequirement::query()
+            ->where('entity_type', 'tenant')
+            ->orderBy('sort_order')
+            ->value('document_type');
+
+        $this->actingAs($user)->from(route('dossiers.tenants.show', $tenant))->post(
+            route('dossiers.tenants.documents.upload', [$tenant, $documentType]),
+            [
+                'file' => UploadedFile::fake()->create('ine-original.pdf', 80, 'application/pdf'),
+            ],
+        )->assertSessionHasNoErrors();
+
+        $document = TenantDocument::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('document_type', $documentType)
+            ->firstOrFail();
+
+        $this->actingAs($user)->from(route('dossiers.tenants.show', $tenant))->patch(
+            route('dossiers.tenants.documents.update', [$tenant, $documentType]),
+            [
+                'file_name' => 'INE ACTUALIZADA',
+                'expires_at' => '2026-12-31',
+            ],
+        )->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('tenant_documents', [
+            'id' => $document->id,
+            'expires_at' => '2026-12-31 00:00:00',
+        ]);
+
+        $this->assertDatabaseHas('tenant_document_versions', [
+            'tenant_document_id' => $document->id,
+            'version_number' => 1,
+            'original_name' => 'INE ACTUALIZADA.pdf',
+        ]);
+    }
+
+    public function test_custom_tenant_document_uses_original_file_name_when_label_is_empty(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('tenants.store'), [
+            'full_name' => 'Tenant Label Empty',
+            'phone_primary' => '9995454545',
+            'email' => 'tenant.label.empty@example.com',
+            'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
+        ])->assertSessionHasNoErrors();
+
+        $tenant = Tenant::query()->where('full_name', 'Tenant Label Empty')->firstOrFail();
+
+        $this->actingAs($user)->from(route('dossiers.tenants.show', $tenant))->post(
+            route('dossiers.tenants.documents.store', $tenant),
+            [
+                'label' => '',
+                'file' => UploadedFile::fake()->create('contrato original.pdf', 40, 'application/pdf'),
+            ],
+        )->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('tenant_documents', [
+            'tenant_id' => $tenant->id,
+            'label' => 'contrato original.pdf',
+        ]);
+    }
 }

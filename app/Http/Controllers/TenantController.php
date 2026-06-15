@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Services\DossierDocumentRequirementService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -86,16 +85,9 @@ class TenantController extends Controller
 
     public function edit(Tenant $tenant): View
     {
-        $this->ensureDossierDocuments($tenant);
-
-        $tenant->load([
-            'documents.versions' => fn ($query) => $query->latest('version_number'),
-        ]);
-
         return view('tenants.edit', [
             'tenant' => $tenant,
             'dossierStatuses' => Tenant::DOSSIER_STATUS_LABELS,
-            'tenantDocuments' => $this->buildTenantDocumentsCollection($tenant),
         ]);
     }
 
@@ -223,25 +215,5 @@ class TenantController extends Controller
                 'expires_at' => null,
             ]);
         }
-    }
-
-    private function buildTenantDocumentsCollection(Tenant $tenant): Collection
-    {
-        $requiredDocumentLabels = $this->requirements->labelsForEntity('tenant');
-        $requiredDocuments = collect($requiredDocumentLabels)
-            ->map(function (string $label, string $documentType) use ($tenant) {
-                return $tenant->documents->firstWhere('document_type', $documentType)
-                    ?? new TenantDocument([
-                        'document_type' => $documentType,
-                        'label' => $label,
-                        'status' => TenantDocument::STATUS_PENDING,
-                    ]);
-            });
-
-        $customDocuments = $tenant->documents
-            ->whereNotIn('document_type', array_keys($requiredDocumentLabels))
-            ->values();
-
-        return $requiredDocuments->concat($customDocuments)->values();
     }
 }

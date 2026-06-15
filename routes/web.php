@@ -54,6 +54,7 @@ Route::middleware(['auth', 'system.access'])
         Route::get('/propiedades/{property}', [PropertyController::class, 'show'])->name('properties.show');
         Route::get('/propiedades/{property}/expediente', [DocumentController::class, 'propertyDossier'])->name('dossiers.properties.show');
         Route::post('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadPropertyDocument'])->name('dossiers.properties.documents.upload');
+        Route::patch('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'updatePropertyDocumentMetadata'])->name('dossiers.properties.documents.update');
         Route::post('/propiedades/{property}/expediente/documentos', [DocumentController::class, 'storeCustomPropertyDocument'])->name('dossiers.properties.documents.store');
         Route::delete('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'destroyPropertyDocument'])->name('dossiers.properties.documents.destroy');
         Route::delete('/propiedades/{property}/expediente/documentos/{documentType}/versiones/{version}', [DocumentController::class, 'destroyPropertyDocumentVersion'])->name('dossiers.properties.documents.versions.destroy');
@@ -87,6 +88,7 @@ Route::middleware(['auth', 'system.access'])
         Route::put('/propietarios/{owner}', [OwnerController::class, 'update'])->name('owners.update');
         Route::get('/propietarios/{owner}/expediente', [DocumentController::class, 'ownerDossier'])->name('dossiers.owners.show');
         Route::post('/propietarios/{owner}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadOwnerDocument'])->name('dossiers.owners.documents.upload');
+        Route::patch('/propietarios/{owner}/expediente/documentos/{documentType}', [DocumentController::class, 'updateOwnerDocumentMetadata'])->name('dossiers.owners.documents.update');
         Route::post('/propietarios/{owner}/expediente/documentos', [DocumentController::class, 'storeCustomOwnerDocument'])->name('dossiers.owners.documents.store');
         Route::delete('/propietarios/{owner}/expediente/documentos/{documentType}', [DocumentController::class, 'destroyOwnerDocument'])->name('dossiers.owners.documents.destroy');
         Route::delete('/propietarios/{owner}/expediente/documentos/{documentType}/versiones/{version}', [DocumentController::class, 'destroyOwnerDocumentVersion'])->name('dossiers.owners.documents.versions.destroy');
@@ -97,6 +99,7 @@ Route::middleware(['auth', 'system.access'])
         Route::put('/inquilinos/{tenant}', [TenantController::class, 'update'])->name('tenants.update');
         Route::get('/inquilinos/{tenant}/expediente', [DocumentController::class, 'tenantDossier'])->name('dossiers.tenants.show');
         Route::post('/inquilinos/{tenant}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadTenantDocument'])->name('dossiers.tenants.documents.upload');
+        Route::patch('/inquilinos/{tenant}/expediente/documentos/{documentType}', [DocumentController::class, 'updateTenantDocumentMetadata'])->name('dossiers.tenants.documents.update');
         Route::post('/inquilinos/{tenant}/expediente/documentos', [DocumentController::class, 'storeCustomTenantDocument'])->name('dossiers.tenants.documents.store');
         Route::delete('/inquilinos/{tenant}/expediente/documentos/{documentType}', [DocumentController::class, 'destroyTenantDocument'])->name('dossiers.tenants.documents.destroy');
         Route::delete('/inquilinos/{tenant}/expediente/documentos/{documentType}/versiones/{version}', [DocumentController::class, 'destroyTenantDocumentVersion'])->name('dossiers.tenants.documents.versions.destroy');

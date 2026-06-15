@@ -408,26 +408,48 @@ class DocumentController extends Controller
         return $this->uploadResponse($request, 'Documento de propietario actualizado. Se genero una nueva version.');
     }
 
+    public function updatePropertyDocumentMetadata(Request $request, Property $property, string $documentType): RedirectResponse|JsonResponse
+    {
+        $document = $property->documents()->where('document_type', $documentType)->firstOrFail();
+
+        return $this->updateDocumentMetadata($request, $document, 'Documento de propiedad actualizado.');
+    }
+
+    public function updateTenantDocumentMetadata(Request $request, Tenant $tenant, string $documentType): RedirectResponse|JsonResponse
+    {
+        $document = $tenant->documents()->where('document_type', $documentType)->firstOrFail();
+
+        return $this->updateDocumentMetadata($request, $document, 'Documento de inquilino actualizado.');
+    }
+
+    public function updateOwnerDocumentMetadata(Request $request, Owner $owner, string $documentType): RedirectResponse|JsonResponse
+    {
+        $document = $owner->documents()->where('document_type', $documentType)->firstOrFail();
+
+        return $this->updateDocumentMetadata($request, $document, 'Documento de propietario actualizado.');
+    }
+
     public function storeCustomPropertyDocument(Request $request, Property $property): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
-            'label' => ['required', 'string', 'max:150'],
+            'label' => ['nullable', 'string', 'max:150'],
             'file' => $this->documentFileRules(),
             'expires_at' => ['nullable', 'date'],
         ]);
 
+        $file = $validated['file'];
+        $label = $this->resolveCustomDocumentLabel($validated['label'] ?? null, $file->getClientOriginalName());
         $documentType = $this->buildCustomDocumentType(
             existingTypes: $property->documents()->pluck('document_type')->all(),
-            label: $validated['label'],
+            label: $label,
         );
 
-        $file = $validated['file'];
         $this->ensureDossierStorageCapacity((int) $file->getSize());
         $storedPath = $file->store("properties/{$property->id}/documents", 'public');
 
         $document = $property->documents()->create([
             'document_type' => $documentType,
-            'label' => $validated['label'],
+            'label' => $label,
             'file_path' => $storedPath,
             'status' => PropertyDocument::STATUS_UPLOADED,
             'uploaded_at' => now(),
@@ -450,23 +472,24 @@ class DocumentController extends Controller
     public function storeCustomTenantDocument(Request $request, Tenant $tenant): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
-            'label' => ['required', 'string', 'max:150'],
+            'label' => ['nullable', 'string', 'max:150'],
             'file' => $this->documentFileRules(),
             'expires_at' => ['nullable', 'date'],
         ]);
 
+        $file = $validated['file'];
+        $label = $this->resolveCustomDocumentLabel($validated['label'] ?? null, $file->getClientOriginalName());
         $documentType = $this->buildCustomDocumentType(
             existingTypes: $tenant->documents()->pluck('document_type')->all(),
-            label: $validated['label'],
+            label: $label,
         );
 
-        $file = $validated['file'];
         $this->ensureDossierStorageCapacity((int) $file->getSize());
         $storedPath = $file->store("tenants/{$tenant->id}/documents", 'public');
 
         $document = $tenant->documents()->create([
             'document_type' => $documentType,
-            'label' => $validated['label'],
+            'label' => $label,
             'file_path' => $storedPath,
             'status' => TenantDocument::STATUS_UPLOADED,
             'uploaded_at' => now(),
@@ -489,23 +512,24 @@ class DocumentController extends Controller
     public function storeCustomOwnerDocument(Request $request, Owner $owner): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
-            'label' => ['required', 'string', 'max:150'],
+            'label' => ['nullable', 'string', 'max:150'],
             'file' => $this->documentFileRules(),
             'expires_at' => ['nullable', 'date'],
         ]);
 
+        $file = $validated['file'];
+        $label = $this->resolveCustomDocumentLabel($validated['label'] ?? null, $file->getClientOriginalName());
         $documentType = $this->buildCustomDocumentType(
             existingTypes: $owner->documents()->pluck('document_type')->all(),
-            label: $validated['label'],
+            label: $label,
         );
 
-        $file = $validated['file'];
         $this->ensureDossierStorageCapacity((int) $file->getSize());
         $storedPath = $file->store("owners/{$owner->id}/documents", 'public');
 
         $document = $owner->documents()->create([
             'document_type' => $documentType,
-            'label' => $validated['label'],
+            'label' => $label,
             'file_path' => $storedPath,
             'status' => OwnerDocument::STATUS_UPLOADED,
             'uploaded_at' => now(),
@@ -860,6 +884,13 @@ class DocumentController extends Controller
         return $candidate;
     }
 
+    private function resolveCustomDocumentLabel(?string $label, string $originalFileName): string
+    {
+        $label = trim((string) $label);
+
+        return $label !== '' ? $label : $originalFileName;
+    }
+
     private function ensureDeleteDossierFilesPermission(Request $request): void
     {
         if (!$this->canDeleteDossierFiles($request)) {
@@ -913,6 +944,58 @@ class DocumentController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    private function updateDocumentMetadata(
+        Request $request,
+        PropertyDocument|TenantDocument|OwnerDocument $document,
+        string $message,
+    ): RedirectResponse|JsonResponse {
+        $latestVersion = $document->versions()->orderByDesc('version_number')->first();
+
+        if (!$latestVersion) {
+            throw ValidationException::withMessages([
+                'file_name' => 'No hay un archivo vigente para editar.',
+            ]);
+        }
+
+        $validated = $request->validate([
+            'file_name' => ['required', 'string', 'max:180'],
+            'expires_at' => ['nullable', 'date'],
+        ]);
+
+        $normalizedFileName = $this->normalizeDisplayFileName(
+            trim((string) $validated['file_name']),
+            (string) $latestVersion->original_name,
+        );
+
+        $latestVersion->update([
+            'original_name' => $normalizedFileName,
+        ]);
+
+        $document->update([
+            'expires_at' => $validated['expires_at'] ?? null,
+        ]);
+
+        return $this->uploadResponse($request, $message);
+    }
+
+    private function normalizeDisplayFileName(string $requestedName, string $currentName): string
+    {
+        $requestedName = trim($requestedName);
+        if ($requestedName === '') {
+            return $currentName;
+        }
+
+        if (str_contains($requestedName, '.')) {
+            return $requestedName;
+        }
+
+        $currentExtension = pathinfo($currentName, PATHINFO_EXTENSION);
+
+        return $currentExtension !== ''
+            ? $requestedName . '.' . $currentExtension
+            : $requestedName;
     }
 
     private function deleteSinglePropertyVersion(

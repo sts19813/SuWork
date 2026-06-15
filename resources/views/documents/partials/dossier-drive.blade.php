@@ -10,64 +10,212 @@
         })
         ->values();
     $expiredDocuments = $allDocuments->filter(fn ($document) => $document->expires_at && $document->expires_at->lt(today()))->values();
+    $loadedDocuments = $allDocuments->filter(fn ($document) => filled($document->file_path) && !($document->expires_at && $document->expires_at->lt(today())))->values();
+    $pendingDocuments = $allDocuments->filter(fn ($document) => blank($document->file_path))->values();
     $filledCount = $allDocuments->filter(fn ($document) => filled($document->file_path))->count();
+    $loadedCount = $loadedDocuments->count();
+    $expiredCount = $expiredDocuments->count();
+    $pendingCount = $pendingDocuments->count();
     $totalCount = $allDocuments->count();
+    $completionPercentage = $totalCount > 0 ? ($filledCount / $totalCount) * 100 : 0;
     $storagePercentage = min(100, $dossierStorage['percentage'] ?? 0);
+    $storageTone = $storagePercentage >= 90 ? 'danger' : ($storagePercentage >= 70 ? 'warning' : 'primary');
+    $documentLayout = ($documentLayout ?? request()->query('layout')) === 'cards' ? 'cards' : 'table';
 
     $fileIcon = function (?string $name): array {
         $extension = strtolower(pathinfo((string) $name, PATHINFO_EXTENSION));
 
         return match ($extension) {
             'zip' => ['ki-archive', 'text-warning', 'bg-light-warning', 'ZIP'],
-            'jpg', 'jpeg', 'png' => ['ki-picture', 'text-success', 'bg-light-success', strtoupper($extension ?: 'IMG')],
+            'jpg', 'jpeg', 'png', 'webp', 'gif' => ['ki-picture', 'text-success', 'bg-light-success', strtoupper($extension ?: 'IMG')],
             default => ['ki-document', 'text-danger', 'bg-light-danger', strtoupper($extension ?: 'PDF')],
         };
     };
+
+    $buildFileAction = function (?string $path, ?string $name = null, ?string $mimeType = null): ?array {
+        if (blank($path)) {
+            return null;
+        }
+
+        $extension = strtolower(pathinfo((string) ($name ?: $path), PATHINFO_EXTENSION));
+        $previewableExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif'];
+        $previewableMimeTypes = ['application/pdf'];
+        $isPreviewable = ($mimeType && (str_starts_with($mimeType, 'image/') || in_array($mimeType, $previewableMimeTypes, true)))
+            || in_array($extension, $previewableExtensions, true);
+        $downloadName = $name ?: basename($path);
+
+        return [
+            'url' => \Illuminate\Support\Facades\Storage::url($path),
+            'is_previewable' => $isPreviewable,
+            'target' => $isPreviewable ? '_blank' : null,
+            'download_name' => $downloadName,
+        ];
+    };
+
+    $documentState = function ($document): array {
+        $isExpired = $document->expires_at && $document->expires_at->lt(today());
+        $hasFile = filled($document->file_path);
+
+        if ($isExpired) {
+            return ['warning', 'Vencido'];
+        }
+
+        if ($hasFile) {
+            return ['success', 'Cargado'];
+        }
+
+        return ['danger', 'Falta cargar'];
+    };
+
+    $tableLayoutUrl = request()->fullUrlWithQuery(['layout' => 'table']) . '#required-documents-pane';
+    $cardLayoutUrl = request()->fullUrlWithQuery(['layout' => 'cards']) . '#required-documents-pane';
 @endphp
 
 @push('styles')
     <style>
+        .dossier-drive .dossier-hero-card {
+            position: relative;
+            overflow: hidden;
+            border: 0;
+            background:
+                radial-gradient(circle at top right, rgba(80, 205, 137, 0.18), transparent 36%),
+                linear-gradient(135deg, rgba(0, 158, 247, 0.1), rgba(255, 255, 255, 0.98));
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+        }
+
+        .dossier-drive .dossier-hero-card::after {
+            content: '';
+            position: absolute;
+            inset: auto -60px -80px auto;
+            width: 220px;
+            height: 220px;
+            border-radius: 999px;
+            background: rgba(0, 158, 247, 0.08);
+            filter: blur(4px);
+        }
+
+        .dossier-drive .dossier-hero-card .card-body,
+        .dossier-drive .dossier-summary-card,
+        .dossier-drive .dossier-sidebar-card,
+        .dossier-drive .document-tile,
+        .dossier-drive .upload-progress-item {
+            position: relative;
+        }
+
+        .dossier-drive .dossier-summary-card,
+        .dossier-drive .dossier-sidebar-card,
+        .dossier-drive .dossier-table-card {
+            border: 1px solid var(--bs-gray-200);
+            border-radius: 1rem;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+        }
+
+        .dossier-drive .dossier-summary-card--success {
+            border-color: rgba(80, 205, 137, 0.35);
+        }
+
+        .dossier-drive .dossier-summary-card--warning {
+            border-color: rgba(255, 199, 0, 0.45);
+        }
+
+        .dossier-drive .dossier-summary-card--danger {
+            border-color: rgba(241, 65, 108, 0.35);
+        }
+
         .dossier-drive .drive-nav-link {
-            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            border-radius: 0.85rem;
             color: var(--bs-gray-700);
-            transition: background-color .2s ease, color .2s ease;
+            transition: background-color .2s ease, color .2s ease, transform .2s ease;
         }
 
         .dossier-drive .drive-nav-link.active,
         .dossier-drive .drive-nav-link:hover {
             background-color: var(--bs-primary-light);
             color: var(--bs-primary);
+            transform: translateX(2px);
+        }
+
+        .dossier-drive .drive-nav-link.active .badge,
+        .dossier-drive .drive-nav-link:hover .badge {
+            background: rgba(0, 158, 247, 0.16);
         }
 
         .dossier-drive .document-dropzone {
             border: 2px dashed var(--bs-gray-300);
-            border-radius: 8px;
+            border-radius: 1rem;
             min-height: 126px;
             cursor: pointer;
-            transition: border-color .2s ease, background-color .2s ease;
+            transition: border-color .2s ease, background-color .2s ease, transform .2s ease;
+            background: linear-gradient(180deg, rgba(248, 250, 252, 0.95), rgba(255, 255, 255, 1));
         }
 
         .dossier-drive .document-dropzone:hover,
         .dossier-drive .document-dropzone.is-dragging {
             border-color: var(--bs-primary);
             background-color: var(--bs-primary-light);
+            transform: translateY(-1px);
         }
 
         .dossier-drive .document-file-icon {
-            width: 40px;
-            height: 40px;
-            flex: 0 0 40px;
+            width: 48px;
+            height: 48px;
+            flex: 0 0 48px;
         }
 
         .dossier-drive .document-tile {
-            border: 1px solid #edf0f5;
-            border-radius: 8px;
+            border: 1px solid var(--bs-gray-200);
+            border-radius: 1rem;
             background: #fff;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+        }
+
+        .dossier-drive .document-tile--success {
+            border-color: rgba(80, 205, 137, 0.4);
+            box-shadow: 0 14px 30px rgba(80, 205, 137, 0.08);
+        }
+
+        .dossier-drive .document-tile--warning {
+            border-color: rgba(255, 199, 0, 0.5);
+            box-shadow: 0 14px 30px rgba(255, 199, 0, 0.08);
+        }
+
+        .dossier-drive .document-tile--danger {
+            border-color: rgba(241, 65, 108, 0.35);
+            box-shadow: 0 14px 30px rgba(241, 65, 108, 0.07);
+        }
+
+        .dossier-drive .document-state-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.35rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .dossier-drive .document-state-pill--success {
+            color: var(--bs-success);
+            background: rgba(80, 205, 137, 0.15);
+        }
+
+        .dossier-drive .document-state-pill--warning {
+            color: #9a6700;
+            background: rgba(255, 199, 0, 0.22);
+        }
+
+        .dossier-drive .document-state-pill--danger {
+            color: var(--bs-danger);
+            background: rgba(241, 65, 108, 0.12);
         }
 
         .dossier-drive .upload-progress-item {
             border: 1px solid var(--bs-gray-200);
-            border-radius: 8px;
+            border-radius: 1rem;
             padding: 1rem;
             background: var(--bs-body-bg);
         }
@@ -82,7 +230,59 @@
         .dossier-drive .storage-mini-meter-bar {
             height: 100%;
             border-radius: inherit;
-            background: var(--bs-primary);
+        }
+
+        .dossier-drive .dossier-status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.65rem;
+            padding: 0.65rem 0.9rem;
+            border-radius: 0.95rem;
+            background: rgba(255, 255, 255, 0.75);
+            border: 1px solid rgba(226, 232, 240, 0.9);
+        }
+
+        .dossier-drive .dossier-status-chip__dot {
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 999px;
+        }
+
+        .dossier-drive .dossier-status-chip__dot--success {
+            background: var(--bs-success);
+        }
+
+        .dossier-drive .dossier-status-chip__dot--warning {
+            background: var(--bs-warning);
+        }
+
+        .dossier-drive .dossier-status-chip__dot--danger {
+            background: var(--bs-danger);
+        }
+
+        .dossier-drive .dossier-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .dossier-drive .dossier-empty-state {
+            border: 1px dashed var(--bs-gray-300);
+            border-radius: 1rem;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            color: var(--bs-gray-600);
+            background: #fbfcfe;
+        }
+
+        .dossier-drive .dossier-file-meta {
+            min-width: 0;
+        }
+
+        .dossier-drive .dossier-upload-panel {
+            border-top: 1px dashed var(--bs-gray-300);
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
         }
     </style>
 @endpush
@@ -93,6 +293,13 @@
             <i class="ki-outline ki-arrow-left fs-4 me-1"></i> {{ $backLabel }}
         </a>
     </div>
+
+    @if (session('success'))
+        <div class="alert alert-success d-flex align-items-center p-5 mb-8">
+            <i class="ki-outline ki-check-circle fs-2hx text-success me-4"></i>
+            <div class="fw-semibold">{{ session('success') }}</div>
+        </div>
+    @endif
 
     @if ($errors->any())
         <div class="alert alert-danger mb-8">
@@ -105,6 +312,7 @@
         </div>
     @endif
 
+   
     <div class="card mb-8">
         <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-6 p-8">
             <div>
@@ -133,46 +341,25 @@
 
     <div class="row g-8">
         <div class="col-xl-3">
-            <div class="card">
+            <div class="card dossier-sidebar-card">
                 <div class="card-body p-5">
                     <div class="d-flex flex-column gap-2" role="tablist">
                         <button class="drive-nav-link active border-0 text-start bg-transparent px-4 py-3 fw-semibold"
                             data-bs-toggle="tab" data-bs-target="#required-documents-pane" type="button">
-                            <i class="ki-outline ki-folder fs-2 me-2"></i> Documentos
-                            <span class="badge badge-light ms-2">{{ $allDocuments->count() }}</span>
+                            <span><i class="ki-outline ki-folder fs-2 me-2"></i>Documentos</span>
+                            <span class="badge badge-light">{{ $allDocuments->count() }}</span>
                         </button>
                         <button class="drive-nav-link border-0 text-start bg-transparent px-4 py-3 fw-semibold"
                             data-bs-toggle="tab" data-bs-target="#historical-documents-pane" type="button">
-                            <i class="ki-outline ki-time fs-2 me-2"></i> Historicos
-                            <span class="badge badge-light ms-2">{{ $historicalVersions->count() }}</span>
+                            <span><i class="ki-outline ki-time fs-2 me-2"></i>Historico</span>
+                            <span class="badge badge-light">{{ $historicalVersions->count() }}</span>
                         </button>
-                        <a href="{{ route('documents.expired', ['entity' => $entityType]) }}"
-                            class="drive-nav-link px-4 py-3 fw-semibold">
-                            <i class="ki-outline ki-calendar-tick fs-2 me-2"></i> Vencidos
-                            <span class="badge badge-light-warning text-warning ms-2">{{ $expiredDocuments->count() }}</span>
-                        </a>
+                        <button class="drive-nav-link border-0 text-start bg-transparent px-4 py-3 fw-semibold"
+                            data-bs-toggle="tab" data-bs-target="#expired-documents-pane" type="button">
+                            <span><i class="ki-outline ki-calendar-tick fs-2 me-2"></i>Vencidos</span>
+                            <span class="badge badge-light-warning text-warning">{{ $expiredDocuments->count() }}</span>
+                        </button>
                     </div>
-
-                    <div class="separator my-6"></div>
-
-                    <form method="POST" action="{{ $storeRoute }}" enctype="multipart/form-data"
-                        data-dossier-upload-form
-                        data-custom-document-form
-                        data-max-upload-size="{{ $dossierUploadLimit['effective_bytes'] }}"
-                        data-max-upload-label="{{ $dossierUploadLimit['effective_label'] }}">
-                        @csrf
-                        <input type="hidden" name="label" data-custom-label>
-                        <input type="hidden" name="expires_at">
-                        <input id="custom-upload-{{ $entityType }}" type="file" name="file" class="d-none"
-                            accept=".pdf,.jpg,.jpeg,.png,.zip" data-dossier-file-input>
-                        <label for="custom-upload-{{ $entityType }}" class="document-dropzone d-flex align-items-center justify-content-center text-center p-5" data-document-dropzone>
-                            <span>
-                                <i class="ki-outline ki-file-up fs-2x text-gray-500 d-block mb-3"></i>
-                                <span class="fw-bold text-gray-900 d-block">Agregar archivo</span>
-                                <span class="text-muted fs-8 d-block mt-2">PDF, imagenes o ZIP hasta {{ $dossierUploadLimit['effective_label'] }}</span>
-                            </span>
-                        </label>
-                    </form>
                 </div>
             </div>
         </div>
@@ -180,31 +367,423 @@
         <div class="col-xl-9">
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="required-documents-pane">
-                    <div class="card">
-                        <div class="card-header border-0 pt-6">
-                            <div class="card-title">
-                                <h3 class="fw-bold mb-0">Documentos principales</h3>
+                    @if ($documentLayout === 'table')
+                        <div class="card dossier-table-card">
+                            <div class="card-header border-0 pt-6">
+                                <div class="card-title flex-column align-items-start">
+                                    <h3 class="fw-bold mb-1">Documentos actuales</h3>
+                                    <div class="text-muted fs-7">Vista tipo historial para revisar todo el expediente actual de un vistazo.</div>
+                                </div>
+                                <div class="card-toolbar">
+                                    <a href="{{ $cardLayoutUrl }}" class="btn btn-light-primary btn-sm">
+                                        <i class="ki-outline ki-element-11 fs-4 me-1"></i>Ver vista actual
+                                    </a>
+                                </div>
                             </div>
-                        </div>
-                        <div class="card-body pt-0 d-flex flex-column gap-4">
-                            @foreach ($requiredDocuments as $document)
-                                @include('documents.partials.document-tile', ['document' => $document])
-                            @endforeach
-                        </div>
-                    </div>
+                            <div class="card-body pt-0">
+                                <div class="table-responsive">
+                                    <table class="table table-row-dashed align-middle">
+                                        <thead>
+                                            <tr class="text-muted text-uppercase fs-8">
+                                                <th>Documento</th>
+                                                <th>Archivo</th>
+                                                <th>Vence</th>
+                                                <th>Fecha</th>
+                                                <th class="text-end">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @forelse ($allDocuments as $index => $document)
+                                                @php
+                                                    $versions = $document->relationLoaded('versions') ? $document->versions : collect();
+                                                    $latestVersion = $versions->first();
+                                                    $fileName = $latestVersion?->original_name;
+                                                    $mimeType = $latestVersion?->mime_type;
+                                                    $uploadedAt = $latestVersion?->uploaded_at ?: $document->uploaded_at;
+                                                    [$stateTone, $stateLabel] = $documentState($document);
+                                                    [$icon, $iconColor, $iconBg] = $fileIcon($fileName ?: $document->file_path);
+                                                    $fileAction = filled($document->file_path) ? $buildFileAction($document->file_path, $fileName, $mimeType) : null;
+                                                    $uploadInputId = 'table-upload-' . $entityType . '-' . $index;
+                                                    $editModalId = 'edit-document-modal-' . $entityType . '-' . $index;
+                                                @endphp
+                                                <tr>
+                                                    <td>
+                                                        <div class="d-flex flex-column gap-2">
+                                                            <div class="fw-bold text-gray-900">{{ $document->label }}</div>
+                                                            
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="d-flex align-items-center gap-3">
+                                                            <div class="document-file-icon rounded {{ $iconBg }} d-flex align-items-center justify-content-center">
+                                                                <i class="ki-outline {{ $icon }} fs-3 {{ $iconColor }}"></i>
+                                                            </div>
+                                                            <div class="dossier-file-meta">
+                                                                @if ($fileAction)
+                                                                    <a href="{{ $fileAction['url'] }}"
+                                                                        class="fw-semibold text-gray-800 text-hover-primary text-break"
+                                                                        @if ($fileAction['target']) target="{{ $fileAction['target'] }}" rel="noopener" @endif
+                                                                        @if (!$fileAction['is_previewable']) download="{{ $fileAction['download_name'] }}" @endif>
+                                                                        {{ $fileName ?: 'Abrir archivo actual' }}
+                                                                    </a>
+                                                                    <div class="text-muted fs-8">
+                                                                        {{ $fileAction['is_previewable'] ? 'Abrir en una nueva pestaña' : 'Descargar archivo' }}
+                                                                    </div>
+                                                                @else
+                                                                    <span class="text-muted">Sin archivo vigente</span>
+                                                                    <div class="text-muted fs-8">Sube un archivo desde acciones o cambia a vista detallada.</div>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td>{{ $document->expires_at?->format('d/m/Y') ?: '-' }}</td>
+                                                    <td>{{ $uploadedAt?->format('d/m/Y H:i') ?: '-' }}</td>
+                                                    <td class="text-end">
+                                                        <div class="d-inline-flex align-items-center gap-2">
+                                                            @if ($fileAction)
+                                                                <a href="{{ $fileAction['url'] }}"
+                                                                    class="btn btn-icon btn-light btn-active-light-primary btn-sm"
+                                                                    title="{{ $fileAction['is_previewable'] ? 'Ver' : 'Descargar' }}"
+                                                                    @if ($fileAction['target']) target="{{ $fileAction['target'] }}" rel="noopener" @endif
+                                                                    @if (!$fileAction['is_previewable']) download="{{ $fileAction['download_name'] }}" @endif>
+                                                                    <i class="ki-outline {{ $fileAction['is_previewable'] ? 'ki-eye' : 'ki-file-down' }} fs-2"></i>
+                                                                </a>
 
-                    <div class="card mt-6">
-                        <div class="card-header border-0 pt-6">
-                            <div class="card-title">
-                                <h3 class="fw-bold mb-0">Otros documentos</h3>
+                                                                @if ($fileAction['is_previewable'])
+                                                                    <a href="{{ $fileAction['url'] }}"
+                                                                        download="{{ $fileAction['download_name'] }}"
+                                                                        class="btn btn-icon btn-light btn-active-light-primary btn-sm"
+                                                                        title="Descargar">
+                                                                        <i class="ki-outline ki-file-down fs-2"></i>
+                                                                    </a>
+                                                                @endif
+                                                            @endif
+
+                                                            @if ($document->exists)
+                                                                <form method="POST" action="{{ $uploadRouteResolver($document) }}"
+                                                                    enctype="multipart/form-data"
+                                                                    class="d-inline"
+                                                                    data-dossier-upload-form
+                                                                    data-max-upload-size="{{ $dossierUploadLimit['effective_bytes'] }}"
+                                                                    data-max-upload-label="{{ $dossierUploadLimit['effective_label'] }}">
+                                                                    @csrf
+                                                                    <input type="hidden" name="expires_at" value="{{ $document->expires_at?->format('Y-m-d') }}">
+                                                                    <input id="{{ $uploadInputId }}" type="file" name="file" class="d-none"
+                                                                        accept=".pdf,.jpg,.jpeg,.png,.zip" data-dossier-file-input>
+                                                                    <button type="button"
+                                                                        class="btn btn-icon btn-light btn-active-light-primary btn-sm"
+                                                                        title="{{ filled($document->file_path) ? 'Reemplazar archivo' : 'Cargar archivo' }}"
+                                                                        data-inline-upload-trigger
+                                                                        data-input-id="{{ $uploadInputId }}">
+                                                                        <i class="ki-outline {{ filled($document->file_path) ? 'ki-arrows-circle' : 'ki-file-up' }} fs-2"></i>
+                                                                    </button>
+                                                                </form>
+                                                            @endif
+
+                                                            @if ($fileAction)
+                                                                <button type="button"
+                                                                    class="btn btn-icon btn-light btn-active-light-warning btn-sm"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#{{ $editModalId }}"
+                                                                    title="Editar metadatos">
+                                                                    <i class="ki-outline ki-pencil fs-2"></i>
+                                                                </button>
+                                                            @endif
+
+                                                            @if ($canDeleteDossierFiles && $document->exists && $document->file_path)
+                                                                <form method="POST" action="{{ $destroyRouteResolver($document) }}" class="d-inline"
+                                                                    onsubmit="return confirm('Eliminar este documento y su historial de versiones?');">
+                                                                    @csrf
+                                                                    @method('DELETE')
+                                                                    <button class="btn btn-icon btn-light btn-active-light-danger btn-sm" type="submit" title="Eliminar">
+                                                                        <i class="ki-outline ki-trash fs-2"></i>
+                                                                    </button>
+                                                                </form>
+                                                            @endif
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="5" class="py-10">
+                                                        <div class="dossier-empty-state">
+                                                            No hay documentos configurados para este expediente.
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="dossier-upload-panel">
+                                    <div class="row g-4 align-items-center mb-4">
+                                        <div class="col-lg-7">
+                                            <h4 class="fw-bold text-gray-900 mb-1">Seguir cargando archivos al expediente</h4>
+                                            <div class="text-muted fs-7">Usa esta zona para agregar documentos adicionales. Si necesitas un dropzone por documento, cambia a la vista detallada.</div>
+                                        </div>
+                                        <div class="col-lg-5">
+                                            <div class="row g-3">
+                                                <div class="col-md-7">
+                                                    <label class="form-label fw-semibold">Nombre del documento</label>
+                                                    <input type="text" name="label" form="custom-dossier-upload-{{ $entityType }}"
+                                                        class="form-control form-control-solid"
+                                                        placeholder="Opcional. Si lo dejas vacio se usa el nombre original del archivo"
+                                                        data-custom-label-input>
+                                                </div>
+                                                <div class="col-md-5">
+                                                    <label class="form-label fw-semibold">Vencimiento</label>
+                                                    <input type="date" name="expires_at" form="custom-dossier-upload-{{ $entityType }}"
+                                                        class="form-control form-control-solid">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <form id="custom-dossier-upload-{{ $entityType }}" method="POST" action="{{ $storeRoute }}" enctype="multipart/form-data"
+                                        data-dossier-upload-form
+                                        data-custom-document-form
+                                        data-max-upload-size="{{ $dossierUploadLimit['effective_bytes'] }}"
+                                        data-max-upload-label="{{ $dossierUploadLimit['effective_label'] }}">
+                                        @csrf
+                                        <input id="custom-upload-{{ $entityType }}" type="file" name="file" class="d-none"
+                                            accept=".pdf,.jpg,.jpeg,.png,.zip" data-dossier-file-input>
+                                        <label for="custom-upload-{{ $entityType }}"
+                                            class="document-dropzone d-flex align-items-center justify-content-center text-center p-5"
+                                            data-document-dropzone>
+                                            <span>
+                                                <i class="ki-outline ki-file-up fs-2x text-gray-500 d-block mb-3"></i>
+                                                <span class="fw-bold text-gray-900 d-block">Arrastra o selecciona archivos para seguir cargando el expediente</span>
+                                                <span class="text-muted fs-8 d-block mt-2">
+                                                    PDF, imagenes o ZIP hasta {{ $dossierUploadLimit['effective_label'] }}
+                                                </span>
+                                            </span>
+                                        </label>
+                                    </form>
+                                </div>
                             </div>
                         </div>
-                        <div class="card-body pt-0 d-flex flex-column gap-4">
-                            @forelse ($customDocuments as $document)
-                                @include('documents.partials.document-tile', ['document' => $document])
-                            @empty
-                                <div class="text-center text-muted py-12">Aun no hay documentos adicionales.</div>
-                            @endforelse
+                    @else
+                        <div class="card">
+                            <div class="card-header border-0 pt-6">
+                                <div class="card-title flex-column align-items-start">
+                                    <h3 class="fw-bold mb-1">Documentos principales</h3>
+                                    <div class="text-muted fs-7">Vista detallada con un dropzone independiente por documento.</div>
+                                </div>
+                                <div class="card-toolbar">
+                                    <a href="{{ $tableLayoutUrl }}" class="btn btn-light-primary btn-sm">
+                                        <i class="ki-outline ki-row-horizontal fs-4 me-1"></i>Volver a tabla
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="card-body pt-0 d-flex flex-column gap-4">
+                                @forelse ($requiredDocuments as $document)
+                                    @include('documents.partials.document-tile', ['document' => $document])
+                                @empty
+                                    <div class="dossier-empty-state">
+                                        No hay documentos obligatorios configurados para este expediente.
+                                    </div>
+                                @endforelse
+                            </div>
+                        </div>
+
+                        <div class="card mt-6">
+                            <div class="card-header border-0 pt-6">
+                                <div class="card-title flex-column align-items-start">
+                                    <h3 class="fw-bold mb-1">Documentos adicionales</h3>
+                                    <div class="text-muted fs-7">Archivos extra que ayudan a complementar el expediente.</div>
+                                </div>
+                            </div>
+                            <div class="card-body pt-0 d-flex flex-column gap-4">
+                                @forelse ($customDocuments as $document)
+                                    @include('documents.partials.document-tile', ['document' => $document])
+                                @empty
+                                    <div class="dossier-empty-state">
+                                        Aun no hay documentos adicionales.
+                                    </div>
+                                @endforelse
+
+                                <div class="dossier-upload-panel">
+                                    <div class="row g-4 align-items-center mb-4">
+                                        <div class="col-lg-7">
+                                            <h4 class="fw-bold text-gray-900 mb-1">Agregar documento personalizado</h4>
+                                            <div class="text-muted fs-7">Sube anexos, garantias u otros respaldos adicionales.</div>
+                                        </div>
+                                        <div class="col-lg-5">
+                                            <div class="row g-3">
+                                                <div class="col-md-7">
+                                                    <label class="form-label fw-semibold">Nombre del documento</label>
+                                                    <input type="text" name="label" form="custom-dossier-card-upload-{{ $entityType }}"
+                                                        class="form-control form-control-solid"
+                                                        placeholder="Opcional. Si lo dejas vacio se usa el nombre original del archivo"
+                                                        data-custom-label-input>
+                                                </div>
+                                                <div class="col-md-5">
+                                                    <label class="form-label fw-semibold">Vencimiento</label>
+                                                    <input type="date" name="expires_at" form="custom-dossier-card-upload-{{ $entityType }}"
+                                                        class="form-control form-control-solid">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <form id="custom-dossier-card-upload-{{ $entityType }}" method="POST" action="{{ $storeRoute }}" enctype="multipart/form-data"
+                                        data-dossier-upload-form
+                                        data-custom-document-form
+                                        data-max-upload-size="{{ $dossierUploadLimit['effective_bytes'] }}"
+                                        data-max-upload-label="{{ $dossierUploadLimit['effective_label'] }}">
+                                        @csrf
+                                        <input id="custom-card-upload-{{ $entityType }}" type="file" name="file" class="d-none"
+                                            accept=".pdf,.jpg,.jpeg,.png,.zip" data-dossier-file-input>
+                                        <label for="custom-card-upload-{{ $entityType }}"
+                                            class="document-dropzone d-flex align-items-center justify-content-center text-center p-5"
+                                            data-document-dropzone>
+                                            <span>
+                                                <i class="ki-outline ki-file-up fs-2x text-gray-500 d-block mb-3"></i>
+                                                <span class="fw-bold text-gray-900 d-block">Arrastra o selecciona archivos para el expediente</span>
+                                                <span class="text-muted fs-8 d-block mt-2">
+                                                    PDF, imagenes o ZIP hasta {{ $dossierUploadLimit['effective_label'] }}
+                                                </span>
+                                            </span>
+                                        </label>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                </div>
+
+                <div class="tab-pane fade" id="expired-documents-pane">
+                    <div class="card dossier-table-card">
+                        <div class="card-header border-0 pt-6">
+                            <div class="card-title flex-column align-items-start">
+                                <h3 class="fw-bold mb-1">Documentos vencidos</h3>
+                                <div class="text-muted fs-7">Vista exclusiva de este expediente con los archivos que requieren renovacion.</div>
+                            </div>
+                        </div>
+                        <div class="card-body pt-0">
+                            <div class="table-responsive">
+                                <table class="table table-row-dashed align-middle">
+                                    <thead>
+                                        <tr class="text-muted text-uppercase fs-8">
+                                            <th>Documento</th>
+                                            <th>Archivo</th>
+                                            <th>Vence</th>
+                                            <th>Fecha</th>
+                                            <th class="text-end">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse ($expiredDocuments as $index => $document)
+                                            @php
+                                                $versions = $document->relationLoaded('versions') ? $document->versions : collect();
+                                                $latestVersion = $versions->first();
+                                                $fileName = $latestVersion?->original_name;
+                                                $mimeType = $latestVersion?->mime_type;
+                                                $uploadedAt = $latestVersion?->uploaded_at ?: $document->uploaded_at;
+                                                [$stateTone, $stateLabel] = $documentState($document);
+                                                [$icon, $iconColor, $iconBg] = $fileIcon($fileName ?: $document->file_path);
+                                                $fileAction = filled($document->file_path) ? $buildFileAction($document->file_path, $fileName, $mimeType) : null;
+                                                $uploadInputId = 'expired-upload-' . $entityType . '-' . $index;
+                                                $editModalId = 'edit-document-modal-' . $entityType . '-' . $allDocuments->search($document);
+                                            @endphp
+                                            <tr>
+                                                <td>
+                                                    <div class="d-flex flex-column gap-2">
+                                                        <div class="fw-bold text-gray-900">{{ $document->label }}</div>
+                                                        <span class="document-state-pill document-state-pill--{{ $stateTone }}">{{ $stateLabel }}</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        <div class="document-file-icon rounded {{ $iconBg }} d-flex align-items-center justify-content-center">
+                                                            <i class="ki-outline {{ $icon }} fs-3 {{ $iconColor }}"></i>
+                                                        </div>
+                                                        <div class="dossier-file-meta">
+                                                            @if ($fileAction)
+                                                                <a href="{{ $fileAction['url'] }}"
+                                                                    class="fw-semibold text-gray-800 text-hover-primary text-break"
+                                                                    @if ($fileAction['target']) target="{{ $fileAction['target'] }}" rel="noopener" @endif
+                                                                    @if (!$fileAction['is_previewable']) download="{{ $fileAction['download_name'] }}" @endif>
+                                                                    {{ $fileName ?: 'Abrir archivo actual' }}
+                                                                </a>
+                                                                <div class="text-muted fs-8">
+                                                                    {{ $fileAction['is_previewable'] ? 'Abrir en una nueva pestaña' : 'Descargar archivo' }}
+                                                                </div>
+                                                            @else
+                                                                <span class="text-muted">Sin archivo vigente</span>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>{{ $document->expires_at?->format('d/m/Y') ?: '-' }}</td>
+                                                <td>{{ $uploadedAt?->format('d/m/Y H:i') ?: '-' }}</td>
+                                                <td class="text-end">
+                                                    <div class="d-inline-flex align-items-center gap-2">
+                                                        @if ($fileAction)
+                                                            <a href="{{ $fileAction['url'] }}"
+                                                                class="btn btn-icon btn-light btn-active-light-primary btn-sm"
+                                                                title="{{ $fileAction['is_previewable'] ? 'Ver' : 'Descargar' }}"
+                                                                @if ($fileAction['target']) target="{{ $fileAction['target'] }}" rel="noopener" @endif
+                                                                @if (!$fileAction['is_previewable']) download="{{ $fileAction['download_name'] }}" @endif>
+                                                                <i class="ki-outline {{ $fileAction['is_previewable'] ? 'ki-eye' : 'ki-file-down' }} fs-2"></i>
+                                                            </a>
+
+                                                            @if ($fileAction['is_previewable'])
+                                                                <a href="{{ $fileAction['url'] }}"
+                                                                    download="{{ $fileAction['download_name'] }}"
+                                                                    class="btn btn-icon btn-light btn-active-light-primary btn-sm"
+                                                                    title="Descargar">
+                                                                    <i class="ki-outline ki-file-down fs-2"></i>
+                                                                </a>
+                                                            @endif
+                                                        @endif
+
+                                                        @if ($document->exists)
+                                                            <form method="POST" action="{{ $uploadRouteResolver($document) }}"
+                                                                enctype="multipart/form-data"
+                                                                class="d-inline"
+                                                                data-dossier-upload-form
+                                                                data-max-upload-size="{{ $dossierUploadLimit['effective_bytes'] }}"
+                                                                data-max-upload-label="{{ $dossierUploadLimit['effective_label'] }}">
+                                                                @csrf
+                                                                <input type="hidden" name="expires_at" value="{{ $document->expires_at?->format('Y-m-d') }}">
+                                                                <input id="{{ $uploadInputId }}" type="file" name="file" class="d-none"
+                                                                    accept=".pdf,.jpg,.jpeg,.png,.zip" data-dossier-file-input>
+                                                                <button type="button"
+                                                                    class="btn btn-icon btn-light btn-active-light-primary btn-sm"
+                                                                    title="Reemplazar archivo"
+                                                                    data-inline-upload-trigger
+                                                                    data-input-id="{{ $uploadInputId }}">
+                                                                    <i class="ki-outline ki-arrows-circle fs-2"></i>
+                                                                </button>
+                                                            </form>
+                                                        @endif
+
+                                                        @if ($fileAction)
+                                                            <button type="button"
+                                                                class="btn btn-icon btn-light btn-active-light-warning btn-sm"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#{{ $editModalId }}"
+                                                                title="Editar metadatos">
+                                                                <i class="ki-outline ki-pencil fs-2"></i>
+                                                            </button>
+                                                        @endif
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="5" class="py-10">
+                                                    <div class="dossier-empty-state">
+                                                        Este expediente no tiene documentos vencidos.
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -212,8 +791,9 @@
                 <div class="tab-pane fade" id="historical-documents-pane">
                     <div class="card">
                         <div class="card-header border-0 pt-6">
-                            <div class="card-title">
-                                <h3 class="fw-bold mb-0">Documentos reemplazados</h3>
+                            <div class="card-title flex-column align-items-start">
+                                <h3 class="fw-bold mb-1">Versiones anteriores</h3>
+                                <div class="text-muted fs-7">Consulta el historial de archivos reemplazados y descarga cualquier version anterior.</div>
                             </div>
                         </div>
                         <div class="card-body pt-0">
@@ -233,17 +813,55 @@
                                             @php
                                                 $document = $item['document'];
                                                 $version = $item['version'];
+                                                $fileAction = $buildFileAction($version->file_path, $version->original_name, $version->mime_type);
+                                                [$versionIcon, $versionIconColor, $versionIconBg] = $fileIcon($version->original_name);
                                             @endphp
                                             <tr>
                                                 <td class="fw-bold text-gray-900">{{ $document->label }}</td>
                                                 <td>v{{ $version->version_number }}</td>
-                                                <td>{{ $version->original_name }}</td>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        <div class="document-file-icon rounded {{ $versionIconBg }} d-flex align-items-center justify-content-center">
+                                                            <i class="ki-outline {{ $versionIcon }} fs-3 {{ $versionIconColor }}"></i>
+                                                        </div>
+                                                        <div class="min-w-0">
+                                                            @if ($fileAction)
+                                                                <a href="{{ $fileAction['url'] }}"
+                                                                    class="fw-semibold text-gray-800 text-hover-primary text-break"
+                                                                    @if ($fileAction['target']) target="{{ $fileAction['target'] }}" rel="noopener" @endif
+                                                                    @if (!$fileAction['is_previewable']) download="{{ $fileAction['download_name'] }}" @endif>
+                                                                    {{ $version->original_name }}
+                                                                </a>
+                                                                <div class="text-muted fs-8">
+                                                                    {{ $fileAction['is_previewable'] ? 'Abrir en una nueva pestaña' : 'Descargar archivo' }}
+                                                                </div>
+                                                            @else
+                                                                <span class="text-muted">{{ $version->original_name }}</span>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </td>
                                                 <td>{{ $version->uploaded_at?->format('d/m/Y H:i') ?: '-' }}</td>
                                                 <td class="text-end">
-                                                    <a href="{{ \Illuminate\Support\Facades\Storage::url($version->file_path) }}" target="_blank"
-                                                        class="btn btn-icon btn-light btn-active-light-primary btn-sm" title="Ver">
-                                                        <i class="ki-outline ki-eye fs-2"></i>
-                                                    </a>
+                                                    @if ($fileAction)
+                                                        <a href="{{ $fileAction['url'] }}"
+                                                            class="btn btn-icon btn-light btn-active-light-primary btn-sm"
+                                                            title="{{ $fileAction['is_previewable'] ? 'Ver' : 'Descargar' }}"
+                                                            @if ($fileAction['target']) target="{{ $fileAction['target'] }}" rel="noopener" @endif
+                                                            @if (!$fileAction['is_previewable']) download="{{ $fileAction['download_name'] }}" @endif>
+                                                            <i class="ki-outline {{ $fileAction['is_previewable'] ? 'ki-eye' : 'ki-file-down' }} fs-2"></i>
+                                                        </a>
+
+                                                        @if ($fileAction['is_previewable'])
+                                                            <a href="{{ $fileAction['url'] }}"
+                                                                download="{{ $version->original_name }}"
+                                                                class="btn btn-icon btn-light btn-active-light-primary btn-sm"
+                                                                title="Descargar">
+                                                                <i class="ki-outline ki-file-down fs-2"></i>
+                                                            </a>
+                                                        @endif
+                                                    @endif
+
                                                     @if ($canDeleteDossierFiles)
                                                         <form method="POST" action="{{ $versionDestroyRouteResolver($document, $version) }}" class="d-inline"
                                                             onsubmit="return confirm('Eliminar esta version del expediente?');">
@@ -258,7 +876,11 @@
                                             </tr>
                                         @empty
                                             <tr>
-                                                <td colspan="5" class="text-center text-muted py-12">No hay documentos reemplazados.</td>
+                                                <td colspan="5" class="py-10">
+                                                    <div class="dossier-empty-state">
+                                                        No hay documentos reemplazados.
+                                                    </div>
+                                                </td>
                                             </tr>
                                         @endforelse
                                     </tbody>
@@ -275,6 +897,52 @@
             </div>
         </div>
     </div>
+
+    @foreach ($allDocuments as $index => $document)
+        @php
+            $versions = $document->relationLoaded('versions') ? $document->versions : collect();
+            $latestVersion = $versions->first();
+            $editModalId = 'edit-document-modal-' . $entityType . '-' . $index;
+        @endphp
+        @if ($latestVersion && $document->exists)
+            <div class="modal fade" id="{{ $editModalId }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <form method="POST" action="{{ $metadataUpdateRouteResolver($document) }}">
+                            @csrf
+                            @method('PATCH')
+                            <div class="modal-header">
+                                <div>
+                                    <h3 class="modal-title">Editar documento</h3>
+                                    <div class="text-muted fs-7 mt-1">{{ $document->label }}</div>
+                                </div>
+                                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary" data-bs-dismiss="modal">
+                                    <i class="ki-outline ki-cross fs-1"></i>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-5">
+                                    <label class="form-label fw-semibold">Nombre del archivo</label>
+                                    <input type="text" name="file_name" class="form-control form-control-solid"
+                                        value="{{ old('file_name', $latestVersion->original_name) }}" required>
+                                    <div class="form-text">Solo cambia el nombre visible del archivo dentro del expediente.</div>
+                                </div>
+                                <div>
+                                    <label class="form-label fw-semibold">Fecha de vencimiento</label>
+                                    <input type="date" name="expires_at" class="form-control form-control-solid"
+                                        value="{{ old('expires_at', $document->expires_at?->format('Y-m-d')) }}">
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @endif
+    @endforeach
 </div>
 
 @push('scripts')
@@ -398,8 +1066,13 @@
                 }
 
                 if (form.matches('[data-custom-document-form]')) {
-                    var labelInput = form.querySelector('[data-custom-label]');
-                    if (labelInput) labelInput.value = labelFromFile(file);
+                    var labelInput = form.querySelector('[data-custom-label-input]');
+                    if (!labelInput && form.id) {
+                        labelInput = document.querySelector('[data-custom-label-input][form="' + form.id + '"]');
+                    }
+                    if (labelInput && !labelInput.value.trim()) {
+                        labelInput.value = labelFromFile(file);
+                    }
                 }
 
                 var request = new XMLHttpRequest();
@@ -477,6 +1150,14 @@
 
                 dropzone.addEventListener('drop', function (event) {
                     uploadFiles(form, event.dataTransfer.files);
+                });
+            });
+
+            document.querySelectorAll('[data-inline-upload-trigger]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var inputId = button.getAttribute('data-input-id');
+                    if (!inputId) return;
+                    document.getElementById(inputId)?.click();
                 });
             });
         });
