@@ -48,7 +48,15 @@ class PropertyControlController extends Controller
             ->get();
 
         $snapshots = $this->propertyControlService->buildCollection($properties);
-        $filteredSnapshots = $this->filterSnapshots($snapshots, $search, $statusFilter);
+        $statusOptions = [
+            'all' => 'Todas',
+            'complete' => 'Completas',
+            'incomplete' => 'Incompletas',
+            'no_advisor' => 'Sin asesor',
+            'no_contract' => 'Sin contrato',
+            'no_charges' => 'Sin cobranza',
+            'no_dossier' => 'Sin expediente',
+        ];
 
         return view('properties.control', [
             'filters' => [
@@ -62,17 +70,12 @@ class PropertyControlController extends Controller
                 'without_advisor' => $snapshots->filter(fn ($row) => !($row['checks']['advisor'] ?? false))->count(),
                 'overall_progress' => (int) round($snapshots->avg('progress_percent') ?? 0),
             ],
-            'resultCount' => $filteredSnapshots->count(),
-            'snapshots' => $filteredSnapshots->values(),
-            'statusOptions' => [
-                'all' => 'Todas',
-                'complete' => 'Completas',
-                'incomplete' => 'Incompletas',
-                'no_advisor' => 'Sin asesor',
-                'no_contract' => 'Sin contrato',
-                'no_charges' => 'Sin cobranza',
-                'no_dossier' => 'Sin expediente',
-            ],
+            'resultCount' => $this->filterSnapshots($snapshots, $search, $statusFilter)->count(),
+            'snapshots' => $snapshots->values(),
+            'statusOptions' => $statusOptions,
+            'statusCounts' => collect(array_keys($statusOptions))
+                ->mapWithKeys(fn (string $status) => [$status => $this->filterSnapshots($snapshots, '', $status)->count()])
+                ->all(),
             'checkLabels' => $this->propertyControlService->checkLabels(),
         ]);
     }
@@ -84,17 +87,20 @@ class PropertyControlController extends Controller
                 fn (array $row) => str_contains($row['search_text'], $search)
             ))
             ->when($statusFilter !== 'all', function (Collection $collection) use ($statusFilter): Collection {
-                return $collection->filter(function (array $row) use ($statusFilter): bool {
-                    return match ($statusFilter) {
-                        'complete' => $row['is_complete'],
-                        'incomplete' => !$row['is_complete'],
-                        'no_advisor' => !($row['checks']['advisor'] ?? false),
-                        'no_contract' => !($row['checks']['contract'] ?? false),
-                        'no_charges' => !($row['checks']['charges'] ?? false),
-                        'no_dossier' => $row['has_dossier_gap'],
-                        default => true,
-                    };
-                });
+                return $collection->filter(fn (array $row): bool => $this->matchesStatus($row, $statusFilter));
             });
+    }
+
+    private function matchesStatus(array $row, string $statusFilter): bool
+    {
+        return match ($statusFilter) {
+            'complete' => $row['is_complete'],
+            'incomplete' => !$row['is_complete'],
+            'no_advisor' => !($row['checks']['advisor'] ?? false),
+            'no_contract' => !($row['checks']['contract'] ?? false),
+            'no_charges' => !($row['checks']['charges'] ?? false),
+            'no_dossier' => $row['has_dossier_gap'],
+            default => true,
+        };
     }
 }

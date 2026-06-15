@@ -78,4 +78,24 @@ class TenantModuleTest extends TestCase
         ]);
         $this->assertTrue(Hash::check('NuevaClave123', User::query()->where('email', 'roberto@example.com')->firstOrFail()->password));
     }
+
+    public function test_tenant_edit_page_does_not_show_dossier_section(): void
+    {
+        $user = User::factory()->create();
+        $tenant = Tenant::create([
+            'full_name' => 'Laura Sanchez',
+            'phone_primary' => '9991234567',
+            'email' => 'laura@example.com',
+            'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
+            'is_active' => true,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('tenants.edit', $tenant));
+
+        $response->assertOk();
+        $response->assertSee('Perfil del inquilino');
+        $response->assertDontSee('Expediente del inquilino');
+    }
 }

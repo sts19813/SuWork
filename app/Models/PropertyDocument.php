@@ -12,20 +12,6 @@ class PropertyDocument extends Model
 {
     use HasFactory;
 
-    public const TYPE_TITLE_DEED = 'title_deed';
-    public const TYPE_PROPERTY_TAX = 'property_tax';
-    public const TYPE_CFE_RECEIPT = 'cfe_receipt';
-    public const TYPE_WATER_RECEIPT = 'water_receipt';
-    public const TYPE_CADASTRAL_ID = 'cadastral_id';
-
-    public const REQUIRED_DOCUMENTS = [
-        self::TYPE_TITLE_DEED => 'Escritura o constancia registral',
-        self::TYPE_PROPERTY_TAX => 'Predial',
-        self::TYPE_CFE_RECEIPT => 'Recibo CFE',
-        self::TYPE_WATER_RECEIPT => 'Recibo de agua',
-        self::TYPE_CADASTRAL_ID => 'Cedula catastral',
-    ];
-
     public const STATUS_PENDING = 'pending';
     public const STATUS_UPLOADED = 'uploaded';
     public const STATUS_APPROVED = 'approved';

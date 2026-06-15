@@ -2,6 +2,32 @@
 
 @section('title', 'Dashboard | SuWork')
 
+@push('styles')
+    <style>
+        @media (min-width: 1200px) {
+            .executive-dashboard .dashboard-scroll-card {
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+            }
+
+            .executive-dashboard .dashboard-scroll-card .card-body {
+                display: flex;
+                flex: 1 1 auto;
+                flex-direction: column;
+                min-height: 0;
+            }
+
+            .executive-dashboard .dashboard-properties-scroll {
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow-y: auto;
+                padding-right: 0.25rem;
+            }
+        }
+    </style>
+@endpush
+
 @section('content')
     <div class="py-10 executive-dashboard">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-8">
@@ -113,7 +139,8 @@
 
         <div class="row g-5">
             <div class="col-xl-7">
-                <div class="card h-100">
+                <div id="dashboard_properties_card" class="card h-100 dashboard-scroll-card" style="max-height: 530px !important;
+    overflow-y: scroll;">
                     <div class="card-header border-0 pt-7">
                         <div>
                             <h3 class="card-title fw-bold text-dark">Resumen de propiedades</h3>
@@ -121,52 +148,54 @@
                         </div>
                     </div>
                     <div class="card-body pt-2">
-                        <div class="table-responsive">
-                            <table class="table table-row-dashed align-middle gs-0 gy-4">
-                                <thead>
-                                    <tr class="fw-bold text-muted text-uppercase fs-8">
-                                        <th>Propiedad</th>
-                                        <th>Asesor</th>
-                                        <th>Inquilino</th>
-                                        <th class="text-end">Renta</th>
-                                        <th class="text-end">Atrasado</th>
-                                        <th class="text-end">Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @forelse ($propertySummaries as $summary)
-                                        <tr>
-                                            <td>
-                                                <a href="{{ route('properties.show', $summary['property']) }}" class="fw-bold text-dark text-hover-primary">
-                                                    {{ $summary['property']->internal_name }}
-                                                </a>
-                                            </td>
-                                            <td class="text-gray-700">{{ $summary['advisor_name'] }}</td>
-                                            <td class="text-gray-700">{{ $summary['tenant_name'] }}</td>
-                                            <td class="text-end fw-bold">{{ '$' . number_format($summary['rent_amount'], 2) }}</td>
-                                            <td class="text-end {{ $summary['overdue_amount'] > 0 ? 'text-danger fw-bold' : 'text-muted' }}">
-                                                {{ $summary['overdue_amount'] > 0 ? '$' . number_format($summary['overdue_amount'], 2) : '-' }}
-                                            </td>
-                                            <td class="text-end">
-                                                <span class="badge badge-light-{{ $summary['status_tone'] }} text-{{ $summary['status_tone'] }}">
-                                                    {{ $summary['status_label'] }}
-                                                </span>
-                                            </td>
+                        <div class="dashboard-properties-scroll">
+                            <div class="table-responsive">
+                                <table class="table table-row-dashed align-middle gs-0 gy-4">
+                                    <thead>
+                                        <tr class="fw-bold text-muted text-uppercase fs-8">
+                                            <th>Propiedad</th>
+                                            <th>Asesor</th>
+                                            
+                                            <th class="text-end">Renta</th>
+                                            <th class="text-end">Atrasado</th>
+                                            <th class="text-end">Estado</th>
                                         </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="6" class="text-center text-muted py-10">No hay propiedades ocupadas para mostrar.</td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        @forelse ($propertySummaries as $summary)
+                                            <tr>
+                                                <td>
+                                                    <a href="{{ route('properties.show', $summary['property']) }}" class="fw-bold text-dark text-hover-primary">
+                                                        {{ $summary['property']->internal_name }}
+                                                    </a>
+                                                </td>
+                                                <td class="text-gray-700">{{ $summary['advisor_name'] }}</td>
+                                                
+                                                <td class="text-end fw-bold">{{ '$' . number_format($summary['rent_amount'], 2) }}</td>
+                                                <td class="text-end {{ $summary['overdue_amount'] > 0 ? 'text-danger fw-bold' : 'text-muted' }}">
+                                                    {{ $summary['overdue_amount'] > 0 ? '$' . number_format($summary['overdue_amount'], 2) : '-' }}
+                                                </td>
+                                                <td class="text-end">
+                                                    <span class="badge badge-light-{{ $summary['status_tone'] }} text-{{ $summary['status_tone'] }}">
+                                                        {{ $summary['status_label'] }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="6" class="text-center text-muted py-10">No hay propiedades ocupadas para mostrar.</td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="col-xl-5">
-                <div class="card h-100">
+                <div id="dashboard_profitability_card" class="card h-100">
                     <div class="card-header border-0 pt-7">
                         <div>
                             <h3 class="card-title fw-bold text-dark">Rentabilidad general</h3>
@@ -211,6 +240,31 @@
         (() => {
             const collectionElement = document.getElementById('dashboard_collection_pie');
             const profitabilityElement = document.getElementById('dashboard_profitability_chart');
+            const propertiesCard = document.getElementById('dashboard_properties_card');
+            const profitabilityCard = document.getElementById('dashboard_profitability_card');
+
+            const syncPropertyCardHeight = () => {
+                if (!propertiesCard || !profitabilityCard) {
+                    return;
+                }
+
+                if (!window.matchMedia('(min-width: 1200px)').matches) {
+                    propertiesCard.style.height = '';
+                    return;
+                }
+
+                propertiesCard.style.height = '';
+
+                const profitabilityHeight = profitabilityCard.offsetHeight;
+
+                if (profitabilityHeight > 0) {
+                    propertiesCard.style.height = `${profitabilityHeight}px`;
+                }
+            };
+
+            const requestPropertyCardHeightSync = () => {
+                window.requestAnimationFrame(syncPropertyCardHeight);
+            };
 
             if (collectionElement && window.ApexCharts) {
                 new ApexCharts(collectionElement, {
@@ -302,6 +356,13 @@
                         }
                     }
                 }).render();
+            }
+
+            requestPropertyCardHeightSync();
+            window.addEventListener('resize', requestPropertyCardHeightSync);
+
+            if (profitabilityCard && window.ResizeObserver) {
+                new ResizeObserver(requestPropertyCardHeightSync).observe(profitabilityCard);
             }
         })();
     </script>

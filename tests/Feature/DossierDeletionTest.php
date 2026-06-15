@@ -6,6 +6,7 @@ use App\Models\Property;
 use App\Models\PropertyDocument;
 use App\Models\PropertyDocumentVersion;
 use App\Models\PropertyType;
+use App\Models\DossierDocumentRequirement;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -25,11 +26,15 @@ class DossierDeletionTest extends TestCase
         $user = User::factory()->create();
         $user->givePermissionTo('expedientes.eliminar_archivos');
         $property = $this->createPropertyFixture($user);
+        $requirement = DossierDocumentRequirement::query()
+            ->where('entity_type', 'property')
+            ->orderBy('sort_order')
+            ->firstOrFail();
 
         $document = PropertyDocument::query()->create([
             'property_id' => $property->id,
-            'document_type' => PropertyDocument::TYPE_TITLE_DEED,
-            'label' => PropertyDocument::REQUIRED_DOCUMENTS[PropertyDocument::TYPE_TITLE_DEED],
+            'document_type' => $requirement->document_type,
+            'label' => $requirement->label,
             'status' => PropertyDocument::STATUS_UPLOADED,
             'uploaded_at' => now(),
             'file_path' => 'properties/' . $property->id . '/documents/test-doc.pdf',
@@ -72,10 +77,14 @@ class DossierDeletionTest extends TestCase
 
         $user = User::factory()->create();
         $property = $this->createPropertyFixture($user);
+        $requirement = DossierDocumentRequirement::query()
+            ->where('entity_type', 'property')
+            ->orderBy('sort_order')
+            ->firstOrFail();
         $document = PropertyDocument::query()->create([
             'property_id' => $property->id,
-            'document_type' => PropertyDocument::TYPE_TITLE_DEED,
-            'label' => PropertyDocument::REQUIRED_DOCUMENTS[PropertyDocument::TYPE_TITLE_DEED],
+            'document_type' => $requirement->document_type,
+            'label' => $requirement->label,
             'status' => PropertyDocument::STATUS_UPLOADED,
             'uploaded_at' => now(),
             'file_path' => 'properties/' . $property->id . '/documents/no-delete.pdf',
@@ -112,4 +121,3 @@ class DossierDeletionTest extends TestCase
         ]);
     }
 }
-

@@ -12,20 +12,6 @@ class OwnerDocument extends Model
 {
     use HasFactory;
 
-    public const TYPE_OFFICIAL_ID = 'official_id';
-    public const TYPE_PROOF_OF_ADDRESS = 'proof_of_address';
-    public const TYPE_RFC_DOCUMENT = 'rfc_document';
-    public const TYPE_CURP_DOCUMENT = 'curp_document';
-
-
-    public const REQUIRED_DOCUMENTS = [
-        self::TYPE_OFFICIAL_ID => 'Identificación oficial',
-        self::TYPE_PROOF_OF_ADDRESS => 'Comprobante de domicilio',
-        self::TYPE_RFC_DOCUMENT => 'Documento RFC',
-        self::TYPE_CURP_DOCUMENT => 'Documento CURP',
-
-    ];
-
     public const STATUS_PENDING = 'pending';
     public const STATUS_UPLOADED = 'uploaded';
     public const STATUS_APPROVED = 'approved';

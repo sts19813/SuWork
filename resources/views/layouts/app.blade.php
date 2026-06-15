@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>@yield('title', 'Videre')</title>
+    <title>@yield('title', 'SuWork')</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
@@ -35,12 +35,20 @@
     @stack('styles')
 </head>
 
-<body id="kt_app_body" data-kt-app-header-fixed="true" data-kt-app-header-fixed-mobile="true"
-    data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true"
-    data-kt-app-sidebar-push-toolbar="true" data-kt-app-sidebar-push-footer="true" data-kt-app-aside-enabled="true"
-    data-kt-app-aside-fixed="true" data-kt-app-aside-push-toolbar="true" data-kt-app-aside-push-footer="true"
+@php
+    $isSidebarMinimized = request()->cookie('sidebar_minimize_state', 'on') === 'on';
+    $viewErrors = $errors ?? new \Illuminate\Support\ViewErrorBag;
+@endphp
+
+<body id="kt_app_body"
+    data-kt-app-sidebar-enabled="true"
+    data-kt-app-sidebar-fixed="true"
+    data-kt-app-sidebar-hoverable="false"
+    @if ($isSidebarMinimized)
+        data-kt-app-sidebar-minimize="on"
+    @endif
     @include('partials.suwork-flash-attrs')
-    class="app-default">
+    class="app-default su-admin-layout">
     <!--begin::Theme mode setup on page load-->
     <script>
         var defaultThemeMode = "light";
@@ -65,19 +73,41 @@
         }
     </script>
 
+    <div class="d-flex flex-column flex-root app-root" id="kt_app_root">
+        <div class="app-page flex-column flex-column-fluid" id="kt_app_page">
+            <div class="app-wrapper" id="kt_app_wrapper">
+                @include('partials.sidebar')
 
+                <main class="app-main" id="kt_app_main">
+                    <div class="app-shell">
+                        <div class="su-layout-content">
+                            @if (session('status'))
+                                <div class="alert alert-success d-flex align-items-center mb-6">
+                                    <i class="ki-outline ki-check-circle fs-2hx text-success me-4"></i>
+                                    <div class="fw-semibold">{{ session('status') }}</div>
+                                </div>
+                            @endif
 
-    {{-- HEADER --}}
-    @include('partials.header')
+                            @if ($viewErrors->any())
+                                <div class="alert alert-danger mb-6">
+                                    <div class="fw-bold mb-1">Revisa la información capturada.</div>
+                                    <ul class="mb-0 ps-4">
+                                        @foreach ($viewErrors->all() as $error)
+                                            <li>{{ $error }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
 
-    {{-- MAIN CONTENT --}}
-    <main class="container-fluid">
-        <div class="container">
-            @yield('content')
+                            @yield('content')
+                        </div>
+
+                        @include('partials.footer')
+                    </div>
+                </main>
+            </div>
         </div>
-    </main>
-
-    @include('partials.footer')
+    </div>
 
     <script>
         var hostUrl = "{{ asset('assets') }}/";
@@ -99,6 +129,25 @@
 
             document.documentElement.setAttribute('data-bs-theme', mode);
         }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('[data-sidebar-theme-toggle]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var currentMode = document.documentElement.getAttribute('data-bs-theme') || 'light';
+                    setThemeMode(currentMode === 'dark' ? 'light' : 'dark');
+                });
+            });
+
+            var sidebarToggle = document.getElementById('kt_app_sidebar_toggle');
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function () {
+                    setTimeout(function () {
+                        var isMinimized = document.body.getAttribute('data-kt-app-sidebar-minimize') === 'on';
+                        document.cookie = 'sidebar_minimize_state=' + (isMinimized ? 'on' : 'off') + '; path=/; max-age=31536000; SameSite=Lax';
+                    }, 80);
+                });
+            }
+        });
     </script>
 
     @include('partials.suwork-toasts')
