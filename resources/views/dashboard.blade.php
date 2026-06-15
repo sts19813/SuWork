@@ -133,7 +133,7 @@
                             <span class="badge badge-light-danger text-danger fs-7 fw-bold">{{ $importantAlerts->count() }}</span>
                         </div>
                     </div>
-                    <div class="card-body pt-2">
+                    <div class="card-body pt-2 " style="max-height: 330px; overflow-y: auto;">
                         @forelse ($importantAlerts as $alert)
                             <a href="{{ $alert['route'] }}"
                                 class="executive-alert executive-alert-{{ $alert['tone'] }} d-flex align-items-center gap-4 mb-4 text-decoration-none">
