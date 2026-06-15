@@ -17,6 +17,9 @@ class DashboardController extends Controller
     {
         $validated = $request->validate([
             'month' => ['nullable', 'date_format:Y-m'],
+            'preset' => ['nullable', 'in:current_month,last_3_months,last_6_months,current_year,custom'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'property_scope' => ['nullable', 'in:mine,all'],
         ]);
 
@@ -26,21 +29,24 @@ class DashboardController extends Controller
             ? $this->advisorPropertyIds($request)
             : null;
 
-        $selectedMonth = isset($validated['month'])
-            ? Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth()
-            : now()->startOfMonth();
+        $dashboardPeriod = $this->resolveDashboardPeriod($validated);
+        $periodStart = $dashboardPeriod['start'];
+        $periodEnd = $dashboardPeriod['end'];
+        $selectedMonth = $periodStart->copy()->startOfMonth();
+        $referenceDate = $this->referenceDateForPeriod($periodStart, $periodEnd);
 
-        $periodStart = $selectedMonth->copy()->startOfMonth();
-        $periodEnd = $selectedMonth->copy()->endOfMonth();
-
-        $kpis = $this->buildKpis($periodStart, $periodEnd, $visiblePropertyIds);
-        $collectionSummary = $this->buildCollectionSummary($periodStart, $periodEnd, $selectedMonth, $visiblePropertyIds);
-        $alerts = $this->buildImportantAlerts($periodStart, $periodEnd, $selectedMonth, $visiblePropertyIds);
-        $propertySummaries = $this->buildPropertySummaries($selectedMonth, $visiblePropertyIds);
-        $profitability = $this->buildProfitabilitySummary($selectedMonth, $visiblePropertyIds);
+        $kpis = $this->buildKpis($periodStart, $periodEnd, $referenceDate, $visiblePropertyIds);
+        $collectionSummary = $this->buildCollectionSummary($periodStart, $periodEnd, $referenceDate, $visiblePropertyIds);
+        $alerts = $this->buildImportantAlerts($periodStart, $periodEnd, $referenceDate, $visiblePropertyIds);
+        $propertySummaries = $this->buildPropertySummaries($periodStart, $periodEnd, $referenceDate, $visiblePropertyIds);
+        $profitability = $this->buildProfitabilitySummary($periodStart, $periodEnd, $visiblePropertyIds);
 
         return view('dashboard', [
             'selectedMonth' => $selectedMonth,
+            'periodStart' => $periodStart,
+            'periodEnd' => $periodEnd,
+            'periodLabel' => $this->periodLabel($periodStart, $periodEnd),
+            'selectedPreset' => $dashboardPeriod['preset'],
             'monthOptions' => $this->monthOptions($selectedMonth, 12),
             'isAdvisorUser' => $isAdvisorUser,
             'propertyScope' => $propertyScope,
@@ -52,7 +58,7 @@ class DashboardController extends Controller
         ]);
     }
 
-    private function buildKpis(Carbon $periodStart, Carbon $periodEnd, ?Collection $visiblePropertyIds): array
+    private function buildKpis(Carbon $periodStart, Carbon $periodEnd, Carbon $referenceDate, ?Collection $visiblePropertyIds): array
     {
         $chargesForMonth = Charge::query()
             ->where('status', '!=', Charge::STATUS_CANCELED)
@@ -60,24 +66,13 @@ class DashboardController extends Controller
         $this->applyPropertyIdFilter($chargesForMonth, $visiblePropertyIds);
 
         $expectedIncome = (float) (clone $chargesForMonth)->sum('amount');
-        $pendingOutstanding = (float) (clone $chargesForMonth)
-            ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
-            ->sum(\Illuminate\Support\Facades\DB::raw('amount - paid_amount'));
+        $collectionTotals = $this->collectionTotals($periodStart, $periodEnd, $referenceDate, $visiblePropertyIds);
 
         $propertiesQuery = Property::query();
         $this->applyPropertyPrimaryKeyFilter($propertiesQuery, $visiblePropertyIds);
 
         $occupiedPropertiesQuery = Property::query()->whereIn('status', $this->occupiedStatuses());
         $this->applyPropertyPrimaryKeyFilter($occupiedPropertiesQuery, $visiblePropertyIds);
-
-        $paymentsQuery = ChargePayment::query()
-            ->where('status', ChargePayment::STATUS_SUCCEEDED)
-            ->whereBetween('paid_at', [$periodStart->copy()->startOfDay(), $periodEnd->copy()->endOfDay()]);
-        $this->applyPaymentPropertyFilter($paymentsQuery, $visiblePropertyIds);
-
-        $expensesQuery = Expense::query()
-            ->whereBetween('due_date', [$periodStart->toDateString(), $periodEnd->toDateString()]);
-        $this->applyPropertyIdFilter($expensesQuery, $visiblePropertyIds);
 
         return [
             [
@@ -93,59 +88,39 @@ class DashboardController extends Controller
                 'tone' => 'success',
             ],
             [
-                'label' => 'Ingreso mensual esperado',
+                'label' => 'Ingreso esperado del periodo',
                 'value' => $this->money($expectedIncome),
                 'icon' => 'bi-graph-up-arrow',
                 'tone' => 'info',
             ],
             [
-                'label' => 'Cobrado de este mes',
-                'value' => $this->money((float) $paymentsQuery->sum('amount')),
+                'label' => 'Cobrado del periodo',
+                'value' => $this->money($collectionTotals['paid']),
                 'icon' => 'bi-check2-circle',
                 'tone' => 'success',
             ],
             [
                 'label' => 'Pendiente por cobrar',
-                'value' => $this->money(max(0, $pendingOutstanding)),
+                'value' => $this->money($collectionTotals['pending']),
                 'icon' => 'bi-hourglass-split',
                 'tone' => 'warning',
             ],
             [
-                'label' => 'Gastos totales del mes',
-                'value' => $this->money((float) $expensesQuery->sum('amount')),
-                'icon' => 'bi-receipt-cutoff',
+                'label' => 'Cantidad vencida del periodo',
+                'value' => $this->money($collectionTotals['overdue']),
+                'icon' => 'bi-exclamation-octagon',
                 'tone' => 'danger',
             ],
         ];
     }
 
-    private function buildCollectionSummary(Carbon $periodStart, Carbon $periodEnd, Carbon $selectedMonth, ?Collection $visiblePropertyIds): array
+    private function buildCollectionSummary(Carbon $periodStart, Carbon $periodEnd, Carbon $referenceDate, ?Collection $visiblePropertyIds): array
     {
-        $charges = Charge::query()
-            ->where('status', '!=', Charge::STATUS_CANCELED)
-            ->whereBetween('due_date', [$periodStart->toDateString(), $periodEnd->toDateString()]);
-        $this->applyPropertyIdFilter($charges, $visiblePropertyIds);
-        $charges = $charges->get();
+        $totals = $this->collectionTotals($periodStart, $periodEnd, $referenceDate, $visiblePropertyIds);
 
-        $paid = 0.0;
-        $pending = 0.0;
-        $overdue = 0.0;
-
-        foreach ($charges as $charge) {
-            $paid += min((float) $charge->paid_amount, (float) $charge->amount);
-            $outstanding = max(0, (float) $charge->amount - (float) $charge->paid_amount);
-
-            if ($outstanding <= 0) {
-                continue;
-            }
-
-            if ($this->isChargeOverdueForMonth($charge, $selectedMonth)) {
-                $overdue += $outstanding;
-            } else {
-                $pending += $outstanding;
-            }
-        }
-
+        $paid = $totals['paid'];
+        $pending = $totals['pending'];
+        $overdue = $totals['overdue'];
         $total = max(1, $paid + $pending + $overdue);
 
         return [
@@ -174,7 +149,45 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildImportantAlerts(Carbon $periodStart, Carbon $periodEnd, Carbon $selectedMonth, ?Collection $visiblePropertyIds): Collection
+    private function collectionTotals(Carbon $periodStart, Carbon $periodEnd, Carbon $referenceDate, ?Collection $visiblePropertyIds): array
+    {
+        $charges = Charge::query()
+            ->where('status', '!=', Charge::STATUS_CANCELED)
+            ->whereBetween('due_date', [$periodStart->toDateString(), $periodEnd->toDateString()]);
+        $this->applyPropertyIdFilter($charges, $visiblePropertyIds);
+        $charges = $charges->get();
+
+        $paymentsQuery = ChargePayment::query()
+            ->where('status', ChargePayment::STATUS_SUCCEEDED)
+            ->whereBetween('paid_at', [$periodStart->copy()->startOfDay(), $periodEnd->copy()->endOfDay()]);
+        $this->applyPaymentPropertyFilter($paymentsQuery, $visiblePropertyIds);
+
+        $paid = (float) $paymentsQuery->sum('amount');
+        $pending = 0.0;
+        $overdue = 0.0;
+
+        foreach ($charges as $charge) {
+            $outstanding = max(0, (float) $charge->amount - (float) $charge->paid_amount);
+
+            if ($outstanding <= 0) {
+                continue;
+            }
+
+            if ($this->isChargeOverdueForReference($charge, $referenceDate)) {
+                $overdue += $outstanding;
+            } else {
+                $pending += $outstanding;
+            }
+        }
+
+        return [
+            'paid' => round($paid, 2),
+            'pending' => round($pending, 2),
+            'overdue' => round($overdue, 2),
+        ];
+    }
+
+    private function buildImportantAlerts(Carbon $periodStart, Carbon $periodEnd, Carbon $referenceDate, ?Collection $visiblePropertyIds): Collection
     {
         $contractAlerts = Property::query()
             ->with(['tenant:id,full_name'])
@@ -202,7 +215,7 @@ class DashboardController extends Controller
         $overdueAlerts = $overdueAlerts
             ->orderBy('due_date')
             ->get()
-            ->filter(fn (Charge $charge) => $this->isChargeOverdueForMonth($charge, $selectedMonth))
+            ->filter(fn (Charge $charge) => $this->isChargeOverdueForReference($charge, $referenceDate))
             ->map(function (Charge $charge): array {
                 return [
                     'tone' => 'danger',
@@ -220,10 +233,8 @@ class DashboardController extends Controller
             ->values();
     }
 
-    private function buildPropertySummaries(Carbon $selectedMonth, ?Collection $visiblePropertyIds): Collection
+    private function buildPropertySummaries(Carbon $periodStart, Carbon $periodEnd, Carbon $referenceDate, ?Collection $visiblePropertyIds): Collection
     {
-        $referenceDate = $this->referenceDateForMonth($selectedMonth);
-
         $query = Property::query()
             ->with([
                 'tenant:id,full_name',
@@ -231,7 +242,7 @@ class DashboardController extends Controller
                 'advisors:id,name',
                 'charges' => fn ($query) => $query
                     ->where('status', '!=', Charge::STATUS_CANCELED)
-                    ->whereDate('due_date', '<=', $referenceDate->toDateString())
+                    ->whereBetween('due_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
                     ->orderBy('due_date'),
             ])
             ->whereIn('status', $this->occupiedStatuses())
@@ -240,7 +251,7 @@ class DashboardController extends Controller
 
         return $query
             ->get()
-            ->map(function (Property $property) use ($selectedMonth): array {
+            ->map(function (Property $property) use ($referenceDate): array {
                 $overdueAmount = 0.0;
                 $pendingAmount = 0.0;
 
@@ -250,7 +261,7 @@ class DashboardController extends Controller
                         continue;
                     }
 
-                    if ($this->isChargeOverdueForMonth($charge, $selectedMonth)) {
+                    if ($this->isChargeOverdueForReference($charge, $referenceDate)) {
                         $overdueAmount += $outstanding;
                     } else {
                         $pendingAmount += $outstanding;
@@ -276,13 +287,30 @@ class DashboardController extends Controller
             });
     }
 
-    private function buildProfitabilitySummary(Carbon $selectedMonth, ?Collection $visiblePropertyIds): array
+    private function buildProfitabilitySummary(Carbon $periodStart, Carbon $periodEnd, ?Collection $visiblePropertyIds): array
     {
-        $months = collect(range(5, 0))->map(fn ($offset) => $selectedMonth->copy()->subMonths($offset));
+        $months = collect();
+        $cursor = $periodStart->copy()->startOfMonth();
 
-        $series = $months->map(function (Carbon $month) use ($visiblePropertyIds): array {
+        while ($cursor->lte($periodEnd)) {
+            $months->push($cursor->copy());
+            $cursor->addMonth();
+        }
+
+        $showYearInLabel = $periodStart->year !== $periodEnd->year || $months->count() > 12;
+
+        $series = $months->map(function (Carbon $month) use ($periodStart, $periodEnd, $showYearInLabel, $visiblePropertyIds): array {
             $monthStart = $month->copy()->startOfMonth();
             $monthEnd = $month->copy()->endOfMonth();
+
+            if ($monthStart->lt($periodStart)) {
+                $monthStart = $periodStart->copy();
+            }
+
+            if ($monthEnd->gt($periodEnd)) {
+                $monthEnd = $periodEnd->copy();
+            }
+
             $incomeQuery = ChargePayment::query()
                 ->where('status', ChargePayment::STATUS_SUCCEEDED)
                 ->whereBetween('paid_at', [$monthStart->copy()->startOfDay(), $monthEnd->copy()->endOfDay()]);
@@ -301,7 +329,7 @@ class DashboardController extends Controller
             $expenses = (float) $expensesQuery->sum('amount');
 
             return [
-                'label' => ucfirst($month->translatedFormat('M')),
+                'label' => ucfirst($month->translatedFormat($showYearInLabel ? 'M Y' : 'M')),
                 'income' => round($income, 2),
                 'expenses' => round($expenses, 2),
                 'profit' => round($income - $expenses, 2),
@@ -329,33 +357,131 @@ class DashboardController extends Controller
             ]);
     }
 
+    private function resolveDashboardPeriod(array $validated): array
+    {
+        $preset = $validated['preset'] ?? null;
+
+        if ($preset && $preset !== 'custom') {
+            return $this->periodForPreset($preset);
+        }
+
+        if ($preset === 'custom' || !empty($validated['start_date']) || !empty($validated['end_date'])) {
+            $start = !empty($validated['start_date'])
+                ? Carbon::parse($validated['start_date'])->startOfDay()
+                : (!empty($validated['end_date'])
+                    ? Carbon::parse($validated['end_date'])->startOfMonth()
+                    : now()->startOfMonth());
+
+            $end = !empty($validated['end_date'])
+                ? Carbon::parse($validated['end_date'])->endOfDay()
+                : $start->copy()->endOfMonth();
+
+            if ($end->lt($start)) {
+                [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
+            }
+
+            return [
+                'start' => $start,
+                'end' => $end,
+                'preset' => 'custom',
+            ];
+        }
+
+        if (!empty($validated['month'])) {
+            $month = Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth();
+
+            return [
+                'start' => $month->copy()->startOfMonth(),
+                'end' => $month->copy()->endOfMonth(),
+                'preset' => 'custom',
+            ];
+        }
+
+        return $this->periodForPreset('current_month');
+    }
+
+    private function periodForPreset(string $preset): array
+    {
+        $today = now();
+
+        [$start, $end] = match ($preset) {
+            'last_3_months' => [
+                $today->copy()->startOfMonth()->subMonths(2),
+                $today->copy()->endOfMonth(),
+            ],
+            'last_6_months' => [
+                $today->copy()->startOfMonth()->subMonths(5),
+                $today->copy()->endOfMonth(),
+            ],
+            'current_year' => [
+                $today->copy()->startOfYear(),
+                $today->copy()->endOfYear(),
+            ],
+            default => [
+                $today->copy()->startOfMonth(),
+                $today->copy()->endOfMonth(),
+            ],
+        };
+
+        return [
+            'start' => $start->copy()->startOfDay(),
+            'end' => $end->copy()->endOfDay(),
+            'preset' => $preset,
+        ];
+    }
+
     private function occupiedStatuses(): array
     {
         return [Property::STATUS_OCCUPIED, Property::STATUS_RENTED];
     }
 
-    private function isChargeOverdueForMonth(Charge $charge, Carbon $selectedMonth): bool
+    private function isChargeOverdueForReference(Charge $charge, Carbon $referenceDate): bool
     {
         if (!in_array($charge->status, [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL], true)) {
             return false;
         }
 
-        return $charge->due_date?->lt($this->referenceDateForMonth($selectedMonth)) ?? false;
+        return $charge->due_date?->lt($referenceDate->copy()->startOfDay()) ?? false;
     }
 
-    private function referenceDateForMonth(Carbon $selectedMonth): Carbon
+    private function referenceDateForPeriod(Carbon $periodStart, Carbon $periodEnd): Carbon
     {
-        $currentMonthStart = now()->startOfMonth();
+        $today = now()->startOfDay();
 
-        if ($selectedMonth->lt($currentMonthStart)) {
-            return $selectedMonth->copy()->endOfMonth()->addDay()->startOfDay();
+        if ($periodEnd->copy()->endOfDay()->lt($today)) {
+            return $periodEnd->copy()->addDay()->startOfDay();
         }
 
-        if ($selectedMonth->equalTo($currentMonthStart)) {
-            return now()->startOfDay();
+        if ($periodStart->copy()->startOfDay()->lte($today) && $periodEnd->copy()->endOfDay()->gte($today)) {
+            return $today;
         }
 
-        return $selectedMonth->copy()->startOfMonth();
+        return $periodStart->copy()->startOfDay();
+    }
+
+    private function periodLabel(Carbon $periodStart, Carbon $periodEnd): string
+    {
+        $startsOnYear = $periodStart->isSameDay($periodStart->copy()->startOfYear());
+        $endsOnYear = $periodEnd->isSameDay($periodEnd->copy()->endOfYear());
+
+        if ($startsOnYear && $endsOnYear && $periodStart->year === $periodEnd->year) {
+            return (string) $periodStart->year;
+        }
+
+        $startsOnMonth = $periodStart->isSameDay($periodStart->copy()->startOfMonth());
+        $endsOnMonth = $periodEnd->isSameDay($periodEnd->copy()->endOfMonth());
+
+        if ($startsOnMonth && $endsOnMonth) {
+            if ($periodStart->isSameMonth($periodEnd)) {
+                return ucfirst($periodStart->translatedFormat('F Y'));
+            }
+
+            return ucfirst($periodStart->translatedFormat('F Y'))
+                . ' - '
+                . ucfirst($periodEnd->translatedFormat('F Y'));
+        }
+
+        return $periodStart->translatedFormat('d M Y') . ' - ' . $periodEnd->translatedFormat('d M Y');
     }
 
     private function money(float $amount): string

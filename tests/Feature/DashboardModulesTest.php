@@ -2,11 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Models\Charge;
+use App\Models\ChargePayment;
 use App\Models\Property;
 use App\Models\PropertyType;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -97,6 +101,106 @@ class DashboardModulesTest extends TestCase
             ->assertOk()
             ->assertSee('Casa Dashboard Asignada')
             ->assertSee('Casa Dashboard General');
+    }
+
+    public function test_collection_kpis_match_donut_values_for_selected_range(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00'));
+
+        try {
+            $user = User::factory()->create();
+            $type = PropertyType::query()->create([
+                'name' => 'Casa',
+                'slug' => 'casa',
+                'is_active' => true,
+            ]);
+            $zone = Zone::query()->create([
+                'name' => 'Centro',
+                'slug' => 'centro',
+                'is_active' => true,
+            ]);
+            $tenant = Tenant::query()->create([
+                'full_name' => 'Cliente Dashboard',
+                'phone_primary' => '5555555555',
+            ]);
+
+            $property = Property::query()->create([
+                'internal_name' => 'Casa Cobranza',
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle 3',
+                'status' => Property::STATUS_OCCUPIED,
+                'tenant_id' => $tenant->id,
+                'monthly_rent_price' => 4500,
+                'created_by' => $user->id,
+            ]);
+
+            $partialCharge = Charge::query()->create([
+                'property_id' => $property->id,
+                'tenant_id' => $tenant->id,
+                'type' => Charge::TYPE_RENT,
+                'due_date' => '2026-06-05',
+                'amount' => 1000,
+                'paid_amount' => 400,
+                'period_month' => 6,
+                'period_year' => 2026,
+                'concept' => 'Renta Junio parcial',
+                'status' => Charge::STATUS_PARTIAL,
+                'created_by' => $user->id,
+            ]);
+
+            ChargePayment::query()->create([
+                'charge_id' => $partialCharge->id,
+                'amount' => 400,
+                'status' => ChargePayment::STATUS_SUCCEEDED,
+                'paid_at' => Carbon::parse('2026-06-10 09:00:00'),
+            ]);
+
+            Charge::query()->create([
+                'property_id' => $property->id,
+                'tenant_id' => $tenant->id,
+                'type' => Charge::TYPE_RENT,
+                'due_date' => '2026-06-20',
+                'amount' => 2000,
+                'paid_amount' => 0,
+                'period_month' => 6,
+                'period_year' => 2026,
+                'concept' => 'Renta Junio pendiente',
+                'status' => Charge::STATUS_PENDING,
+                'created_by' => $user->id,
+            ]);
+
+            Charge::query()->create([
+                'property_id' => $property->id,
+                'tenant_id' => $tenant->id,
+                'type' => Charge::TYPE_RENT,
+                'due_date' => '2026-06-01',
+                'amount' => 1500,
+                'paid_amount' => 0,
+                'period_month' => 6,
+                'period_year' => 2026,
+                'concept' => 'Renta Junio vencida',
+                'status' => Charge::STATUS_PENDING,
+                'created_by' => $user->id,
+            ]);
+
+            $this->actingAs($user)
+                ->get(route('dashboard', [
+                    'preset' => 'custom',
+                    'start_date' => '2026-06-01',
+                    'end_date' => '2026-06-30',
+                ]))
+                ->assertOk()
+                ->assertSee('Cobrado del periodo')
+                ->assertSee('Pendiente por cobrar')
+                ->assertSee('Cantidad vencida del periodo')
+                ->assertSee('$400.00')
+                ->assertSee('$2,000.00')
+                ->assertSee('$2,100.00')
+                ->assertSee('series: [400,2000,2100]', false);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_property_control_requires_explicit_permission(): void

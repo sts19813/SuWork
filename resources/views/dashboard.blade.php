@@ -33,18 +33,38 @@
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-8">
             <div>
                 <h1 class="mb-1 fw-bold text-dark">Panel ejecutivo</h1>
-                <div class="text-muted fs-6">{{ ucfirst($selectedMonth->translatedFormat('F Y')) }}</div>
+                <div class="text-muted fs-6">{{ $periodLabel }}</div>
             </div>
 
-            <form method="GET" action="{{ route('dashboard') }}" class="d-flex align-items-center gap-3">
+            <form method="GET" action="{{ route('dashboard') }}" class="d-flex flex-wrap align-items-end gap-3">
                 @if ($isAdvisorUser)
-                    <select name="property_scope" class="form-select w-200px">
-                        <option value="mine" {{ $propertyScope !== 'all' ? 'selected' : '' }}>Mis propiedades</option>
-                        <option value="all" {{ $propertyScope === 'all' ? 'selected' : '' }}>Todas las propiedades</option>
-                    </select>
+                    <div>
+                        <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Propiedades</label>
+                        <select name="property_scope" class="form-select w-200px">
+                            <option value="mine" {{ $propertyScope !== 'all' ? 'selected' : '' }}>Mis propiedades</option>
+                            <option value="all" {{ $propertyScope === 'all' ? 'selected' : '' }}>Todas las propiedades</option>
+                        </select>
+                    </div>
                 @endif
-                <input type="month" name="month" value="{{ $selectedMonth->format('Y-m') }}" class="form-control w-200px">
-                <button type="submit" class="btn btn-primary">Cambiar mes</button>
+                <div>
+                    <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Periodo</label>
+                    <select name="preset" id="dashboard_period_preset" class="form-select w-200px">
+                        <option value="current_month" {{ $selectedPreset === 'current_month' ? 'selected' : '' }}>Este mes</option>
+                        <option value="last_3_months" {{ $selectedPreset === 'last_3_months' ? 'selected' : '' }}>Últimos 3 meses</option>
+                        <option value="last_6_months" {{ $selectedPreset === 'last_6_months' ? 'selected' : '' }}>Últimos 6 meses</option>
+                        <option value="current_year" {{ $selectedPreset === 'current_year' ? 'selected' : '' }}>Este año</option>
+                        <option value="custom" {{ $selectedPreset === 'custom' ? 'selected' : '' }}>Rango personalizado</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Desde</label>
+                    <input type="date" name="start_date" id="dashboard_period_start" value="{{ $periodStart->toDateString() }}" class="form-control w-175px">
+                </div>
+                <div>
+                    <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Hasta</label>
+                    <input type="date" name="end_date" id="dashboard_period_end" value="{{ $periodEnd->toDateString() }}" class="form-control w-175px">
+                </div>
+                <button type="submit" class="btn btn-primary">Aplicar filtro</button>
             </form>
         </div>
 
@@ -72,7 +92,7 @@
                     <div class="card-header border-0 pt-7">
                         <div>
                             <h3 class="card-title fw-bold text-dark">Resumen de cobranza</h3>
-                            <div class="text-muted fs-7">Cobrado, pendiente y vencido del mes seleccionado</div>
+                            <div class="text-muted fs-7">Cobrado, pendiente y vencido del periodo seleccionado</div>
                         </div>
                     </div>
                     <div class="card-body pt-2">
@@ -199,7 +219,7 @@
                     <div class="card-header border-0 pt-7">
                         <div>
                             <h3 class="card-title fw-bold text-dark">Rentabilidad general</h3>
-                            <div class="text-muted fs-7">Ingresos, gastos y utilidad de los últimos 6 meses</div>
+                            <div class="text-muted fs-7">Ingresos, gastos y utilidad del periodo seleccionado</div>
                         </div>
                     </div>
                     <div class="card-body pt-2">
@@ -242,6 +262,59 @@
             const profitabilityElement = document.getElementById('dashboard_profitability_chart');
             const propertiesCard = document.getElementById('dashboard_properties_card');
             const profitabilityCard = document.getElementById('dashboard_profitability_card');
+            const periodPreset = document.getElementById('dashboard_period_preset');
+            const periodStart = document.getElementById('dashboard_period_start');
+            const periodEnd = document.getElementById('dashboard_period_end');
+
+            const padDate = (value) => String(value).padStart(2, '0');
+            const formatDate = (date) => `${date.getFullYear()}-${padDate(date.getMonth() + 1)}-${padDate(date.getDate())}`;
+            const presetRange = (preset) => {
+                const today = new Date();
+
+                switch (preset) {
+                    case 'last_3_months':
+                        return [
+                            new Date(today.getFullYear(), today.getMonth() - 2, 1),
+                            new Date(today.getFullYear(), today.getMonth() + 1, 0),
+                        ];
+                    case 'last_6_months':
+                        return [
+                            new Date(today.getFullYear(), today.getMonth() - 5, 1),
+                            new Date(today.getFullYear(), today.getMonth() + 1, 0),
+                        ];
+                    case 'current_year':
+                        return [
+                            new Date(today.getFullYear(), 0, 1),
+                            new Date(today.getFullYear(), 11, 31),
+                        ];
+                    case 'current_month':
+                        return [
+                            new Date(today.getFullYear(), today.getMonth(), 1),
+                            new Date(today.getFullYear(), today.getMonth() + 1, 0),
+                        ];
+                    default:
+                        return null;
+                }
+            };
+
+            if (periodPreset && periodStart && periodEnd) {
+                periodPreset.addEventListener('change', () => {
+                    const range = presetRange(periodPreset.value);
+
+                    if (!range) {
+                        return;
+                    }
+
+                    periodStart.value = formatDate(range[0]);
+                    periodEnd.value = formatDate(range[1]);
+                });
+
+                [periodStart, periodEnd].forEach((input) => {
+                    input.addEventListener('change', () => {
+                        periodPreset.value = 'custom';
+                    });
+                });
+            }
 
             const syncPropertyCardHeight = () => {
                 if (!propertiesCard || !profitabilityCard) {
