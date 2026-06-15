@@ -47,6 +47,17 @@
                     </div>
                 @endif
                 <div>
+                    <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Asesor</label>
+                    <select name="advisor_user_id" class="form-select w-225px">
+                        <option value="">Todos los asesores</option>
+                        @foreach ($availableAdvisors as $advisor)
+                            <option value="{{ $advisor->id }}" {{ (string) $selectedAdvisorId === (string) $advisor->id ? 'selected' : '' }}>
+                                {{ $advisor->name }}{{ $advisor->email ? ' · ' . $advisor->email : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
                     <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Periodo</label>
                     <select name="preset" id="dashboard_period_preset" class="form-select w-200px">
                         <option value="current_month" {{ $selectedPreset === 'current_month' ? 'selected' : '' }}>Este mes</option>

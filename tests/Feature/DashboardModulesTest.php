@@ -203,6 +203,56 @@ class DashboardModulesTest extends TestCase
         }
     }
 
+    public function test_dashboard_can_filter_properties_by_advisor(): void
+    {
+        $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $selectedAdvisor = User::factory()->create(['name' => 'Asesora Seleccionada']);
+        $otherAdvisor = User::factory()->create(['name' => 'Asesor Alterno']);
+        $selectedAdvisor->assignRole($advisorRole);
+        $otherAdvisor->assignRole($advisorRole);
+        $viewer = User::factory()->create();
+        $type = PropertyType::query()->create([
+            'name' => 'Casa',
+            'slug' => 'casa',
+            'is_active' => true,
+        ]);
+        $zone = Zone::query()->create([
+            'name' => 'Centro',
+            'slug' => 'centro',
+            'is_active' => true,
+        ]);
+
+        Property::query()->create([
+            'internal_name' => 'Casa Asesor Filtrado',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 4',
+            'status' => Property::STATUS_OCCUPIED,
+            'monthly_rent_price' => 12000,
+            'advisor_user_id' => $selectedAdvisor->id,
+            'created_by' => $viewer->id,
+        ]);
+
+        Property::query()->create([
+            'internal_name' => 'Casa Otro Asesor',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 5',
+            'status' => Property::STATUS_OCCUPIED,
+            'monthly_rent_price' => 14000,
+            'advisor_user_id' => $otherAdvisor->id,
+            'created_by' => $viewer->id,
+        ]);
+
+        $this->actingAs($viewer)
+            ->get(route('dashboard', ['advisor_user_id' => $selectedAdvisor->id]))
+            ->assertOk()
+            ->assertSee('Asesor')
+            ->assertSee('Asesora Seleccionada')
+            ->assertSee('Casa Asesor Filtrado')
+            ->assertDontSee('Casa Otro Asesor');
+    }
+
     public function test_property_control_requires_explicit_permission(): void
     {
         $user = User::factory()->create();

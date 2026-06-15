@@ -6,6 +6,7 @@ use App\Models\Charge;
 use App\Models\ChargePayment;
 use App\Models\Expense;
 use App\Models\Property;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -20,6 +21,7 @@ class DashboardController extends Controller
             'preset' => ['nullable', 'in:current_month,last_3_months,last_6_months,current_year,custom'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'advisor_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'property_scope' => ['nullable', 'in:mine,all'],
         ]);
 
@@ -28,6 +30,11 @@ class DashboardController extends Controller
         $visiblePropertyIds = $isAdvisorUser && $propertyScope === 'mine'
             ? $this->advisorPropertyIds($request)
             : null;
+        $selectedAdvisorId = isset($validated['advisor_user_id']) ? (int) $validated['advisor_user_id'] : null;
+        $filteredPropertyIds = $this->intersectPropertyIds(
+            $visiblePropertyIds,
+            $selectedAdvisorId ? $this->advisorFilterPropertyIds($selectedAdvisorId) : null,
+        );
 
         $dashboardPeriod = $this->resolveDashboardPeriod($validated);
         $periodStart = $dashboardPeriod['start'];
@@ -35,11 +42,11 @@ class DashboardController extends Controller
         $selectedMonth = $periodStart->copy()->startOfMonth();
         $referenceDate = $this->referenceDateForPeriod($periodStart, $periodEnd);
 
-        $kpis = $this->buildKpis($periodStart, $periodEnd, $referenceDate, $visiblePropertyIds);
-        $collectionSummary = $this->buildCollectionSummary($periodStart, $periodEnd, $referenceDate, $visiblePropertyIds);
-        $alerts = $this->buildImportantAlerts($periodStart, $periodEnd, $referenceDate, $visiblePropertyIds);
-        $propertySummaries = $this->buildPropertySummaries($periodStart, $periodEnd, $referenceDate, $visiblePropertyIds);
-        $profitability = $this->buildProfitabilitySummary($periodStart, $periodEnd, $visiblePropertyIds);
+        $kpis = $this->buildKpis($periodStart, $periodEnd, $referenceDate, $filteredPropertyIds);
+        $collectionSummary = $this->buildCollectionSummary($periodStart, $periodEnd, $referenceDate, $filteredPropertyIds);
+        $alerts = $this->buildImportantAlerts($periodStart, $periodEnd, $referenceDate, $filteredPropertyIds);
+        $propertySummaries = $this->buildPropertySummaries($periodStart, $periodEnd, $referenceDate, $filteredPropertyIds);
+        $profitability = $this->buildProfitabilitySummary($periodStart, $periodEnd, $filteredPropertyIds);
 
         return view('dashboard', [
             'selectedMonth' => $selectedMonth,
@@ -50,6 +57,8 @@ class DashboardController extends Controller
             'monthOptions' => $this->monthOptions($selectedMonth, 12),
             'isAdvisorUser' => $isAdvisorUser,
             'propertyScope' => $propertyScope,
+            'selectedAdvisorId' => $selectedAdvisorId,
+            'availableAdvisors' => $this->availableAdvisors(),
             'dashboardKpis' => $kpis,
             'collectionSummary' => $collectionSummary,
             'importantAlerts' => $alerts,
@@ -513,6 +522,45 @@ class DashboardController extends Controller
             ->merge(Property::query()->where('advisor_user_id', $user->id)->pluck('id'))
             ->unique()
             ->values();
+    }
+
+    private function advisorFilterPropertyIds(int $advisorId): Collection
+    {
+        return Property::query()
+            ->where(function ($query) use ($advisorId): void {
+                $query->where('advisor_user_id', $advisorId)
+                    ->orWhereHas('advisors', fn ($advisorQuery) => $advisorQuery->whereKey($advisorId));
+            })
+            ->pluck('id')
+            ->unique()
+            ->values();
+    }
+
+    private function intersectPropertyIds(?Collection $basePropertyIds, ?Collection $filterPropertyIds): ?Collection
+    {
+        if ($filterPropertyIds === null) {
+            return $basePropertyIds;
+        }
+
+        if ($basePropertyIds === null) {
+            return $filterPropertyIds;
+        }
+
+        return $basePropertyIds
+            ->intersect($filterPropertyIds)
+            ->values();
+    }
+
+    private function availableAdvisors(): Collection
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->where(function ($query): void {
+                $query->whereHas('roles')
+                    ->orWhereHas('permissions');
+            })
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
     }
 
     private function applyPropertyIdFilter($query, ?Collection $visiblePropertyIds): void
