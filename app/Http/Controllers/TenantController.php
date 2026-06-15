@@ -7,6 +7,7 @@ use App\Models\Charge;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
 use App\Models\User;
+use App\Services\DossierDocumentRequirementService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -18,6 +19,10 @@ use Spatie\Permission\Models\Role;
 
 class TenantController extends Controller
 {
+    public function __construct(private readonly DossierDocumentRequirementService $requirements)
+    {
+    }
+
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('q', ''));
@@ -199,7 +204,7 @@ class TenantController extends Controller
 
     private function ensureDossierDocuments(Tenant $tenant): void
     {
-        foreach (TenantDocument::REQUIRED_DOCUMENTS as $documentType => $label) {
+        foreach ($this->requirements->labelsForEntity('tenant') as $documentType => $label) {
             $existingDocument = $tenant->documents()
                 ->where('document_type', $documentType)
                 ->first();
@@ -222,7 +227,8 @@ class TenantController extends Controller
 
     private function buildTenantDocumentsCollection(Tenant $tenant): Collection
     {
-        $requiredDocuments = collect(TenantDocument::REQUIRED_DOCUMENTS)
+        $requiredDocumentLabels = $this->requirements->labelsForEntity('tenant');
+        $requiredDocuments = collect($requiredDocumentLabels)
             ->map(function (string $label, string $documentType) use ($tenant) {
                 return $tenant->documents->firstWhere('document_type', $documentType)
                     ?? new TenantDocument([
@@ -233,7 +239,7 @@ class TenantController extends Controller
             });
 
         $customDocuments = $tenant->documents
-            ->whereNotIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))
+            ->whereNotIn('document_type', array_keys($requiredDocumentLabels))
             ->values();
 
         return $requiredDocuments->concat($customDocuments)->values();

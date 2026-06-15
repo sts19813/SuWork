@@ -4,8 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Owner;
 use App\Models\Property;
-use App\Models\PropertyDocument;
 use App\Models\PropertyType;
+use App\Models\DossierDocumentRequirement;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Zone;
@@ -200,7 +200,7 @@ class PropertyModuleTest extends TestCase
         $response->assertSessionHasNoErrors();
         $this->assertDatabaseHas('properties', ['internal_name' => 'Casa Centro 201']);
         $this->assertDatabaseHas('owners', ['email' => 'juan@example.com']);
-        $this->assertDatabaseCount('property_documents', count(PropertyDocument::REQUIRED_DOCUMENTS));
+        $this->assertDatabaseCount('property_documents', DossierDocumentRequirement::query()->where('entity_type', 'property')->where('is_active', true)->count());
         $this->assertDatabaseCount('owner_property', 1);
     }
 

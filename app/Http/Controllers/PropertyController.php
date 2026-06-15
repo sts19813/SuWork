@@ -18,6 +18,7 @@ use App\Models\Tenant;
 use App\Models\TenantDocument;
 use App\Models\User;
 use App\Models\Zone;
+use App\Services\DossierDocumentRequirementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Http\RedirectResponse;
@@ -46,6 +47,10 @@ class PropertyController extends Controller
         'Temozon',
         'Playa',
     ];
+
+    public function __construct(private readonly DossierDocumentRequirementService $requirements)
+    {
+    }
 
     public function index(Request $request): View
     {
@@ -210,7 +215,7 @@ class PropertyController extends Controller
         $tenantId = $request->input('tenant_id');
         $tenant = $tenantId
             ? Tenant::query()
-                ->with(['documents' => fn($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
+                ->with(['documents' => fn($query) => $query->whereIn('document_type', array_keys($this->requirements->labelsForEntity('tenant')))])
                 ->find($tenantId)
             : null;
         $requestedTenantId = $tenant?->id;
@@ -274,7 +279,10 @@ class PropertyController extends Controller
             ->limit(250)
             ->get();
 
-        $documents = collect(PropertyDocument::REQUIRED_DOCUMENTS)
+        $propertyRequiredDocuments = $this->requirements->labelsForEntity('property');
+        $tenantRequiredDocuments = $this->requirements->labelsForEntity('tenant');
+
+        $documents = collect($propertyRequiredDocuments)
             ->map(function (string $label, string $type) use ($property) {
                 return $property->documents->firstWhere('document_type', $type)
                     ?? new PropertyDocument([
@@ -285,14 +293,14 @@ class PropertyController extends Controller
             });
 
         $customDocuments = $property->documents
-            ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
+            ->whereNotIn('document_type', array_keys($propertyRequiredDocuments))
             ->values();
 
         $tenantDocuments = collect();
         $tenantCustomDocuments = collect();
 
         if ($property->tenant) {
-            $tenantDocuments = collect(TenantDocument::REQUIRED_DOCUMENTS)
+            $tenantDocuments = collect($tenantRequiredDocuments)
                 ->map(function (string $label, string $type) use ($property) {
                     return $property->tenant->documents->firstWhere('document_type', $type)
                         ?? new TenantDocument([
@@ -303,12 +311,12 @@ class PropertyController extends Controller
                 });
 
             $tenantCustomDocuments = $property->tenant->documents
-                ->whereNotIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))
+                ->whereNotIn('document_type', array_keys($tenantRequiredDocuments))
                 ->values();
         }
 
         $tenants = Tenant::query()
-            ->with(['documents' => fn($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
+            ->with(['documents' => fn($query) => $query->whereIn('document_type', array_keys($tenantRequiredDocuments))])
             ->orderBy('full_name')
             ->get();
 
@@ -530,7 +538,7 @@ class PropertyController extends Controller
             ],
             'ownerTypes' => Owner::OWNER_TYPE_LABELS,
             'paymentMethods' => Owner::PAYMENT_METHOD_LABELS,
-            'requiredDocuments' => PropertyDocument::REQUIRED_DOCUMENTS,
+            'requiredDocuments' => $this->requirements->labelsForEntity('property'),
             'defaultAreas' => [
                 'Area 1',
             ],
@@ -539,7 +547,7 @@ class PropertyController extends Controller
             'availableAdvisors' => $this->availableAdvisors(),
             'customPropertyDocuments' => $property
                 ? $property->documents
-                    ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
+                    ->whereNotIn('document_type', array_keys($this->requirements->labelsForEntity('property')))
                     ->values()
                 : collect(),
             'existingFacadePhoto' => $property ? $property->facade_photo_path : null,
@@ -705,11 +713,11 @@ class PropertyController extends Controller
         $documentsByType = $tenant->relationLoaded('documents')
             ? $tenant->documents->keyBy('document_type')
             : $tenant->documents()
-                ->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))
+                ->whereIn('document_type', array_keys($this->requirements->labelsForEntity('tenant')))
                 ->get()
                 ->keyBy('document_type');
 
-        foreach (TenantDocument::REQUIRED_DOCUMENTS as $documentType => $label) {
+        foreach ($this->requirements->labelsForEntity('tenant') as $documentType => $label) {
             $document = $documentsByType->get($documentType);
             $hasUploadedFile = filled($document?->file_path);
             $isRejectedOrExpired = in_array(
@@ -984,7 +992,7 @@ class PropertyController extends Controller
     {
         $existingDocuments = $property->documents()->with('versions')->get()->keyBy('document_type');
 
-        foreach (PropertyDocument::REQUIRED_DOCUMENTS as $documentType => $documentLabel) {
+        foreach ($this->requirements->labelsForEntity('property') as $documentType => $documentLabel) {
             $document = $existingDocuments->get($documentType)
                 ?? $property->documents()->create([
                     'document_type' => $documentType,
@@ -1027,7 +1035,7 @@ class PropertyController extends Controller
 
     private function syncCustomDocuments(Property $property, StorePropertyRequest $request): void
     {
-        $requiredDocumentTypes = array_keys(PropertyDocument::REQUIRED_DOCUMENTS);
+        $requiredDocumentTypes = array_keys($this->requirements->labelsForEntity('property'));
         $existingCustomDocuments = $property->documents()
             ->whereNotIn('document_type', $requiredDocumentTypes)
             ->with('versions')

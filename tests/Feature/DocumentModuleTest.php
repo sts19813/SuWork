@@ -6,6 +6,7 @@ use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
 use App\Models\PropertyType;
+use App\Models\DossierDocumentRequirement;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
 use App\Models\User;
@@ -39,11 +40,13 @@ class DocumentModuleTest extends TestCase
             'full_address' => 'Calle Uno #1',
             'status' => Property::STATUS_AVAILABLE,
             'owner_ids' => [$owner->id],
+            'facade_photo' => UploadedFile::fake()->image('facade.jpg'),
         ])->assertSessionHasNoErrors();
 
         $this->actingAs($user)->post(route('tenants.store'), [
             'full_name' => 'Inquilino Documentado',
             'phone_primary' => '9991112233',
+            'email' => 'inquilino.documentado@example.com',
             'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
         ])->assertSessionHasNoErrors();
 
@@ -54,7 +57,7 @@ class DocumentModuleTest extends TestCase
         $response->assertOk();
         $response->assertSee('Documentos');
         $response->assertSee('Predial');
-        $response->assertSee('Identificacion oficial');
+        $response->assertSee('Identificacion');
     }
 
     public function test_property_document_uploads_create_versions(): void
@@ -71,6 +74,10 @@ class DocumentModuleTest extends TestCase
             'payment_method' => Owner::PAYMENT_METHOD_TRANSFER,
             'is_active' => true,
         ]);
+        $documentType = DossierDocumentRequirement::query()
+            ->where('entity_type', 'property')
+            ->orderBy('sort_order')
+            ->value('document_type');
 
         $this->actingAs($user)->post(route('properties.store'), [
             'internal_name' => 'Casa Versionada',
@@ -79,15 +86,16 @@ class DocumentModuleTest extends TestCase
             'full_address' => 'Calle Version #1',
             'status' => Property::STATUS_AVAILABLE,
             'owner_ids' => [$owner->id],
+            'facade_photo' => UploadedFile::fake()->image('facade.jpg'),
             'documents' => [
-                PropertyDocument::TYPE_TITLE_DEED => UploadedFile::fake()->create('escritura-v1.pdf', 120, 'application/pdf'),
+                $documentType => UploadedFile::fake()->create('contrato-v1.pdf', 120, 'application/pdf'),
             ],
         ])->assertSessionHasNoErrors();
 
         $property = Property::query()->where('internal_name', 'Casa Versionada')->firstOrFail();
         $document = PropertyDocument::query()
             ->where('property_id', $property->id)
-            ->where('document_type', PropertyDocument::TYPE_TITLE_DEED)
+            ->where('document_type', $documentType)
             ->firstOrFail();
 
         $this->assertDatabaseHas('property_document_versions', [
@@ -103,7 +111,7 @@ class DocumentModuleTest extends TestCase
             'status' => Property::STATUS_AVAILABLE,
             'owner_ids' => [$owner->id],
             'documents' => [
-                PropertyDocument::TYPE_TITLE_DEED => UploadedFile::fake()->create('escritura-v2.pdf', 140, 'application/pdf'),
+                $documentType => UploadedFile::fake()->create('contrato-v2.pdf', 140, 'application/pdf'),
             ],
         ])->assertSessionHasNoErrors();
 
@@ -124,17 +132,22 @@ class DocumentModuleTest extends TestCase
         $this->actingAs($user)->post(route('tenants.store'), [
             'full_name' => 'Tenant Versiones',
             'phone_primary' => '9997001122',
+            'email' => 'tenant.versiones@example.com',
             'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
         ])->assertSessionHasNoErrors();
 
         $tenant = Tenant::query()->where('full_name', 'Tenant Versiones')->firstOrFail();
+        $documentType = DossierDocumentRequirement::query()
+            ->where('entity_type', 'tenant')
+            ->orderBy('sort_order')
+            ->value('document_type');
         $document = TenantDocument::query()
             ->where('tenant_id', $tenant->id)
-            ->where('document_type', TenantDocument::TYPE_OFFICIAL_ID)
+            ->where('document_type', $documentType)
             ->firstOrFail();
 
         $this->actingAs($user)->from(route('tenants.edit', $tenant))->post(
-            route('dossiers.tenants.documents.upload', [$tenant, TenantDocument::TYPE_OFFICIAL_ID]),
+            route('dossiers.tenants.documents.upload', [$tenant, $documentType]),
             [
                 'file' => UploadedFile::fake()->create('ine-v1.pdf', 80, 'application/pdf'),
             ],
@@ -146,7 +159,7 @@ class DocumentModuleTest extends TestCase
         ]);
 
         $this->actingAs($user)->from(route('tenants.edit', $tenant))->post(
-            route('dossiers.tenants.documents.upload', [$tenant, TenantDocument::TYPE_OFFICIAL_ID]),
+            route('dossiers.tenants.documents.upload', [$tenant, $documentType]),
             [
                 'file' => UploadedFile::fake()->create('ine-v2.pdf', 95, 'application/pdf'),
             ],
@@ -182,6 +195,7 @@ class DocumentModuleTest extends TestCase
             'full_address' => 'Calle Custom #2',
             'status' => Property::STATUS_AVAILABLE,
             'owner_ids' => [$owner->id],
+            'facade_photo' => UploadedFile::fake()->image('facade.jpg'),
         ])->assertSessionHasNoErrors();
 
         $property = Property::query()->where('internal_name', 'Propiedad Custom')->firstOrFail();
@@ -216,6 +230,7 @@ class DocumentModuleTest extends TestCase
         $this->actingAs($user)->post(route('tenants.store'), [
             'full_name' => 'Tenant Custom',
             'phone_primary' => '9991212121',
+            'email' => 'tenant.custom@example.com',
             'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
         ])->assertSessionHasNoErrors();
 

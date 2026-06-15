@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ChargeController;
 use App\Http\Controllers\ChargePaymentController;
+use App\Http\Controllers\DossierConfigurationController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InventoryCheckController;
@@ -102,6 +103,12 @@ Route::middleware(['auth', 'system.access'])
 
         Route::get('/documentos', [DocumentController::class, 'index'])->name('documents.index');
         Route::get('/documentos/bitacora-eliminados', [DocumentController::class, 'deletedFilesLog'])->name('documents.deleted-files-log');
+
+        Route::get('/configuracion/expedientes', [DossierConfigurationController::class, 'index'])->name('settings.dossiers.index');
+        Route::post('/configuracion/expedientes/documentos', [DossierConfigurationController::class, 'store'])->name('settings.dossiers.requirements.store');
+        Route::put('/configuracion/expedientes/documentos/{requirement}', [DossierConfigurationController::class, 'update'])->name('settings.dossiers.requirements.update');
+        Route::delete('/configuracion/expedientes/documentos/{requirement}', [DossierConfigurationController::class, 'destroy'])->name('settings.dossiers.requirements.destroy');
+        Route::post('/configuracion/expedientes/orden', [DossierConfigurationController::class, 'reorder'])->name('settings.dossiers.requirements.reorder');
 
         Route::get('/seguridad/usuarios', [UserAccessController::class, 'index'])->name('access.index');
         Route::post('/seguridad/usuarios', [UserAccessController::class, 'storeUser'])->name('access.users.store');

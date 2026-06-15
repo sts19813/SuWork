@@ -16,6 +16,7 @@ use App\Models\PropertyChangeLog;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
 use App\Models\User;
+use App\Services\DossierDocumentRequirementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,10 @@ use Illuminate\View\View;
 
 class ChargeController extends Controller
 {
+    public function __construct(private readonly DossierDocumentRequirementService $requirements)
+    {
+    }
+
     public function index(Request $request): View
     {
         $user = $request->user();
@@ -160,8 +165,9 @@ class ChargeController extends Controller
         $propertySetupTenants = collect();
         $tenantAssignmentChecks = [];
         if ($showPropertySetupCard) {
+            $tenantRequiredDocumentTypes = array_keys($this->requirements->labelsForEntity('tenant'));
             $propertySetupTenants = Tenant::query()
-                ->with(['documents' => fn ($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
+                ->with(['documents' => fn ($query) => $query->whereIn('document_type', $tenantRequiredDocumentTypes)])
                 ->orderBy('full_name')
                 ->get([
                     'id',
@@ -302,7 +308,7 @@ class ChargeController extends Controller
         $tenant = null;
         if (filled($validated['tenant_id'] ?? null)) {
             $tenant = Tenant::query()
-                ->with(['documents' => fn ($query) => $query->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))])
+                ->with(['documents' => fn ($query) => $query->whereIn('document_type', array_keys($this->requirements->labelsForEntity('tenant')))])
                 ->find((int) $validated['tenant_id']);
         }
 
@@ -1223,11 +1229,11 @@ class ChargeController extends Controller
         $documentsByType = $tenant->relationLoaded('documents')
             ? $tenant->documents->keyBy('document_type')
             : $tenant->documents()
-                ->whereIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))
+                ->whereIn('document_type', array_keys($this->requirements->labelsForEntity('tenant')))
                 ->get()
                 ->keyBy('document_type');
 
-        foreach (TenantDocument::REQUIRED_DOCUMENTS as $documentType => $label) {
+        foreach ($this->requirements->labelsForEntity('tenant') as $documentType => $label) {
             $document = $documentsByType->get($documentType);
             $hasUploadedFile = filled($document?->file_path);
             $isRejectedOrExpired = in_array(

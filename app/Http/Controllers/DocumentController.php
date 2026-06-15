@@ -12,6 +12,7 @@ use App\Models\PropertyDocumentVersion;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
 use App\Models\TenantDocumentVersion;
+use App\Services\DossierDocumentRequirementService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -31,6 +32,10 @@ class DocumentController extends Controller
         'expired' => 'Vencidos',
         'rejected' => 'Rechazados',
     ];
+
+    public function __construct(private readonly DossierDocumentRequirementService $requirements)
+    {
+    }
 
     public function index(Request $request): View
     {
@@ -100,7 +105,8 @@ class DocumentController extends Controller
             'documents.versions' => fn ($query) => $query->orderByDesc('version_number'),
         ]);
 
-        $documents = collect(PropertyDocument::REQUIRED_DOCUMENTS)
+        $requiredDocuments = $this->requirements->labelsForEntity('property');
+        $documents = collect($requiredDocuments)
             ->map(function (string $label, string $documentType) use ($property) {
                 return $property->documents->firstWhere('document_type', $documentType)
                     ?? new PropertyDocument([
@@ -111,7 +117,7 @@ class DocumentController extends Controller
             });
 
         $customDocuments = $property->documents
-            ->whereNotIn('document_type', array_keys(PropertyDocument::REQUIRED_DOCUMENTS))
+            ->whereNotIn('document_type', array_keys($requiredDocuments))
             ->values();
 
         return view('documents.property-dossier', [
@@ -130,7 +136,8 @@ class DocumentController extends Controller
             'documents.versions' => fn ($query) => $query->orderByDesc('version_number'),
         ]);
 
-        $documents = collect(TenantDocument::REQUIRED_DOCUMENTS)
+        $requiredDocuments = $this->requirements->labelsForEntity('tenant');
+        $documents = collect($requiredDocuments)
             ->map(function (string $label, string $documentType) use ($tenant) {
                 return $tenant->documents->firstWhere('document_type', $documentType)
                     ?? new TenantDocument([
@@ -141,7 +148,7 @@ class DocumentController extends Controller
             });
 
         $customDocuments = $tenant->documents
-            ->whereNotIn('document_type', array_keys(TenantDocument::REQUIRED_DOCUMENTS))
+            ->whereNotIn('document_type', array_keys($requiredDocuments))
             ->values();
 
         return view('documents.tenant-dossier', [
@@ -160,7 +167,8 @@ class DocumentController extends Controller
             'documents.versions' => fn ($query) => $query->orderByDesc('version_number'),
         ]);
 
-        $documents = collect(OwnerDocument::REQUIRED_DOCUMENTS)
+        $requiredDocuments = $this->requirements->labelsForEntity('owner');
+        $documents = collect($requiredDocuments)
             ->map(function (string $label, string $documentType) use ($owner) {
                 return $owner->documents->firstWhere('document_type', $documentType)
                     ?? new OwnerDocument([
@@ -171,7 +179,7 @@ class DocumentController extends Controller
             });
 
         $customDocuments = $owner->documents
-            ->whereNotIn('document_type', array_keys(OwnerDocument::REQUIRED_DOCUMENTS))
+            ->whereNotIn('document_type', array_keys($requiredDocuments))
             ->values();
 
         return view('documents.owner-dossier', [
@@ -236,7 +244,8 @@ class DocumentController extends Controller
         ]);
 
         $document = $property->documents()->where('document_type', $documentType)->first();
-        $isRequiredDocument = array_key_exists($documentType, PropertyDocument::REQUIRED_DOCUMENTS);
+        $requiredLabel = $this->requirements->labelFor('property', $documentType);
+        $isRequiredDocument = filled($requiredLabel);
 
         if (!$document && !$isRequiredDocument) {
             abort(404);
@@ -245,7 +254,7 @@ class DocumentController extends Controller
         if (!$document && $isRequiredDocument) {
             $document = $property->documents()->create([
                 'document_type' => $documentType,
-                'label' => PropertyDocument::REQUIRED_DOCUMENTS[$documentType],
+                'label' => $requiredLabel,
                 'status' => PropertyDocument::STATUS_PENDING,
                 'uploaded_at' => null,
                 'file_path' => null,
@@ -255,7 +264,7 @@ class DocumentController extends Controller
 
         if ($isRequiredDocument) {
             $document->update([
-                'label' => PropertyDocument::REQUIRED_DOCUMENTS[$documentType],
+                'label' => $requiredLabel,
             ]);
         }
 
@@ -291,7 +300,8 @@ class DocumentController extends Controller
         ]);
 
         $document = $tenant->documents()->where('document_type', $documentType)->first();
-        $isRequiredDocument = array_key_exists($documentType, TenantDocument::REQUIRED_DOCUMENTS);
+        $requiredLabel = $this->requirements->labelFor('tenant', $documentType);
+        $isRequiredDocument = filled($requiredLabel);
 
         if (!$document && !$isRequiredDocument) {
             abort(404);
@@ -300,7 +310,7 @@ class DocumentController extends Controller
         if (!$document && $isRequiredDocument) {
             $document = $tenant->documents()->create([
                 'document_type' => $documentType,
-                'label' => TenantDocument::REQUIRED_DOCUMENTS[$documentType],
+                'label' => $requiredLabel,
                 'status' => TenantDocument::STATUS_PENDING,
                 'uploaded_at' => null,
                 'file_path' => null,
@@ -310,7 +320,7 @@ class DocumentController extends Controller
 
         if ($isRequiredDocument) {
             $document->update([
-                'label' => TenantDocument::REQUIRED_DOCUMENTS[$documentType],
+                'label' => $requiredLabel,
             ]);
         }
 
@@ -346,7 +356,8 @@ class DocumentController extends Controller
         ]);
 
         $document = $owner->documents()->where('document_type', $documentType)->first();
-        $isRequiredDocument = array_key_exists($documentType, OwnerDocument::REQUIRED_DOCUMENTS);
+        $requiredLabel = $this->requirements->labelFor('owner', $documentType);
+        $isRequiredDocument = filled($requiredLabel);
 
         if (!$document && !$isRequiredDocument) {
             abort(404);
@@ -355,7 +366,7 @@ class DocumentController extends Controller
         if (!$document && $isRequiredDocument) {
             $document = $owner->documents()->create([
                 'document_type' => $documentType,
-                'label' => OwnerDocument::REQUIRED_DOCUMENTS[$documentType],
+                'label' => $requiredLabel,
                 'status' => OwnerDocument::STATUS_PENDING,
                 'uploaded_at' => null,
                 'file_path' => null,
@@ -365,7 +376,7 @@ class DocumentController extends Controller
 
         if ($isRequiredDocument) {
             $document->update([
-                'label' => OwnerDocument::REQUIRED_DOCUMENTS[$documentType],
+                'label' => $requiredLabel,
             ]);
         }
 
@@ -512,7 +523,7 @@ class DocumentController extends Controller
         $this->ensureDeleteDossierFilesPermission($request);
 
         $document = $property->documents()->where('document_type', $documentType)->firstOrFail();
-        $isRequired = array_key_exists($documentType, PropertyDocument::REQUIRED_DOCUMENTS);
+        $isRequired = $this->requirements->isConfigured('property', $documentType);
         $this->deleteAllDocumentVersions(
             request: $request,
             entityType: 'property',
@@ -546,7 +557,7 @@ class DocumentController extends Controller
         $this->ensureDeleteDossierFilesPermission($request);
 
         $document = $tenant->documents()->where('document_type', $documentType)->firstOrFail();
-        $isRequired = array_key_exists($documentType, TenantDocument::REQUIRED_DOCUMENTS);
+        $isRequired = $this->requirements->isConfigured('tenant', $documentType);
         $this->deleteAllDocumentVersions(
             request: $request,
             entityType: 'tenant',
@@ -580,7 +591,7 @@ class DocumentController extends Controller
         $this->ensureDeleteDossierFilesPermission($request);
 
         $document = $owner->documents()->where('document_type', $documentType)->firstOrFail();
-        $isRequired = array_key_exists($documentType, OwnerDocument::REQUIRED_DOCUMENTS);
+        $isRequired = $this->requirements->isConfigured('owner', $documentType);
         $this->deleteAllDocumentVersions(
             request: $request,
             entityType: 'owner',
@@ -780,7 +791,7 @@ class DocumentController extends Controller
 
     private function ensurePropertyDocuments(Property $property): void
     {
-        foreach (PropertyDocument::REQUIRED_DOCUMENTS as $documentType => $label) {
+        foreach ($this->requirements->labelsForEntity('property') as $documentType => $label) {
             $existingDocument = $property->documents()->where('document_type', $documentType)->first();
 
             if ($existingDocument) {
@@ -801,7 +812,7 @@ class DocumentController extends Controller
 
     private function ensureTenantDocuments(Tenant $tenant): void
     {
-        foreach (TenantDocument::REQUIRED_DOCUMENTS as $documentType => $label) {
+        foreach ($this->requirements->labelsForEntity('tenant') as $documentType => $label) {
             $existingDocument = $tenant->documents()->where('document_type', $documentType)->first();
 
             if ($existingDocument) {
@@ -822,7 +833,7 @@ class DocumentController extends Controller
 
     private function ensureOwnerDocuments(Owner $owner): void
     {
-        foreach (OwnerDocument::REQUIRED_DOCUMENTS as $documentType => $label) {
+        foreach ($this->requirements->labelsForEntity('owner') as $documentType => $label) {
             $existingDocument = $owner->documents()->where('document_type', $documentType)->first();
 
             if ($existingDocument) {
@@ -956,7 +967,7 @@ class DocumentController extends Controller
     {
         $latest = $document->versions()->orderByDesc('version_number')->first();
         if (!$latest) {
-            $isRequired = array_key_exists($document->document_type, PropertyDocument::REQUIRED_DOCUMENTS);
+            $isRequired = $this->requirements->isConfigured('property', $document->document_type);
             if ($isRequired) {
                 $document->update([
                     'file_path' => null,
@@ -982,7 +993,7 @@ class DocumentController extends Controller
     {
         $latest = $document->versions()->orderByDesc('version_number')->first();
         if (!$latest) {
-            $isRequired = array_key_exists($document->document_type, TenantDocument::REQUIRED_DOCUMENTS);
+            $isRequired = $this->requirements->isConfigured('tenant', $document->document_type);
             if ($isRequired) {
                 $document->update([
                     'file_path' => null,
@@ -1008,7 +1019,7 @@ class DocumentController extends Controller
     {
         $latest = $document->versions()->orderByDesc('version_number')->first();
         if (!$latest) {
-            $isRequired = array_key_exists($document->document_type, OwnerDocument::REQUIRED_DOCUMENTS);
+            $isRequired = $this->requirements->isConfigured('owner', $document->document_type);
             if ($isRequired) {
                 $document->update([
                     'file_path' => null,

@@ -10,6 +10,7 @@
     $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
     $canManageAccess = $user->can('usuarios.gestionar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canViewPropertyControl = $user->can('propiedades.control_ver') || $user->hasRole('administrador') || $user->hasRole('admin');
+    $canConfigureDossiers = $user->can('expedientes.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $homeRoute = ($isTenant || $isTechnician) ? 'maintenance.index' : 'dashboard';
     $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : 'Panel SuWork');
     $currentHour = now()->hour;
@@ -37,6 +38,7 @@
                 ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos', 'icon' => 'bi-receipt'],
                 ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
                 ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
+                ...($canConfigureDossiers ? [['patterns' => ['settings.dossiers.*'], 'route' => 'settings.dossiers.index', 'label' => 'Config. expedientes', 'icon' => 'bi-sliders']] : []),
                 ...($canManageAccess ? [['patterns' => ['access.*'], 'route' => 'access.index', 'label' => 'Usuarios y permisos', 'icon' => 'bi-shield-lock']] : []),
                 ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'],
             ]);
