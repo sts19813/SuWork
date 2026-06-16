@@ -16,7 +16,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ExpenseController extends Controller
@@ -25,15 +24,9 @@ class ExpenseController extends Controller
     {
         $filters = $request->validate([
             'property' => ['nullable', 'string', 'exists:properties,uuid'],
-            'status' => ['nullable', Rule::in(['', Expense::STATUS_PENDING, Expense::STATUS_OVERDUE, Expense::STATUS_PAID])],
-            'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
         ]);
 
         $selectedPropertyUuid = trim((string) ($filters['property'] ?? ''));
-        $status = (string) ($filters['status'] ?? '');
-        $dateFrom = $filters['date_from'] ?? null;
-        $dateTo = $filters['date_to'] ?? null;
 
         $selectedProperty = $selectedPropertyUuid !== ''
             ? Property::query()->where('uuid', $selectedPropertyUuid)->first()
@@ -45,21 +38,14 @@ class ExpenseController extends Controller
                 'files:id,expense_id,path,type,mime_type,original_name',
             ])
             ->withCount('files')
-            ->when($selectedProperty, fn(Builder $query) => $query->where('property_id', $selectedProperty->id))
-            ->when($dateFrom, fn(Builder $query) => $query->whereDate('due_date', '>=', $dateFrom))
-            ->when($dateTo, fn(Builder $query) => $query->whereDate('due_date', '<=', $dateTo));
-
-        $this->applyStatusFilter($expensesQuery, $status);
+            ->when($selectedProperty, fn(Builder $query) => $query->where('property_id', $selectedProperty->id));
 
         $expenses = $expensesQuery
             ->upcomingFirst()
-            ->paginate(15)
-            ->withQueryString();
+            ->get();
 
         $summaryBaseQuery = Expense::query()
-            ->when($selectedProperty, fn(Builder $query) => $query->where('property_id', $selectedProperty->id))
-            ->when($dateFrom, fn(Builder $query) => $query->whereDate('due_date', '>=', $dateFrom))
-            ->when($dateTo, fn(Builder $query) => $query->whereDate('due_date', '<=', $dateTo));
+            ->when($selectedProperty, fn(Builder $query) => $query->where('property_id', $selectedProperty->id));
 
         $summary = [
             'pending_total' => (float) (clone $summaryBaseQuery)->pending()->sum('amount'),
@@ -73,15 +59,6 @@ class ExpenseController extends Controller
             'expenses' => $expenses,
             'properties' => Property::query()->orderBy('internal_name')->get(['id', 'uuid', 'internal_name', 'internal_reference']),
             'selectedProperty' => $selectedProperty,
-            'status' => $status,
-            'dateFrom' => $dateFrom,
-            'dateTo' => $dateTo,
-            'statusOptions' => [
-                '' => 'Todos',
-                Expense::STATUS_PENDING => 'Pendiente',
-                Expense::STATUS_OVERDUE => 'Atrasado',
-                Expense::STATUS_PAID => 'Pagado',
-            ],
             'summary' => $summary,
             'globalSetup' => $globalSetup,
         ]);
@@ -249,27 +226,6 @@ class ExpenseController extends Controller
         if ($disk->exists($path)) {
             $disk->delete($path);
         }
-    }
-
-    private function applyStatusFilter(Builder $query, string $status): void
-    {
-        if ($status === '') {
-            return;
-        }
-
-        if ($status === Expense::STATUS_PAID) {
-            $query->paid();
-
-            return;
-        }
-
-        if ($status === Expense::STATUS_OVERDUE) {
-            $query->overdue();
-
-            return;
-        }
-
-        $query->pending();
     }
 
     /**

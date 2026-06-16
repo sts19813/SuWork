@@ -2,8 +2,184 @@
 
 @section('title', 'Gastos | SuWork')
 
+@push('styles')
+    <style>
+        .expenses-list-module {
+            --el-surface: #ffffff;
+            --el-ink: #172033;
+            --el-text: #334155;
+            --el-muted: #7b879d;
+            --el-line: #e5eaf3;
+            --el-accent: #b54708;
+            --el-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+            color: var(--el-text);
+        }
+
+        .expenses-list-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 20px;
+        }
+
+        .expenses-list-search {
+            position: relative;
+            min-width: min(100%, 360px);
+            flex: 1 1 300px;
+        }
+
+        .expenses-list-search i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--el-muted);
+            font-size: 1rem;
+            pointer-events: none;
+        }
+
+        .expenses-list-search .form-control {
+            height: 52px;
+            padding-left: 46px;
+            border-radius: 16px;
+            border: 1px solid var(--el-line);
+            background: #fbfcfe;
+            color: var(--el-ink);
+            font-weight: 600;
+            box-shadow: none;
+        }
+
+        .expenses-list-search .form-control:focus {
+            border-color: rgba(181, 71, 8, 0.35);
+            box-shadow: 0 0 0 4px rgba(181, 71, 8, 0.08);
+        }
+
+        .expenses-list-results {
+            color: var(--el-muted);
+            font-size: 1rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .expenses-list-table-card {
+            margin-top: 20px;
+            border: 1px solid var(--el-line);
+            border-radius: 20px;
+            overflow: hidden;
+            background: var(--el-surface);
+        }
+
+        .expenses-list-table-card .table-responsive {
+            overflow-x: auto;
+        }
+
+        .expenses-list-table-card table.dataTable {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            border-collapse: separate !important;
+            border-spacing: 0;
+        }
+
+        .expenses-list-table-card thead th {
+            padding-top: 20px;
+            padding-bottom: 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--el-line) !important;
+            color: #94a3b8 !important;
+            font-size: 0.76rem;
+            letter-spacing: 0.08em;
+        }
+
+        .expenses-list-row {
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .expenses-list-row td {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            border-top: 1px solid var(--el-line) !important;
+            vertical-align: middle;
+            background: #fff;
+        }
+
+        .expenses-list-row:hover td {
+            background: #fcf8f6;
+        }
+
+        .expenses-list-title {
+            color: var(--el-ink);
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .expenses-list-meta {
+            color: var(--el-muted);
+            font-size: 0.88rem;
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        .expenses-list-value {
+            color: var(--el-ink);
+            font-size: 0.95rem;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .expenses-list-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .expenses-list-actions .btn {
+            border-radius: 12px;
+            font-weight: 700;
+        }
+
+        .expenses-list-table-card .dataTables_info,
+        .expenses-list-table-card .dataTables_paginate {
+            padding: 18px 28px 0;
+            color: var(--el-muted) !important;
+            font-weight: 700;
+        }
+
+        .expenses-list-table-card .dataTables_paginate .pagination {
+            gap: 6px;
+        }
+
+        .expenses-list-table-card .page-link {
+            border-radius: 10px !important;
+            border-color: var(--el-line) !important;
+            color: var(--el-text) !important;
+            min-width: 38px;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .expenses-list-table-card .page-item.active .page-link {
+            background: var(--el-accent) !important;
+            border-color: var(--el-accent) !important;
+            color: #fff !important;
+        }
+
+        @media (max-width: 991px) {
+            .expenses-list-table-card .dataTables_info,
+            .expenses-list-table-card .dataTables_paginate {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+        }
+    </style>
+@endpush
+
 @section('content')
-    <div class="py-10 expenses-module">
+    <div class="py-10 expenses-module expenses-list-module">
         @if (session('success'))
             <div class="alert alert-success d-flex align-items-center p-5 mb-8">
                 <i class="ki-outline ki-check-circle fs-2hx text-success me-4"></i>
@@ -41,16 +217,6 @@
             </div>
 
             <div class="d-flex flex-wrap gap-3">
-                {{-- Botón filtros --}}
-                <button type="button" class="btn btn-light-primary fw-bold"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#filtersCollapse"
-                    aria-expanded="false"
-                    aria-controls="filtersCollapse">
-                    <i class="ki-outline ki-filter fs-4 me-1"></i>
-                    Filtros
-                </button>
-
                 {{-- Botón configuración --}}
                 <button type="button"
                     class="btn btn-light-warning fw-bold"
@@ -73,209 +239,142 @@
 
         @include('expenses.partials.summary-cards', ['summary' => $summary])
 
-        {{-- FILTROS --}}
-        <div class="collapse mb-8" id="filtersCollapse">
-            <div class="card">
-                <div class="card-header border-0 align-items-center min-h-60px">
-                    <h3 class="card-title fw-bold">
-                        <i class="ki-outline ki-filter fs-2 text-primary me-2"></i>
-                        Filtros
-                    </h3>
-                </div>
+        <div class="expenses-list-toolbar">
+            <form method="GET" action="{{ route('expenses.index', $selectedProperty ? ['property' => $selectedProperty->uuid] : []) }}"
+                id="expensesSearchForm" class="expenses-list-search mb-0">
+                <i class="bi bi-search"></i>
+                <input
+                    id="expensesSearchInput"
+                    type="search"
+                    class="form-control"
+                    placeholder="Buscar concepto, propiedad, estado, fecha..."
+                    autocomplete="off">
+            </form>
 
-                <div class="card-body py-6">
-                    <form method="GET" action="{{ route('expenses.index') }}" class="row g-4 align-items-end">
-
-                        <div class="col-lg-4">
-                            <label class="form-label fw-semibold">Propiedad</label>
-
-                            <select name="property" class="form-select">
-                                <option value="">Todas</option>
-
-                                @foreach ($properties as $property)
-                                    <option value="{{ $property->uuid }}"
-                                        {{ $selectedProperty?->uuid === $property->uuid ? 'selected' : '' }}>
-                                        {{ $property->internal_name }}
-                                        {{ $property->internal_reference ? ' - ' . $property->internal_reference : '' }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="col-lg-3">
-                            <label class="form-label fw-semibold">Estado</label>
-
-                            <select name="status" class="form-select">
-                                @foreach ($statusOptions as $statusValue => $statusLabel)
-                                    <option value="{{ $statusValue }}"
-                                        {{ $status === $statusValue ? 'selected' : '' }}>
-                                        {{ $statusLabel }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="col-lg-2">
-                            <label class="form-label fw-semibold">Fecha inicial</label>
-
-                            <input type="date"
-                                name="date_from"
-                                class="form-control"
-                                value="{{ $dateFrom }}">
-                        </div>
-
-                        <div class="col-lg-2">
-                            <label class="form-label fw-semibold">Fecha final</label>
-
-                            <input type="date"
-                                name="date_to"
-                                class="form-control"
-                                value="{{ $dateTo }}">
-                        </div>
-
-                        <div class="col-lg-1 d-flex justify-content-end">
-                            <button type="submit" class="btn btn-primary w-100">
-                                Filtrar
-                            </button>
-                        </div>
-
-                        <div class="col-12 d-flex justify-content-end">
-                            <a href="{{ route('expenses.index') }}" class="btn btn-light">
-                                Limpiar
-                            </a>
-                        </div>
-
-                    </form>
-                </div>
-            </div>
+            <div id="expensesResultCount" class="expenses-list-results">{{ $expenses->count() }} resultados</div>
         </div>
 
         {{-- TABLA --}}
-        <div class="card">
-            <div class="card-body py-0">
-                <div class="table-responsive">
-                    <table class="table table-row-bordered align-middle gy-5 mb-0">
-                        <thead>
-                            <tr class="fw-bold text-muted text-uppercase gs-0">
-                                <th class="min-w-240px">Concepto</th>
-                                <th class="min-w-220px">Propiedad</th>
-                                <th class="min-w-140px">Monto</th>
-                                <th class="min-w-140px">Vencimiento</th>
-                                <th class="min-w-120px">Estado</th>
-                                <th class="min-w-120px">Adjuntos</th>
-                                <th class="min-w-280px text-end">Acciones</th>
-                            </tr>
-                        </thead>
+        <div class="expenses-list-table-card">
+            <div class="table-responsive">
+                <table class="table table-row-bordered align-middle mb-0" id="expensesTable">
+                    <thead>
+                        <tr class="fw-bold text-muted text-uppercase fs-8">
+                            <th class="ps-7 min-w-240px">Concepto</th>
+                            <th class="min-w-220px">Propiedad</th>
+                            <th class="min-w-140px">Monto</th>
+                            <th class="min-w-140px">Vencimiento</th>
+                            <th class="min-w-120px">Estado</th>
+                            <th class="min-w-120px">Adjuntos</th>
+                            <th class="min-w-280px text-end pe-7">Acciones</th>
+                        </tr>
+                    </thead>
 
-                        <tbody class="fw-semibold text-gray-700">
+                    <tbody>
 
-                            @forelse ($expenses as $expense)
-                                <tr>
-                                    <td>
-                                        <div class="fw-bold text-gray-900">
-                                            {{ $expense->concept }}
+                        @forelse ($expenses as $expense)
+                            <tr class="expenses-list-row" data-expense-row>
+                                <td class="ps-7">
+                                    <div class="expenses-list-title">
+                                        {{ $expense->concept }}
+                                    </div>
+
+                                    @if ($expense->description)
+                                        <div class="expenses-list-meta">
+                                            {{ $expense->description }}
                                         </div>
+                                    @endif
 
-                                        @if ($expense->description)
-                                            <div class="text-muted fs-7">
-                                                {{ $expense->description }}
-                                            </div>
-                                        @endif
+                                    @include('expenses.partials.attachments', [
+                                        'files' => $expense->files->take(4),
+                                    ])
+                                </td>
 
-                                        @include('expenses.partials.attachments', [
-                                            'files' => $expense->files->take(4),
-                                        ])
-                                    </td>
+                                <td>
+                                    <div class="expenses-list-value">
+                                        {{ $expense->property?->internal_name ?? '-' }}
+                                    </div>
 
-                                    <td>
-                                        <div class="fw-bold text-gray-900">
-                                            {{ $expense->property?->internal_name ?? '-' }}
-                                        </div>
+                                    <div class="expenses-list-meta">
+                                        {{ $expense->property?->internal_reference ?: '-' }}
+                                    </div>
+                                </td>
 
-                                        <div class="text-muted fs-7">
-                                            {{ $expense->property?->internal_reference ?: '-' }}
-                                        </div>
-                                    </td>
+                                <td>
+                                    <div class="expenses-list-value">${{ number_format((float) $expense->amount, 2) }}</div>
+                                </td>
 
-                                    <td>
-                                        ${{ number_format((float) $expense->amount, 2) }}
-                                    </td>
+                                <td>
+                                    <div class="expenses-list-value">{{ $expense->due_date?->format('d/m/Y') ?? '-' }}</div>
+                                </td>
 
-                                    <td>
-                                        {{ $expense->due_date?->format('d/m/Y') ?? '-' }}
-                                    </td>
+                                <td>
+                                    @include('expenses.partials.status-badge', [
+                                        'expense' => $expense,
+                                    ])
+                                </td>
 
-                                    <td>
-                                        @include('expenses.partials.status-badge', [
-                                            'expense' => $expense,
-                                        ])
-                                    </td>
+                                <td>
+                                    @if ($expense->files_count > 0)
+                                        <span class="badge badge-light-info text-info">
+                                            <i class="ki-outline ki-paper-clip fs-6 me-1"></i>
+                                            {{ $expense->files_count }}
+                                        </span>
+                                    @else
+                                        <span class="text-muted">-</span>
+                                    @endif
+                                </td>
 
-                                    <td>
-                                        @if ($expense->files_count > 0)
-                                            <span class="badge badge-light-info text-info">
-                                                <i class="ki-outline ki-paper-clip fs-6 me-1"></i>
-                                                {{ $expense->files_count }}
-                                            </span>
-                                        @else
-                                            <span class="text-muted">-</span>
-                                        @endif
-                                    </td>
+                                <td class="text-end pe-7">
+                                    <div class="expenses-list-actions">
 
-                                    <td class="text-end">
-                                        <div class="d-flex flex-wrap justify-content-end gap-2">
-
-                                            @if (!$expense->is_paid)
-                                                <form method="POST"
-                                                    action="{{ route('expenses.mark-paid', $expense) }}">
-                                                    @csrf
-
-                                                    <button type="submit"
-                                                        class="btn btn-sm btn-light-success">
-                                                        Marcar pagado
-                                                    </button>
-                                                </form>
-                                            @endif
-
-                                            <button type="button"
-                                                class="btn btn-sm btn-light-primary"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#editExpenseModal-{{ $expense->uuid }}">
-                                                Editar
-                                            </button>
-
+                                        @if (!$expense->is_paid)
                                             <form method="POST"
-                                                action="{{ route('expenses.destroy', $expense) }}"
-                                                onsubmit="return confirm('¿Deseas eliminar este gasto?');">
-
+                                                action="{{ route('expenses.mark-paid', $expense) }}">
                                                 @csrf
-                                                @method('DELETE')
 
                                                 <button type="submit"
-                                                    class="btn btn-sm btn-light-danger">
-                                                    Eliminar
+                                                    class="btn btn-sm btn-light-success">
+                                                    Marcar pagado
                                                 </button>
                                             </form>
+                                        @endif
 
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7"
-                                        class="text-center py-16 text-muted">
-                                        No hay gastos registrados.
-                                    </td>
-                                </tr>
-                            @endforelse
+                                        <button type="button"
+                                            class="btn btn-sm btn-light-primary"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#editExpenseModal-{{ $expense->uuid }}">
+                                            Editar
+                                        </button>
 
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                                        <form method="POST"
+                                            action="{{ route('expenses.destroy', $expense) }}"
+                                            onsubmit="return confirm('¿Deseas eliminar este gasto?');">
 
-            <div class="card-footer">
-                {{ $expenses->links() }}
+                                            @csrf
+                                            @method('DELETE')
+
+                                            <button type="submit"
+                                                class="btn btn-sm btn-light-danger">
+                                                Eliminar
+                                            </button>
+                                        </form>
+
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7"
+                                    class="text-center py-16 text-muted"
+                                    data-empty-row="true">
+                                    No hay gastos registrados.
+                                </td>
+                            </tr>
+                        @endforelse
+
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -752,6 +851,73 @@
 @endsection
 
 @push('scripts')
+    <script>
+        (() => {
+            const form = document.getElementById('expensesSearchForm');
+            const input = document.getElementById('expensesSearchInput');
+            const table = document.getElementById('expensesTable');
+            const resultCount = document.getElementById('expensesResultCount');
+
+            form?.addEventListener('submit', (event) => {
+                event.preventDefault();
+            });
+
+            if (!table || typeof $ === 'undefined' || !$.fn.DataTable) {
+                return;
+            }
+
+            table.querySelectorAll('td[data-empty-row="true"]').forEach((cell) => {
+                cell.closest('tr')?.remove();
+            });
+
+            const dataTable = $(table).DataTable({
+                dom: "rt<'row align-items-center'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7 d-flex justify-content-md-end'p>>",
+                pageLength: 10,
+                lengthChange: false,
+                order: [],
+                info: true,
+                searching: true,
+                autoWidth: false,
+                language: {
+                    info: 'Mostrando _START_ a _END_ de _TOTAL_ gastos',
+                    infoEmpty: 'Mostrando 0 a 0 de 0 gastos',
+                    paginate: {
+                        first: 'Primera',
+                        last: 'Ultima',
+                        next: 'Siguiente',
+                        previous: 'Anterior',
+                    },
+                    emptyTable: 'No hay gastos registrados.',
+                    zeroRecords: 'No se encontraron coincidencias con este filtro.',
+                },
+                columnDefs: [
+                    {
+                        targets: [6],
+                        orderable: false,
+                        searchable: false,
+                    },
+                ],
+            });
+
+            const syncResultCount = () => {
+                if (!resultCount) {
+                    return;
+                }
+
+                const count = dataTable.rows({ filter: 'applied' }).count();
+                resultCount.textContent = `${count} ${count === 1 ? 'resultado' : 'resultados'}`;
+            };
+
+            input?.addEventListener('input', (event) => {
+                dataTable.search(event.target.value || '').draw();
+                syncResultCount();
+            });
+
+            dataTable.on('draw', syncResultCount);
+            syncResultCount();
+        })();
+    </script>
+
     @if ($errors->createExpense->any())
         <script>
             (() => {
