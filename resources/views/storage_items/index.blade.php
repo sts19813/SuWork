@@ -2,8 +2,279 @@
 
 @section('title', 'Almacén | SuWork')
 
+@push('styles')
+    <style>
+        .storage-list-module {
+            --sl-surface: #ffffff;
+            --sl-ink: #172033;
+            --sl-text: #334155;
+            --sl-muted: #7b879d;
+            --sl-line: #e5eaf3;
+            --sl-accent: #b54708;
+            --sl-accent-soft: #fff1e8;
+            --sl-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+            color: var(--sl-text);
+        }
+
+        .storage-list-shell {
+            border: 0;
+            background: transparent;
+            box-shadow: none !important;
+        }
+
+        .storage-list-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 20px;
+        }
+
+        .storage-list-search {
+            position: relative;
+            min-width: min(100%, 360px);
+            flex: 1 1 300px;
+        }
+
+        .storage-list-search i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--sl-muted);
+            font-size: 1rem;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .storage-list-search .form-control {
+            height: 52px;
+            padding-left: 46px !important;
+            border-radius: 16px;
+            border: 1px solid var(--sl-line);
+            background: #fbfcfe;
+            color: var(--sl-ink);
+            font-weight: 600;
+            box-shadow: none;
+            min-width: 100% !important;
+        }
+
+        .storage-list-search .form-control:focus {
+            border-color: rgba(181, 71, 8, 0.35);
+            box-shadow: 0 0 0 4px rgba(181, 71, 8, 0.08);
+        }
+
+        .storage-list-view-toggle .btn {
+            border-radius: 12px;
+            font-weight: 700;
+        }
+
+        .storage-list-table-card {
+            margin-top: 20px;
+            border: 1px solid var(--sl-line);
+            border-radius: 20px;
+            overflow: hidden;
+            background: var(--sl-surface);
+        }
+
+        .storage-list-table-card .table-responsive {
+            overflow-x: auto;
+        }
+
+        .storage-list-table-card table.dataTable {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            border-collapse: separate !important;
+            border-spacing: 0;
+        }
+
+        .storage-list-table-card thead th {
+            padding-top: 20px;
+            padding-bottom: 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--sl-line) !important;
+            color: #94a3b8 !important;
+            font-size: 0.76rem;
+            letter-spacing: 0.08em;
+        }
+
+        .storage-list-row {
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .storage-list-row td {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            border-top: 1px solid var(--sl-line) !important;
+            vertical-align: middle;
+            background: #fff;
+        }
+
+        .storage-list-row:hover td {
+            background: #fcf8f6;
+        }
+
+        .storage-list-title {
+            color: var(--sl-ink);
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .storage-list-meta {
+            color: var(--sl-muted);
+            font-size: 0.88rem;
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        .storage-list-value {
+            color: var(--sl-ink);
+            font-size: 0.95rem;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .storage-list-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .storage-list-actions .btn,
+        .storage-grid-actions .btn {
+            border-radius: 12px;
+            font-weight: 700;
+        }
+
+        .storage-list-table-card .dataTables_info,
+        .storage-list-table-card .dataTables_paginate {
+            padding: 18px 28px 0;
+            color: var(--sl-muted) !important;
+            font-weight: 700;
+        }
+
+        .storage-list-table-card .dataTables_paginate .pagination {
+            gap: 6px;
+        }
+
+        .storage-list-table-card .page-link {
+            border-radius: 10px !important;
+            border-color: var(--sl-line) !important;
+            color: var(--sl-text) !important;
+            min-width: 38px;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .storage-list-table-card .page-item.active .page-link {
+            background: var(--sl-accent) !important;
+            border-color: var(--sl-accent) !important;
+            color: #fff !important;
+        }
+
+        .storage-thumb {
+            width: 55px;
+            height: 55px;
+            border-radius: 12px;
+            border: 1px solid var(--sl-line);
+            background: #f8fafc;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .storage-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 5px;
+        }
+
+        .storage-grid {
+            align-items: stretch;
+        }
+
+        .storage-grid-card {
+            border: 1px solid var(--sl-line);
+            border-radius: 20px;
+            overflow: hidden;
+            background: #fff;
+            box-shadow: var(--sl-shadow);
+        }
+
+        .storage-grid-media {
+            position: relative;
+            aspect-ratio: 4 / 3;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--sl-line);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .storage-grid-media img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 14px;
+        }
+
+        .storage-grid-media-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8fafc;
+        }
+
+        .storage-grid-qty {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+        }
+
+        .storage-grid-card .card-body {
+            padding: 20px;
+        }
+
+        .storage-grid-title {
+            color: var(--sl-ink);
+            font-size: 1.05rem;
+            font-weight: 800;
+            line-height: 1.25;
+            margin: 0;
+        }
+
+        .storage-grid-meta {
+            color: var(--sl-muted);
+            font-size: 0.86rem;
+            line-height: 1.45;
+        }
+
+        .storage-grid-description {
+            min-height: 42px;
+        }
+
+        @media (max-width: 991px) {
+            .storage-list-table-card .dataTables_info,
+            .storage-list-table-card .dataTables_paginate {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+        }
+    </style>
+@endpush
+
 @section('content')
-    <div class="container-fluid py-6">
+    <div class="container-fluid py-6 storage-list-module">
 
         @if (session('success'))
             <div class="alert alert-success d-flex align-items-center p-5 mb-6">
@@ -18,7 +289,7 @@
             </div>
         @endif
 
-        <div class="card border-0 shadow-sm">
+        <div class="card storage-list-shell">
 
             {{-- HEADER --}}
             <div class="card-header border-0 pt-7 pb-4">
@@ -71,22 +342,22 @@
             {{-- FILTROS --}}
             <div class="card-body pt-0">
 
-                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-4 mb-8">
+                <div class="storage-list-toolbar">
 
-                    <div class="d-flex flex-wrap gap-3 align-items-center">
-                        <div class="position-relative">
+                    <div class="d-flex flex-wrap gap-3 align-items-center storage-list-search">
+                        <div class="position-relative w-100">
                             <i
-                                class="ki-duotone ki-magnifier fs-3 text-gray-500 position-absolute top-50 translate-middle-y ms-4">
+                                class="ki-duotone ki-magnifier">
                                 <span class="path1"></span>
                                 <span class="path2"></span>
                             </i>
 
-                            <input type="text" id="storageItemsSearch" value="{{ $search }}" class="form-control form-control-solid ps-12"
-                                style="min-width: 320px;" placeholder="Buscar item...">
+                            <input type="search" id="storageItemsSearch" value="{{ $search }}" class="form-control"
+                                placeholder="Buscar item..." autocomplete="off">
                         </div>
                     </div>
 
-                    <div class="btn-group">
+                    <div class="btn-group storage-list-view-toggle">
 
                         <a href="{{ route('storage_items.index', ['view' => 'grid']) }}" class="btn {{ $viewMode === 'grid'
         ? 'btn-primary'
@@ -146,58 +417,56 @@
                     {{-- TABLE --}}
                 @elseif ($viewMode === 'table')
 
-                    <div class="table-responsive">
+                    <div class="storage-list-table-card">
+                        <div class="table-responsive">
 
-                        <table class="table align-middle table-row-dashed fs-6 gy-5" id="storageItemsTable">
+                            <table class="table table-row-bordered align-middle mb-0" id="storageItemsTable">
 
                             <thead>
-                                <tr class="text-start text-muted fw-bold fs-7 text-uppercase gs-0">
-                                    <th>Item</th>
+                                <tr class="text-start text-muted fw-bold text-uppercase fs-8">
+                                    <th class="ps-7 min-w-260px">Item</th>
                                     <th>Categoría</th>
                                     <th>Almacén</th>
                                     <th>Zona</th>
                                     <th>Marca</th>
                                     <th>Cantidad</th>
                                     <th>Estado</th>
-                                    <th class="text-end">Acciones</th>
+                                    <th class="text-end pe-7">Acciones</th>
                                 </tr>
                             </thead>
 
-                            <tbody class="fw-semibold text-gray-700">
+                            <tbody>
 
                                 @foreach ($items as $item)
 
-                                    <tr data-search="{{ Str::lower($item->name.' '.$item->product_type.' '.$item->brand.' '.$item->description.' '.($item->warehouse?->name ?? '').' '.($item->zone?->name ?? '')) }}">
+                                    <tr class="storage-list-row" data-search="{{ Str::lower($item->name.' '.$item->product_type.' '.$item->brand.' '.$item->description.' '.($item->warehouse?->name ?? '').' '.($item->zone?->name ?? '')) }}">
 
-                                        <td>
+                                        <td class="ps-7">
                                             <div class="d-flex align-items-center gap-4">
 
-                                                <div class="symbol symbol-55px">
+                                                <div class="storage-thumb">
 
                                                     @if ($item->photo)
 
-                                                        <img src="{{ asset('storage/' . $item->photo) }}"
-                                                            class="object-fit-contain rounded" alt="{{ $item->name }}">
+                                                        <img src="{{ asset('storage/' . $item->photo) }}" alt="{{ $item->name }}">
 
                                                     @else
 
-                                                        <div class="symbol-label bg-light-primary">
-                                                            <i class="ki-duotone ki-picture fs-2x text-primary">
-                                                                <span class="path1"></span>
-                                                                <span class="path2"></span>
-                                                            </i>
-                                                        </div>
+                                                        <i class="ki-duotone ki-picture fs-2x text-primary">
+                                                            <span class="path1"></span>
+                                                            <span class="path2"></span>
+                                                        </i>
 
                                                     @endif
 
                                                 </div>
 
                                                 <div>
-                                                    <div class="fw-bold text-dark">
+                                                    <div class="storage-list-title">
                                                         {{ $item->name }}
                                                     </div>
 
-                                                    <div class="text-muted fs-7">
+                                                    <div class="storage-list-meta">
                                                         {{ Str::limit($item->description, 70) }}
                                                     </div>
                                                 </div>
@@ -205,11 +474,11 @@
                                             </div>
                                         </td>
 
-                                        <td>{{ $item->product_type }}</td>
-                                        <td>{{ $item->warehouse?->name ?? '-' }}</td>
-                                        <td>{{ $item->zone?->name ?? '-' }}</td>
+                                        <td><div class="storage-list-value">{{ $item->product_type }}</div></td>
+                                        <td><div class="storage-list-value">{{ $item->warehouse?->name ?? '-' }}</div></td>
+                                        <td><div class="storage-list-value">{{ $item->zone?->name ?? '-' }}</div></td>
 
-                                        <td>{{ $item->brand ?: '-' }}</td>
+                                        <td><div class="storage-list-value">{{ $item->brand ?: '-' }}</div></td>
 
                                         <td>
                                             <span class="badge badge-light-primary fs-7 fw-bold">
@@ -235,9 +504,9 @@
 
                                         </td>
 
-                                        <td class="text-end">
+                                        <td class="text-end pe-7">
 
-                                            <div class="d-flex justify-content-end gap-2 flex-wrap">
+                                            <div class="storage-list-actions">
 
                                                 <a href="{{ route('storage_items.show', $item) }}"
                                                     class="btn btn-sm btn-light-dark">
@@ -269,32 +538,31 @@
 
                             </tbody>
 
-                        </table>
+                            </table>
 
+                        </div>
                     </div>
 
                     {{-- GRID --}}
                 @else
 
-                    <div class="row g-6">
+                    <div class="row g-6 storage-grid">
 
                         @foreach ($items as $item)
 
                             <div class="col-xl-3 col-lg-4 col-md-6 storage-item-card" data-search="{{ Str::lower($item->name.' '.$item->product_type.' '.$item->brand.' '.$item->description.' '.($item->warehouse?->name ?? '').' '.($item->zone?->name ?? '')) }}">
 
-                                <div class="card border border-gray-200 shadow-sm h-100">
+                                <div class="card storage-grid-card h-100">
 
-                                    <div class="position-relative">
+                                    <div class="storage-grid-media">
 
                                         @if ($item->photo)
 
-                                            <img src="{{ asset('storage/' . $item->photo) }}" class="w-100 rounded-top"
-                                                style="height: 220px; object-fit: contain; padding: 10px;" alt="{{ $item->name }}">
+                                            <img src="{{ asset('storage/' . $item->photo) }}" alt="{{ $item->name }}">
 
                                         @else
 
-                                            <div class="bg-light-primary d-flex align-items-center justify-content-center rounded-top"
-                                                style="height: 220px;">
+                                            <div class="storage-grid-media-placeholder">
 
                                                 <i class="ki-duotone ki-picture fs-5x text-primary opacity-50">
                                                     <span class="path1"></span>
@@ -305,7 +573,7 @@
 
                                         @endif
 
-                                        <div class="position-absolute top-0 end-0 m-4">
+                                        <div class="storage-grid-qty">
 
                                             <span class="badge badge-primary fw-bold px-4 py-3">
                                                 {{ $item->quantity }}
@@ -323,14 +591,14 @@
                                                 {{ $item->product_type }}
                                             </div>
 
-                                            <h3 class="fw-bold text-dark mb-0 fs-4">
+                                            <h3 class="storage-grid-title">
                                                 {{ $item->name }}
                                             </h3>
 
                                         </div>
 
                                         @if ($item->brand)
-                                            <div class="text-gray-600 fs-7 mb-4">
+                                            <div class="storage-grid-meta mb-4">
                                                 Marca:
                                                 <span class="fw-bold">
                                                     {{ $item->brand }}
@@ -338,10 +606,10 @@
                                             </div>
                                         @endif
 
-                                        <div class="text-gray-600 fs-7 mb-2">
+                                        <div class="storage-grid-meta mb-2">
                                             Almacén: <span class="fw-bold">{{ $item->warehouse?->name ?? '-' }}</span>
                                         </div>
-                                        <div class="text-gray-600 fs-7 mb-4">
+                                        <div class="storage-grid-meta mb-4">
                                             Zona: <span class="fw-bold">{{ $item->zone?->name ?? '-' }}</span>
                                         </div>
 
@@ -363,11 +631,11 @@
 
                                         </div>
 
-                                        <div class="text-muted fs-7 mb-6 flex-grow-1">
+                                        <div class="storage-grid-meta storage-grid-description mb-6 flex-grow-1">
                                             {{ Str::limit($item->description, 90) }}
                                         </div>
 
-                                        <div class="d-grid gap-2">
+                                        <div class="d-grid gap-2 storage-grid-actions">
 
                                             <a href="{{ route('storage_items.show', $item) }}" class="btn btn-light-dark">
                                                 Ver
@@ -695,22 +963,25 @@
                     order: [],
                     info: true,
                     searching: true,
+                    autoWidth: false,
                     language: {
-                        search: 'Buscar:',
-                        searchPlaceholder: 'Buscar...',
                         info: 'Mostrando _START_ a _END_ de _TOTAL_ items',
                         infoEmpty: 'Mostrando 0 a 0 de 0 items',
                         paginate: {
                             first: 'Primera',
-                            last: 'Última',
+                            last: 'Ultima',
                             next: 'Siguiente',
                             previous: 'Anterior',
                         },
                         emptyTable: 'No hay items registrados.',
-                        zeroRecords: 'No se encontraron coincidencias.',
+                        zeroRecords: 'No se encontraron coincidencias con este filtro.',
                     },
                     columnDefs: [
-                        { targets: [7], orderable: false },
+                        {
+                            targets: [7],
+                            orderable: false,
+                            searchable: false,
+                        },
                     ],
                 });
                 dataTable.search(input.value || '').draw();
