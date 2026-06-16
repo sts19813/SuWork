@@ -25,7 +25,6 @@ class TenantController extends Controller
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('q', ''));
-        $status = (string) $request->query('status', '');
 
         $tenants = Tenant::query()
             ->withCount([
@@ -45,23 +44,13 @@ class TenantController extends Controller
                         ->orWhere('phone_secondary', 'like', "%{$search}%");
                 });
             })
-            ->when($status !== '', fn ($query) => $query->where('dossier_status', $status))
             ->latest()
             ->paginate(12)
-            ->withQueryString();
-
-        $stats = [
-            'complete' => Tenant::query()->where('dossier_status', Tenant::DOSSIER_COMPLETE)->count(),
-            'in_review' => Tenant::query()->where('dossier_status', Tenant::DOSSIER_IN_REVIEW)->count(),
-            'incomplete' => Tenant::query()->where('dossier_status', Tenant::DOSSIER_INCOMPLETE)->count(),
-            'rejected' => Tenant::query()->where('dossier_status', Tenant::DOSSIER_REJECTED)->count(),
-        ];
+            ->appends($search !== '' ? ['q' => $search] : []);
 
         return view('tenants.index', [
             'tenants' => $tenants,
             'search' => $search,
-            'status' => $status,
-            'stats' => $stats,
             'dossierStatuses' => Tenant::DOSSIER_STATUS_LABELS,
         ]);
     }

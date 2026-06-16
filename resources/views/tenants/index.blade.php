@@ -23,68 +23,18 @@
 
         <div class="card mb-8">
             <div class="card-body py-6">
-                <form method="GET" action="{{ route('tenants.index') }}" class="row g-4">
-                    <div class="col-lg-8">
-                        <input type="text" name="q" class="form-control"
-                            placeholder="Buscar por nombre, email, telefono..." value="{{ $search }}">
-                    </div>
-                    <div class="col-lg-4">
-                        <select name="status" class="form-select">
-                            <option value="">Todos</option>
-                            @foreach ($dossierStatuses as $statusValue => $statusLabel)
-                                <option value="{{ $statusValue }}" {{ $status === $statusValue ? 'selected' : '' }}>
-                                    {{ $statusLabel }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-12 d-flex justify-content-end gap-3">
-                        <a href="{{ route('tenants.index') }}" class="btn btn-light">Limpiar</a>
-                        <button type="submit" class="btn btn-primary">Filtrar</button>
-                    </div>
+                <form method="GET" action="{{ route('tenants.index') }}" id="tenantSearchForm">
+                    <input type="text" name="q" id="tenantSearchInput" class="form-control"
+                        placeholder="Buscar por nombre, email, telefono..." value="{{ $search }}"
+                        autocomplete="off" data-tenant-search>
                 </form>
-            </div>
-        </div>
-
-        <div class="row g-5 mb-8">
-            <div class="col-md-6 col-xl-3">
-                <div class="card">
-                    <div class="card-body text-center py-7">
-                        <div class="fs-1 fw-bold text-success">{{ $stats['complete'] }}</div>
-                        <div class="text-muted">Completos</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6 col-xl-3">
-                <div class="card">
-                    <div class="card-body text-center py-7">
-                        <div class="fs-1 fw-bold text-primary">{{ $stats['in_review'] }}</div>
-                        <div class="text-muted">En revision</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6 col-xl-3">
-                <div class="card">
-                    <div class="card-body text-center py-7">
-                        <div class="fs-1 fw-bold text-warning">{{ $stats['incomplete'] }}</div>
-                        <div class="text-muted">Incompletos</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6 col-xl-3">
-                <div class="card">
-                    <div class="card-body text-center py-7">
-                        <div class="fs-1 fw-bold text-danger">{{ $stats['rejected'] }}</div>
-                        <div class="text-muted">Rechazados</div>
-                    </div>
-                </div>
             </div>
         </div>
 
         <div class="card">
             <div class="card-body py-0">
                 <div class="table-responsive">
-                    <table class="table table-row-bordered align-middle gy-5 mb-0">
+                    <table class="table table-row-bordered align-middle gy-5 mb-0" id="tenantsTable">
                         <thead>
                             <tr class="fw-bold text-muted text-uppercase gs-0">
                                 <th class="min-w-220px">Inquilino</th>
@@ -95,7 +45,7 @@
                         </thead>
                         <tbody class="fw-semibold text-gray-700">
                             @forelse ($tenants as $tenant)
-                                <tr>
+                                <tr data-tenant-row>
                                     <td>
                                         <div class="d-flex align-items-center gap-4">
                                             <div class="owner-initial">{{ strtoupper(mb_substr($tenant->full_name, 0, 1)) }}</div>
@@ -162,6 +112,46 @@
 @endsection
 
 @push('scripts')
+    <script>
+        (() => {
+            const form = document.getElementById('tenantSearchForm');
+            const input = document.getElementById('tenantSearchInput');
+            const table = document.getElementById('tenantsTable');
+
+            if (!form || !input || !table) {
+                return;
+            }
+
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+            });
+
+            if (typeof $ === 'undefined' || !$.fn.DataTable || !table.querySelector('[data-tenant-row]')) {
+                return;
+            }
+
+            const dataTable = $(table).DataTable({
+                dom: 't',
+                paging: false,
+                info: false,
+                order: [],
+                searching: true,
+                columnDefs: [
+                    { targets: [3], orderable: false },
+                ],
+                language: {
+                    emptyTable: 'No hay inquilinos registrados.',
+                    zeroRecords: 'No se encontraron coincidencias.',
+                },
+            });
+
+            dataTable.search(input.value || '').draw();
+            input.addEventListener('input', () => {
+                dataTable.search(input.value || '').draw();
+            });
+        })();
+    </script>
+
     @if ($errors->any())
         <script>
             (() => {
