@@ -201,7 +201,7 @@ body.su-admin-layout {
     --admin-sidebar-bg: #1f2234;
     --admin-sidebar-width: 300px;
     --admin-sidebar-mini-width: 76px;
-    --admin-sidebar-text: rgba(218, 224, 241, 0.84);
+    --admin-sidebar-text: #ffffff;
     --admin-sidebar-text-active: #ffffff;
     --su-sidebar-content-gap: 16px;
     --su-content-padding-left: 16px;
@@ -212,6 +212,11 @@ body.su-admin-layout {
     min-height: 100%;
     background: var(--admin-app-bg);
 }
+
+.app-sidebar-menu-primary.menu>.menu-item>.menu-link .menu-title {
+    color: white ;
+}
+
 
 .su-admin-layout .app-root,
 .su-admin-layout .app-page,
@@ -371,6 +376,10 @@ body.su-admin-layout {
 .su-admin-layout .app-sidebar-menu-primary .menu-title,
 .su-admin-layout .app-sidebar-menu-primary .menu-arrow {
     color: currentColor;
+}
+
+.su-admin-layout .app-sidebar-menu-primary .menu-link:not(.active) .menu-bullet .bullet {
+    background-color: currentColor;
 }
 
 .su-admin-layout .sidebar-hover-card,
@@ -606,7 +615,7 @@ body.su-admin-layout {
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar-menu-primary > .menu-item:focus-within > .sidebar-hover-card {
     display: flex;
     position: absolute;
-    left: calc(var(--admin-sidebar-mini-width) - 6px);
+    left: calc(var(--admin-sidebar-mini-width) - 21px);
     top: 50%;
     transform: translateY(-50%);
     z-index: 120;
@@ -626,8 +635,8 @@ body.su-admin-layout {
     position: absolute;
     top: 0;
     bottom: 0;
-    left: -14px;
-    width: 14px;
+    left: -24px;
+    width: 24px;
 }
 
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .sidebar-hover-title,
@@ -662,7 +671,7 @@ body.su-admin-layout {
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .sidebar-user-hover-card:hover {
     display: flex;
     position: absolute;
-    left: calc(var(--admin-sidebar-mini-width) - 6px);
+    left: calc(var(--admin-sidebar-mini-width) - 21px);
     bottom: 0;
     z-index: 120;
     width: 310px;
@@ -682,8 +691,8 @@ body.su-admin-layout {
     position: absolute;
     top: 0;
     bottom: 0;
-    left: -14px;
-    width: 14px;
+    left: -24px;
+    width: 24px;
 }
 
 .su-admin-layout .sidebar-hover-button {
