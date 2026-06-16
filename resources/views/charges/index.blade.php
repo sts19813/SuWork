@@ -2,8 +2,232 @@
 
 @section('title', 'Cobranza | SuWork')
 
+@push('styles')
+    <style>
+        .charges-list-module {
+            --cl-surface: #ffffff;
+            --cl-ink: #172033;
+            --cl-text: #334155;
+            --cl-muted: #7b879d;
+            --cl-line: #e5eaf3;
+            --cl-accent: #b54708;
+            --cl-accent-soft: #fff1e8;
+            --cl-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+            color: var(--cl-text);
+        }
+
+        .charges-list-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 20px;
+        }
+
+        .charges-list-search {
+            position: relative;
+            min-width: min(100%, 360px);
+            flex: 1 1 300px;
+        }
+
+        .charges-list-search i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--cl-muted);
+            font-size: 1rem;
+            pointer-events: none;
+        }
+
+        .charges-list-search .form-control {
+            height: 52px;
+            padding-left: 46px;
+            border-radius: 16px;
+            border: 1px solid var(--cl-line);
+            background: #fbfcfe;
+            color: var(--cl-ink);
+            font-weight: 600;
+            box-shadow: none;
+        }
+
+        .charges-list-search .form-control:focus {
+            border-color: rgba(181, 71, 8, 0.35);
+            box-shadow: 0 0 0 4px rgba(181, 71, 8, 0.08);
+        }
+
+        .charges-list-results {
+            color: var(--cl-muted);
+            font-size: 1rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .charges-list-tabs {
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .charges-list-tabs .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid transparent;
+            border-radius: 14px;
+            padding: 12px 18px;
+            background: #f8fafc;
+            color: var(--cl-text);
+            font-weight: 800;
+        }
+
+        .charges-list-tabs .nav-link:hover {
+            background: var(--cl-accent-soft);
+            color: var(--cl-accent);
+            border-color: rgba(181, 71, 8, 0.15);
+        }
+
+        .charges-list-tabs .nav-link.active {
+            background: var(--cl-accent);
+            color: #fff !important;
+            box-shadow: 0 12px 28px rgba(181, 71, 8, 0.22);
+        }
+
+        .charges-list-tabs__count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 26px;
+            height: 26px;
+            border-radius: 999px;
+            padding: 0 8px;
+            background: rgba(15, 23, 42, 0.08);
+            color: inherit;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .charges-list-tabs .nav-link.active .charges-list-tabs__count {
+            background: rgba(255, 255, 255, 0.18);
+        }
+
+        .charges-list-table-card {
+            margin-top: 20px;
+            border: 1px solid var(--cl-line);
+            border-radius: 20px;
+            overflow: hidden;
+            background: var(--cl-surface);
+        }
+
+        .charges-list-table-card .table-responsive {
+            overflow-x: auto;
+        }
+
+        .charges-list-table-card table.dataTable {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            border-collapse: separate !important;
+            border-spacing: 0;
+        }
+
+        .charges-list-table-card thead th {
+            padding-top: 20px;
+            padding-bottom: 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--cl-line) !important;
+            color: #94a3b8 !important;
+            font-size: 0.76rem;
+            letter-spacing: 0.08em;
+        }
+
+        .charges-list-row {
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .charges-list-row td {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            border-top: 1px solid var(--cl-line) !important;
+            vertical-align: middle;
+            background: #fff;
+        }
+
+        .charges-list-row:hover td {
+            background: #fcf8f6;
+        }
+
+        .charges-list-title {
+            color: var(--cl-ink);
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .charges-list-meta {
+            color: var(--cl-muted);
+            font-size: 0.88rem;
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        .charges-list-value {
+            color: var(--cl-ink);
+            font-size: 0.95rem;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .charges-list-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .charges-list-actions .btn {
+            border-radius: 12px;
+            font-weight: 700;
+        }
+
+        .charges-list-table-card .dataTables_info,
+        .charges-list-table-card .dataTables_paginate {
+            padding: 18px 28px 0;
+            color: var(--cl-muted) !important;
+            font-weight: 700;
+        }
+
+        .charges-list-table-card .dataTables_paginate .pagination {
+            gap: 6px;
+        }
+
+        .charges-list-table-card .page-link {
+            border-radius: 10px !important;
+            border-color: var(--cl-line) !important;
+            color: var(--cl-text) !important;
+            min-width: 38px;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .charges-list-table-card .page-item.active .page-link {
+            background: var(--cl-accent) !important;
+            border-color: var(--cl-accent) !important;
+            color: #fff !important;
+        }
+
+        @media (max-width: 991px) {
+            .charges-list-table-card .dataTables_info,
+            .charges-list-table-card .dataTables_paginate {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+        }
+    </style>
+@endpush
+
 @section('content')
-    <div class="py-10 charges-module">
+    <div class="py-10 charges-module charges-list-module">
         @if (session('success'))
             <div class="alert alert-success d-flex align-items-center p-5 mb-8">
                 <i class="ki-outline ki-check-circle fs-2hx text-success me-4"></i>
@@ -126,59 +350,54 @@
         </div>
         @endif
 
-        <div class="mb-6 d-flex align-items-center gap-6 fs-5 fw-semibold border-bottom pb-3">
-            <span class="text-primary border-bottom border-2 border-primary pb-2">Cargos
-                ({{ $stats['charges_count'] }})</span>
-            <span class="text-muted">Pagos ({{ $stats['payments_count'] }})</span>
+        <div class="charges-list-toolbar">
+            <form method="GET" action="{{ route('charges.index', $selectedProperty ? ['property' => $selectedProperty->uuid] : []) }}"
+                id="chargesSearchForm" class="charges-list-search mb-0">
+                <i class="bi bi-search"></i>
+                <input
+                    id="chargesSearchInput"
+                    type="search"
+                    class="form-control"
+                    placeholder="Buscar concepto, inquilino, propiedad, estado..."
+                    autocomplete="off">
+            </form>
+
+            <div id="chargesResultCount" class="charges-list-results">{{ $charges->count() }} resultados</div>
         </div>
 
-        @if ($canManageCharges)
-        <div class="card mb-8">
-            <div class="card-body py-6">
-                <form method="GET" action="{{ route('charges.index') }}" class="row g-4 align-items-end">
-                    @if ($selectedProperty)
-                        <input type="hidden" name="property" value="{{ $selectedProperty->uuid }}">
-                    @endif
-                    <div class="col-lg-9">
-                        <label class="form-label fw-semibold">Buscar</label>
-                        <input type="text" name="q" class="form-control" placeholder="Concepto, inquilino, propiedad..."
-                            value="{{ $search }}">
-                    </div>
-                    <div class="col-lg-3">
-                        <label class="form-label fw-semibold">Estado</label>
-                        <select name="status" class="form-select">
-                            @foreach ($statusOptions as $statusValue => $statusLabel)
-                                <option value="{{ $statusValue }}" {{ $status === $statusValue ? 'selected' : '' }}>
-                                    {{ $statusLabel }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-12 d-flex justify-content-end gap-3">
-                        <a href="{{ route('charges.index', $selectedProperty ? ['property' => $selectedProperty->uuid] : []) }}"
-                            class="btn btn-light">Limpiar</a>
-                        <button type="submit" class="btn btn-primary">Filtrar</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        @endif
+        <ul class="nav charges-list-tabs" id="chargesTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="charges-tab" data-bs-toggle="tab" data-bs-target="#charges-pane"
+                    type="button" role="tab" aria-controls="charges-pane" aria-selected="true" data-charges-tab="charges">
+                    <span>Cargos</span>
+                    <span class="charges-list-tabs__count">{{ $stats['charges_count'] }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments-pane"
+                    type="button" role="tab" aria-controls="payments-pane" aria-selected="false" data-charges-tab="payments">
+                    <span>Pagos</span>
+                    <span class="charges-list-tabs__count">{{ $stats['payments_count'] }}</span>
+                </button>
+            </li>
+        </ul>
 
-        <div class="card">
-            <div class="card-body py-0">
+        <div class="tab-content" id="chargesTabsContent">
+            <div class="tab-pane fade show active" id="charges-pane" role="tabpanel" aria-labelledby="charges-tab" tabindex="0">
+                <div class="charges-list-table-card">
                 <div class="table-responsive">
-                    <table class="table table-row-bordered align-middle gy-5 mb-0">
+                    <table class="table table-row-bordered align-middle mb-0" id="chargesTable">
                         <thead>
-                            <tr class="fw-bold text-muted text-uppercase gs-0">
-                                <th class="min-w-220px">Concepto</th>
+                            <tr class="fw-bold text-muted text-uppercase fs-8">
+                                <th class="ps-7 min-w-220px">Concepto</th>
                                 <th class="min-w-220px">Inquilino / Propiedad</th>
                                 <th class="min-w-130px">Vencimiento</th>
                                 <th class="min-w-140px">Monto</th>
                                 <th class="min-w-120px">Estado</th>
-                                <th class="min-w-320px text-end">Opciones</th>
+                                <th class="min-w-320px text-end pe-7">Opciones</th>
                             </tr>
                         </thead>
-                        <tbody class="fw-semibold text-gray-700">
+                        <tbody>
                             @forelse ($charges as $charge)
                                 @php
                                     $canRegisterPayment = $canManageCharges && in_array(
@@ -192,25 +411,25 @@
                                         true,
                                     );
                                 @endphp
-                                <tr>
-                                    <td>
-                                        <div class="fw-bold text-gray-900 fs-6">{{ $charge->concept }}</div>
-                                        <div class="text-muted fs-7">{{ $charge->type_label }}</div>
+                                <tr class="charges-list-row" data-charge-row>
+                                    <td class="ps-7">
+                                        <div class="charges-list-title">{{ $charge->concept }}</div>
+                                        <div class="charges-list-meta">{{ $charge->type_label }}</div>
                                     </td>
                                     <td>
-                                        <div class="fw-bold text-gray-900 fs-6">{{ $charge->tenant?->full_name ?? '-' }}</div>
-                                        <div class="text-muted fs-7">
+                                        <div class="charges-list-value">{{ $charge->tenant?->full_name ?? '-' }}</div>
+                                        <div class="charges-list-meta">
                                             {{ $charge->property?->internal_reference ?: $charge->property?->internal_name ?: '-' }}
                                         </div>
                                     </td>
                                     <td>
-                                        {{ $charge->due_date?->format('d M Y') ?? '-' }}
+                                        <div class="charges-list-value">{{ $charge->due_date?->format('d M Y') ?? '-' }}</div>
                                     </td>
                                     <td>
-                                        <div class="fw-bold text-gray-900">${{ number_format((float) $charge->amount, 2) }}
+                                        <div class="charges-list-value">${{ number_format((float) $charge->amount, 2) }}
                                         </div>
                                         @if ($charge->outstanding_amount > 0 && $charge->status !== \App\Models\Charge::STATUS_CANCELED)
-                                            <div class="text-muted fs-7">Saldo: ${{ number_format($charge->outstanding_amount, 2) }}
+                                            <div class="charges-list-meta">Saldo: ${{ number_format($charge->outstanding_amount, 2) }}
                                             </div>
                                         @endif
                                     </td>
@@ -219,8 +438,8 @@
                                             {{ $charge->display_status_label }}
                                         </span>
                                     </td>
-                                    <td class="text-end">
-                                        <div class="d-flex flex-wrap justify-content-end gap-2">
+                                    <td class="text-end pe-7">
+                                        <div class="charges-list-actions">
                                             <a href="{{ route('charges.show', $charge) }}{{ $selectedProperty ? '?property=' . urlencode($selectedProperty->uuid) : '' }}"
                                                 class="btn btn-sm btn-light">
                                                 Ver
@@ -267,15 +486,64 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center py-16 text-muted">No hay cargos registrados.</td>
+                                    <td colspan="6" class="text-center py-16 text-muted" data-empty-row="true">No hay cargos registrados.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
-            <div class="card-footer">
-                {{ $charges->links() }}
+            </div>
+
+            <div class="tab-pane fade" id="payments-pane" role="tabpanel" aria-labelledby="payments-tab" tabindex="0">
+                <div class="charges-list-table-card">
+                    <div class="table-responsive">
+                        <table class="table table-row-bordered align-middle mb-0" id="paymentsTable">
+                            <thead>
+                                <tr class="fw-bold text-muted text-uppercase fs-8">
+                                    <th class="ps-7 min-w-220px">Pago</th>
+                                    <th class="min-w-220px">Inquilino / Propiedad</th>
+                                    <th class="min-w-170px">Fecha</th>
+                                    <th class="min-w-140px">Monto</th>
+                                    <th class="min-w-150px">Metodo</th>
+                                    <th class="min-w-120px">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($payments as $payment)
+                                    <tr class="charges-list-row" data-payment-row>
+                                        <td class="ps-7">
+                                            <div class="charges-list-title">{{ $payment->charge?->concept ?? '-' }}</div>
+                                            <div class="charges-list-meta">{{ $payment->reference ?: 'Sin referencia' }}</div>
+                                        </td>
+                                        <td>
+                                            <div class="charges-list-value">{{ $payment->charge?->tenant?->full_name ?? '-' }}</div>
+                                            <div class="charges-list-meta">
+                                                {{ $payment->charge?->property?->internal_reference ?: $payment->charge?->property?->internal_name ?: '-' }}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="charges-list-value">{{ $payment->paid_at?->format('d M Y') ?? $payment->payment_date?->format('d M Y') ?? '-' }}</div>
+                                        </td>
+                                        <td>
+                                            <div class="charges-list-value">${{ number_format((float) $payment->amount, 2) }}</div>
+                                        </td>
+                                        <td>
+                                            <div class="charges-list-value">{{ $payment->method_label }}</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-light-success text-success">{{ $payment->status_label }}</span>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="text-center py-16 text-muted" data-empty-row="true">No hay pagos registrados.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -752,6 +1020,105 @@
             const registerPaymentOutstanding = document.getElementById('registerPaymentOutstanding');
             const registerPaymentAmount = document.getElementById('registerPaymentAmount');
             const registerPaymentChargeUuid = document.getElementById('registerPaymentChargeUuid');
+            const searchForm = document.getElementById('chargesSearchForm');
+            const searchInput = document.getElementById('chargesSearchInput');
+            const resultCount = document.getElementById('chargesResultCount');
+            const tableOptions = {
+                dom: "rt<'row align-items-center'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7 d-flex justify-content-md-end'p>>",
+                pageLength: 10,
+                lengthChange: false,
+                order: [],
+                info: true,
+                searching: true,
+                autoWidth: false,
+                language: {
+                    info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
+                    infoEmpty: 'Mostrando 0 a 0 de 0 registros',
+                    paginate: {
+                        first: 'Primera',
+                        last: 'Ultima',
+                        next: 'Siguiente',
+                        previous: 'Anterior',
+                    },
+                    emptyTable: 'No hay registros disponibles.',
+                    zeroRecords: 'No se encontraron coincidencias con este filtro.',
+                },
+            };
+            const dataTables = {};
+            let activeTableKey = 'charges';
+
+            const initDataTable = (tableId, key, extraOptions = {}) => {
+                const table = document.getElementById(tableId);
+                if (!table || typeof $ === 'undefined' || !$.fn.DataTable) {
+                    return null;
+                }
+
+                table.querySelectorAll('td[data-empty-row="true"]').forEach((cell) => {
+                    cell.closest('tr')?.remove();
+                });
+
+                dataTables[key] = $(table).DataTable({
+                    ...tableOptions,
+                    ...extraOptions,
+                });
+
+                return dataTables[key];
+            };
+
+            const syncResultCount = () => {
+                const dataTable = dataTables[activeTableKey];
+                if (!resultCount || !dataTable) {
+                    return;
+                }
+
+                const count = dataTable.rows({ filter: 'applied' }).count();
+                resultCount.textContent = `${count} ${count === 1 ? 'resultado' : 'resultados'}`;
+            };
+
+            searchForm?.addEventListener('submit', (event) => {
+                event.preventDefault();
+            });
+
+            initDataTable('chargesTable', 'charges', {
+                columnDefs: [
+                    {
+                        targets: [5],
+                        orderable: false,
+                        searchable: false,
+                    },
+                ],
+            });
+            initDataTable('paymentsTable', 'payments');
+
+            Object.values(dataTables).forEach((dataTable) => {
+                dataTable.on('draw', syncResultCount);
+            });
+
+            searchInput?.addEventListener('input', (event) => {
+                const dataTable = dataTables[activeTableKey];
+                if (!dataTable) {
+                    return;
+                }
+
+                dataTable.search(event.target.value || '').draw();
+                syncResultCount();
+            });
+
+            document.querySelectorAll('[data-charges-tab]').forEach((tab) => {
+                tab.addEventListener('shown.bs.tab', () => {
+                    activeTableKey = tab.dataset.chargesTab || 'charges';
+                    const dataTable = dataTables[activeTableKey];
+
+                    if (dataTable) {
+                        dataTable.search(searchInput?.value || '').draw();
+                        dataTable.columns.adjust();
+                    }
+
+                    syncResultCount();
+                });
+            });
+
+            syncResultCount();
 
             if (propertySelect && tenantSelect) {
                 propertySelect.addEventListener('change', () => {

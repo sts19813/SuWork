@@ -25,7 +25,6 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ChargeController extends Controller
@@ -44,13 +43,9 @@ class ChargeController extends Controller
                 ->pluck('id')
             : collect();
         $filters = $request->validate([
-            'q' => ['nullable', 'string', 'max:190'],
-            'status' => ['nullable', Rule::in(['', 'pending', 'in_validation', 'partial', 'paid', 'overdue', 'canceled'])],
             'property' => ['nullable', 'string', 'exists:properties,uuid'],
         ]);
 
-        $search = trim((string) ($filters['q'] ?? ''));
-        $status = (string) ($filters['status'] ?? '');
         $selectedPropertyUuid = (string) ($filters['property'] ?? '');
         $selectedProperty = filled($selectedPropertyUuid)
             ? Property::query()
@@ -76,33 +71,22 @@ class ChargeController extends Controller
             ->with(['tenant:id,full_name', 'property:id,internal_name,internal_reference'])
             ->when($isTenant, fn ($query) => $query->whereIn('property_id', $tenantPropertyIds))
             ->when($selectedPropertyId, fn ($query) => $query->where('property_id', $selectedPropertyId))
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($innerQuery) use ($search) {
-                    $innerQuery
-                        ->where('concept', 'like', "%{$search}%")
-                        ->orWhere('type', 'like', "%{$search}%")
-                        ->orWhereHas('tenant', fn ($tenantQuery) => $tenantQuery->where('full_name', 'like', "%{$search}%"))
-                        ->orWhereHas('property', function ($propertyQuery) use ($search) {
-                            $propertyQuery
-                                ->where('internal_name', 'like', "%{$search}%")
-                                ->orWhere('internal_reference', 'like', "%{$search}%");
-                        });
-                });
-            })
-            ->when($status !== '', function ($query) use ($status) {
-                if ($status === 'overdue') {
-                    $query
-                        ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL])
-                        ->whereDate('due_date', '<', now()->toDateString());
-
-                    return;
-                }
-
-                $query->where('status', $status);
-            })
             ->latest('id')
-            ->paginate(12)
-            ->withQueryString();
+            ->get();
+
+        $payments = ChargePayment::query()
+            ->with(['charge.tenant:id,full_name', 'charge.property:id,internal_name,internal_reference'])
+            ->where('status', ChargePayment::STATUS_SUCCEEDED)
+            ->when(
+                $isTenant,
+                fn ($query) => $query->whereHas('charge', fn ($chargeQuery) => $chargeQuery->whereIn('property_id', $tenantPropertyIds)),
+            )
+            ->when(
+                $selectedPropertyId,
+                fn ($query) => $query->whereHas('charge', fn ($chargeQuery) => $chargeQuery->where('property_id', $selectedPropertyId)),
+            )
+            ->latest('id')
+            ->get();
 
         $now = now();
         $chargeBaseQuery = fn () => Charge::query()
@@ -194,6 +178,7 @@ class ChargeController extends Controller
 
         return view('charges.index', [
             'charges' => $charges,
+            'payments' => $payments,
             'properties' => $propertiesQuery->get(['id', 'internal_name', 'internal_reference', 'tenant_id']),
             'chargeableProperties' => $chargeablePropertiesQuery->get([
                 'id',
@@ -214,18 +199,7 @@ class ChargeController extends Controller
             'propertySetupTenants' => $propertySetupTenants,
             'tenantAssignmentChecks' => $tenantAssignmentChecks,
             'typeOptions' => Charge::TYPE_LABELS,
-            'statusOptions' => [
-                '' => 'Todos',
-                Charge::STATUS_PENDING => 'Pendiente',
-                Charge::STATUS_IN_VALIDATION => 'En validacion',
-                'overdue' => 'Vencido',
-                Charge::STATUS_PARTIAL => 'Parcial',
-                Charge::STATUS_PAID => 'Pagado',
-                Charge::STATUS_CANCELED => 'Cancelado',
-            ],
             'paymentMethods' => ChargePayment::METHOD_LABELS,
-            'search' => $search,
-            'status' => $status,
             'stats' => $stats,
             'currentMonthLabel' => Carbon::create($now->year, $now->month, 1)->translatedFormat('M Y'),
             'selectedProperty' => $selectedProperty,
