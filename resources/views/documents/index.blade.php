@@ -17,24 +17,27 @@
             };
         };
 
-        $documentTitle = $activeView === 'expired' ? 'Documentos vencidos' : 'Documentos actuales';
-        $documentSubtitle = $activeView === 'expired'
-            ? 'Archivos existentes en todo el sistema cuya vigencia ya vencio.'
-            : 'Vista tipo historial para revisar todos los documentos existentes del sistema.';
+        $activeDocuments = $activeView === 'expired' ? $expiredDocuments : $currentDocuments;
     @endphp
 
     @push('styles')
         <style>
-            .documents-index .documents-table-card {
-                border: 1px solid var(--bs-gray-200);
-                border-radius: 1rem;
-                box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+            .documents-index {
+                --dl-surface: #ffffff;
+                --dl-ink: #172033;
+                --dl-text: #334155;
+                --dl-muted: #7b879d;
+                --dl-line: #e5eaf3;
+                --dl-accent: #b54708;
+                --dl-accent-soft: #fff1e8;
+                --dl-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+                color: var(--dl-text);
             }
 
-            .documents-index .documents-filter-card {
-                border: 1px solid var(--bs-gray-200);
-                border-radius: 1rem;
-                box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+            .documents-index .documents-kpi-card {
+                border: 1px solid var(--dl-line);
+                border-radius: 18px;
+                box-shadow: var(--dl-shadow);
             }
 
             .documents-index .documents-file-icon {
@@ -43,10 +46,208 @@
                 flex: 0 0 44px;
             }
 
-            .documents-index .documents-kpi-card {
-                border: 1px solid var(--bs-gray-200);
-                border-radius: 1rem;
-                box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+            .documents-list-toolbar {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: space-between;
+                gap: 18px;
+                margin-bottom: 20px;
+            }
+
+            .documents-list-search {
+                position: relative;
+                min-width: min(100%, 360px);
+                flex: 1 1 300px;
+            }
+
+            .documents-list-search i {
+                position: absolute;
+                left: 16px;
+                top: 50%;
+                transform: translateY(-50%);
+                color: var(--dl-muted);
+                font-size: 1rem;
+                pointer-events: none;
+            }
+
+            .documents-list-search .form-control {
+                height: 52px;
+                padding-left: 46px;
+                border-radius: 16px;
+                border: 1px solid var(--dl-line);
+                background: #fbfcfe;
+                color: var(--dl-ink);
+                font-weight: 600;
+                box-shadow: none;
+            }
+
+            .documents-list-search .form-control:focus {
+                border-color: rgba(181, 71, 8, 0.35);
+                box-shadow: 0 0 0 4px rgba(181, 71, 8, 0.08);
+            }
+
+            .documents-list-results {
+                color: var(--dl-muted);
+                font-size: 1rem;
+                font-weight: 700;
+                white-space: nowrap;
+            }
+
+            .documents-list-tabs {
+                gap: 12px;
+                margin-bottom: 20px;
+            }
+
+            .documents-list-tabs .nav-link {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                border: 1px solid transparent;
+                border-radius: 14px;
+                padding: 12px 18px;
+                background: #f8fafc;
+                color: var(--dl-text);
+                font-weight: 800;
+            }
+
+            .documents-list-tabs .nav-link:hover {
+                background: var(--dl-accent-soft);
+                color: var(--dl-accent);
+                border-color: rgba(181, 71, 8, 0.15);
+            }
+
+            .documents-list-tabs .nav-link.active {
+                background: var(--dl-accent);
+                color: #fff !important;
+                box-shadow: 0 12px 28px rgba(181, 71, 8, 0.22);
+            }
+
+            .documents-list-tabs__count {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 26px;
+                height: 26px;
+                border-radius: 999px;
+                padding: 0 8px;
+                background: rgba(15, 23, 42, 0.08);
+                color: inherit;
+                font-size: 12px;
+                font-weight: 800;
+            }
+
+            .documents-list-tabs .nav-link.active .documents-list-tabs__count {
+                background: rgba(255, 255, 255, 0.18);
+            }
+
+            .documents-list-table-card {
+                margin-top: 20px;
+                border: 1px solid var(--dl-line);
+                border-radius: 20px;
+                overflow: hidden;
+                background: var(--dl-surface);
+            }
+
+            .documents-list-table-card .table-responsive {
+                overflow-x: auto;
+            }
+
+            .documents-list-table-card table.dataTable {
+                margin-top: 0 !important;
+                margin-bottom: 0 !important;
+                border-collapse: separate !important;
+                border-spacing: 0;
+            }
+
+            .documents-list-table-card thead th {
+                padding-top: 20px;
+                padding-bottom: 20px;
+                background: #f8fafc;
+                border-bottom: 1px solid var(--dl-line) !important;
+                color: #94a3b8 !important;
+                font-size: 0.76rem;
+                letter-spacing: 0.08em;
+            }
+
+            .documents-list-row td {
+                padding-top: 12px;
+                padding-bottom: 12px;
+                border-top: 1px solid var(--dl-line) !important;
+                vertical-align: middle;
+                background: #fff;
+            }
+
+            .documents-list-row:hover td {
+                background: #fcf8f6;
+            }
+
+            .documents-list-title {
+                color: var(--dl-ink);
+                font-size: 1rem;
+                font-weight: 800;
+                line-height: 1.25;
+            }
+
+            .documents-list-meta {
+                color: var(--dl-muted);
+                font-size: 0.88rem;
+                margin-top: 4px;
+                line-height: 1.4;
+            }
+
+            .documents-list-value {
+                color: var(--dl-ink);
+                font-size: 0.95rem;
+                font-weight: 700;
+                line-height: 1.35;
+            }
+
+            .documents-list-actions {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+                justify-content: flex-end;
+            }
+
+            .documents-list-actions .btn {
+                border-radius: 12px;
+                font-weight: 700;
+            }
+
+            .documents-list-table-card .dataTables_info,
+            .documents-list-table-card .dataTables_paginate {
+                padding: 18px 28px 0;
+                color: var(--dl-muted) !important;
+                font-weight: 700;
+            }
+
+            .documents-list-table-card .dataTables_paginate .pagination {
+                gap: 6px;
+            }
+
+            .documents-list-table-card .page-link {
+                border-radius: 10px !important;
+                border-color: var(--dl-line) !important;
+                color: var(--dl-text) !important;
+                min-width: 38px;
+                text-align: center;
+                font-weight: 700;
+            }
+
+            .documents-list-table-card .page-item.active .page-link {
+                background: var(--dl-accent) !important;
+                border-color: var(--dl-accent) !important;
+                color: #fff !important;
+            }
+
+            @media (max-width: 991px) {
+                .documents-list-table-card .dataTables_info,
+                .documents-list-table-card .dataTables_paginate {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                }
             }
         </style>
     @endpush
@@ -54,8 +255,8 @@
     <div class="py-10 property-module documents-index">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-8">
             <div>
-                <h1 class="mb-1 fw-bold text-dark">{{ $documentTitle }}</h1>
-                <div class="text-muted fs-6">{{ $documents->total() }} documentos encontrados</div>
+                <h1 class="mb-1 fw-bold text-dark">Documentos</h1>
+                <div class="text-muted fs-6">{{ $stats['total'] }} documentos encontrados</div>
             </div>
             <div class="d-flex gap-2">
                 @canany(['expedientes.ver_bitacora_eliminados', 'expedientes.eliminar_archivos'])
@@ -95,7 +296,7 @@
                 </div>
             </div>
             <div class="col-md-6 col-xl-3">
-                <a href="{{ route('documents.expired', ['entity' => $filters['entity'], 'q' => $filters['q']]) }}" class="card documents-kpi-card text-decoration-none">
+                <a href="{{ route('documents.expired') }}" class="card documents-kpi-card text-decoration-none">
                     <div class="card-body py-7">
                         <div class="text-muted fw-semibold">Vencidos</div>
                         <div class="fs-1 fw-bold text-warning">{{ $stats['expired'] }}</div>
@@ -104,83 +305,80 @@
             </div>
         </div>
 
-        <div class="card documents-filter-card mb-8">
-            <div class="card-body py-6">
-                <div class="d-flex flex-wrap align-items-center justify-content-between gap-4 mb-6">
-                    <div class="btn-group" role="group" aria-label="Vistas de documentos">
-                        <a href="{{ route('documents.index', ['entity' => $filters['entity'], 'q' => $filters['q']]) }}"
-                            class="btn {{ $activeView === 'all' ? 'btn-primary' : 'btn-light-primary' }}">
-                            Documentos actuales
-                        </a>
-                        <a href="{{ route('documents.expired', ['entity' => $filters['entity'], 'q' => $filters['q']]) }}"
-                            class="btn {{ $activeView === 'expired' ? 'btn-primary' : 'btn-light-primary' }}">
-                            Vencidos
-                        </a>
-                    </div>
-                    <div class="min-w-250px">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="text-muted fw-semibold">Almacenamiento</span>
-                            <span class="fw-bold">{{ $dossierStorage['used_label'] }} / {{ $dossierStorage['limit_label'] }}</span>
-                        </div>
-                        <div class="progress h-8px">
-                            <div class="progress-bar bg-primary" style="width: {{ $storagePercentage }}%"></div>
-                        </div>
-                    </div>
-                </div>
+        <div class="documents-list-toolbar">
+            <form method="GET" action="{{ $activeView === 'expired' ? route('documents.expired') : route('documents.index') }}"
+                id="documentsSearchForm" class="documents-list-search mb-0">
+                <i class="bi bi-search"></i>
+                <input
+                    id="documentsSearchInput"
+                    type="search"
+                    class="form-control"
+                    placeholder="Buscar documento, expediente o archivo..."
+                    autocomplete="off">
+            </form>
 
-                <form method="GET" action="{{ $activeView === 'expired' ? route('documents.expired') : route('documents.index') }}" class="row g-4">
-                    <div class="col-lg-7">
-                        <input type="text" name="q" class="form-control form-control-solid"
-                            placeholder="Buscar documento, expediente o archivo..." value="{{ $filters['q'] }}">
-                    </div>
-                    <div class="col-lg-3">
-                        <select name="entity" class="form-select form-select-solid">
-                            <option value="">Todos los expedientes</option>
-                            <option value="property" {{ $filters['entity'] === 'property' ? 'selected' : '' }}>Propiedades</option>
-                            <option value="tenant" {{ $filters['entity'] === 'tenant' ? 'selected' : '' }}>Inquilinos</option>
-                            <option value="owner" {{ $filters['entity'] === 'owner' ? 'selected' : '' }}>Propietarios</option>
-                        </select>
-                    </div>
-                    <div class="col-lg-2">
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="ki-outline ki-magnifier fs-3"></i>
-                            Buscar
-                        </button>
-                    </div>
-                </form>
+            <div id="documentsResultCount" class="documents-list-results">{{ $activeDocuments->count() }} resultados</div>
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-4 mb-4">
+            <ul class="nav documents-list-tabs mb-0" id="documentsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {{ $activeView === 'expired' ? '' : 'active' }}" id="current-documents-tab"
+                        data-bs-toggle="tab" data-bs-target="#current-documents-pane" type="button" role="tab"
+                        aria-controls="current-documents-pane" aria-selected="{{ $activeView === 'expired' ? 'false' : 'true' }}"
+                        data-documents-tab="current">
+                        <span>Documentos actuales</span>
+                        <span class="documents-list-tabs__count">{{ $currentDocuments->count() }}</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {{ $activeView === 'expired' ? 'active' : '' }}" id="expired-documents-tab"
+                        data-bs-toggle="tab" data-bs-target="#expired-documents-pane" type="button" role="tab"
+                        aria-controls="expired-documents-pane" aria-selected="{{ $activeView === 'expired' ? 'true' : 'false' }}"
+                        data-documents-tab="expired">
+                        <span>Vencidos</span>
+                        <span class="documents-list-tabs__count">{{ $expiredDocuments->count() }}</span>
+                    </button>
+                </li>
+            </ul>
+
+            <div class="min-w-250px">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted fw-semibold">Almacenamiento</span>
+                    <span class="fw-bold">{{ $dossierStorage['used_label'] }} / {{ $dossierStorage['limit_label'] }}</span>
+                </div>
+                <div class="progress h-8px">
+                    <div class="progress-bar bg-primary" style="width: {{ $storagePercentage }}%"></div>
+                </div>
             </div>
         </div>
 
-        <div class="card documents-table-card">
-            <div class="card-header border-0 pt-6">
-                <div class="card-title flex-column align-items-start">
-                    <h3 class="fw-bold mb-1">{{ $documentTitle }}</h3>
-                    <div class="text-muted fs-7">{{ $documentSubtitle }}</div>
-                </div>
-            </div>
-            <div class="card-body pt-0">
-                <div class="table-responsive">
-                    <table class="table table-row-dashed align-middle">
-                        <thead>
-                            <tr class="text-muted text-uppercase fs-8">
-                                <th>Documento</th>
-                                <th>Archivo</th>
-                                <th>Vence</th>
-                                <th>Fecha</th>
-                                <th class="text-end">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($documents as $document)
+        <div class="tab-content" id="documentsTabsContent">
+            <div class="tab-pane fade {{ $activeView === 'expired' ? '' : 'show active' }}" id="current-documents-pane"
+                role="tabpanel" aria-labelledby="current-documents-tab" tabindex="0">
+                <div class="documents-list-table-card">
+                    <div class="table-responsive">
+                        <table class="table table-row-bordered align-middle mb-0" id="currentDocumentsTable">
+                            <thead>
+                                <tr class="text-muted text-uppercase fs-8">
+                                    <th class="ps-7 min-w-240px">Documento</th>
+                                    <th class="min-w-260px">Archivo</th>
+                                    <th class="min-w-130px">Vence</th>
+                                    <th class="min-w-150px">Fecha</th>
+                                    <th class="text-end pe-7 min-w-140px">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @forelse ($currentDocuments as $document)
                                 @php
                                     [$icon, $iconColor, $iconBg] = $fileIcon($document['file_name']);
                                 @endphp
-                                <tr>
-                                    <td>
+                                <tr class="documents-list-row">
+                                    <td class="ps-7">
                                         <div class="d-flex flex-column gap-1">
-                                            <div class="fw-bold text-gray-900">{{ $document['label'] }}</div>
-                                            <div class="text-muted fs-7">{{ $document['entity_name'] }}</div>
-                                            <div class="text-muted fs-8">{{ $document['entity_type_label'] }}</div>
+                                            <div class="documents-list-title">{{ $document['label'] }}</div>
+                                            <div class="documents-list-meta">{{ $document['entity_name'] }}</div>
+                                            <div class="documents-list-meta">{{ $document['entity_type_label'] }}</div>
                                         </div>
                                     </td>
                                     <td>
@@ -193,7 +391,7 @@
                                                     class="fw-semibold text-gray-800 text-hover-primary text-break">
                                                     {{ $document['file_name'] }}
                                                 </a>
-                                                <div class="text-muted fs-8">
+                                                <div class="documents-list-meta">
                                                     {{ $document['is_expired'] ? 'Documento vencido' : 'Abrir en una nueva pestaña' }}
                                                 </div>
                                             </div>
@@ -208,9 +406,9 @@
                                             <span class="text-muted">-</span>
                                         @endif
                                     </td>
-                                    <td>{{ $document['updated_at']?->format('d/m/Y H:i') ?: '-' }}</td>
-                                    <td class="text-end">
-                                        <div class="d-inline-flex align-items-center gap-2">
+                                    <td><div class="documents-list-value">{{ $document['updated_at']?->format('d/m/Y H:i') ?: '-' }}</div></td>
+                                    <td class="text-end pe-7">
+                                        <div class="documents-list-actions">
                                             <a href="{{ $document['file_url'] }}" target="_blank" rel="noopener"
                                                 class="btn btn-icon btn-light btn-active-light-primary btn-sm" title="Ver archivo">
                                                 <i class="ki-outline ki-eye fs-2"></i>
@@ -229,18 +427,198 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="py-10">
-                                        <div class="text-center text-muted py-12">No hay documentos existentes para esta vista.</div>
+                                    <td colspan="5" class="py-10" data-empty-row="true">
+                                        <div class="text-center text-muted py-12">No hay documentos actuales.</div>
                                     </td>
                                 </tr>
                             @endforelse
-                        </tbody>
-                    </table>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-            <div class="card-footer">
-                {{ $documents->links() }}
+
+            <div class="tab-pane fade {{ $activeView === 'expired' ? 'show active' : '' }}" id="expired-documents-pane"
+                role="tabpanel" aria-labelledby="expired-documents-tab" tabindex="0">
+                <div class="documents-list-table-card">
+                    <div class="table-responsive">
+                        <table class="table table-row-bordered align-middle mb-0" id="expiredDocumentsTable">
+                            <thead>
+                                <tr class="text-muted text-uppercase fs-8">
+                                    <th class="ps-7 min-w-240px">Documento</th>
+                                    <th class="min-w-260px">Archivo</th>
+                                    <th class="min-w-130px">Vence</th>
+                                    <th class="min-w-150px">Fecha</th>
+                                    <th class="text-end pe-7 min-w-140px">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @forelse ($expiredDocuments as $document)
+                                @php
+                                    [$icon, $iconColor, $iconBg] = $fileIcon($document['file_name']);
+                                @endphp
+                                <tr class="documents-list-row">
+                                    <td class="ps-7">
+                                        <div class="d-flex flex-column gap-1">
+                                            <div class="documents-list-title">{{ $document['label'] }}</div>
+                                            <div class="documents-list-meta">{{ $document['entity_name'] }}</div>
+                                            <div class="documents-list-meta">{{ $document['entity_type_label'] }}</div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-3">
+                                            <div class="documents-file-icon rounded {{ $iconBg }} d-flex align-items-center justify-content-center">
+                                                <i class="ki-outline {{ $icon }} fs-3 {{ $iconColor }}"></i>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <a href="{{ $document['file_url'] }}" target="_blank" rel="noopener"
+                                                    class="fw-semibold text-gray-800 text-hover-primary text-break">
+                                                    {{ $document['file_name'] }}
+                                                </a>
+                                                <div class="documents-list-meta">Documento vencido</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if ($document['expires_at'])
+                                            <span class="fw-bold text-warning">{{ $document['expires_at']->format('d/m/Y') }}</span>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+                                    <td><div class="documents-list-value">{{ $document['updated_at']?->format('d/m/Y H:i') ?: '-' }}</div></td>
+                                    <td class="text-end pe-7">
+                                        <div class="documents-list-actions">
+                                            <a href="{{ $document['file_url'] }}" target="_blank" rel="noopener"
+                                                class="btn btn-icon btn-light btn-active-light-primary btn-sm" title="Ver archivo">
+                                                <i class="ki-outline ki-eye fs-2"></i>
+                                            </a>
+                                            <a href="{{ $document['file_url'] }}" download="{{ $document['file_name'] }}"
+                                                class="btn btn-icon btn-light btn-active-light-primary btn-sm" title="Descargar">
+                                                <i class="ki-outline ki-file-down fs-2"></i>
+                                            </a>
+                                            @if ($document['entity_url'])
+                                                <a href="{{ $document['entity_url'] }}" class="btn btn-icon btn-primary btn-sm" title="Abrir expediente">
+                                                    <i class="ki-outline ki-folder fs-2"></i>
+                                                </a>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="py-10" data-empty-row="true">
+                                        <div class="text-center text-muted py-12">No hay documentos vencidos.</div>
+                                    </td>
+                                </tr>
+                            @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        (() => {
+            const form = document.getElementById('documentsSearchForm');
+            const input = document.getElementById('documentsSearchInput');
+            const resultCount = document.getElementById('documentsResultCount');
+            const initialTab = @json($activeView === 'expired' ? 'expired' : 'current');
+            const dataTables = {};
+            let activeTableKey = initialTab;
+
+            form?.addEventListener('submit', (event) => {
+                event.preventDefault();
+            });
+
+            const initDataTable = (tableId, key) => {
+                const table = document.getElementById(tableId);
+                if (!table || typeof $ === 'undefined' || !$.fn.DataTable) {
+                    return null;
+                }
+
+                table.querySelectorAll('td[data-empty-row="true"]').forEach((cell) => {
+                    cell.closest('tr')?.remove();
+                });
+
+                dataTables[key] = $(table).DataTable({
+                    dom: "rt<'row align-items-center'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7 d-flex justify-content-md-end'p>>",
+                    pageLength: 10,
+                    lengthChange: false,
+                    order: [],
+                    info: true,
+                    searching: true,
+                    autoWidth: false,
+                    language: {
+                        info: 'Mostrando _START_ a _END_ de _TOTAL_ documentos',
+                        infoEmpty: 'Mostrando 0 a 0 de 0 documentos',
+                        paginate: {
+                            first: 'Primera',
+                            last: 'Ultima',
+                            next: 'Siguiente',
+                            previous: 'Anterior',
+                        },
+                        emptyTable: 'No hay documentos disponibles.',
+                        zeroRecords: 'No se encontraron coincidencias con este filtro.',
+                    },
+                    columnDefs: [
+                        {
+                            targets: [4],
+                            orderable: false,
+                            searchable: false,
+                        },
+                    ],
+                });
+
+                return dataTables[key];
+            };
+
+            initDataTable('currentDocumentsTable', 'current');
+            initDataTable('expiredDocumentsTable', 'expired');
+
+            const syncResultCount = () => {
+                const dataTable = dataTables[activeTableKey];
+                if (!resultCount || !dataTable) {
+                    return;
+                }
+
+                const count = dataTable.rows({ filter: 'applied' }).count();
+                resultCount.textContent = `${count} ${count === 1 ? 'resultado' : 'resultados'}`;
+            };
+
+            Object.values(dataTables).forEach((dataTable) => {
+                dataTable.on('draw', syncResultCount);
+            });
+
+            input?.addEventListener('input', (event) => {
+                const dataTable = dataTables[activeTableKey];
+                if (!dataTable) {
+                    return;
+                }
+
+                dataTable.search(event.target.value || '').draw();
+                syncResultCount();
+            });
+
+            document.querySelectorAll('[data-documents-tab]').forEach((tab) => {
+                tab.addEventListener('shown.bs.tab', () => {
+                    activeTableKey = tab.dataset.documentsTab || 'current';
+                    const dataTable = dataTables[activeTableKey];
+
+                    if (dataTable) {
+                        dataTable.search(input?.value || '').draw();
+                        dataTable.columns.adjust();
+                    }
+
+                    syncResultCount();
+                });
+            });
+
+            syncResultCount();
+        })();
+    </script>
+@endpush

@@ -18,7 +18,6 @@ use App\Support\DossierStorageUsage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -37,34 +36,13 @@ class DocumentController extends Controller
     public function index(Request $request): View
     {
         $filters = $request->validate([
-            'q' => ['nullable', 'string', 'max:120'],
-            'entity' => ['nullable', Rule::in(['property', 'tenant', 'owner'])],
             'view' => ['nullable', Rule::in(['all', 'expired'])],
         ]);
 
-        $search = trim((string) ($filters['q'] ?? ''));
-        $entityFilter = (string) ($filters['entity'] ?? '');
         $activeView = (string) ($filters['view'] ?? 'all');
 
         $documents = $this->buildDocumentsCollection();
-        $documents = $documents->whereNotNull('file_url')->values();
-
-        $documents = $documents
-            ->when($search !== '', function (Collection $collection) use ($search): Collection {
-                return $collection->filter(function (array $document) use ($search): bool {
-                    $needle = mb_strtolower($search);
-                    $haystack = mb_strtolower(
-                        ($document['label'] ?? '') . ' ' .
-                        ($document['entity_name'] ?? '') . ' ' .
-                        ($document['file_name'] ?? ''),
-                    );
-
-                    return str_contains($haystack, $needle);
-                })->values();
-            })
-            ->when($entityFilter !== '', function (Collection $collection) use ($entityFilter): Collection {
-                return $collection->where('entity_type', $entityFilter)->values();
-            });
+        $documents = $documents->whereNotNull('file_url')->sortByDesc('updated_at')->values();
 
         $stats = [
             'total' => $documents->count(),
@@ -74,19 +52,17 @@ class DocumentController extends Controller
             'expired' => $documents->filter(fn (array $document) => $document['is_expired'])->count(),
         ];
 
-        if ($activeView === 'expired') {
-            $documents = $documents
-                ->filter(fn (array $document) => $document['is_expired'])
-                ->values();
-        }
-
-        $documents = $documents->sortByDesc('updated_at')->values();
+        $currentDocuments = $documents
+            ->reject(fn (array $document) => $document['is_expired'])
+            ->values();
+        $expiredDocuments = $documents
+            ->filter(fn (array $document) => $document['is_expired'])
+            ->values();
 
         return view('documents.index', [
-            'documents' => $this->paginateCollection($documents, $request),
+            'currentDocuments' => $currentDocuments,
+            'expiredDocuments' => $expiredDocuments,
             'filters' => [
-                'q' => $search,
-                'entity' => $entityFilter,
                 'view' => $activeView,
             ],
             'stats' => $stats,
@@ -785,24 +761,6 @@ class DocumentController extends Controller
             'versions_count' => $document->versions_count,
             'updated_at' => $document->updated_at,
         ];
-    }
-
-    private function paginateCollection(Collection $documents, Request $request): LengthAwarePaginator
-    {
-        $perPage = 12;
-        $page = LengthAwarePaginator::resolveCurrentPage();
-        $items = $documents->slice(($page - 1) * $perPage, $perPage)->values();
-
-        return new LengthAwarePaginator(
-            $items,
-            $documents->count(),
-            $perPage,
-            $page,
-            [
-                'path' => $request->url(),
-                'query' => $request->query(),
-            ],
-        );
     }
 
     private function ensurePropertyDocuments(Property $property): void
