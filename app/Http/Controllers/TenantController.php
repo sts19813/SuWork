@@ -45,8 +45,7 @@ class TenantController extends Controller
                 });
             })
             ->latest()
-            ->paginate(12)
-            ->appends($search !== '' ? ['q' => $search] : []);
+            ->get();
 
         return view('tenants.index', [
             'tenants' => $tenants,
