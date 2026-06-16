@@ -369,14 +369,14 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="charges-tab" data-bs-toggle="tab" data-bs-target="#charges-pane"
                     type="button" role="tab" aria-controls="charges-pane" aria-selected="true" data-charges-tab="charges">
-                    <span>Cargos</span>
+                    <span>Pagos pendientes</span>
                     <span class="charges-list-tabs__count">{{ $stats['charges_count'] }}</span>
                 </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments-pane"
                     type="button" role="tab" aria-controls="payments-pane" aria-selected="false" data-charges-tab="payments">
-                    <span>Pagos</span>
+                    <span>Cobrados</span>
                     <span class="charges-list-tabs__count">{{ $stats['payments_count'] }}</span>
                 </button>
             </li>
