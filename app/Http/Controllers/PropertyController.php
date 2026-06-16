@@ -54,16 +54,10 @@ class PropertyController extends Controller
 
     public function index(Request $request): View
     {
-        $filters = $request->validate([
-            'zone_id' => ['nullable', 'integer', 'exists:zones,id'],
-            'property_type_id' => ['nullable', 'integer', 'exists:property_types,id'],
-            'status' => ['nullable', Rule::in(array_keys(Property::STATUS_LABELS))],
-            'advisor_user_id' => ['nullable', 'integer', 'exists:users,id'],
+        $request->validate([
             'property_scope' => ['nullable', Rule::in(['mine', 'all'])],
         ]);
 
-        $propertyTypes = $this->getPropertyTypesCatalog();
-        $zones = $this->getZonesCatalog();
         $availableAdvisors = $this->availableAdvisors();
         $propertyScope = $this->resolveAdvisorScope($request);
 
@@ -72,29 +66,15 @@ class PropertyController extends Controller
             ->withCount([
                 'documents as incidents_count' => fn($query) => $query->where('status', PropertyDocument::STATUS_PENDING),
             ])
-            ->when($request->filled('zone_id'), fn($query) => $query->where('zone_id', $request->integer('zone_id')))
-            ->when($request->filled('property_type_id'), fn($query) => $query->where('property_type_id', $request->integer('property_type_id')))
-            ->when($request->filled('status'), fn($query) => $query->where('status', $request->string('status')->value()))
-            ->when($request->filled('advisor_user_id'), function ($query) use ($request): void {
-                $advisorId = $request->integer('advisor_user_id');
-                $query->where(function ($inner) use ($advisorId): void {
-                    $inner->where('advisor_user_id', $advisorId)
-                        ->orWhereHas('advisors', fn($advisorQuery) => $advisorQuery->whereKey($advisorId));
-                });
-            })
             ->when($propertyScope === 'mine', fn($query) => $this->scopeQueryToAdvisor($query, $request->user()))
             ->latest()
             ->get();
 
         return view('properties.index', [
             'properties' => $properties,
-            'zones' => $zones,
-            'propertyTypes' => $propertyTypes,
             'availableAdvisors' => $availableAdvisors,
-            'filters' => $filters,
             'propertyScope' => $propertyScope,
             'isAdvisorUser' => $this->isAdvisorUser($request->user()),
-            'statusOptions' => Property::STATUS_LABELS,
         ]);
     }
 

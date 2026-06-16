@@ -2,6 +2,183 @@
 
 @section('title', 'Propiedades | SuWork')
 
+@push('styles')
+    <style>
+        .property-list-module {
+            --pl-surface: #ffffff;
+            --pl-ink: #172033;
+            --pl-text: #334155;
+            --pl-muted: #7b879d;
+            --pl-line: #e5eaf3;
+            --pl-accent: #b54708;
+            --pl-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+            color: var(--pl-text);
+        }
+
+        .property-list-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 20px;
+        }
+
+        .property-list-search {
+            position: relative;
+            min-width: min(100%, 360px);
+            flex: 1 1 300px;
+        }
+
+        .property-list-search i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--pl-muted);
+            font-size: 1rem;
+            pointer-events: none;
+        }
+
+        .property-list-search .form-control {
+            height: 52px;
+            padding-left: 46px;
+            border-radius: 16px;
+            border: 1px solid var(--pl-line);
+            background: #fbfcfe;
+            color: var(--pl-ink);
+            font-weight: 600;
+            box-shadow: none;
+        }
+
+        .property-list-search .form-control:focus {
+            border-color: rgba(181, 71, 8, 0.35);
+            box-shadow: 0 0 0 4px rgba(181, 71, 8, 0.08);
+        }
+
+        .property-list-results {
+            color: var(--pl-muted);
+            font-size: 1rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .property-list-table-card {
+            margin-top: 20px;
+            border: 1px solid var(--pl-line);
+            border-radius: 20px;
+            overflow: hidden;
+            background: var(--pl-surface);
+        }
+
+        .property-list-table-card .table-responsive {
+            overflow-x: auto;
+        }
+
+        .property-list-table-card table.dataTable {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            border-collapse: separate !important;
+            border-spacing: 0;
+        }
+
+        .property-list-table-card thead th {
+            padding-top: 20px;
+            padding-bottom: 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--pl-line) !important;
+            color: #94a3b8 !important;
+            font-size: 0.76rem;
+            letter-spacing: 0.08em;
+        }
+
+        .property-list-row {
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .property-list-row td {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            border-top: 1px solid var(--pl-line) !important;
+            vertical-align: middle;
+            background: #fff;
+        }
+
+        .property-list-row:hover td {
+            background: #fcf8f6;
+        }
+
+        .property-list-title {
+            color: var(--pl-ink);
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .property-list-meta {
+            color: var(--pl-muted);
+            font-size: 0.88rem;
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        .property-list-value {
+            color: var(--pl-ink);
+            font-size: 0.95rem;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .property-list-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .property-list-actions .btn {
+            border-radius: 12px;
+            font-weight: 700;
+            min-width: 76px;
+        }
+
+        .property-list-table-card .dataTables_info,
+        .property-list-table-card .dataTables_paginate {
+            padding: 18px 28px 0;
+            color: var(--pl-muted) !important;
+            font-weight: 700;
+        }
+
+        .property-list-table-card .dataTables_paginate .pagination {
+            gap: 6px;
+        }
+
+        .property-list-table-card .page-link {
+            border-radius: 10px !important;
+            border-color: var(--pl-line) !important;
+            color: var(--pl-text) !important;
+            min-width: 38px;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .property-list-table-card .page-item.active .page-link {
+            background: var(--pl-accent) !important;
+            border-color: var(--pl-accent) !important;
+            color: #fff !important;
+        }
+
+        @media (max-width: 991px) {
+            .property-list-table-card .dataTables_info,
+            .property-list-table-card .dataTables_paginate {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+        }
+    </style>
+@endpush
+
 @section('content')
     @php
         $canManagePropertyAdvisors = auth()->user()?->hasRole('administrador')
@@ -9,7 +186,7 @@
             || auth()->user()?->can('propiedades.asignar_asesores');
     @endphp
 
-    <div class="py-10 property-module">
+    <div class="py-10 property-module property-list-module">
         @if (session('success'))
             <div class="alert alert-success d-flex align-items-center p-5 mb-8">
                 <i class="ki-outline ki-check-circle fs-2hx text-success me-4"></i>
@@ -31,155 +208,98 @@
             @endunless
         </div>
 
-        <div class="card mb-8">
-            <div class="card-body py-6">
-                <form method="GET" action="{{ route('properties.index') }}" class="row g-6">
-                    @if ($isAdvisorUser)
-                        <div class="col-lg-3">
-                            <label class="form-label fw-semibold">Vista</label>
-                            <select name="property_scope" class="form-select">
-                                <option value="mine" {{ $propertyScope !== 'all' ? 'selected' : '' }}>Mis propiedades</option>
-                                <option value="all" {{ $propertyScope === 'all' ? 'selected' : '' }}>Todas las propiedades</option>
-                            </select>
-                        </div>
-                    @endif
-                    <div class="col-lg-{{ $isAdvisorUser ? '3' : '4' }}">
-                        <label class="form-label fw-semibold">Zona</label>
-                        <select name="zone_id" class="form-select">
-                            <option value="">Todas las zonas</option>
-                            @foreach ($zones as $zone)
-                                <option value="{{ $zone->id }}" {{ (string) ($filters['zone_id'] ?? '') === (string) $zone->id ? 'selected' : '' }}>
-                                    {{ $zone->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-lg-{{ $isAdvisorUser ? '3' : '4' }}">
-                        <label class="form-label fw-semibold">Tipo de propiedad</label>
-                        <select name="property_type_id" class="form-select">
-                            <option value="">Todos los tipos</option>
-                            @foreach ($propertyTypes as $type)
-                                <option value="{{ $type->id }}" {{ (string) ($filters['property_type_id'] ?? '') === (string) $type->id ? 'selected' : '' }}>
-                                    {{ $type->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-lg-{{ $isAdvisorUser ? '3' : '4' }}">
-                        <label class="form-label fw-semibold">Estado</label>
-                        <select name="status" class="form-select">
-                            <option value="">Todos los estados</option>
-                            @foreach ($statusOptions as $statusValue => $statusLabel)
-                                <option value="{{ $statusValue }}" {{ (string) ($filters['status'] ?? '') === (string) $statusValue ? 'selected' : '' }}>
-                                    {{ $statusLabel }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-lg-4">
-                        <label class="form-label fw-semibold">Asesores responsables</label>
-                        <select name="advisor_user_id" class="form-select">
-                            <option value="">Todos los asesores</option>
-                            @foreach ($availableAdvisors as $advisor)
-                                <option value="{{ $advisor->id }}" {{ (string) ($filters['advisor_user_id'] ?? '') === (string) $advisor->id ? 'selected' : '' }}>
-                                    {{ $advisor->name }}{{ $advisor->email ? ' · ' . $advisor->email : '' }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-12 d-flex justify-content-end gap-3">
-                        <a href="{{ route('properties.index') }}" class="btn btn-light">Limpiar</a>
-                        <button type="submit" class="btn btn-primary">Filtrar</button>
-                    </div>
-                </form>
-            </div>
+        <div class="property-list-toolbar">
+            <form method="GET" action="{{ route('properties.index', $propertyScope === 'all' ? ['property_scope' => 'all'] : []) }}"
+                id="propertySearchForm" class="property-list-search mb-0">
+                <i class="bi bi-search"></i>
+                <input
+                    id="properties_text_search"
+                    type="search"
+                    class="form-control"
+                    placeholder="Buscar por nombre, tipo, zona, estado, inquilino, asesor..."
+                    autocomplete="off">
+            </form>
+
+            <div id="propertyResultCount" class="property-list-results">{{ $properties->count() }} resultados</div>
         </div>
 
-        <div class="card">
-            <div class="card-body py-0">
-                <div class="d-flex justify-content-end py-5">
-                    <div class="w-100 w-md-300px">
-                        <label for="properties_text_search" class="form-label fw-semibold mb-2">Buscar por texto</label>
-                        <input
-                            id="properties_text_search"
-                            type="text"
-                            class="form-control form-control-solid"
-                            placeholder="Nombre, tipo, zona, estado, inquilino, asesor..."
-                        >
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table id="properties_table" class="table table-row-bordered align-middle gy-5 mb-0">
-                        <thead>
-                            <tr class="fw-bold text-muted text-uppercase gs-0">
-                                <th class="min-w-125px">Foto</th>
-                                <th class="min-w-200px">Nombre interno</th>
-                                <th class="min-w-140px">Tipo</th>
-                                <th class="min-w-140px">Zona</th>
-                                <th class="min-w-130px">Estado</th>
-                                <th class="min-w-150px">Inquilino</th>
-                                <th class="min-w-180px">Asesores responsables</th>
-                                <th class="min-w-130px">Contrato vence</th>
-                                <th class="min-w-110px">Incidencias</th>
-                                <th class="text-end">Opciones</th>
-                            </tr>
-                        </thead>
-                        <tbody class="fw-semibold text-gray-700">
-                            @forelse ($properties as $property)
-                                @php
-                                    $photoUrl = $property->facade_photo_path
-                                        ? \Illuminate\Support\Facades\Storage::url($property->facade_photo_path)
-                                        : asset('metronic/assets/media/svg/files/blank-image.svg');
-                                    $assignedAdvisorIds = $property->advisors->pluck('id')
-                                        ->push($property->advisor_user_id)
+        <div class="property-list-table-card">
+            <div class="table-responsive">
+                <table id="properties_table" class="table table-row-bordered align-middle mb-0">
+                    <thead>
+                        <tr class="fw-bold text-muted text-uppercase fs-8">
+                            <th class="ps-7 min-w-125px">Foto</th>
+                            <th class="min-w-220px">Nombre interno</th>
+                            <th class="min-w-140px">Tipo</th>
+                            <th class="min-w-140px">Zona</th>
+                            <th class="min-w-130px">Estado</th>
+                            <th class="min-w-150px">Inquilino</th>
+                            <th class="min-w-180px">Asesores responsables</th>
+                            <th class="min-w-130px">Contrato vence</th>
+                            <th class="min-w-110px">Incidencias</th>
+                            <th class="text-end pe-7">Opciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($properties as $property)
+                            @php
+                                $photoUrl = $property->facade_photo_path
+                                    ? \Illuminate\Support\Facades\Storage::url($property->facade_photo_path)
+                                    : asset('metronic/assets/media/svg/files/blank-image.svg');
+                                $assignedAdvisorIds = $property->advisors->pluck('id')
+                                    ->push($property->advisor_user_id)
+                                    ->filter()
+                                    ->unique()
+                                    ->values();
+                                $assignedAdvisors = $availableAdvisors->whereIn('id', $assignedAdvisorIds);
+                                $assignedAdvisorNames = $assignedAdvisors->pluck('name')->implode(' ');
+                                $primaryAdvisor = $assignedAdvisors->first();
+                                $primaryAdvisorInitials = $primaryAdvisor
+                                    ? collect(explode(' ', trim((string) $primaryAdvisor->name)))
                                         ->filter()
-                                        ->unique()
-                                        ->values();
-                                    $assignedAdvisors = $availableAdvisors->whereIn('id', $assignedAdvisorIds);
-                                    $assignedAdvisorNames = $assignedAdvisors->pluck('name')->implode(' ');
-                                    $primaryAdvisor = $assignedAdvisors->first();
-                                    $primaryAdvisorInitials = $primaryAdvisor
-                                        ? collect(explode(' ', trim((string) $primaryAdvisor->name)))
-                                            ->filter()
-                                            ->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))
-                                            ->take(2)
-                                            ->implode('')
-                                        : '';
-                                @endphp
-                                <tr>
-                                    <td>
-                                        <img
-                                            src="{{ $photoUrl }}"
-                                            class="property-thumb"
-                                            alt="{{ $property->internal_name }}"
-                                            loading="lazy"
-                                            decoding="async"
-                                        >
-                                    </td>
-                                    <td>
-                                        <a href="{{ route('properties.show', $property) }}"
-                                            class="text-gray-900 fw-bold text-hover-primary fs-6">
-                                            {{ $property->internal_name }}
-                                        </a>
-                                    </td>
-                                    <td>{{ $property->type?->name ?? '-' }}</td>
-                                    <td>
-                                        @php
-                                            $zoneName = $property->zone?->name;
-                                            $zoneText = filled($property->zone_text) ? trim((string) $property->zone_text) : null;
-                                            $zoneDisplay = $zoneName ?: $zoneText ?: '-';
-                                            $showZoneTextDetail = $zoneName && $zoneText && strcasecmp($zoneName, $zoneText) !== 0;
-                                        @endphp
-                                        <div class="fw-semibold">{{ $zoneDisplay }}</div>
-                                        @if ($showZoneTextDetail)
-                                            <div class="text-muted fs-8">{{ $zoneText }}</div>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <span
-                                            class="badge {{ $property->status_badge_class }}">{{ $property->status_label }}</span>
-                                    </td>
-                                    <td>{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}</td>
+                                        ->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))
+                                        ->take(2)
+                                        ->implode('')
+                                    : '';
+                            @endphp
+                            <tr class="property-list-row" data-property-row>
+                                <td class="ps-7">
+                                    <img
+                                        src="{{ $photoUrl }}"
+                                        class="property-thumb"
+                                        alt="{{ $property->internal_name }}"
+                                        loading="lazy"
+                                        decoding="async"
+                                    >
+                                </td>
+                                <td>
+                                    <a href="{{ route('properties.show', $property) }}"
+                                        class="property-list-title text-hover-primary">
+                                        {{ $property->internal_name }}
+                                    </a>
+                                </td>
+                                <td>
+                                    <div class="property-list-value">{{ $property->type?->name ?? '-' }}</div>
+                                </td>
+                                <td>
+                                    @php
+                                        $zoneName = $property->zone?->name;
+                                        $zoneText = filled($property->zone_text) ? trim((string) $property->zone_text) : null;
+                                        $zoneDisplay = $zoneName ?: $zoneText ?: '-';
+                                        $showZoneTextDetail = $zoneName && $zoneText && strcasecmp($zoneName, $zoneText) !== 0;
+                                    @endphp
+                                    <div class="property-list-value">{{ $zoneDisplay }}</div>
+                                    @if ($showZoneTextDetail)
+                                        <div class="property-list-meta">{{ $zoneText }}</div>
+                                    @endif
+                                </td>
+                                <td>
+                                    <span
+                                        class="badge {{ $property->status_badge_class }}">{{ $property->status_label }}</span>
+                                </td>
+                                <td>
+                                    <div class="property-list-value">{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}</div>
+                                </td>
                                     <td data-search="{{ $assignedAdvisorNames ?: 'Sin asesor' }}">
                                         @if ($canManagePropertyAdvisors)
                                             <span class="dropup dropdown maintenance-inline-dropdown maintenance-provider-dropdown" data-property-advisor-action>
@@ -254,7 +374,7 @@
                                         @endif
                                     </td>
                                     <td>
-                                        {{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}
+                                        <div class="property-list-value">{{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}</div>
                                     </td>
                                     <td>
                                         @if ($property->incidents_count > 0)
@@ -266,10 +386,10 @@
                                             <span class="text-muted">0</span>
                                         @endif
                                     </td>
-                                    <td class="text-end">
-                                        <div class="d-flex flex-wrap justify-content-end gap-1">
+                                    <td class="text-end pe-7">
+                                        <div class="property-list-actions">
                                             <a href="{{ route('properties.show', $property) }}"
-                                                class="btn btn-xs btn-light-primary">
+                                                class="btn btn-sm btn-light-primary">
                                                 Ver
                                             </a>
 
@@ -307,7 +427,6 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
         </div>
 
     </div>
@@ -316,7 +435,15 @@
 @push('scripts')
     <script>
         (() => {
+            const form = document.getElementById('propertySearchForm');
             const tableElement = document.getElementById('properties_table');
+            const textSearchInput = document.getElementById('properties_text_search');
+            const resultCount = document.getElementById('propertyResultCount');
+
+            form?.addEventListener('submit', (event) => {
+                event.preventDefault();
+            });
+
             if (!tableElement || typeof $ === 'undefined' || !$.fn.DataTable) {
                 return;
             }
@@ -328,39 +455,51 @@
 
             const dataTable = $(tableElement).DataTable({
                 dom: "rt<'row align-items-center'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7 d-flex justify-content-md-end'p>>",
-                pageLength: 30,
+                pageLength: 10,
                 lengthChange: false,
                 order: [],
                 info: true,
                 searching: true,
+                autoWidth: false,
                 language: {
-                    search: 'Buscar:',
-                    searchPlaceholder: 'Buscar...',
                     info: 'Mostrando _START_ a _END_ de _TOTAL_ propiedades',
                     infoEmpty: 'Mostrando 0 a 0 de 0 propiedades',
                     paginate: {
                         first: 'Primera',
-                        last: 'Última',
+                        last: 'Ultima',
                         next: 'Siguiente',
                         previous: 'Anterior',
                     },
                     emptyTable: 'Aún no hay propiedades registradas.',
-                    zeroRecords: 'No se encontraron coincidencias.',
+                    zeroRecords: 'No se encontraron coincidencias con este filtro.',
                 },
                 columnDefs: [
                     {
                         targets: [0, 9],
                         orderable: false,
+                        searchable: false,
                     },
                 ],
             });
 
-            const textSearchInput = document.getElementById('properties_text_search');
+            const syncResultCount = () => {
+                if (!resultCount) {
+                    return;
+                }
+
+                const count = dataTable.rows({ filter: 'applied' }).count();
+                resultCount.textContent = `${count} ${count === 1 ? 'resultado' : 'resultados'}`;
+            };
+
             if (textSearchInput) {
-                textSearchInput.addEventListener('keyup', (event) => {
-                    dataTable.search(event.target.value).draw();
+                textSearchInput.addEventListener('input', (event) => {
+                    dataTable.search(event.target.value || '').draw();
+                    syncResultCount();
                 });
             }
+
+            dataTable.on('draw', syncResultCount);
+            syncResultCount();
 
             if (window.bootstrap?.Dropdown) {
                 const openAdvisorMenus = new Set();
