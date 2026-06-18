@@ -238,7 +238,9 @@ class PropertyController extends Controller
             'current_tenant_name' => $tenant?->full_name,
         ]);
 
-        return redirect()->back()->with('success', 'Inquilino actualizado correctamente.');
+        return redirect()
+            ->back()
+            ->with('success', $tenant ? 'Inquilino actualizado correctamente.' : 'Inquilino quitado correctamente.');
     }
 
     public function show(Property $property): View
@@ -410,7 +412,8 @@ class PropertyController extends Controller
             ->where('property_id', $property->id)
             ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
             ->count();
-        $canReassignTenant = !$property->tenant_id || ($propertyOpenChargesCount === 0 && (int) $chargesVencidos === 0);
+        $canRemoveTenant = (bool) $property->tenant_id && $propertyOpenChargesCount === 0 && (int) $chargesVencidos === 0;
+        $canReassignTenant = !$property->tenant_id || $canRemoveTenant;
         $expenseBaseQuery = fn() => Expense::query()->where('property_id', $property->id);
         $propertyExpenseSummary = [
             'pending_total' => (float) $expenseBaseQuery()->pending()->sum('amount'),
@@ -446,6 +449,7 @@ class PropertyController extends Controller
             'propertyPendingValidationCount' => (int) $propertyPendingValidationCount,
             'propertyCurrentMonthLabel' => Carbon::create(now()->year, now()->month, 1)->translatedFormat('M Y'),
             'canReassignTenant' => $canReassignTenant,
+            'canRemoveTenant' => $canRemoveTenant,
             'propertyExpenseSummary' => $propertyExpenseSummary,
             'globalExpenseNotificationSetup' => $globalExpenseNotificationSetup,
             'resolvedPropertyExpenseNotificationSetup' => $resolvedPropertyExpenseNotificationSetup,

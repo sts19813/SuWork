@@ -11,6 +11,7 @@
     $canManageAccess = $user->can('usuarios.gestionar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canViewPropertyControl = $user->can('propiedades.control_ver') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canConfigureDossiers = $user->can('expedientes.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
+    $canConfigureNotifications = $user->can('notificaciones.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $homeRoute = ($isTenant || $isTechnician) ? 'maintenance.index' : 'dashboard';
     $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : 'Panel SuWork');
     $currentHour = now()->hour;
@@ -53,13 +54,16 @@
             ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
             ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
             [
-                'patterns' => ['settings.dossiers.*', 'access.*', 'profile.*'],
+                'patterns' => ['settings.dossiers.*', 'settings.notifications.*', 'access.*', 'profile.*'],
                 'label' => 'Configuración',
                 'icon' => 'bi-gear',
                 'children' => [
                     ...($canConfigureDossiers ? [
                         ['patterns' => ['settings.dossiers.index', 'settings.dossiers.requirements.*'], 'route' => 'settings.dossiers.index', 'label' => 'Expedientes', 'icon' => 'bi-sliders'],
                         ['patterns' => ['settings.dossiers.storage', 'settings.dossiers.storage.*'], 'route' => 'settings.dossiers.storage', 'label' => 'Almacenamiento', 'icon' => 'bi-hdd'],
+                    ] : []),
+                    ...($canConfigureNotifications ? [
+                        ['patterns' => ['settings.notifications.*'], 'route' => 'settings.notifications.index', 'label' => 'Notificaciones', 'icon' => 'bi-bell'],
                     ] : []),
                     ...($canManageAccess ? [
                         ['patterns' => ['access.*'], 'route' => 'access.index', 'label' => 'Usuarios y permisos', 'icon' => 'bi-shield-lock'],

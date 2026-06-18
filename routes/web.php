@@ -8,6 +8,7 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InventoryCheckController;
 use App\Http\Controllers\MaintenanceController;
+use App\Http\Controllers\NotificationConfigurationController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\TenantController;
@@ -110,6 +111,8 @@ Route::middleware(['auth', 'system.access'])
 
         Route::get('/configuracion/expedientes', [DossierConfigurationController::class, 'index'])->name('settings.dossiers.index');
         Route::get('/configuracion/almacenamiento-expedientes', [DossierConfigurationController::class, 'storage'])->name('settings.dossiers.storage');
+        Route::get('/configuracion/notificaciones', [NotificationConfigurationController::class, 'index'])->name('settings.notifications.index');
+        Route::patch('/configuracion/notificaciones', [NotificationConfigurationController::class, 'update'])->name('settings.notifications.update');
         Route::post('/configuracion/expedientes/documentos', [DossierConfigurationController::class, 'store'])->name('settings.dossiers.requirements.store');
         Route::put('/configuracion/expedientes/documentos/{requirement}', [DossierConfigurationController::class, 'update'])->name('settings.dossiers.requirements.update');
         Route::delete('/configuracion/expedientes/documentos/{requirement}', [DossierConfigurationController::class, 'destroy'])->name('settings.dossiers.requirements.destroy');

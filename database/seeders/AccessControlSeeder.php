@@ -18,6 +18,7 @@ class AccessControlSeeder extends Seeder
             'expedientes.configurar',
             'expedientes.eliminar_archivos',
             'expedientes.ver_bitacora_eliminados',
+            'notificaciones.configurar',
             'propiedades.control_ver',
             'propiedades.ver_propias',
             'propiedades.asignar_asesores',
