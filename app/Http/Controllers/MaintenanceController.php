@@ -13,6 +13,7 @@ use App\Models\MaintenanceTicketMessage;
 use App\Models\MaintenanceTicketNotification;
 use App\Models\Property;
 use App\Models\User;
+use App\Support\NotificationSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -876,7 +877,8 @@ class MaintenanceController extends Controller
         if (!empty($validated['recipient_user_id'])) {
             $recipient = User::query()->find((int) $validated['recipient_user_id']);
         }
-        if (filled($recipient?->email)) {
+        $recipientRole = NotificationSettings::roleForUser($recipient);
+        if (filled($recipient?->email) && (!$recipientRole || NotificationSettings::allows($recipientRole, NotificationSettings::EVENT_MAINTENANCE_MESSAGE))) {
             try {
                 Mail::raw(
                     "Nuevo mensaje en ticket {$maintenance->uuid}: " . $message->message,
@@ -945,7 +947,13 @@ class MaintenanceController extends Controller
             'user_id' => $linkedUser?->id,
         ]);
 
-        if ((bool) ($validated['send_credentials_email'] ?? false) && $linkedUser && filled($generatedPassword) && filled($linkedUser->email)) {
+        if (
+            (bool) ($validated['send_credentials_email'] ?? false)
+            && $linkedUser
+            && filled($generatedPassword)
+            && filled($linkedUser->email)
+            && NotificationSettings::allows(NotificationSettings::ROLE_TECHNICIAN, NotificationSettings::EVENT_ACCOUNT_CREATED)
+        ) {
             try {
                 Mail::raw(
                     "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: " . url('/login'),
@@ -1016,7 +1024,13 @@ class MaintenanceController extends Controller
             'is_active' => (bool) ($validated['is_active'] ?? false),
             'user_id' => $linkedUser?->id,
         ]);
-        if ((bool) ($validated['send_credentials_email'] ?? false) && $linkedUser && filled($generatedPassword) && filled($linkedUser->email)) {
+        if (
+            (bool) ($validated['send_credentials_email'] ?? false)
+            && $linkedUser
+            && filled($generatedPassword)
+            && filled($linkedUser->email)
+            && NotificationSettings::allows(NotificationSettings::ROLE_TECHNICIAN, NotificationSettings::EVENT_ACCOUNT_CREATED)
+        ) {
             try {
                 Mail::raw(
                     "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: " . url('/login'),
@@ -1448,22 +1462,58 @@ class MaintenanceController extends Controller
             'currentProvider:id,user_id,email,name',
             'currentProvider.user:id,email,name',
             'property.tenant:id,email,full_name',
+            'property.advisors:id,email,name',
             'property.owners:id,email,name',
         ]);
 
-        $emails = collect([
-            $ticket->reporter?->email,
-            $ticket->currentProvider?->email,
-            $ticket->currentProvider?->user?->email,
-            $ticket->property?->tenant?->email,
-            ...($ticket->property?->owners?->pluck('email')->all() ?? []),
+        $notificationEvent = $event === 'nuevo_reporte'
+            ? NotificationSettings::EVENT_MAINTENANCE_CREATED
+            : NotificationSettings::EVENT_MAINTENANCE_UPDATED;
+
+        $adminRecipients = User::query()
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['administrador', 'admin']))
+            ->get(['id', 'email'])
+            ->map(fn (User $user): array => [
+                'email' => $user->email,
+                'role' => NotificationSettings::ROLE_ADMIN,
+            ]);
+
+        $recipients = collect([
+            [
+                'email' => $ticket->reporter?->email,
+                'role' => NotificationSettings::roleForUser($ticket->reporter),
+            ],
+            [
+                'email' => $ticket->currentProvider?->email,
+                'role' => NotificationSettings::ROLE_TECHNICIAN,
+            ],
+            [
+                'email' => $ticket->currentProvider?->user?->email,
+                'role' => NotificationSettings::ROLE_TECHNICIAN,
+            ],
+            [
+                'email' => $ticket->property?->tenant?->email,
+                'role' => NotificationSettings::ROLE_TENANT,
+            ],
+            ...($ticket->property?->advisors?->map(fn (User $advisor): array => [
+                'email' => $advisor->email,
+                'role' => NotificationSettings::ROLE_ADVISOR,
+            ])->all() ?? []),
+            ...($ticket->property?->owners?->map(fn ($owner): array => [
+                'email' => $owner->email,
+                'role' => null,
+            ])->all() ?? []),
         ])
-            ->filter(fn($email) => filled($email))
-            ->map(fn($email) => trim((string) $email))
+            ->merge($adminRecipients)
+            ->filter(fn (array $recipient): bool => filled($recipient['email']))
+            ->filter(function (array $recipient) use ($notificationEvent): bool {
+                return !$recipient['role'] || NotificationSettings::allows($recipient['role'], $notificationEvent);
+            })
+            ->map(fn (array $recipient): string => trim((string) $recipient['email']))
             ->unique()
             ->values();
 
-        foreach ($emails as $email) {
+        foreach ($recipients as $email) {
             $sent = false;
             try {
                 Mail::raw(

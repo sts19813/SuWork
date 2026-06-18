@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use App\Mail\ExpenseNotificationMail;
 use App\Models\Expense;
 use App\Models\ExpenseNotificationSetting;
+use App\Models\User;
+use App\Support\NotificationSettings;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
 
@@ -70,8 +72,13 @@ class SendExpenseNotificationsCommand extends Command
                     }
 
                     $hasHandledChannel = false;
+                    $notificationEvent = $this->notificationEventForTrigger($trigger);
 
                     foreach ($emails as $email) {
+                        if (!$this->canNotifyEmail($email, $notificationEvent)) {
+                            continue;
+                        }
+
                         Mail::to($email)->send(new ExpenseNotificationMail($expense, $trigger, $daysBefore));
                         $hasHandledChannel = true;
                         $sent++;
@@ -121,5 +128,20 @@ class SendExpenseNotificationsCommand extends Command
         }
 
         return null;
+    }
+
+    private function notificationEventForTrigger(string $trigger): string
+    {
+        return $trigger === ExpenseNotificationMail::TRIGGER_OVERDUE
+            ? NotificationSettings::EVENT_EXPENSE_OVERDUE
+            : NotificationSettings::EVENT_EXPENSE_UPCOMING;
+    }
+
+    private function canNotifyEmail(string $email, string $event): bool
+    {
+        $user = User::query()->where('email', $email)->first();
+        $role = NotificationSettings::roleForUser($user);
+
+        return !$role || NotificationSettings::allows($role, $event);
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Requests\StoreTransferProofRequest;
 use App\Mail\ChargeCompletedMail;
 use App\Models\Charge;
 use App\Models\ChargePayment;
+use App\Support\NotificationSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -285,6 +286,9 @@ class ChargePaymentController extends Controller
     {
         $charge->loadMissing(['tenant:id,email,full_name']);
         if (!filled($charge->tenant?->email)) {
+            return;
+        }
+        if (!NotificationSettings::allows(NotificationSettings::ROLE_TENANT, NotificationSettings::EVENT_PAYMENT_CONFIRMED)) {
             return;
         }
 

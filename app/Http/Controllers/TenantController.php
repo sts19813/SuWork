@@ -8,6 +8,7 @@ use App\Models\Tenant;
 use App\Models\TenantDocument;
 use App\Models\User;
 use App\Services\DossierDocumentRequirementService;
+use App\Support\NotificationSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -173,6 +174,10 @@ class TenantController extends Controller
 
     private function sendTenantAccessEmail(string $email, string $password): void
     {
+        if (!NotificationSettings::allows(NotificationSettings::ROLE_TENANT, NotificationSettings::EVENT_ACCOUNT_CREATED)) {
+            return;
+        }
+
         try {
             Mail::raw(
                 "Tu cuenta de inquilino fue creada.\n\nAcceso:\nCorreo: {$email}\nContraseña: {$password}\n\nPortal: " . url('/login'),

@@ -17,6 +17,7 @@ use App\Models\Tenant;
 use App\Models\TenantDocument;
 use App\Models\User;
 use App\Services\DossierDocumentRequirementService;
+use App\Support\NotificationSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -562,6 +563,9 @@ class ChargeController extends Controller
         $charge->loadMissing(['tenant:id,full_name,email']);
         if (!filled($charge->tenant?->email)) {
             return redirect()->back()->with('error', 'El inquilino no tiene correo configurado.');
+        }
+        if (!NotificationSettings::allows(NotificationSettings::ROLE_TENANT, NotificationSettings::EVENT_PAYMENT_REMINDER)) {
+            return redirect()->back()->with('warning', 'Las notificaciones de recordatorio de pago para inquilinos están desactivadas.');
         }
 
         Mail::to($charge->tenant->email)->send(new ChargeReminderMail($charge, $daysBefore, $message));
@@ -1156,6 +1160,9 @@ class ChargeController extends Controller
     {
         $charge->loadMissing(['tenant:id,email,full_name']);
         if (!filled($charge->tenant?->email)) {
+            return;
+        }
+        if (!NotificationSettings::allows(NotificationSettings::ROLE_TENANT, NotificationSettings::EVENT_PAYMENT_CONFIRMED)) {
             return;
         }
 
