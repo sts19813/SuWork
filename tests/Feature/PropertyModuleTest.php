@@ -134,6 +134,72 @@ class PropertyModuleTest extends TestCase
         $this->assertSame($advisor->id, $property->fresh()->advisor_user_id);
     }
 
+    public function test_property_advisor_dropdown_only_shows_advisors_and_admins(): void
+    {
+        $adminRole = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $tenantRole = Role::query()->create(['name' => 'inquilino', 'guard_name' => 'web']);
+        $admin = User::factory()->create(['name' => 'Admin Visible']);
+        $admin->assignRole($adminRole);
+        $advisor = User::factory()->create(['name' => 'Asesor Visible']);
+        $advisor->assignRole($advisorRole);
+        $tenantUser = User::factory()->create(['name' => 'Inquilino Oculto']);
+        $tenantUser->assignRole($tenantRole);
+        $permissionUser = User::factory()->create(['name' => 'Permiso Oculto']);
+        Permission::findOrCreate('propiedades.ver_propias', 'web');
+        $permissionUser->givePermissionTo('propiedades.ver_propias');
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        Property::create([
+            'internal_name' => 'Casa Filtro Asesores',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Filtro',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('properties.index'))
+            ->assertOk()
+            ->assertSee('Admin Visible')
+            ->assertSee('Asesor Visible')
+            ->assertDontSee('Inquilino Oculto')
+            ->assertDontSee('Permiso Oculto');
+    }
+
+    public function test_property_advisor_assignment_rejects_users_without_advisor_or_admin_role(): void
+    {
+        $adminRole = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        $tenantRole = Role::query()->create(['name' => 'inquilino', 'guard_name' => 'web']);
+        $admin = User::factory()->create();
+        $admin->assignRole($adminRole);
+        $tenantUser = User::factory()->create();
+        $tenantUser->assignRole($tenantRole);
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        $property = Property::create([
+            'internal_name' => 'Casa Rechazo Asesor',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Rechazo',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->putJson(route('properties.update.advisors', $property), [
+                'advisor_user_ids' => [$tenantUser->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('advisor_user_ids');
+
+        $this->assertDatabaseMissing('property_advisor', [
+            'property_id' => $property->id,
+            'user_id' => $tenantUser->id,
+        ]);
+    }
+
     public function test_property_advisor_assignment_requires_specific_permission(): void
     {
         $manager = User::factory()->create();
