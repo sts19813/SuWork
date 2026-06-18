@@ -162,6 +162,21 @@ class PropertyController extends Controller
             ->filter()
             ->unique()
             ->values();
+        $availableAdvisorIds = $this->availableAdvisors()->pluck('id');
+
+        if ($advisorIds->diff($availableAdvisorIds)->isNotEmpty()) {
+            return $request->expectsJson() || $request->ajax()
+                ? response()->json([
+                    'success' => false,
+                    'message' => 'Solo puedes asignar usuarios con rol de asesor o administrador.',
+                    'errors' => [
+                        'advisor_user_ids' => ['Solo puedes asignar usuarios con rol de asesor o administrador.'],
+                    ],
+                ], 422)
+                : redirect()
+                    ->back()
+                    ->withErrors(['advisor_user_ids' => 'Solo puedes asignar usuarios con rol de asesor o administrador.']);
+        }
 
         $property->advisors()->sync($advisorIds->all());
         $property->update([
@@ -619,10 +634,13 @@ class PropertyController extends Controller
     {
         return User::query()
             ->where('is_active', true)
-            ->where(function ($query): void {
-                $query->whereHas('roles')
-                    ->orWhereHas('permissions');
-            })
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', [
+                'asesores',
+                'asesor',
+                'advisor',
+                'administrador',
+                'admin',
+            ]))
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
     }
