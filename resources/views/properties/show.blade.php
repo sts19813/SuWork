@@ -200,6 +200,24 @@
                                                 </button>
 
                                                 <ul class="dropdown-menu">
+                                                    @if ($canRemoveTenant)
+                                                        <li>
+                                                            <form method="POST"
+                                                                action="{{ route('properties.update.tenant', $property) }}"
+                                                                class="d-inline js-remove-tenant-form"
+                                                                data-current-tenant-name="{{ $property->tenant?->full_name ?: 'el inquilino actual' }}">
+                                                                @csrf
+                                                                @method('PUT')
+
+                                                                <input type="hidden" name="tenant_id" value="">
+
+                                                                <button type="submit" class="dropdown-item text-danger">
+                                                                    <i class="bi bi-person-dash me-2"></i> Quitar inquilino
+                                                                </button>
+                                                            </form>
+                                                        </li>
+                                                        <li><hr class="dropdown-divider"></li>
+                                                    @endif
                                                     @foreach ($tenants as $tenant)
                                                         @php
                                                             $assignmentCheck = $tenantAssignmentChecks[(string) $tenant->id] ?? ['missing' => [], 'is_complete' => true];
@@ -1388,6 +1406,36 @@
 @push('scripts')
     <script>
         (() => {
+            document.querySelectorAll('.js-remove-tenant-form').forEach((form) => {
+                form.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+
+                    const tenantName = form.dataset.currentTenantName || 'el inquilino actual';
+                    const message = `¿Deseas quitar a ${tenantName} de esta propiedad?`;
+                    let confirmed = false;
+
+                    if (window.Swal?.fire) {
+                        const result = await window.Swal.fire({
+                            title: 'Quitar inquilino',
+                            text: message,
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'Sí, quitar',
+                            cancelButtonText: 'Cancelar',
+                            confirmButtonColor: '#d9214e',
+                            reverseButtons: true,
+                        });
+                        confirmed = !!result.isConfirmed;
+                    } else {
+                        confirmed = window.confirm(message);
+                    }
+
+                    if (confirmed) {
+                        form.submit();
+                    }
+                });
+            });
+
             document.querySelectorAll('.js-assign-tenant-form').forEach((form) => {
                 form.addEventListener('submit', async (event) => {
                     const forceInput = form.querySelector('input[name="force_assignment"]');

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Charge;
 use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyType;
@@ -436,5 +437,95 @@ class PropertyModuleTest extends TestCase
             'status' => Property::STATUS_OCCUPIED,
             'tenant_id' => $tenant->id,
         ]);
+    }
+
+    public function test_remove_tenant_option_is_shown_when_property_has_no_pending_charges(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Playa', 'slug' => 'playa', 'is_active' => true]);
+        $tenant = Tenant::create([
+            'full_name' => 'Inquilino Pagado',
+            'phone_primary' => '9991112233',
+            'dossier_status' => Tenant::DOSSIER_COMPLETE,
+            'is_active' => true,
+        ]);
+        $property = Property::create([
+            'internal_name' => 'Casa Sin Pendientes',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 30',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+            'created_by' => $user->id,
+        ]);
+        Charge::create([
+            'property_id' => $property->id,
+            'tenant_id' => $tenant->id,
+            'type' => Charge::TYPE_RENT,
+            'due_date' => now()->subMonth()->toDateString(),
+            'amount' => 1000,
+            'paid_amount' => 1000,
+            'period_month' => now()->subMonth()->month,
+            'period_year' => now()->subMonth()->year,
+            'concept' => 'Renta pagada',
+            'status' => Charge::STATUS_PAID,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertSee('data-current-tenant-name="Inquilino Pagado"', false);
+
+        $this->actingAs($user)
+            ->from(route('properties.show', $property))
+            ->put(route('properties.update.tenant', $property), ['tenant_id' => ''])
+            ->assertRedirect(route('properties.show', $property))
+            ->assertSessionHas('success', 'Inquilino quitado correctamente.');
+
+        $this->assertNull($property->fresh()->tenant_id);
+    }
+
+    public function test_remove_tenant_option_is_hidden_when_property_has_pending_charges(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Playa', 'slug' => 'playa', 'is_active' => true]);
+        $tenant = Tenant::create([
+            'full_name' => 'Inquilino Pendiente',
+            'phone_primary' => '9991112233',
+            'dossier_status' => Tenant::DOSSIER_COMPLETE,
+            'is_active' => true,
+        ]);
+        $property = Property::create([
+            'internal_name' => 'Casa Con Pendientes',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 31',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+            'created_by' => $user->id,
+        ]);
+        Charge::create([
+            'property_id' => $property->id,
+            'tenant_id' => $tenant->id,
+            'type' => Charge::TYPE_RENT,
+            'due_date' => now()->addWeek()->toDateString(),
+            'amount' => 1000,
+            'paid_amount' => 0,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+            'concept' => 'Renta pendiente',
+            'status' => Charge::STATUS_PENDING,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertDontSee('data-current-tenant-name="Inquilino Pendiente"', false);
     }
 }
