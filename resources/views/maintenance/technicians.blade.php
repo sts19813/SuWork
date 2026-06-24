@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Técnicos | SuWork')
+@section('title', 'Administración de técnicos | SuWork')
 
 @section('content')
     <div class="py-10">
@@ -13,8 +13,8 @@
 
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-6">
             <div>
-                <h1 class="mb-1 fw-bold">Mantenimiento / Técnicos</h1>
-                <div class="text-muted">Submódulo de alta y edición de técnicos/proveedores</div>
+                <h1 class="mb-1 fw-bold">Administración de técnicos</h1>
+                <div class="text-muted">Alta, acceso al sistema y edición de técnicos/proveedores de mantenimiento</div>
             </div>
             <div class="d-flex gap-2">
                 <a class="btn btn-light" href="{{ route('maintenance.index') }}">Regresar</a>

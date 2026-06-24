@@ -30,7 +30,11 @@ class DashboardController extends Controller
         $visiblePropertyIds = $isAdvisorUser && $propertyScope === 'mine'
             ? $this->advisorPropertyIds($request)
             : null;
-        $selectedAdvisorId = isset($validated['advisor_user_id']) ? (int) $validated['advisor_user_id'] : null;
+        $availableAdvisors = $this->availableAdvisors();
+        $requestedAdvisorId = isset($validated['advisor_user_id']) ? (int) $validated['advisor_user_id'] : null;
+        $selectedAdvisorId = $requestedAdvisorId && $availableAdvisors->contains('id', $requestedAdvisorId)
+            ? $requestedAdvisorId
+            : null;
         $filteredPropertyIds = $this->intersectPropertyIds(
             $visiblePropertyIds,
             $selectedAdvisorId ? $this->advisorFilterPropertyIds($selectedAdvisorId) : null,
@@ -58,7 +62,7 @@ class DashboardController extends Controller
             'isAdvisorUser' => $isAdvisorUser,
             'propertyScope' => $propertyScope,
             'selectedAdvisorId' => $selectedAdvisorId,
-            'availableAdvisors' => $this->availableAdvisors(),
+            'availableAdvisors' => $availableAdvisors,
             'dashboardKpis' => $kpis,
             'collectionSummary' => $collectionSummary,
             'importantAlerts' => $alerts,
@@ -555,10 +559,12 @@ class DashboardController extends Controller
     {
         return User::query()
             ->where('is_active', true)
-            ->where(function ($query): void {
-                $query->whereHas('roles')
-                    ->orWhereHas('permissions');
-            })
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', [
+                'administrador',
+                'admin',
+                'asesores',
+                'asesor',
+            ]))
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
     }

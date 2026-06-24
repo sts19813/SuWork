@@ -192,7 +192,7 @@ class UserAccessController extends Controller
     private function accessData(Request $request): array
     {
         $filters = $request->validate([
-            'tab' => ['nullable', 'string', Rule::in(['users', 'roles', 'permissions'])],
+            'tab' => ['nullable', 'string', Rule::in(['users', 'roles', 'permissions', 'tenants'])],
         ]);
         $activeTab = (string) ($filters['tab'] ?? 'users');
 
@@ -203,9 +203,17 @@ class UserAccessController extends Controller
             ->with(['roles:name,id', 'permissions:name,id'])
             ->orderBy('name')
             ->get();
+        $tenantUsers = $users
+            ->filter(fn(User $user): bool => $this->userHasTenantRole($user))
+            ->values();
+        $administrativeUsers = $users
+            ->reject(fn(User $user): bool => $this->userHasTenantRole($user))
+            ->values();
 
         return [
             'users' => $users,
+            'administrativeUsers' => $administrativeUsers,
+            'tenantUsers' => $tenantUsers,
             'roles' => $roles,
             'permissions' => $permissions,
             'activeTab' => $activeTab,
@@ -214,6 +222,11 @@ class UserAccessController extends Controller
             'rolesCount' => $roles->count(),
             'permissionsCount' => $permissions->count(),
         ];
+    }
+
+    private function userHasTenantRole(User $user): bool
+    {
+        return $user->roles->contains(fn(Role $role): bool => in_array($role->name, ['inquilino', 'tenant'], true));
     }
 
     private function respond(Request $request, string $message, string $tab): RedirectResponse|JsonResponse

@@ -116,7 +116,7 @@
                         </button>
                         @if ($canManageProviders)
                             <a class="maintenance-soft-btn" href="{{ route('maintenance.technicians.index') }}">
-                                <i class="bi bi-person-gear"></i> Técnicos
+                                <i class="bi bi-person-gear"></i> Administración de técnicos
                             </a>
                         @endif
                     @endif
@@ -460,7 +460,7 @@
                             <div class="maintenance-side-panel">
                                 <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
                                     <h3 class="maintenance-panel-title mb-0">Equipo</h3>
-                                    <a class="maintenance-soft-btn py-2" href="{{ route('maintenance.technicians.index') }}">Gestionar</a>
+                                    <a class="maintenance-soft-btn py-2" href="{{ route('maintenance.technicians.index') }}">Administrar</a>
                                 </div>
                                 @forelse ($providers->take(5) as $provider)
                                     <div class="maintenance-mini-row">

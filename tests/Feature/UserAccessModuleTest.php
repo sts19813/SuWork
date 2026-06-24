@@ -70,6 +70,39 @@ class UserAccessModuleTest extends TestCase
             ->assertDontSee('<!DOCTYPE html>', false);
     }
 
+    public function test_tenant_role_users_are_shown_in_separate_final_tab(): void
+    {
+        $admin = $this->adminUser();
+        Role::query()->create(['name' => 'asesor', 'guard_name' => 'web']);
+        Role::query()->create(['name' => 'inquilino', 'guard_name' => 'web']);
+
+        $advisor = User::factory()->create([
+            'name' => 'Usuario Administrativo Demo',
+            'email' => 'administrativo@example.com',
+        ]);
+        $advisor->assignRole('asesor');
+
+        $tenant = User::factory()->create([
+            'name' => 'Usuario Inquilino Demo',
+            'email' => 'inquilino.demo@example.com',
+        ]);
+        $tenant->assignRole('inquilino');
+
+        $html = $this->actingAs($admin)
+            ->get(route('access.index'))
+            ->assertOk()
+            ->assertSee('data-tab-key="tenants"', false)
+            ->assertSee('Inquilinos')
+            ->getContent();
+
+        $usersTab = $this->htmlBetween($html, 'id="access-users-tab"', 'id="access-roles-tab"');
+        $tenantsTab = $this->htmlBetween($html, 'id="access-tenants-tab"', '<div class="modal fade" id="createUserModal"');
+
+        $this->assertStringContainsString('Usuario Administrativo Demo', $usersTab);
+        $this->assertStringNotContainsString('Usuario Inquilino Demo', $usersTab);
+        $this->assertStringContainsString('Usuario Inquilino Demo', $tenantsTab);
+    }
+
     private function adminUser(): User
     {
         $role = Role::query()->firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
@@ -77,5 +110,16 @@ class UserAccessModuleTest extends TestCase
         $user->assignRole($role);
 
         return $user;
+    }
+
+    private function htmlBetween(string $html, string $start, string $end): string
+    {
+        $startPosition = strpos($html, $start);
+        $this->assertNotFalse($startPosition, "No se encontró el inicio {$start}.");
+
+        $endPosition = strpos($html, $end, (int) $startPosition);
+        $this->assertNotFalse($endPosition, "No se encontró el final {$end}.");
+
+        return substr($html, (int) $startPosition, (int) $endPosition - (int) $startPosition);
     }
 }
