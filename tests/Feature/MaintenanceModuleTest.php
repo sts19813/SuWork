@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -253,6 +254,68 @@ class MaintenanceModuleTest extends TestCase
             'ticket_id' => $ticket->id,
             'provider_id' => $provider->id,
             'is_current' => true,
+        ]);
+    }
+
+    public function test_user_without_technician_administration_permission_cannot_open_technicians_module(): void
+    {
+        Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $advisor = User::factory()->create();
+        $advisor->assignRole('asesores');
+
+        $this->actingAs($advisor)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertDontSee('Administración de técnicos');
+
+        $this->actingAs($advisor)
+            ->get(route('maintenance.technicians.index'))
+            ->assertForbidden();
+    }
+
+    public function test_user_with_technician_administration_permission_can_create_provider_and_system_access(): void
+    {
+        Mail::fake();
+
+        Permission::findOrCreate('administracion de tecnicos', 'web');
+        Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $advisor = User::factory()->create();
+        $advisor->assignRole('asesores');
+        $advisor->givePermissionTo('administracion de tecnicos');
+
+        $this->actingAs($advisor)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertSee('Administración de técnicos');
+
+        $this->actingAs($advisor)
+            ->get(route('maintenance.technicians.index'))
+            ->assertOk()
+            ->assertSee('Administración de técnicos');
+
+        $response = $this->actingAs($advisor)
+            ->post(route('maintenance.providers.store'), [
+                'type' => 'tecnico_interno',
+                'name' => 'Técnico Permiso',
+                'email' => 'tecnico.permiso@example.com',
+                'phone' => '9991234567',
+                'specialty' => 'Electricidad',
+                'is_active' => '1',
+                'create_user_account' => '1',
+                'account_name' => 'Técnico Permiso',
+                'account_email' => 'acceso.tecnico@example.com',
+                'account_password' => 'password-tecnico',
+            ]);
+
+        $response->assertRedirect();
+
+        $linkedUser = User::query()->where('email', 'acceso.tecnico@example.com')->firstOrFail();
+        $this->assertTrue($linkedUser->hasRole('tecnico'));
+        $this->assertDatabaseHas('maintenance_providers', [
+            'name' => 'Técnico Permiso',
+            'email' => 'tecnico.permiso@example.com',
+            'user_id' => $linkedUser->id,
+            'is_active' => true,
         ]);
     }
 

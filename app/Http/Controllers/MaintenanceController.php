@@ -32,6 +32,8 @@ use Spatie\Permission\Models\Role;
 
 class MaintenanceController extends Controller
 {
+    private const MANAGE_TECHNICIANS_PERMISSION = 'administracion de tecnicos';
+
     public function index(Request $request): View
     {
         $user = $request->user();
@@ -224,7 +226,7 @@ class MaintenanceController extends Controller
             'calendarItems' => $calendarItems,
             'role' => $role,
             'canCreateTicket' => in_array($role, ['administrador', 'inquilino', 'tecnico'], true),
-            'canManageProviders' => $role === 'administrador',
+            'canManageProviders' => $this->canManageTechnicians($user),
             'canManageAssignments' => $role === 'administrador',
             'canUpdateTicketMeta' => in_array($role, ['administrador', 'tecnico'], true),
             'canManageCosts' => $role === 'administrador',
@@ -234,10 +236,7 @@ class MaintenanceController extends Controller
 
     public function technicians(Request $request): View
     {
-        $user = $request->user();
-        if ($this->resolveRole($user) !== 'administrador') {
-            abort(403);
-        }
+        $this->ensureCanManageTechnicians($request);
 
         $providers = MaintenanceProvider::query()
             ->with('user:id,name,email')
@@ -893,10 +892,7 @@ class MaintenanceController extends Controller
 
     public function storeProvider(Request $request): RedirectResponse
     {
-        $user = $request->user();
-        if ($this->resolveRole($user) !== 'administrador') {
-            abort(403);
-        }
+        $this->ensureCanManageTechnicians($request);
 
         $validated = $request->validate([
             'type' => ['required', Rule::in(array_keys(MaintenanceProvider::TYPE_LABELS))],
@@ -971,10 +967,7 @@ class MaintenanceController extends Controller
 
     public function updateProvider(Request $request, MaintenanceProvider $provider): RedirectResponse
     {
-        $user = $request->user();
-        if ($this->resolveRole($user) !== 'administrador') {
-            abort(403);
-        }
+        $this->ensureCanManageTechnicians($request);
 
         $validated = $request->validate([
             'type' => ['required', Rule::in(array_keys(MaintenanceProvider::TYPE_LABELS))],
@@ -1097,6 +1090,23 @@ class MaintenanceController extends Controller
         if (!$user->hasRole($role->name)) {
             $user->assignRole($role);
         }
+    }
+
+    private function ensureCanManageTechnicians(Request $request): void
+    {
+        if (!$this->canManageTechnicians($request->user())) {
+            abort(403);
+        }
+    }
+
+    private function canManageTechnicians(?User $user): bool
+    {
+        return (bool) $user
+            && (
+                $user->hasRole('administrador')
+                || $user->hasRole('admin')
+                || $user->can(self::MANAGE_TECHNICIANS_PERMISSION)
+            );
     }
 
     private function resolveRole(?User $user): string
