@@ -1948,8 +1948,7 @@ td .btn {
 
     .su-admin-layout .app-content,
     .su-admin-layout .su-layout-content {
-        padding-top: 0 !important;
-        padding-bottom: calc(108px + env(safe-area-inset-bottom)) !important;
+        padding: 15px 15px calc(108px + env(safe-area-inset-bottom)) 15px !important;
     }
 
     .su-admin-layout .app-container {

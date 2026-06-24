@@ -29,7 +29,7 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = $request->user();
-        if (!$user || !$user->hasSystemAccess()) {
+        if (! $user || ! $user->hasSystemAccess()) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
@@ -39,9 +39,16 @@ class AuthenticatedSessionController extends Controller
                 ->with('warning', 'Tu usuario aún no tiene acceso al sistema. Espera a que se te asigne un rol o permiso.');
         }
 
-        $defaultRoute = $user && ($user->hasRole('inquilino') || $user->hasRole('tenant'))
-            ? 'maintenance.index'
-            : 'dashboard';
+        $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
+        $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
+        $isAdmin = $user->hasRole('administrador') || $user->hasRole('admin');
+        $isAdvisor = ! $isAdmin && ($user->hasRole('asesores') || $user->hasRole('asesor') || $user->can('propiedades.ver_propias'));
+
+        $defaultRoute = match (true) {
+            $isTenant || $isTechnician => 'maintenance.index',
+            $isAdvisor => 'advisor.tasks.index',
+            default => 'dashboard',
+        };
 
         return redirect()->intended(route($defaultRoute, absolute: false));
     }
