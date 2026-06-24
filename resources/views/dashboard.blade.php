@@ -25,20 +25,220 @@
                 padding-right: 0.25rem;
             }
         }
+
+        @media (max-width: 767.98px) {
+            .executive-dashboard {
+                padding-top: 0 !important;
+            }
+
+            .executive-dashboard .dashboard-mobile-shell {
+                margin-bottom: 1rem !important;
+            }
+
+            .executive-dashboard .dashboard-filter-panel {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.75rem !important;
+                width: 100%;
+                padding: 0.85rem;
+                border: 1px solid #e9edf4;
+                border-radius: 8px;
+                background: #fff;
+                box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+            }
+
+            .executive-dashboard .dashboard-filter-field {
+                min-width: 0;
+            }
+
+            .executive-dashboard .dashboard-filter-field--wide {
+                grid-column: 1 / -1;
+            }
+
+            .executive-dashboard .dashboard-filter-panel .form-label {
+                margin-bottom: 0.35rem !important;
+                color: #8b96b2 !important;
+                font-size: 0.62rem !important;
+                letter-spacing: 0.04em;
+            }
+
+            .executive-dashboard .dashboard-filter-panel .form-select,
+            .executive-dashboard .dashboard-filter-panel .form-control {
+                width: 100% !important;
+                min-height: 42px;
+                border-color: #e4e9f2;
+                border-radius: 8px;
+                color: #1d2638;
+                font-size: 0.78rem;
+                font-weight: 700;
+                box-shadow: none;
+            }
+
+            .executive-dashboard .dashboard-filter-submit {
+                grid-column: 2;
+                align-self: end;
+                min-height: 42px;
+                border-radius: 8px;
+                font-size: 0.76rem;
+                font-weight: 800;
+                padding-inline: 0.75rem;
+            }
+
+            .executive-dashboard .dashboard-kpi-row {
+                --bs-gutter-x: 0.75rem;
+                --bs-gutter-y: 0.75rem;
+                margin-bottom: 1rem !important;
+            }
+
+            .executive-dashboard .dashboard-kpi-col {
+                width: 50%;
+                flex: 0 0 auto;
+            }
+
+            .executive-dashboard .dashboard-kpi-col .card,
+            .executive-dashboard > .row .card {
+                border: 1px solid #edf1f7;
+                border-radius: 8px;
+                box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+            }
+
+            .executive-dashboard .dashboard-kpi-col .card-body {
+                min-height: 128px;
+                padding: 1rem !important;
+            }
+
+            .executive-dashboard .dashboard-kpi-col .text-gray-600 {
+                min-height: 2.15rem;
+                color: #8b96b2 !important;
+                font-size: 0.68rem !important;
+                line-height: 1.35;
+            }
+
+            .executive-dashboard .dashboard-kpi-col .fs-2x {
+                font-size: 1.08rem !important;
+                line-height: 1.2;
+                word-break: break-word;
+            }
+
+            .executive-dashboard .executive-kpi-icon {
+                width: 34px;
+                height: 34px;
+                border-radius: 8px;
+                background: #f6f8fc;
+                font-size: 0.95rem;
+                flex: 0 0 auto;
+            }
+
+            .executive-dashboard .dashboard-content-row {
+                --bs-gutter-x: 0;
+                --bs-gutter-y: 0.95rem;
+                margin-bottom: 0.95rem !important;
+            }
+
+            .executive-dashboard .card-header {
+                min-height: 0;
+                padding: 1rem 1rem 0 !important;
+            }
+
+            .executive-dashboard .card-title {
+                margin-bottom: 0.2rem;
+                font-size: 1rem;
+            }
+
+            .executive-dashboard .card-body {
+                padding: 1rem !important;
+            }
+
+            .executive-dashboard #dashboard_collection_pie {
+                min-height: 210px !important;
+                margin-top: -0.75rem;
+            }
+
+            .executive-dashboard .executive-alert {
+                gap: 0.8rem !important;
+                padding: 0.85rem;
+                border-radius: 8px;
+            }
+
+            .executive-dashboard .executive-alert__icon {
+                width: 38px;
+                height: 38px;
+                border-radius: 8px;
+            }
+
+            .executive-dashboard #dashboard_properties_card {
+                display: flex;
+                flex-direction: column;
+                max-height: min(560px, 72vh) !important;
+                overflow: hidden !important;
+            }
+
+            .executive-dashboard #dashboard_properties_card .card-header {
+                flex: 0 0 auto;
+                background: #fff;
+                position: relative;
+                z-index: 2;
+            }
+
+            .executive-dashboard #dashboard_properties_card .card-body {
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            .executive-dashboard .dashboard-properties-scroll {
+                max-height: 100%;
+                overflow: auto;
+                overscroll-behavior: contain;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .executive-dashboard #dashboard_properties_card .table-responsive {
+                border-radius: 8px;
+                overflow: visible;
+            }
+
+            .executive-dashboard #dashboard_properties_card table {
+                min-width: 620px;
+            }
+
+            .executive-dashboard #dashboard_properties_card thead th {
+                position: sticky;
+                top: 0;
+                z-index: 1;
+                background: #f8fafc;
+            }
+
+            .executive-dashboard .executive-summary-box {
+                min-height: 92px;
+                padding: 0.85rem !important;
+                border-radius: 8px;
+            }
+
+            .executive-dashboard .executive-summary-box .fs-2 {
+                font-size: 1rem !important;
+                line-height: 1.25;
+                word-break: break-word;
+            }
+
+            .executive-dashboard #dashboard_profitability_chart {
+                min-height: 260px !important;
+            }
+        }
     </style>
 @endpush
 
 @section('content')
     <div class="py-10 executive-dashboard">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-8">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-8 dashboard-mobile-shell">
             <div>
                 <h1 class="mb-1 fw-bold text-dark">Panel ejecutivo</h1>
                 <div class="text-muted fs-6">{{ $periodLabel }}</div>
             </div>
 
-            <form method="GET" action="{{ route('dashboard') }}" class="d-flex flex-wrap align-items-end gap-3">
+            <form method="GET" action="{{ route('dashboard') }}" class="d-flex flex-wrap align-items-end gap-3 dashboard-filter-panel">
                 @if ($isAdvisorUser)
-                    <div>
+                    <div class="dashboard-filter-field dashboard-filter-field--wide">
                         <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Propiedades</label>
                         <select name="property_scope" class="form-select w-200px">
                             <option value="mine" {{ $propertyScope !== 'all' ? 'selected' : '' }}>Mis propiedades</option>
@@ -46,7 +246,7 @@
                         </select>
                     </div>
                 @endif
-                <div>
+                <div class="dashboard-filter-field dashboard-filter-field--wide">
                     <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Asesor</label>
                     <select name="advisor_user_id" class="form-select w-225px">
                         <option value="">Todos los asesores</option>
@@ -57,7 +257,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div>
+                <div class="dashboard-filter-field">
                     <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Periodo</label>
                     <select name="preset" id="dashboard_period_preset" class="form-select w-200px">
                         <option value="current_month" {{ $selectedPreset === 'current_month' ? 'selected' : '' }}>Este mes</option>
@@ -67,21 +267,21 @@
                         <option value="custom" {{ $selectedPreset === 'custom' ? 'selected' : '' }}>Rango personalizado</option>
                     </select>
                 </div>
-                <div>
+                <div class="dashboard-filter-field">
                     <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Desde</label>
                     <input type="date" name="start_date" id="dashboard_period_start" value="{{ $periodStart->toDateString() }}" class="form-control w-175px">
                 </div>
-                <div>
+                <div class="dashboard-filter-field">
                     <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Hasta</label>
                     <input type="date" name="end_date" id="dashboard_period_end" value="{{ $periodEnd->toDateString() }}" class="form-control w-175px">
                 </div>
-                <button type="submit" class="btn btn-primary">Aplicar filtro</button>
+                <button type="submit" class="btn btn-primary dashboard-filter-submit">Aplicar filtro</button>
             </form>
         </div>
 
-        <div class="row g-5 mb-8">
+        <div class="row g-5 mb-8 dashboard-kpi-row">
             @foreach ($dashboardKpis as $kpi)
-                <div class="col-md-6 col-xl-4 col-xxl-2">
+                <div class="col-md-6 col-xl-4 col-xxl-2 dashboard-kpi-col">
                     <div class="card h-100">
                         <div class="card-body p-7">
                             <div class="d-flex align-items-start justify-content-between mb-5">
@@ -97,7 +297,7 @@
             @endforeach
         </div>
 
-        <div class="row g-5 mb-8">
+        <div class="row g-5 mb-8 dashboard-content-row">
             <div class="col-xl-5">
                 <div class="card h-100">
                     <div class="card-header border-0 pt-7">
@@ -168,7 +368,7 @@
             </div>
         </div>
 
-        <div class="row g-5">
+        <div class="row g-5 dashboard-content-row">
             <div class="col-xl-7">
                 <div id="dashboard_properties_card" class="card h-100 dashboard-scroll-card" style="max-height: 530px !important;
     overflow-y: scroll;">
