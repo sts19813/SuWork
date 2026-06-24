@@ -253,6 +253,31 @@ class DashboardModulesTest extends TestCase
             ->assertDontSee('Casa Otro Asesor');
     }
 
+    public function test_dashboard_advisor_filter_only_lists_admins_and_advisors(): void
+    {
+        $adminRole = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $tenantRole = Role::query()->create(['name' => 'inquilino', 'guard_name' => 'web']);
+
+        $viewer = User::factory()->create();
+
+        $admin = User::factory()->create(['name' => 'Admin Dashboard Selector']);
+        $admin->assignRole($adminRole);
+
+        $advisor = User::factory()->create(['name' => 'Asesor Dashboard Selector']);
+        $advisor->assignRole($advisorRole);
+
+        $tenant = User::factory()->create(['name' => 'Inquilino Dashboard Selector']);
+        $tenant->assignRole($tenantRole);
+
+        $this->actingAs($viewer)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Admin Dashboard Selector')
+            ->assertSee('Asesor Dashboard Selector')
+            ->assertDontSee('Inquilino Dashboard Selector');
+    }
+
     public function test_property_control_requires_explicit_permission(): void
     {
         $user = User::factory()->create();
