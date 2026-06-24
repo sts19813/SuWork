@@ -22,16 +22,16 @@ class AdvisorTaskController extends Controller
         ]);
 
         $filter = $validated['filter'] ?? 'all';
-        $activeRange = $validated['range'] ?? 'current_month';
+        $activeRange = $validated['range'] ?? 'today';
         $period = $this->periodForRange($activeRange);
         $propertyIds = $this->advisorPropertyIds($request);
         $today = now()->startOfDay();
 
-        $tasks = $this->buildChargeTasks($propertyIds, $today, $period['start'], $period['end'])
-            ->concat($this->buildMaintenanceTasks($propertyIds, $today, $period['start'], $period['end']))
-            ->concat($this->buildContractTasks($propertyIds, $today, $period['start'], $period['end']))
-            ->concat($this->buildPropertyDocumentTasks($propertyIds, $today, $period['start'], $period['end']))
-            ->concat($this->buildTenantDocumentTasks($propertyIds, $today, $period['start'], $period['end']))
+        $tasks = $this->buildChargeTasks($propertyIds, $today, $period['start'], $period['end'], $period['include_overdue'])
+            ->concat($this->buildMaintenanceTasks($propertyIds, $today, $period['start'], $period['end'], $period['include_overdue']))
+            ->concat($this->buildContractTasks($propertyIds, $today, $period['start'], $period['end'], $period['include_overdue']))
+            ->concat($this->buildPropertyDocumentTasks($propertyIds, $today, $period['start'], $period['end'], $period['include_overdue']))
+            ->concat($this->buildTenantDocumentTasks($propertyIds, $today, $period['start'], $period['end'], $period['include_overdue']))
             ->sortBy(fn (array $task): string => sprintf(
                 '%02d-%s-%s',
                 $task['sort_rank'],
@@ -48,6 +48,7 @@ class AdvisorTaskController extends Controller
             'periodStart' => $period['start'],
             'periodEnd' => $period['end'],
             'periodLabel' => $period['label'],
+            'periodIncludesOverdue' => $period['include_overdue'],
             'assignedPropertyCount' => $propertyIds->count(),
             'tasks' => $filteredTasks,
             'allTasksCount' => $tasks->count(),
@@ -66,19 +67,23 @@ class AdvisorTaskController extends Controller
         ]);
     }
 
-    private function buildChargeTasks(Collection $propertyIds, Carbon $today, Carbon $periodStart, Carbon $periodEnd): Collection
+    private function buildChargeTasks(Collection $propertyIds, Carbon $today, Carbon $periodStart, Carbon $periodEnd, bool $includeOverdue): Collection
     {
         if ($propertyIds->isEmpty()) {
             return collect();
         }
 
-        return Charge::query()
+        $query = Charge::query()
             ->with(['property:id,uuid,internal_name,internal_reference', 'tenant:id,full_name'])
             ->whereIn('property_id', $propertyIds->all())
             ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
-            ->whereDate('due_date', '>=', $periodStart->toDateString())
-            ->whereDate('due_date', '<=', $periodEnd->toDateString())
-            ->orderBy('due_date')
+            ->whereDate('due_date', '<=', $periodEnd->toDateString());
+
+        if (! $includeOverdue) {
+            $query->whereDate('due_date', '>=', $periodStart->toDateString());
+        }
+
+        return $query->orderBy('due_date')
             ->limit(80)
             ->get()
             ->map(function (Charge $charge) use ($today): array {
@@ -108,7 +113,7 @@ class AdvisorTaskController extends Controller
             });
     }
 
-    private function buildMaintenanceTasks(Collection $propertyIds, Carbon $today, Carbon $periodStart, Carbon $periodEnd): Collection
+    private function buildMaintenanceTasks(Collection $propertyIds, Carbon $today, Carbon $periodStart, Carbon $periodEnd, bool $includeOverdue): Collection
     {
         if ($propertyIds->isEmpty()) {
             return collect();
@@ -116,13 +121,18 @@ class AdvisorTaskController extends Controller
 
         $activeStatuses = array_diff(array_keys(MaintenanceTicket::STATUS_LABELS), ['completado', 'cancelado']);
 
-        return MaintenanceTicket::query()
+        $query = MaintenanceTicket::query()
             ->with(['property:id,uuid,internal_name,internal_reference', 'currentProvider:id,name'])
             ->whereIn('property_id', $propertyIds->all())
             ->whereIn('status', $activeStatuses)
             ->whereNotNull('scheduled_visit_at')
-            ->whereBetween('scheduled_visit_at', [$periodStart, $periodEnd])
-            ->orderByRaw('scheduled_visit_at is null')
+            ->where('scheduled_visit_at', '<=', $periodEnd);
+
+        if (! $includeOverdue) {
+            $query->where('scheduled_visit_at', '>=', $periodStart);
+        }
+
+        return $query->orderByRaw('scheduled_visit_at is null')
             ->orderBy('scheduled_visit_at')
             ->limit(60)
             ->get()
@@ -153,19 +163,23 @@ class AdvisorTaskController extends Controller
             });
     }
 
-    private function buildContractTasks(Collection $propertyIds, Carbon $today, Carbon $periodStart, Carbon $periodEnd): Collection
+    private function buildContractTasks(Collection $propertyIds, Carbon $today, Carbon $periodStart, Carbon $periodEnd, bool $includeOverdue): Collection
     {
         if ($propertyIds->isEmpty()) {
             return collect();
         }
 
-        return Property::query()
+        $query = Property::query()
             ->with('tenant:id,full_name')
             ->whereIn('id', $propertyIds->all())
             ->whereNotNull('contract_expires_at')
-            ->whereDate('contract_expires_at', '>=', $periodStart->toDateString())
-            ->whereDate('contract_expires_at', '<=', $periodEnd->toDateString())
-            ->orderBy('contract_expires_at')
+            ->whereDate('contract_expires_at', '<=', $periodEnd->toDateString());
+
+        if (! $includeOverdue) {
+            $query->whereDate('contract_expires_at', '>=', $periodStart->toDateString());
+        }
+
+        return $query->orderBy('contract_expires_at')
             ->limit(60)
             ->get()
             ->map(function (Property $property) use ($today): array {
@@ -193,19 +207,23 @@ class AdvisorTaskController extends Controller
             });
     }
 
-    private function buildPropertyDocumentTasks(Collection $propertyIds, Carbon $today, Carbon $periodStart, Carbon $periodEnd): Collection
+    private function buildPropertyDocumentTasks(Collection $propertyIds, Carbon $today, Carbon $periodStart, Carbon $periodEnd, bool $includeOverdue): Collection
     {
         if ($propertyIds->isEmpty()) {
             return collect();
         }
 
-        return PropertyDocument::query()
+        $query = PropertyDocument::query()
             ->with('property:id,uuid,internal_name,internal_reference')
             ->whereIn('property_id', $propertyIds->all())
             ->whereNotNull('expires_at')
-            ->whereDate('expires_at', '>=', $periodStart->toDateString())
-            ->whereDate('expires_at', '<=', $periodEnd->toDateString())
-            ->orderBy('expires_at')
+            ->whereDate('expires_at', '<=', $periodEnd->toDateString());
+
+        if (! $includeOverdue) {
+            $query->whereDate('expires_at', '>=', $periodStart->toDateString());
+        }
+
+        return $query->orderBy('expires_at')
             ->limit(60)
             ->get()
             ->map(function (PropertyDocument $document) use ($today): array {
@@ -233,19 +251,23 @@ class AdvisorTaskController extends Controller
             });
     }
 
-    private function buildTenantDocumentTasks(Collection $propertyIds, Carbon $today, Carbon $periodStart, Carbon $periodEnd): Collection
+    private function buildTenantDocumentTasks(Collection $propertyIds, Carbon $today, Carbon $periodStart, Carbon $periodEnd, bool $includeOverdue): Collection
     {
         if ($propertyIds->isEmpty()) {
             return collect();
         }
 
-        return TenantDocument::query()
+        $query = TenantDocument::query()
             ->with('tenant.properties:id,uuid,internal_name,tenant_id')
             ->whereHas('tenant.properties', fn ($query) => $query->whereIn('properties.id', $propertyIds->all()))
             ->whereNotNull('expires_at')
-            ->whereDate('expires_at', '>=', $periodStart->toDateString())
-            ->whereDate('expires_at', '<=', $periodEnd->toDateString())
-            ->orderBy('expires_at')
+            ->whereDate('expires_at', '<=', $periodEnd->toDateString());
+
+        if (! $includeOverdue) {
+            $query->whereDate('expires_at', '>=', $periodStart->toDateString());
+        }
+
+        return $query->orderBy('expires_at')
             ->limit(60)
             ->get()
             ->map(function (TenantDocument $document) use ($propertyIds, $today): array {
@@ -308,21 +330,24 @@ class AdvisorTaskController extends Controller
     {
         $today = now();
 
-        [$start, $end, $label] = match ($range) {
+        [$start, $end, $label, $includeOverdue] = match ($range) {
             'today' => [
                 $today->copy()->startOfDay(),
                 $today->copy()->endOfDay(),
                 'Hoy',
+                true,
             ],
             'current_week' => [
                 $today->copy()->startOfWeek()->startOfDay(),
                 $today->copy()->endOfWeek()->endOfDay(),
                 'Esta semana',
+                true,
             ],
             default => [
                 $today->copy()->startOfMonth()->startOfDay(),
                 $today->copy()->endOfMonth()->endOfDay(),
                 'Este mes',
+                true,
             ],
         };
 
@@ -330,6 +355,7 @@ class AdvisorTaskController extends Controller
             'start' => $start,
             'end' => $end,
             'label' => $label,
+            'include_overdue' => $includeOverdue,
         ];
     }
 

@@ -302,6 +302,9 @@
                         - {{ $periodEnd->translatedFormat('d M Y') }}
                     @endunless
                 </div>
+                @if ($periodIncludesOverdue)
+                    <div class="text-muted fs-8 mt-1">Incluye todos los pendientes vencidos, sin importar la fecha.</div>
+                @endif
             </div>
 
             <div class="advisor-range-tabs" aria-label="Rango de fecha de pendientes">

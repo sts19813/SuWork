@@ -88,6 +88,20 @@ class AdvisorTaskModuleTest extends TestCase
                 'property_id' => $assignedProperty->id,
                 'tenant_id' => $tenant->id,
                 'type' => Charge::TYPE_RENT,
+                'due_date' => '2026-05-10',
+                'amount' => 555,
+                'paid_amount' => 0,
+                'period_month' => 5,
+                'period_year' => 2026,
+                'concept' => 'Renta Antigua Visible',
+                'status' => Charge::STATUS_PENDING,
+                'created_by' => $creator->id,
+            ]);
+
+            Charge::query()->create([
+                'property_id' => $assignedProperty->id,
+                'tenant_id' => $tenant->id,
+                'type' => Charge::TYPE_RENT,
                 'due_date' => '2026-06-24',
                 'amount' => 777,
                 'paid_amount' => 0,
@@ -127,6 +141,20 @@ class AdvisorTaskModuleTest extends TestCase
             ]);
 
             MaintenanceTicket::query()->create([
+                'property_id' => $assignedProperty->id,
+                'reported_by_user_id' => $creator->id,
+                'reported_by_role' => 'administrador',
+                'reported_by_name' => $creator->name,
+                'category' => 'plomeria',
+                'priority' => 'alta',
+                'status' => 'programado',
+                'title' => 'Visita Atrasada Hoy',
+                'description' => 'Visita vencida el mismo dia',
+                'reported_at' => now(),
+                'scheduled_visit_at' => now()->subHour(),
+            ]);
+
+            MaintenanceTicket::query()->create([
                 'property_id' => $hiddenProperty->id,
                 'reported_by_user_id' => $creator->id,
                 'reported_by_role' => 'administrador',
@@ -154,8 +182,14 @@ class AdvisorTaskModuleTest extends TestCase
                 ->assertSee('Mis pendientes')
                 ->assertSee('Casa Pendientes Visible')
                 ->assertSee('Renta')
-                ->assertSee('Visita Visible')
-                ->assertSee('Poliza Visible')
+                ->assertSee('$777.00')
+                ->assertSee('$12,000.00')
+                ->assertSee('$555.00')
+                ->assertSee('Cobro vencido')
+                ->assertSee('Visita Atrasada Hoy')
+                ->assertSee('Urgente')
+                ->assertDontSee('Visita Visible')
+                ->assertDontSee('Poliza Visible')
                 ->assertDontSee('Casa Pendientes Oculta')
                 ->assertDontSee('Renta Oculta')
                 ->assertDontSee('Visita Oculta');
@@ -167,9 +201,27 @@ class AdvisorTaskModuleTest extends TestCase
                 ->assertOk()
                 ->assertSee('Mis pendientes')
                 ->assertSee('$777.00')
-                ->assertDontSee('$12,000.00')
+                ->assertSee('$12,000.00')
+                ->assertSee('$555.00')
+                ->assertSee('Visita Atrasada Hoy')
                 ->assertDontSee('Visita Visible')
                 ->assertDontSee('Poliza Visible');
+
+            $this->actingAs($advisor)
+                ->get(route('advisor.tasks.index', ['range' => 'current_week']))
+                ->assertOk()
+                ->assertSee('$555.00')
+                ->assertSee('$12,000.00')
+                ->assertSee('Visita Visible')
+                ->assertDontSee('Poliza Visible');
+
+            $this->actingAs($advisor)
+                ->get(route('advisor.tasks.index', ['range' => 'current_month']))
+                ->assertOk()
+                ->assertSee('$555.00')
+                ->assertSee('Visita Visible')
+                ->assertSee('Poliza Visible')
+                ->assertDontSee('Visita Oculta');
         } finally {
             Carbon::setTestNow();
         }
