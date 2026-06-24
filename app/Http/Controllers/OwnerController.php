@@ -2,14 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DossierDeletedFile;
 use App\Http\Requests\StoreOwnerRequest;
 use App\Models\Owner;
+use App\Models\OwnerDocument;
+use App\Models\OwnerDocumentVersion;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class OwnerController extends Controller
 {
+    private const DELETE_PERMISSION = 'propietarios.eliminar';
+
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('q', ''));
@@ -95,5 +103,109 @@ class OwnerController extends Controller
             ->route('owners.index')
             ->with('success', 'El propietario se actualizó correctamente.');
     }
-}
 
+    public function destroy(Request $request, Owner $owner): RedirectResponse|JsonResponse
+    {
+        $this->ensureCanDeleteOwners($request);
+
+        $propertyCount = $owner->properties()->count();
+        $documentCount = $owner->documents()->count();
+
+        DB::transaction(function () use ($request, $owner): void {
+            $owner->loadMissing('documents.versions');
+
+            $this->deleteOwnerDossierFiles($request, $owner);
+
+            $owner->properties()->detach();
+
+            foreach ($owner->documents as $document) {
+                $document->versions()->delete();
+                $document->delete();
+            }
+
+            $owner->delete();
+        });
+
+        $message = 'El propietario se eliminó correctamente.';
+
+        if ($propertyCount > 0 || $documentCount > 0) {
+            $message .= ' Sus propiedades quedaron sin este propietario y su expediente fue eliminado.';
+        }
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'type' => 'success',
+                'reload' => true,
+            ]);
+        }
+
+        return redirect()
+            ->route('owners.index')
+            ->with('success', $message);
+    }
+
+    private function ensureCanDeleteOwners(Request $request): void
+    {
+        $user = $request->user();
+        $isAdmin = $user?->hasRole('administrador') || $user?->hasRole('admin');
+
+        if (!$isAdmin && !$user?->can(self::DELETE_PERMISSION)) {
+            abort(403);
+        }
+    }
+
+    private function deleteOwnerDossierFiles(Request $request, Owner $owner): void
+    {
+        foreach ($owner->documents as $document) {
+            $loggedPaths = [];
+
+            foreach ($document->versions as $version) {
+                $this->deleteOwnerDossierFileAndLog($request, $owner, $document, $version);
+
+                if (filled($version->file_path)) {
+                    $loggedPaths[$version->file_path] = true;
+                }
+            }
+
+            if (filled($document->file_path) && !isset($loggedPaths[$document->file_path])) {
+                $this->deleteOwnerDossierFileAndLog($request, $owner, $document);
+            }
+        }
+    }
+
+    private function deleteOwnerDossierFileAndLog(
+        Request $request,
+        Owner $owner,
+        OwnerDocument $document,
+        ?OwnerDocumentVersion $version = null,
+    ): void {
+        $filePath = $version?->file_path ?? $document->file_path;
+        $fileDeleted = false;
+
+        if (filled($filePath) && Storage::disk('public')->exists($filePath)) {
+            $fileDeleted = Storage::disk('public')->delete($filePath);
+        }
+
+        DossierDeletedFile::query()->create([
+            'entity_type' => 'owner',
+            'entity_id' => $owner->id,
+            'entity_name' => $owner->name,
+            'document_group' => 'owner',
+            'document_id' => $document->id,
+            'document_type' => $document->document_type,
+            'document_label' => $document->label,
+            'version_id' => $version?->id,
+            'version_number' => $version?->version_number,
+            'original_name' => $version?->original_name,
+            'file_path' => $filePath,
+            'mime_type' => $version?->mime_type,
+            'file_size' => $version?->file_size,
+            'file_deleted' => $fileDeleted,
+            'delete_reason' => 'Propietario eliminado',
+            'deleted_by_user_id' => $request->user()?->id,
+            'deleted_at' => now(),
+        ]);
+    }
+}

@@ -3,6 +3,12 @@
 @section('title', 'Propietarios | SuWork')
 
 @section('content')
+    @php
+        $canDeleteOwners = auth()->user()?->can('propietarios.eliminar')
+            || auth()->user()?->hasRole('administrador')
+            || auth()->user()?->hasRole('admin');
+    @endphp
+
     <div class="py-10 property-module">
         @if (session('success'))
             <div class="alert alert-success d-flex align-items-center p-5 mb-8">
@@ -48,6 +54,16 @@
                                 <div class="d-flex gap-2">
                                     <a href="{{ route('dossiers.owners.show', $owner) }}" class="btn btn-sm btn-light-info">Expediente</a>
                                     <a href="{{ route('owners.edit', $owner) }}" class="btn btn-sm btn-light-primary">Editar</a>
+                                    @if ($canDeleteOwners)
+                                        <form method="POST" action="{{ route('owners.destroy', $owner) }}"
+                                            class="js-delete-owner-form"
+                                            data-owner-name="{{ $owner->name }}"
+                                            data-properties-count="{{ $owner->properties_count }}">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-light-danger">Eliminar</button>
+                                        </form>
+                                    @endif
                                 </div>
                             </div>
 
@@ -109,4 +125,56 @@
             })();
         </script>
     @endif
+    <script>
+        (() => {
+            document.querySelectorAll('.js-delete-owner-form').forEach((form) => {
+                form.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+
+                    const escapeHtml = (value) => String(value)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+                    const ownerName = form.dataset.ownerName || 'este propietario';
+                    const propertiesCount = Number.parseInt(form.dataset.propertiesCount || '0', 10);
+                    const propertyText = propertiesCount === 1
+                        ? '1 propiedad quedará sin este propietario.'
+                        : `${propertiesCount} propiedades quedarán sin este propietario.`;
+                    const html = [
+                        `Se eliminará a <strong>${escapeHtml(ownerName)}</strong>.`,
+                        'También se eliminará su expediente de propietario.',
+                        propertiesCount > 0 ? propertyText : 'No tiene propiedades asociadas actualmente.',
+                    ].join('<br>');
+
+                    let confirmed = false;
+
+                    if (window.Swal?.fire) {
+                        const result = await window.Swal.fire({
+                            title: 'Eliminar propietario',
+                            html,
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'Sí, eliminar',
+                            cancelButtonText: 'Cancelar',
+                            buttonsStyling: false,
+                            customClass: {
+                                confirmButton: 'btn btn-danger',
+                                cancelButton: 'btn btn-light',
+                            },
+                            reverseButtons: true,
+                        });
+                        confirmed = !!result.isConfirmed;
+                    } else {
+                        confirmed = window.confirm(`¿Deseas eliminar a ${ownerName}? ${propertiesCount > 0 ? propertyText : ''}`);
+                    }
+
+                    if (confirmed) {
+                        form.submit();
+                    }
+                });
+            });
+        })();
+    </script>
 @endpush
