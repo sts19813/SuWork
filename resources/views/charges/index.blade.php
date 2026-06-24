@@ -223,6 +223,32 @@
                 padding-right: 16px;
             }
         }
+
+        #registerPaymentModal .modal-content {
+            max-height: calc(100dvh - 2rem);
+            overflow: hidden;
+        }
+
+        #registerPaymentModal form {
+            min-height: 0;
+            max-height: inherit;
+        }
+
+        #registerPaymentModal .modal-header,
+        #registerPaymentModal .modal-footer {
+            flex: 0 0 auto;
+        }
+
+        #registerPaymentModal .modal-body {
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        @supports not (height: 100dvh) {
+            #registerPaymentModal .modal-content {
+                max-height: calc(100vh - 2rem);
+            }
+        }
     </style>
 @endpush
 
@@ -1025,7 +1051,7 @@
             const resultCount = document.getElementById('chargesResultCount');
             const tableOptions = {
                 dom: "rt<'row align-items-center'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7 d-flex justify-content-md-end'p>>",
-                pageLength: 10,
+                pageLength: 25,
                 lengthChange: false,
                 order: [],
                 info: true,
@@ -1130,35 +1156,56 @@
                 });
             }
 
-            document.querySelectorAll('[data-copy-link]').forEach((button) => {
-                button.addEventListener('click', async () => {
-                    const link = button.getAttribute('data-copy-link');
+            const editChargeForm = document.getElementById('editChargeForm');
+            const editChargeUuid = document.getElementById('editChargeUuid');
+            const editChargeType = document.getElementById('editChargeType');
+            const editChargeDueDate = document.getElementById('editChargeDueDate');
+            const editChargeAmount = document.getElementById('editChargeAmount');
+            const editChargePeriodMonth = document.getElementById('editChargePeriodMonth');
+            const editChargePeriodYear = document.getElementById('editChargePeriodYear');
+            const editChargeConcept = document.getElementById('editChargeConcept');
+            const editChargeNotes = document.getElementById('editChargeNotes');
+            const deleteChargeForm = document.getElementById('deleteChargeForm');
+            const deleteChargeUuid = document.getElementById('deleteChargeUuid');
+            const deleteChargeConcept = document.getElementById('deleteChargeConcept');
+            const deleteChargeNote = document.getElementById('deleteChargeNote');
+
+            document.addEventListener('click', async (event) => {
+                const target = event.target instanceof Element ? event.target : null;
+                if (!target) {
+                    return;
+                }
+
+                const copyLinkButton = target.closest('[data-copy-link]');
+                if (copyLinkButton) {
+                    const link = copyLinkButton.getAttribute('data-copy-link');
                     if (!link) {
                         return;
                     }
 
                     try {
                         await navigator.clipboard.writeText(link);
-                        button.textContent = 'Copiado';
+                        copyLinkButton.textContent = 'Copiado';
                         setTimeout(() => {
-                            button.textContent = 'Copiar link';
+                            copyLinkButton.textContent = 'Copiar link';
                         }, 1400);
                     } catch (error) {
                         window.prompt('Copia este link:', link);
                     }
-                });
-            });
 
-            document.querySelectorAll('[data-register-payment]').forEach((button) => {
-                button.addEventListener('click', () => {
+                    return;
+                }
+
+                const registerPaymentButton = target.closest('[data-register-payment]');
+                if (registerPaymentButton) {
                     if (!registerPaymentForm) {
                         return;
                     }
 
-                    const action = button.getAttribute('data-action') || '';
-                    const chargeUuid = button.getAttribute('data-charge') || '';
-                    const concept = button.getAttribute('data-concept') || '-';
-                    const outstanding = parseFloat(button.getAttribute('data-outstanding') || '0');
+                    const action = registerPaymentButton.getAttribute('data-action') || '';
+                    const chargeUuid = registerPaymentButton.getAttribute('data-charge') || '';
+                    const concept = registerPaymentButton.getAttribute('data-concept') || '-';
+                    const outstanding = parseFloat(registerPaymentButton.getAttribute('data-outstanding') || '0');
 
                     registerPaymentForm.setAttribute('action', action);
                     if (registerPaymentChargeUuid) {
@@ -1173,66 +1220,53 @@
                     if (!modalEl) {
                         return;
                     }
-                    const modal = new bootstrap.Modal(modalEl);
-                    modal.show();
-                });
-            });
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
 
-            const editChargeForm = document.getElementById('editChargeForm');
-            const editChargeUuid = document.getElementById('editChargeUuid');
-            const editChargeType = document.getElementById('editChargeType');
-            const editChargeDueDate = document.getElementById('editChargeDueDate');
-            const editChargeAmount = document.getElementById('editChargeAmount');
-            const editChargePeriodMonth = document.getElementById('editChargePeriodMonth');
-            const editChargePeriodYear = document.getElementById('editChargePeriodYear');
-            const editChargeConcept = document.getElementById('editChargeConcept');
-            const editChargeNotes = document.getElementById('editChargeNotes');
+                    return;
+                }
 
-            document.querySelectorAll('[data-edit-charge]').forEach((button) => {
-                button.addEventListener('click', () => {
+                const editChargeButton = target.closest('[data-edit-charge]');
+                if (editChargeButton) {
                     if (!editChargeForm) {
                         return;
                     }
 
-                    editChargeForm.setAttribute('action', button.getAttribute('data-action') || '');
-                    if (editChargeUuid) editChargeUuid.value = button.getAttribute('data-charge') || '';
-                    if (editChargeType) editChargeType.value = button.getAttribute('data-type') || 'rent';
-                    if (editChargeDueDate) editChargeDueDate.value = button.getAttribute('data-due-date') || '';
-                    if (editChargeAmount) editChargeAmount.value = button.getAttribute('data-amount') || '';
-                    if (editChargePeriodMonth) editChargePeriodMonth.value = button.getAttribute('data-period-month') || '';
-                    if (editChargePeriodYear) editChargePeriodYear.value = button.getAttribute('data-period-year') || '';
-                    if (editChargeConcept) editChargeConcept.value = button.getAttribute('data-concept') || '';
-                    if (editChargeNotes) editChargeNotes.value = button.getAttribute('data-notes') || '';
+                    editChargeForm.setAttribute('action', editChargeButton.getAttribute('data-action') || '');
+                    if (editChargeUuid) editChargeUuid.value = editChargeButton.getAttribute('data-charge') || '';
+                    if (editChargeType) editChargeType.value = editChargeButton.getAttribute('data-type') || 'rent';
+                    if (editChargeDueDate) editChargeDueDate.value = editChargeButton.getAttribute('data-due-date') || '';
+                    if (editChargeAmount) editChargeAmount.value = editChargeButton.getAttribute('data-amount') || '';
+                    if (editChargePeriodMonth) editChargePeriodMonth.value = editChargeButton.getAttribute('data-period-month') || '';
+                    if (editChargePeriodYear) editChargePeriodYear.value = editChargeButton.getAttribute('data-period-year') || '';
+                    if (editChargeConcept) editChargeConcept.value = editChargeButton.getAttribute('data-concept') || '';
+                    if (editChargeNotes) editChargeNotes.value = editChargeButton.getAttribute('data-notes') || '';
 
                     const modalEl = document.getElementById('editChargeModal');
                     if (!modalEl) {
                         return;
                     }
-                    new bootstrap.Modal(modalEl).show();
-                });
-            });
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
 
-            const deleteChargeForm = document.getElementById('deleteChargeForm');
-            const deleteChargeUuid = document.getElementById('deleteChargeUuid');
-            const deleteChargeConcept = document.getElementById('deleteChargeConcept');
-            const deleteChargeNote = document.getElementById('deleteChargeNote');
-            document.querySelectorAll('[data-delete-charge]').forEach((button) => {
-                button.addEventListener('click', () => {
+                    return;
+                }
+
+                const deleteChargeButton = target.closest('[data-delete-charge]');
+                if (deleteChargeButton) {
                     if (!deleteChargeForm) {
                         return;
                     }
 
-                    deleteChargeForm.setAttribute('action', button.getAttribute('data-action') || '');
-                    if (deleteChargeUuid) deleteChargeUuid.value = button.getAttribute('data-charge') || '';
-                    if (deleteChargeConcept) deleteChargeConcept.textContent = button.getAttribute('data-concept') || '-';
+                    deleteChargeForm.setAttribute('action', deleteChargeButton.getAttribute('data-action') || '');
+                    if (deleteChargeUuid) deleteChargeUuid.value = deleteChargeButton.getAttribute('data-charge') || '';
+                    if (deleteChargeConcept) deleteChargeConcept.textContent = deleteChargeButton.getAttribute('data-concept') || '-';
                     if (deleteChargeNote) deleteChargeNote.value = '';
 
                     const modalEl = document.getElementById('deleteChargeModal');
                     if (!modalEl) {
                         return;
                     }
-                    new bootstrap.Modal(modalEl).show();
-                });
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                }
             });
 
             const previewBtn = document.getElementById('previewBulkChargesBtn');

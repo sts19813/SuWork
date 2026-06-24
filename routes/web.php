@@ -87,6 +87,7 @@ Route::middleware(['auth', 'system.access'])
         Route::post('/propietarios', [OwnerController::class, 'store'])->name('owners.store');
         Route::get('/propietarios/{owner}/editar', [OwnerController::class, 'edit'])->name('owners.edit');
         Route::put('/propietarios/{owner}', [OwnerController::class, 'update'])->name('owners.update');
+        Route::delete('/propietarios/{owner}', [OwnerController::class, 'destroy'])->name('owners.destroy');
         Route::get('/propietarios/{owner}/expediente', [DocumentController::class, 'ownerDossier'])->name('dossiers.owners.show');
         Route::post('/propietarios/{owner}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadOwnerDocument'])->name('dossiers.owners.documents.upload');
         Route::patch('/propietarios/{owner}/expediente/documentos/{documentType}', [DocumentController::class, 'updateOwnerDocumentMetadata'])->name('dossiers.owners.documents.update');
