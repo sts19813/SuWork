@@ -2130,9 +2130,18 @@ td .btn {
     .su-mobile-more-sheet {
         display: block;
         height: auto !important;
+        max-height: calc(100dvh - 24px);
         border-radius: 24px 24px 0 0;
         border: 0;
         box-shadow: 0 -18px 48px rgba(15, 23, 42, 0.18);
+    }
+
+    .su-mobile-more-sheet .offcanvas-body {
+        max-height: calc(100dvh - 112px);
+        overflow-y: auto;
+        padding-bottom: calc(92px + env(safe-area-inset-bottom));
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
     }
 
     .su-mobile-more-sheet .offcanvas-header {
@@ -2153,7 +2162,7 @@ td .btn {
         display: flex;
         flex-direction: column;
         gap: 10px;
-        padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        padding-bottom: calc(28px + env(safe-area-inset-bottom));
     }
 
     .su-mobile-sheet-link {
