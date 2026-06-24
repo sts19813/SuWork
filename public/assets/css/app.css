@@ -1933,6 +1933,17 @@ td .btn {
 }
 
 @media (max-width: 767px) {
+    body.su-admin-layout,
+    .su-admin-layout .app-root,
+    .su-admin-layout .app-page,
+    .su-admin-layout .app-wrapper,
+    .su-admin-layout .app-main,
+    .su-admin-layout .app-shell,
+    .su-admin-layout .su-layout-content,
+    .su-admin-layout .app-content {
+        background: #f7f8fc !important;
+    }
+
     .su-admin-layout .app-sidebar {
         display: none;
     }

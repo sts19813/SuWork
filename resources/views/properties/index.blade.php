@@ -176,6 +176,223 @@
                 padding-right: 16px;
             }
         }
+
+        @media (max-width: 767.98px) {
+            .property-list-module {
+                --pl-card-radius: 8px;
+            }
+
+            .property-list-toolbar {
+                gap: 10px;
+                margin-bottom: 14px;
+            }
+
+            .property-list-search {
+                flex-basis: 100%;
+                min-width: 0;
+            }
+
+            .property-list-search .form-control {
+                height: 46px;
+                border-radius: 8px;
+                font-size: 0.86rem;
+            }
+
+            .property-list-results {
+                width: 100%;
+                font-size: 0.8rem;
+                color: var(--pl-muted);
+            }
+
+            .property-list-table-card {
+                margin-top: 14px;
+                border: 0;
+                border-radius: 0;
+                overflow: visible;
+                background: transparent;
+            }
+
+            .property-list-table-card .table-responsive {
+                overflow: visible;
+            }
+
+            .property-list-table-card table,
+            .property-list-table-card table.dataTable,
+            .property-list-table-card tbody {
+                display: block;
+                width: 100% !important;
+            }
+
+            .property-list-table-card thead {
+                display: none;
+            }
+
+            .property-list-table-card tbody {
+                display: grid;
+                gap: 18px;
+            }
+
+            .property-list-row {
+                display: grid;
+                grid-template-columns: 82px minmax(0, 1fr);
+                gap: 0 16px;
+                padding: 20px;
+                border: 1px solid #e8eef7;
+                border-radius: 18px;
+                background: #fff;
+                box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+                overflow: hidden;
+            }
+
+            .property-list-table-card table:not(.table-bordered) tr.property-list-row {
+                padding: 20px !important;
+            }
+
+            .property-list-row:hover td {
+                background: transparent;
+            }
+
+            .property-list-row td {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                min-width: 0;
+                padding: 11px 0 !important;
+                border-top: 1px solid #f0f3f8 !important;
+                background: transparent;
+            }
+
+            .property-list-row td::before {
+                content: attr(data-mobile-label);
+                flex: 0 0 96px;
+                color: #8b96b2;
+                font-size: 0.66rem;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+
+            .property-list-row td:nth-child(1),
+            .property-list-row td:nth-child(2),
+            .property-list-row td:nth-child(10) {
+                border-top: 0 !important;
+            }
+
+            .property-list-row td:nth-child(1)::before,
+            .property-list-row td:nth-child(2)::before,
+            .property-list-row td:nth-child(10)::before {
+                content: none;
+            }
+
+            .property-list-row td:nth-child(1) {
+                grid-column: 1;
+                grid-row: 1;
+                align-self: start;
+                padding: 0 !important;
+            }
+
+            .property-list-row td:nth-child(2) {
+                grid-column: 2;
+                grid-row: 1;
+                align-items: flex-start;
+                justify-content: flex-start;
+                padding: 4px 0 14px !important;
+            }
+
+            .property-list-row td:nth-child(3) {
+                margin-top: 16px;
+            }
+
+            .property-list-row td:nth-child(n+3):nth-child(-n+9),
+            .property-list-row td:nth-child(10) {
+                grid-column: 1 / -1;
+            }
+
+            .property-list-row td:nth-child(3)::before { content: 'Tipo'; }
+            .property-list-row td:nth-child(4)::before { content: 'Zona'; }
+            .property-list-row td:nth-child(5)::before { content: 'Estado'; }
+            .property-list-row td:nth-child(6)::before { content: 'Inquilino'; }
+            .property-list-row td:nth-child(7)::before { content: 'Asesor'; }
+            .property-list-row td:nth-child(8)::before { content: 'Contrato'; }
+            .property-list-row td:nth-child(9)::before { content: 'Incidencias'; }
+
+            .property-list-row .property-thumb {
+                width: 82px;
+                height: 82px;
+                border-radius: 12px;
+            }
+
+            .property-list-title {
+                display: block;
+                font-size: 1rem;
+                line-height: 1.25;
+            }
+
+            .property-list-value,
+            .property-list-row td > .text-muted,
+            .property-list-row td > .text-danger {
+                min-width: 0;
+                max-width: 58%;
+                text-align: right;
+                font-size: 0.84rem;
+                line-height: 1.35;
+                overflow-wrap: anywhere;
+            }
+
+            .property-list-row td:nth-child(7) > .d-flex,
+            .property-list-row td:nth-child(7) > [data-property-advisor-action] {
+                max-width: 62%;
+                justify-content: flex-end;
+            }
+
+            .property-list-row .maintenance-provider-trigger {
+                max-width: 100%;
+                justify-content: flex-end;
+                text-align: left;
+            }
+
+            .property-list-row .maintenance-provider-trigger .min-w-0 {
+                max-width: 150px;
+            }
+
+            .property-list-row td:nth-child(5) .badge {
+                white-space: normal;
+                text-align: right;
+            }
+
+            .property-list-row td:nth-child(10) {
+                margin-top: 8px;
+                padding-top: 16px !important;
+                border-top: 1px solid #e8eef7 !important;
+            }
+
+            .property-list-actions {
+                width: 100%;
+                justify-content: stretch;
+            }
+
+            .property-list-actions .btn {
+                flex: 1 1 auto;
+                min-width: 0;
+                border-radius: 8px;
+            }
+
+            .property-list-table-card .dataTables_info {
+                padding: 14px 2px 0;
+                font-size: 0.78rem;
+                text-align: center;
+            }
+
+            .property-list-table-card .dataTables_paginate {
+                padding: 12px 2px 0;
+            }
+
+            .property-list-table-card .dataTables_paginate .pagination {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+        }
     </style>
 @endpush
 
