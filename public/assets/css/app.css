@@ -1951,6 +1951,28 @@ td .btn {
         padding: 15px 15px calc(108px + env(safe-area-inset-bottom)) 15px !important;
     }
 
+    .su-admin-layout .su-layout-content > .py-8,
+    .su-admin-layout .su-layout-content > .py-10 {
+        padding-top: 0 !important;
+    }
+
+    .su-admin-layout .su-layout-content > :is(.py-8, .py-10) > .d-flex.flex-wrap.justify-content-between.align-items-center.gap-4.mb-8:has(h1) {
+        justify-content: flex-end !important;
+        margin-bottom: 1rem !important;
+    }
+
+    .su-admin-layout .su-layout-content > :is(.py-8, .py-10) > .d-flex.flex-wrap.justify-content-between.align-items-center.gap-4.mb-8:has(h1) > div:first-child:has(h1) {
+        display: none !important;
+    }
+
+    .su-admin-layout .su-layout-content > :is(.py-8, .py-10) > .d-flex.flex-wrap.justify-content-between.align-items-center.gap-4.mb-8:has(h1):not(:has(> :nth-child(2))) {
+        display: none !important;
+    }
+
+    .advisor-tasks .advisor-tasks-hero {
+        display: none !important;
+    }
+
     .su-admin-layout .app-container {
         padding-left: 12px;
         padding-right: 12px;
@@ -2184,6 +2206,26 @@ td .btn {
     .maintenance-module {
         margin-left: -12px;
         margin-right: -12px;
+    }
+
+    .maintenance-hero {
+        border: 0 !important;
+        background: transparent !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .maintenance-hero > div:first-child {
+        display: none !important;
+    }
+
+    .maintenance-hero:not(:has(.maintenance-actions > *)) {
+        display: none !important;
+    }
+
+    .maintenance-hero .maintenance-actions {
+        justify-content: flex-end;
+        width: 100%;
     }
 
     .maintenance-page,
