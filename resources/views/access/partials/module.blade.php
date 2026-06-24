@@ -1,7 +1,9 @@
 @php
-    $activeTab = in_array($activeTab ?? 'users', ['users', 'roles', 'permissions'], true) ? $activeTab : 'users';
+    $activeTab = in_array($activeTab ?? 'users', ['users', 'roles', 'permissions', 'tenants'], true) ? $activeTab : 'users';
     $roleOptions = $roles->pluck('name')->values();
     $permissionOptions = $permissions->pluck('name')->values();
+    $administrativeUsers = $administrativeUsers ?? $users->reject(fn($userItem) => $userItem->roles->contains(fn($role) => in_array($role->name, ['inquilino', 'tenant'], true)))->values();
+    $tenantUsers = $tenantUsers ?? $users->filter(fn($userItem) => $userItem->roles->contains(fn($role) => in_array($role->name, ['inquilino', 'tenant'], true)))->values();
 @endphp
 
 <div id="access-module" class="py-10 access-module">
@@ -65,6 +67,12 @@
                         <i class="bi bi-key me-1"></i> Permisos
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {{ $activeTab === 'tenants' ? 'active' : '' }}" data-bs-toggle="tab" data-bs-target="#access-tenants-tab" type="button" role="tab" data-tab-key="tenants">
+                        <i class="bi bi-house-door me-1"></i> Inquilinos
+                        <span class="badge badge-light-secondary text-secondary ms-1">{{ $tenantUsers->count() }}</span>
+                    </button>
+                </li>
             </ul>
 
             <div class="tab-content">
@@ -88,7 +96,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @forelse ($users as $userItem)
+                                @forelse ($administrativeUsers as $userItem)
                                     <tr>
                                         <td>
                                             <div class="fw-semibold">{{ $userItem->name }}</div>
@@ -126,7 +134,7 @@
                                 @empty
                                     <tr>
                                         <td colspan="5">
-                                            <div class="access-empty text-center text-muted py-10">No hay usuarios con esos filtros.</div>
+                                            <div class="access-empty text-center text-muted py-10">No hay usuarios administrativos registrados.</div>
                                         </td>
                                     </tr>
                                 @endforelse
@@ -219,6 +227,73 @@
                                         </td>
                                     </tr>
                                 @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade {{ $activeTab === 'tenants' ? 'show active' : '' }}" id="access-tenants-tab" role="tabpanel">
+                    <div class="row g-3 align-items-end mb-6">
+                        <div class="col-lg-5">
+                            <label class="form-label">Buscar inquilino</label>
+                            <input type="text" class="form-control form-control-solid" id="accessTenantsSearch" placeholder="Nombre, correo, rol o permiso">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-row-dashed align-middle mb-0" data-access-datatable data-access-search-input="#accessTenantsSearch">
+                            <thead>
+                                <tr class="text-muted text-uppercase fs-8">
+                                    <th>Inquilino</th>
+                                    <th>Estado</th>
+                                    <th>Roles</th>
+                                    <th>Permisos directos</th>
+                                    <th class="text-end">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($tenantUsers as $userItem)
+                                    <tr>
+                                        <td>
+                                            <div class="fw-semibold">{{ $userItem->name }}</div>
+                                            <div class="text-muted fs-8">{{ $userItem->email }}</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge {{ $userItem->is_active ? 'badge-light-success text-success' : 'badge-light-danger text-danger' }}">
+                                                {{ $userItem->is_active ? 'Activo' : 'Inactivo' }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="access-chip-list">
+                                                @forelse ($userItem->roles as $role)
+                                                    <span class="badge badge-light-primary">{{ $role->name }}</span>
+                                                @empty
+                                                    <span class="text-muted">Sin rol</span>
+                                                @endforelse
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="access-chip-list">
+                                                @forelse ($userItem->permissions as $permission)
+                                                    <span class="badge badge-light-secondary text-secondary">{{ $permission->name }}</span>
+                                                @empty
+                                                    <span class="text-muted">Sin permisos directos</span>
+                                                @endforelse
+                                            </div>
+                                        </td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-light-primary" data-bs-toggle="modal" data-bs-target="#editUserModal-{{ $userItem->id }}">
+                                                <i class="bi bi-pencil-square me-1"></i> Editar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5">
+                                            <div class="access-empty text-center text-muted py-10">No hay usuarios con rol inquilino.</div>
+                                        </td>
+                                    </tr>
+                                @endforelse
                             </tbody>
                         </table>
                     </div>

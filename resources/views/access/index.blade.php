@@ -215,7 +215,11 @@
 
                     showToast(payload.type || 'success', payload.message || 'Guardado correctamente.');
                     hideOpenModals();
-                    const nextUrl = buildUrl(window.location.href, payload.tab || activeTabKey());
+                    const currentTab = activeTabKey();
+                    const nextTab = payload.tab === 'users' && currentTab === 'tenants'
+                        ? 'tenants'
+                        : (payload.tab || currentTab);
+                    const nextUrl = buildUrl(window.location.href, nextTab);
                     await loadModule(nextUrl);
                 } catch (error) {
                     showToast('danger', error.message || 'No fue posible enviar la solicitud.');
