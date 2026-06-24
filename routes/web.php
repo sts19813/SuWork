@@ -1,28 +1,39 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\AdvisorTaskController;
 use App\Http\Controllers\ChargeController;
 use App\Http\Controllers\ChargePaymentController;
-use App\Http\Controllers\DossierConfigurationController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\DossierConfigurationController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InventoryCheckController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\NotificationConfigurationController;
 use App\Http\Controllers\OwnerController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PropertyControlController;
 use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\StorageItemController;
 use App\Http\Controllers\TenantController;
 use App\Http\Controllers\UserAccessController;
-use App\Http\Controllers\StorageItemController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\PropertyControlController;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\LocaleController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     if (auth()->check()) {
-        return redirect()->route('dashboard');
+        $user = auth()->user();
+        $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
+        $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
+        $isAdmin = $user->hasRole('administrador') || $user->hasRole('admin');
+        $isAdvisor = ! $isAdmin && ($user->hasRole('asesores') || $user->hasRole('asesor') || $user->can('propiedades.ver_propias'));
+
+        return redirect()->route(match (true) {
+            $isTenant || $isTechnician => 'maintenance.index',
+            $isAdvisor => 'advisor.tasks.index',
+            default => 'dashboard',
+        });
     }
 
     return redirect()->route('login');
@@ -43,6 +54,8 @@ Route::middleware(['auth', 'system.access'])
         Route::post('/perfil/actualizar', [ProfileController::class, 'update'])->name('profile.update');
         Route::post('/perfil/foto', [ProfileController::class, 'updatePhoto'])->name('profile.update.photo');
         Route::post('/perfil/password', [ProfileController::class, 'updatePassword'])->name('profile.update.password');
+
+        Route::get('/asesor/pendientes', [AdvisorTaskController::class, 'index'])->name('advisor.tasks.index');
 
         Route::get('/propiedades', [PropertyController::class, 'index'])->name('properties.index');
         Route::get('/propiedades/control', [PropertyControlController::class, 'index'])->name('properties.control');
@@ -163,7 +176,7 @@ Route::middleware(['auth', 'system.access'])
         Route::post('/mantenimiento/{maintenance}/mensajes', [MaintenanceController::class, 'storeMessage'])->name('maintenance.messages');
         Route::post('/mantenimiento/proveedores', [MaintenanceController::class, 'storeProvider'])->name('maintenance.providers.store');
         Route::put('/mantenimiento/proveedores/{provider}', [MaintenanceController::class, 'updateProvider'])->name('maintenance.providers.update');
-        
+
         // Almacén (storage items)
         Route::resource('storage_items', StorageItemController::class);
         Route::post('storage_items/catalog/warehouse', [StorageItemController::class, 'storeWarehouse'])->name('storage_items.warehouses.store');
@@ -187,4 +200,4 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';

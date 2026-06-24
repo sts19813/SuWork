@@ -37,7 +37,7 @@ class GoogleAuthController extends Controller
             'prompt' => 'select_account consent',
         ]);
 
-        return redirect()->away('https://accounts.google.com/o/oauth2/v2/auth?' . $query);
+        return redirect()->away('https://accounts.google.com/o/oauth2/v2/auth?'.$query);
     }
 
     public function callback(Request $request): RedirectResponse
@@ -130,7 +130,18 @@ class GoogleAuthController extends Controller
         Auth::login($user, true);
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
+        $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
+        $isAdmin = $user->hasRole('administrador') || $user->hasRole('admin');
+        $isAdvisor = ! $isAdmin && ($user->hasRole('asesores') || $user->hasRole('asesor') || $user->can('propiedades.ver_propias'));
+
+        $defaultRoute = match (true) {
+            $isTenant || $isTechnician => 'maintenance.index',
+            $isAdvisor => 'advisor.tasks.index',
+            default => 'dashboard',
+        };
+
+        return redirect()->intended(route($defaultRoute, absolute: false));
     }
 
     private function resolveCallbackUrl(): string
