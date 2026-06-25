@@ -82,25 +82,6 @@ class StorePropertyRequest extends FormRequest
             'new_custom_documents.*.label' => ['nullable', 'string', 'max:150'],
             'new_custom_documents.*.file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
             'new_custom_documents.*.expires_at' => ['nullable', 'date'],
-            'inventory_areas' => ['nullable', 'array'],
-            'inventory_areas.*.id' => ['nullable', 'integer', 'exists:property_inventory_areas,id'],
-            'inventory_areas.*.name' => ['nullable', 'string', 'max:120'],
-            'inventory_areas.*.notes' => ['nullable', 'string', 'max:1500'],
-            'inventory_areas.*.items' => ['nullable', 'array'],
-            'inventory_areas.*.items.*.id' => ['nullable', 'integer', 'exists:property_inventory_items,id'],
-            'inventory_areas.*.items.*.name' => ['nullable', 'string', 'max:120'],
-            'inventory_areas.*.items.*.condition' => ['nullable', 'string', 'max:120'],
-            'inventory_areas.*.items.*.notes' => ['nullable', 'string', 'max:500'],
-            'inventory_areas.*.items.*.entry_checklist' => ['nullable', 'string'],
-            'inventory_areas.*.items.*.exit_checklist' => ['nullable', 'string'],
-            'inventory_areas.*.items.*.photos' => ['nullable', 'array', 'max:10'],
-            'inventory_areas.*.items.*.photos.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
-            'inventory_areas.*.photos' => ['nullable', 'array', 'max:6'],
-            'inventory_areas.*.photos.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
-            'removed_area_photo_ids' => ['nullable', 'array'],
-            'removed_area_photo_ids.*' => ['nullable', 'integer', 'exists:property_inventory_photos,id'],
-            'removed_item_photo_ids' => ['nullable', 'array'],
-            'removed_item_photo_ids.*' => ['nullable', 'integer', 'exists:property_inventory_item_photos,id'],
         ];
     }
 
@@ -202,6 +183,10 @@ class StorePropertyRequest extends FormRequest
             $zoneText = $this->input('zone_text');
             if (blank($zoneId) && blank($zoneText)) {
                 $validator->errors()->add('zone_text', 'Debes seleccionar una zona del listado o capturar una zona personalizada.');
+            }
+
+            if ($this->input('status') === Property::STATUS_OCCUPIED && blank($this->input('tenant_id'))) {
+                $validator->errors()->add('tenant_id', 'Debes seleccionar un inquilino para marcar la propiedad como ocupada.');
             }
 
             foreach ((array) $this->input('new_custom_documents', []) as $index => $documentData) {

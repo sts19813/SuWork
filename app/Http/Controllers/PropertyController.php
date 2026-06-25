@@ -110,8 +110,6 @@ class PropertyController extends Controller
         $property->load([
             'owners',
             'documents.versions',
-            'inventoryAreas.items',
-            'inventoryAreas.photos',
             'tenant',
             'advisor',
             'advisors',
@@ -138,13 +136,17 @@ class PropertyController extends Controller
             ->with('success', 'La propiedad se actualizó correctamente.');
     }
 
-    public function editInventory(Request $request, Property $property): RedirectResponse
+    public function editInventory(Request $request, Property $property): View
     {
         $this->ensureAdvisorIsReadOnly($request);
 
-        return redirect()->route('properties.edit', [
+        $property->load([
+            'inventoryAreas.photos',
+            'inventoryAreas.items.photos.latestVersion',
+        ]);
+
+        return view('properties.inventory-edit', [
             'property' => $property,
-            'step' => 5,
         ]);
     }
 
@@ -623,7 +625,6 @@ class PropertyController extends Controller
             }
             $this->syncDocuments($property, $request);
             $this->syncCustomDocuments($property, $request);
-            $this->syncInventory($property, $validated['inventory_areas'] ?? [], $request);
             $this->syncRentChargesFromPlan($property, $request->user()?->id);
 
             return $property->fresh();
