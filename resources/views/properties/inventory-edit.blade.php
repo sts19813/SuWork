@@ -702,7 +702,11 @@
                 scope.querySelectorAll('.js-photo-drop:not([data-bound="1"])').forEach((drop) => {
                     drop.dataset.bound = '1';
                     const input = drop.querySelector('input[type="file"]');
-                    drop.addEventListener('click', () => input?.click());
+                    drop.addEventListener('click', (event) => {
+                        if (event.target === input) return;
+                        event.preventDefault();
+                        input?.click();
+                    });
                     ['dragenter', 'dragover'].forEach((eventName) => {
                         drop.addEventListener(eventName, (event) => {
                             event.preventDefault();
