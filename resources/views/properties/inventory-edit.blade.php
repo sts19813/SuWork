@@ -478,6 +478,17 @@
 
             const formDataFromForm = (form) => new FormData(form);
 
+            const isSubmitting = (form) => form?.dataset.submitting === '1';
+
+            const setSubmitting = (form, submitting) => {
+                if (!form) return;
+                form.dataset.submitting = submitting ? '1' : '0';
+                form.querySelectorAll('button[type="submit"]').forEach((button) => {
+                    button.disabled = submitting;
+                    button.classList.toggle('disabled', submitting);
+                });
+            };
+
             const createPhotoTile = (photo, kind) => {
                 const tile = document.createElement('div');
                 tile.className = 'inventory-photo-tile';
@@ -539,6 +550,8 @@
             document.getElementById('new-area-form')?.addEventListener('submit', async (event) => {
                 event.preventDefault();
                 const form = event.currentTarget;
+                if (isSubmitting(form)) return;
+                setSubmitting(form, true);
                 try {
                     const payload = await requestJson(form.action, formDataFromForm(form));
                     appendAreaCard(payload.area);
@@ -546,6 +559,8 @@
                     toast('success', payload.message || 'Area guardada correctamente.');
                 } catch (error) {
                     toast('error', error.message);
+                } finally {
+                    setSubmitting(form, false);
                 }
             });
 
@@ -557,6 +572,7 @@
                     event.currentTarget.value = '';
                     return;
                 }
+                if (isSubmitting(form)) return;
                 form.requestSubmit();
             });
 
@@ -567,6 +583,9 @@
                 if (!areaForm && !itemForm && !newItemForm) return;
 
                 event.preventDefault();
+                const submitForm = areaForm || itemForm || newItemForm;
+                if (isSubmitting(submitForm)) return;
+                setSubmitting(submitForm, true);
                 try {
                     if (areaForm) {
                         await saveAreaForm(areaForm);
@@ -583,6 +602,8 @@
                     }
                 } catch (error) {
                     toast('error', error.message);
+                } finally {
+                    setSubmitting(submitForm, false);
                 }
             });
 
@@ -651,6 +672,7 @@
                     return;
                 }
 
+                if (isSubmitting(form)) return;
                 form.requestSubmit();
             });
 
