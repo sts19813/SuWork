@@ -25,6 +25,27 @@ class TenantModuleTest extends TestCase
         $response->assertSee('Inquilinos');
     }
 
+    public function test_tenant_show_is_displayed(): void
+    {
+        $user = User::factory()->create();
+        $tenant = Tenant::create([
+            'full_name' => 'Ana Lucia Torres',
+            'phone_primary' => '9991112233',
+            'email' => 'ana@example.com',
+            'dossier_status' => Tenant::DOSSIER_COMPLETE,
+            'is_active' => true,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('tenants.show', $tenant));
+
+        $response->assertOk();
+        $response->assertSee('Ana Lucia Torres');
+        $response->assertSee('Editar');
+        $response->assertSee('Expediente');
+    }
+
     public function test_tenant_can_be_created(): void
     {
         $user = User::factory()->create();
@@ -95,7 +116,7 @@ class TenantModuleTest extends TestCase
             ->get(route('tenants.edit', $tenant));
 
         $response->assertOk();
-        $response->assertSee('Perfil del inquilino');
+        $response->assertSee('Editar inquilino');
         $response->assertDontSee('Expediente del inquilino');
     }
 }

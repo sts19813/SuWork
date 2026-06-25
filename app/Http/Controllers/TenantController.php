@@ -72,6 +72,28 @@ class TenantController extends Controller
             ->with('success', $message);
     }
 
+    public function show(Tenant $tenant): View
+    {
+        $tenant->load([
+            'properties' => fn ($query) => $query
+                ->with(['type:id,name', 'zone:id,name'])
+                ->latest('properties.created_at'),
+        ])->loadCount([
+            'properties',
+            'documents',
+            'charges as total_rent_charges_count' => fn ($query) => $query
+                ->where('type', Charge::TYPE_RENT)
+                ->where('status', '!=', Charge::STATUS_CANCELED),
+            'charges as paid_rent_charges_count' => fn ($query) => $query
+                ->where('type', Charge::TYPE_RENT)
+                ->where('status', Charge::STATUS_PAID),
+        ]);
+
+        return view('tenants.show', [
+            'tenant' => $tenant,
+        ]);
+    }
+
     public function edit(Tenant $tenant): View
     {
         return view('tenants.edit', [

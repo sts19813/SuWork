@@ -354,6 +354,11 @@
                 white-space: normal;
             }
 
+            .tenant-control-actions .btn:first-child:last-child,
+            .tenant-control-actions .btn:nth-child(3):last-child {
+                grid-column: 1 / -1;
+            }
+
             .tenant-control-table-card .dataTables_info {
                 padding: 14px 2px 0;
                 font-size: 0.78rem;
@@ -440,6 +445,7 @@
                                 </td>
                                 <td class="text-end pe-7">
                                     <div class="tenant-control-actions">
+                                        <a href="{{ route('tenants.show', $tenant) }}" class="btn btn-sm btn-light">Ver</a>
                                         <a href="{{ route('dossiers.tenants.show', $tenant) }}" class="btn btn-sm btn-light-primary">Expediente</a>
                                         <a href="{{ route('tenants.edit', $tenant) }}" class="btn btn-sm btn-primary">Editar</a>
                                     </div>
