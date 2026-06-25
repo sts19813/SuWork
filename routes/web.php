@@ -92,9 +92,11 @@ Route::middleware(['auth', 'system.access'])
         Route::post('/propiedades/{property}/inventario/areas', [InventoryCheckController::class, 'storeArea'])->name('inventory.areas.store');
         Route::patch('/propiedades/{property}/inventario/areas/{area}', [InventoryCheckController::class, 'updateArea'])->name('inventory.areas.update');
         Route::delete('/propiedades/{property}/inventario/areas/{area}', [InventoryCheckController::class, 'destroyArea'])->name('inventory.areas.destroy');
+        Route::delete('/propiedades/{property}/inventario/areas/{area}/fotos/{photo}', [InventoryCheckController::class, 'destroyAreaPhoto'])->name('inventory.areas.photos.destroy');
         Route::post('/propiedades/{property}/inventario/areas/{area}/items', [InventoryCheckController::class, 'storeItem'])->name('inventory.items.store');
         Route::patch('/propiedades/{property}/inventario/areas/{area}/items/{item}', [InventoryCheckController::class, 'updateInventoryItem'])->name('inventory.items.update');
         Route::delete('/propiedades/{property}/inventario/areas/{area}/items/{item}', [InventoryCheckController::class, 'destroyInventoryItem'])->name('inventory.items.destroy');
+        Route::delete('/propiedades/{property}/inventario/areas/{area}/items/{item}/fotos/{photo}', [InventoryCheckController::class, 'destroyItemPhoto'])->name('inventory.items.photos.destroy');
 
         Route::get('/propietarios', [OwnerController::class, 'index'])->name('owners.index');
         Route::post('/propietarios', [OwnerController::class, 'store'])->name('owners.store');
