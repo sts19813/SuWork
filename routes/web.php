@@ -100,6 +100,7 @@ Route::middleware(['auth', 'system.access'])
 
         Route::get('/propietarios', [OwnerController::class, 'index'])->name('owners.index');
         Route::post('/propietarios', [OwnerController::class, 'store'])->name('owners.store');
+        Route::get('/propietarios/{owner}', [OwnerController::class, 'show'])->name('owners.show');
         Route::get('/propietarios/{owner}/editar', [OwnerController::class, 'edit'])->name('owners.edit');
         Route::put('/propietarios/{owner}', [OwnerController::class, 'update'])->name('owners.update');
         Route::delete('/propietarios/{owner}', [OwnerController::class, 'destroy'])->name('owners.destroy');

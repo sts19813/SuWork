@@ -239,7 +239,7 @@
                 padding: 20px;
                 border: 1px solid #e8eef7;
                 border-radius: 18px;
-                background: #fff;
+                background: #fff !important;
                 box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
                 overflow: hidden;
             }
@@ -672,7 +672,7 @@
 
             const dataTable = $(tableElement).DataTable({
                 dom: "rt<'row align-items-center'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7 d-flex justify-content-md-end'p>>",
-                pageLength: 10,
+                pageLength: 25,
                 lengthChange: false,
                 order: [],
                 info: true,

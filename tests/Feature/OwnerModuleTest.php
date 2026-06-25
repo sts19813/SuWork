@@ -31,6 +31,21 @@ class OwnerModuleTest extends TestCase
         $response->assertSee('Propietarios');
     }
 
+    public function test_owner_show_is_displayed(): void
+    {
+        $user = User::factory()->create();
+        $owner = $this->createOwnerFixture();
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('owners.show', $owner));
+
+        $response->assertOk();
+        $response->assertSee($owner->name);
+        $response->assertSee('Editar');
+        $response->assertSee('Expediente');
+    }
+
     public function test_owner_can_be_created(): void
     {
         $user = User::factory()->create();

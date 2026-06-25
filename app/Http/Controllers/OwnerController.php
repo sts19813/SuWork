@@ -70,6 +70,19 @@ class OwnerController extends Controller
             ->with('success', 'El propietario se creó correctamente.');
     }
 
+    public function show(Owner $owner): View
+    {
+        $owner->load([
+            'properties' => fn ($query) => $query
+                ->with(['type:id,name', 'zone:id,name'])
+                ->latest('properties.created_at'),
+        ])->loadCount(['properties', 'documents']);
+
+        return view('owners.show', [
+            'owner' => $owner,
+        ]);
+    }
+
     public function edit(Owner $owner): View
     {
         return view('owners.edit', [

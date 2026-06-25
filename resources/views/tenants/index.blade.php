@@ -193,6 +193,182 @@
                 padding-right: 16px;
             }
         }
+
+        @media (max-width: 767.98px) {
+            .tenant-control-table-card {
+                margin-top: 14px;
+                border: 0;
+                border-radius: 0;
+                overflow: visible;
+                background: transparent;
+            }
+
+            .tenant-control-table-card .table-responsive {
+                overflow: visible;
+            }
+
+            .tenant-control-table-card table,
+            .tenant-control-table-card table.dataTable,
+            .tenant-control-table-card tbody {
+                display: block;
+                width: 100% !important;
+            }
+
+            .tenant-control-table-card thead {
+                display: none;
+            }
+
+            .tenant-control-table-card tbody {
+                display: grid;
+                gap: 14px;
+            }
+
+            .tenant-control-row {
+                display: block;
+                padding: 18px;
+                border: 1px solid #e8eef7;
+                border-radius: 8px;
+                background: #fff !important;
+                box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+                overflow: hidden;
+            }
+
+            .tenant-control-table-card table:not(.table-bordered) tr.tenant-control-row {
+                padding: 18px !important;
+            }
+
+            .tenant-control-row:hover td {
+                background: transparent;
+            }
+
+            .tenant-control-row td {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                min-width: 0;
+                padding: 10px 0 !important;
+                border-top: 1px solid #f0f3f8 !important;
+                background: transparent !important;
+                text-align: right !important;
+            }
+
+            .tenant-control-row td::before {
+                flex: 0 0 88px;
+                color: #8b96b2;
+                font-size: 0.66rem;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+                line-height: 1.25;
+                text-align: left;
+                text-transform: uppercase;
+            }
+
+            .tenant-control-row td:nth-child(1) {
+                display: block;
+                padding-top: 0 !important;
+                padding-bottom: 14px !important;
+                border-top: 0 !important;
+                text-align: left !important;
+            }
+
+            .tenant-control-row td:nth-child(1)::before,
+            .tenant-control-row td:nth-child(4)::before {
+                content: none;
+            }
+
+            .tenant-control-row td:nth-child(2)::before {
+                content: 'Contacto';
+            }
+
+            .tenant-control-row td:nth-child(3)::before {
+                content: 'Pagos';
+            }
+
+            .tenant-control-row td:nth-child(4) {
+                margin-top: 6px;
+                padding-top: 14px !important;
+                border-top: 1px solid #e8eef7 !important;
+            }
+
+            .tenant-control-person {
+                gap: 12px;
+            }
+
+            .tenant-control-person > div:last-child {
+                min-width: 0;
+            }
+
+            .tenant-control-person .owner-initial {
+                width: 44px;
+                height: 44px;
+                flex-shrink: 0;
+            }
+
+            .tenant-control-person__title {
+                font-size: 1rem;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+            }
+
+            .tenant-control-person__meta,
+            .tenant-control-contact__meta {
+                font-size: 0.78rem;
+                line-height: 1.35;
+                overflow-wrap: anywhere;
+            }
+
+            .tenant-control-label {
+                display: none;
+            }
+
+            .tenant-control-value,
+            .tenant-control-contact__meta {
+                max-width: 58%;
+                min-width: 0;
+                font-size: 0.84rem;
+                line-height: 1.35;
+                overflow-wrap: anywhere;
+                text-align: right;
+            }
+
+            .tenant-control-row td:nth-child(1) .tenant-control-person__meta {
+                max-width: none;
+                text-align: left;
+            }
+
+            .tenant-control-actions {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+                width: 100%;
+            }
+
+            .tenant-control-actions .btn {
+                width: 100%;
+                min-width: 0;
+                border-radius: 8px;
+                padding: 9px 10px;
+                font-size: 0.78rem;
+                line-height: 1.2;
+                white-space: normal;
+            }
+
+            .tenant-control-table-card .dataTables_info {
+                padding: 14px 2px 0;
+                font-size: 0.78rem;
+                text-align: center;
+            }
+
+            .tenant-control-table-card .dataTables_paginate {
+                padding: 12px 2px 0;
+            }
+
+            .tenant-control-table-card .dataTables_paginate .pagination {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+        }
     </style>
 @endpush
 
