@@ -1196,10 +1196,20 @@
                     <div class="tab-pane fade property-tab-pane" id="tab-inventory" role="tabpanel"
                         aria-labelledby="tab-inventory-tab">
                         <div class="card property-block-card">
-                            <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
+                            <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center flex-wrap gap-3">
                                 <h3 class="card-title fw-bold">Inventario</h3>
-                                <a href="{{ route('inventory-checks.index', $property) }}"
-                                    class="btn btn-sm btn-light-primary">Abrir inventario</a>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <a href="{{ route('properties.inventory.edit', $property) }}"
+                                        class="btn btn-sm btn-light-primary">
+                                        <i class="ki-outline ki-pencil fs-5 me-1"></i> Editar inventario
+                                    </a>
+                                     <a href="{{ route('inventory-checks.index', $property) }}"
+                                    class="btn btn-sm btn-light-primary">Checks Entrada /salida</a>
+                                    <a href="{{ route('inventory-checks.export-pdf', $property) }}"
+                                        class="btn btn-sm btn-light-success">
+                                        <i class="ki-outline ki-file-down fs-5 me-1"></i> Descargar PDF
+                                    </a>
+                                </div>
                             </div>
                             <div class="card-body pt-0">
                                 @if ($property->inventoryAreas->isEmpty())

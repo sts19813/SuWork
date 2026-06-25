@@ -421,12 +421,11 @@ class InventoryCheckController extends Controller
     // Inventory Management Methods
     public function storeArea(Request $request, Property $property): RedirectResponse|JsonResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-            'photos' => ['nullable', 'array'],
-            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
-        ]);
+        $validated = $request->validate(
+            $this->inventoryAreaRules(),
+            $this->inventoryAreaMessages(),
+            $this->inventoryAreaAttributes(),
+        );
 
         $area = $property->inventoryAreas()->create([
             'name' => $validated['name'],
@@ -451,12 +450,11 @@ class InventoryCheckController extends Controller
     {
         $this->abortUnlessAreaBelongsToProperty($property, $area);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-            'photos' => ['nullable', 'array'],
-            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
-        ]);
+        $validated = $request->validate(
+            $this->inventoryAreaRules(),
+            $this->inventoryAreaMessages(),
+            $this->inventoryAreaAttributes(),
+        );
 
         $area->update([
             'name' => $validated['name'],
@@ -502,13 +500,11 @@ class InventoryCheckController extends Controller
     {
         $this->abortUnlessAreaBelongsToProperty($property, $area);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'condition' => ['nullable', 'string', 'max:1000'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-            'photos' => ['nullable', 'array'],
-            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
-        ]);
+        $validated = $request->validate(
+            $this->inventoryItemRules(),
+            $this->inventoryItemMessages(),
+            $this->inventoryItemAttributes(),
+        );
 
         $item = $area->items()->create([
             'name' => $validated['name'],
@@ -534,13 +530,11 @@ class InventoryCheckController extends Controller
     {
         $this->abortUnlessItemBelongsToArea($property, $area, $item);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'condition' => ['nullable', 'string', 'max:1000'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-            'photos' => ['nullable', 'array'],
-            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
-        ]);
+        $validated = $request->validate(
+            $this->inventoryItemRules(),
+            $this->inventoryItemMessages(),
+            $this->inventoryItemAttributes(),
+        );
 
         $item->update([
             'name' => $validated['name'],
@@ -609,6 +603,60 @@ class InventoryCheckController extends Controller
         }
 
         return back()->with('success', 'Imagen eliminada correctamente.');
+    }
+
+    private function inventoryAreaRules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'photos' => ['nullable', 'array'],
+            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+        ];
+    }
+
+    private function inventoryAreaMessages(): array
+    {
+        return [
+            'name.required' => 'El nombre del espacio es obligatorio.',
+        ];
+    }
+
+    private function inventoryAreaAttributes(): array
+    {
+        return [
+            'name' => 'nombre del espacio',
+            'notes' => 'notas del espacio',
+            'photos.*' => 'foto del espacio',
+        ];
+    }
+
+    private function inventoryItemRules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'condition' => ['nullable', 'string', 'max:1000'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'photos' => ['nullable', 'array'],
+            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+        ];
+    }
+
+    private function inventoryItemMessages(): array
+    {
+        return [
+            'name.required' => 'El nombre del item es obligatorio.',
+        ];
+    }
+
+    private function inventoryItemAttributes(): array
+    {
+        return [
+            'name' => 'nombre del item',
+            'condition' => 'estado del item',
+            'notes' => 'notas del item',
+            'photos.*' => 'foto del item',
+        ];
     }
 
     private function abortUnlessAreaBelongsToProperty(Property $property, PropertyInventoryArea $area): void
