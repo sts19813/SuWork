@@ -12,8 +12,7 @@
             2 => 'Datos adicionales',
             3 => 'Propietarios',
             4 => 'Documentos',
-            5 => 'Inventario',
-            6 => 'Estado inicial',
+            5 => 'Estado inicial',
         ];
 
         $statusDescriptions = [
@@ -43,57 +42,6 @@
             ->all();
 
         $oldNewOwners = old('new_owners', []);
-        $removedAreaPhotoIds = collect(old('removed_area_photo_ids', []))
-            ->map(fn($id) => (int) $id)
-            ->all();
-        $removedItemPhotoIds = collect(old('removed_item_photo_ids', []))
-            ->map(fn($id) => (int) $id)
-            ->all();
-
-        $defaultAreaData = collect($defaultAreas)->map(function ($area) {
-            return [
-                'name' => $area,
-                'notes' => '',
-                'items' => [
-                    ['name' => '', 'condition' => '', 'notes' => ''],
-                ],
-            ];
-        });
-        $propertyAreaDefaults = $isEdit && $property
-            ? $property->inventoryAreas
-                ->map(
-                    fn($area) => [
-                        'id' => $area->id,
-                        'name' => $area->name,
-                        'notes' => $area->notes,
-                        'existing_photos' => $area->photos->map(
-                            fn($photo) => [
-                                'id' => $photo->id,
-                                'url' => \Illuminate\Support\Facades\Storage::url($photo->file_path),
-                            ],
-                        )->values()->all(),
-                        'items' => $area->items->map(
-                            fn($item) => [
-                                'id' => $item->id,
-                                'name' => $item->name,
-                                'condition' => $item->condition,
-                                'notes' => $item->notes,
-                                'existing_photos' => $item->photos->map(
-                                    fn($photo) => [
-                                        'id' => $photo->id,
-                                        'url' => \Illuminate\Support\Facades\Storage::url($photo->latestVersion?->file_path ?? ''),
-                                    ],
-                                )->filter(fn($photo) => filled($photo['url']))->values()->all(),
-                            ],
-                        )
-                            ->values()
-                            ->all() ?: [['id' => null, 'name' => '', 'condition' => '', 'notes' => '', 'existing_photos' => []]],
-                    ],
-                )
-                ->values()
-                ->all()
-            : [];
-        $oldAreas = old('inventory_areas', $propertyAreaDefaults ?: $defaultAreaData->toArray());
 
         $fieldValue = function (string $key, mixed $default = '') use ($isEdit, $property) {
             return old($key, $isEdit && $property ? data_get($property, $key, $default) : $default);
@@ -151,16 +99,12 @@
                     $initialStep = 4;
                     break;
                 }
-                if (str_starts_with($errorKey, 'inventory_areas.')) {
+                if ($errorKey === 'status') {
                     $initialStep = 5;
                     break;
                 }
-                if ($errorKey === 'status') {
-                    $initialStep = 6;
-                    break;
-                }
                 if ($errorKey === 'tenant_id') {
-                    $initialStep = 6;
+                    $initialStep = 5;
                     break;
                 }
                 if ($errorKey === 'advisor_user_id') {
@@ -168,11 +112,11 @@
                     break;
                 }
                 if ($errorKey === 'contract_starts_at' || $errorKey === 'contract_expires_at') {
-                    $initialStep = 6;
+                    $initialStep = 5;
                     break;
                 }
                 if ($errorKey === 'rent_charge_plan' || str_starts_with($errorKey, 'rent_charge_plan.')) {
-                    $initialStep = 6;
+                    $initialStep = 5;
                     break;
                 }
             }
@@ -201,14 +145,6 @@
                 @method('PUT')
             @endif
             <input type="hidden" name="wizard_step" id="wizard-step-input" value="{{ $initialStep }}">
-            <div id="inventory-photo-removals">
-                @foreach ($removedAreaPhotoIds as $removedAreaPhotoId)
-                    <input type="hidden" name="removed_area_photo_ids[]" value="{{ $removedAreaPhotoId }}">
-                @endforeach
-                @foreach ($removedItemPhotoIds as $removedItemPhotoId)
-                    <input type="hidden" name="removed_item_photo_ids[]" value="{{ $removedItemPhotoId }}">
-                @endforeach
-            </div>
 
             @if ($errors->any())
                 <div class="alert alert-danger mb-8">
@@ -221,7 +157,7 @@
                 </div>
             @endif
 
-            <div class="property-stepper mb-10" id="property-stepper">
+            <div class="property-stepper mb-10" id="property-stepper" style="--property-step-count: {{ count($steps) }}">
                 @foreach ($steps as $stepNumber => $stepLabel)
                     <div class="step-item" data-step="{{ $stepNumber }}">
                         <div class="step-circle">{{ $stepNumber }}</div>
@@ -788,169 +724,6 @@
             {{-- STEP 5 --}}
             <div class="card mb-8 wizard-step d-none" data-step-panel="5">
                 <div class="card-body p-lg-10">
-                    <h3 class="mb-3 fw-bold">Inventario de la propiedad</h3>
-                    <p class="text-muted mb-2">Documenta espacios y elementos. Este paso también puede completarse posteriormente.</p>
-                    <p class="text-muted fs-8 mb-8">Las imágenes de inventario se comprimen automáticamente (proporcional, sin estirar) para intentar mantener cada archivo en un máximo de 500KB.</p>
-
-                    <button type="button" id="clear-inventory-btn" class="btn btn-light-secondary mb-4">
-                        <i class="ki-outline ki-trash fs-4 me-1"></i> Limpiar inventario
-                    </button>
-
-                    <div id="inventory-areas-container" class="d-flex flex-column gap-6">
-                        @foreach ($oldAreas as $areaIndex => $area)
-                            @php
-                                $items = $area['items'] ?? [['name' => '', 'condition' => '', 'notes' => '']];
-                            @endphp
-
-                            <div class="border rounded p-6 inventory-area"
-                                data-area-index="{{ $areaIndex }}"
-                                data-next-item-index="{{ count($items) }}">
-
-                                {{-- 🔴 ID DEL AREA --}}
-                                <input type="hidden" name="inventory_areas[{{ $areaIndex }}][id]" value="{{ $area['id'] ?? '' }}">
-
-                                <div class="d-flex justify-content-between align-items-center mb-5">
-                                    <h4 class="mb-0">Área {{ $loop->iteration }}</h4>
-                                    <button type="button"
-                                        class="btn btn-sm btn-light-danger btn-remove-area {{ count($oldAreas) === 1 ? 'd-none' : '' }}">
-                                        Eliminar área
-                                    </button>
-                                </div>
-
-                                <div class="row g-5 mb-6">
-                                    <div class="col-lg-6">
-                                        <label class="form-label">Nombre del área</label>
-                                        <input type="text"
-                                            name="inventory_areas[{{ $areaIndex }}][name]"
-                                            class="form-control"
-                                            value="{{ $area['name'] ?? '' }}"
-                                            placeholder="Ej: Cocina">
-                                    </div>
-
-                                    <div class="col-lg-6">
-                                        <label class="form-label">Notas del área</label>
-                                        <input type="text"
-                                            name="inventory_areas[{{ $areaIndex }}][notes]"
-                                            class="form-control"
-                                            value="{{ $area['notes'] ?? '' }}"
-                                            placeholder="Observaciones">
-                                    </div>
-
-                                    <div class="col-12">
-                                        @if (!empty($area['existing_photos']))
-                                            <div class="mb-3 d-flex flex-wrap gap-3 inventory-existing-area-photos">
-                                                @foreach ($area['existing_photos'] as $photo)
-                                                    @continue(in_array((int) ($photo['id'] ?? 0), $removedAreaPhotoIds, true))
-                                                    <div class="inventory-thumb-item position-relative" data-photo-kind="area" data-photo-id="{{ $photo['id'] ?? '' }}">
-                                                        <img src="{{ $photo['url'] }}" class="inventory-thumb" alt="Foto área">
-                                                        <button type="button"
-                                                            class="btn btn-icon btn-danger btn-sm position-absolute top-0 end-0 m-1 js-remove-existing-photo"
-                                                            data-photo-type="area"
-                                                            data-photo-id="{{ $photo['id'] ?? '' }}"
-                                                            title="Eliminar foto">
-                                                            <i class="ki-outline ki-trash fs-7"></i>
-                                                        </button>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                        @endif
-                                        <label class="form-label">Fotos generales del área (hasta 6)</label>
-                                        <input type="file"
-                                            name="inventory_areas[{{ $areaIndex }}][photos][]"
-                                            class="form-control js-drop-input"
-                                            accept=".jpg,.jpeg,.png,.webp"
-                                            multiple>
-                                    </div>
-                                </div>
-                                <div class="items-container d-flex flex-column gap-4">
-                                    @foreach ($items as $itemIndex => $item)
-                                        <div class="row g-4 inventory-item">
-
-                                            {{-- 🔴 ID DEL ITEM --}}
-                                            <input type="hidden"
-                                                name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][id]"
-                                                value="{{ $item['id'] ?? '' }}">
-
-                                            <div class="col-lg-3">
-                                                <input type="text"
-                                                    name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][name]"
-                                                    class="form-control"
-                                                    value="{{ $item['name'] ?? '' }}"
-                                                    placeholder="Elemento (Ej: Parrilla)">
-                                            </div>
-
-                                            <div class="col-lg-2">
-                                                <select name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][condition]"
-                                                    class="form-select">
-                                                    <option value="">Seleccionar estado</option>
-                                                    <option value="bueno" {{ ($item['condition'] ?? '') === 'bueno' ? 'selected' : '' }}>Bueno</option>
-                                                    <option value="regular" {{ ($item['condition'] ?? '') === 'regular' ? 'selected' : '' }}>Regular</option>
-                                                    <option value="malo" {{ ($item['condition'] ?? '') === 'malo' ? 'selected' : '' }}>Malo</option>
-                                                </select>
-                                            </div>
-
-                                            <div class="col-lg-3">
-                                                <input type="text"
-                                                    name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][notes]"
-                                                    class="form-control"
-                                                    value="{{ $item['notes'] ?? '' }}"
-                                                    placeholder="Notas">
-                                            </div>
-
-                                            <div class="col-lg-3">
-                                                <input type="file"
-                                                    name="inventory_areas[{{ $areaIndex }}][items][{{ $itemIndex }}][photos][]"
-                                                    class="form-control js-drop-input"
-                                                    accept=".jpg,.jpeg,.png,.webp"
-                                                    multiple>
-                                            </div>
-
-                                            <div class="col-lg-1">
-                                                <button type="button" class="btn btn-icon btn-light-danger btn-remove-item">
-                                                    <i class="ki-outline ki-trash fs-5"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        @if (!empty($item['existing_photos']))
-                                            <div class="mb-3 d-flex flex-wrap gap-3 inventory-existing-item-photos">
-                                                @foreach ($item['existing_photos'] as $photo)
-                                                    @continue(in_array((int) ($photo['id'] ?? 0), $removedItemPhotoIds, true))
-                                                    <div class="inventory-thumb-item position-relative" data-photo-kind="item" data-photo-id="{{ $photo['id'] ?? '' }}">
-                                                        <img src="{{ $photo['url'] }}" class="inventory-thumb" alt="Foto ítem">
-                                                        <button type="button"
-                                                            class="btn btn-icon btn-danger btn-sm position-absolute top-0 end-0 m-1 js-remove-existing-photo"
-                                                            data-photo-type="item"
-                                                            data-photo-id="{{ $photo['id'] ?? '' }}"
-                                                            title="Eliminar foto">
-                                                            <i class="ki-outline ki-trash fs-7"></i>
-                                                        </button>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                        @endif
-                                    @endforeach
-                                </div>
-
-                                <button type="button"
-                                    class="btn btn-light-primary border-dashed w-100 mt-5 btn-add-item">
-                                    <i class="ki-outline ki-plus fs-4 me-1"></i> Agregar elemento
-                                </button>
-                            </div>
-                        @endforeach
-                    </div>
-
-                    <button type="button"
-                        id="add-area-btn"
-                        class="btn btn-primary w-100 mt-6 border-dashed">
-                        <i class="ki-outline ki-plus fs-4 me-1"></i> Agregar otra área
-                    </button>
-                </div>
-            </div>
-
-            {{-- STEP 6 --}}
-            <div class="card mb-8 wizard-step d-none" data-step-panel="6">
-                <div class="card-body p-lg-10">
                     <h3 class="mb-3 fw-bold">Estado inicial de la propiedad</h3>
                     <p class="text-muted mb-8">Selecciona el estado inicial con el que se registrará esta propiedad en el sistema.</p>
 
@@ -1070,64 +843,6 @@
     </div>
 </template>
 
-<template id="inventory-area-template">
-    <div class="border rounded p-6 inventory-area" data-area-index="__AREA_INDEX__" data-next-item-index="1">
-        <div class="d-flex justify-content-between align-items-center mb-5">
-            <h4 class="mb-0">Área __AREA_NUMBER__</h4>
-            <button type="button" class="btn btn-sm btn-light-danger btn-remove-area">Eliminar área</button>
-        </div>
-        <div class="row g-5 mb-6">
-            <div class="col-lg-6">
-                <label class="form-label">Nombre del área</label>
-                <input type="text" name="inventory_areas[__AREA_INDEX__][name]" class="form-control"
-                    placeholder="Ej: Cocina">
-            </div>
-            <div class="col-lg-6">
-                <label class="form-label">Notas del área</label>
-                <input type="text" name="inventory_areas[__AREA_INDEX__][notes]" class="form-control"
-                    placeholder="Observaciones">
-            </div>
-            <div class="col-12">
-                <label class="form-label">Fotos generales del área (hasta 3)</label>
-                <input type="file" name="inventory_areas[__AREA_INDEX__][photos][]" class="form-control js-drop-input"
-                    accept=".jpg,.jpeg,.png,.webp" multiple>
-            </div>
-        </div>
-        <div class="items-container d-flex flex-column gap-4">
-            <div class="row g-4 inventory-item">
-                <div class="col-lg-3">
-                    <input type="text" name="inventory_areas[__AREA_INDEX__][items][0][name]" class="form-control"
-                        placeholder="Elemento (Ej: Parrilla)">
-                </div>
-                <div class="col-lg-2">
-                    <select name="inventory_areas[__AREA_INDEX__][items][0][condition]" class="form-select">
-                        <option value="">Seleccionar estado</option>
-                        <option value="bueno">Bueno</option>
-                        <option value="regular">Regular</option>
-                        <option value="malo">Malo</option>
-                    </select>
-                </div>
-                <div class="col-lg-3">
-                    <input type="text" name="inventory_areas[__AREA_INDEX__][items][0][notes]" class="form-control"
-                        placeholder="Notas">
-                </div>
-                <div class="col-lg-3">
-                    <input type="file" name="inventory_areas[__AREA_INDEX__][items][0][photos][]" class="form-control js-drop-input"
-                        accept=".jpg,.jpeg,.png,.webp" multiple>
-                </div>
-                <div class="col-lg-1">
-                    <button type="button" class="btn btn-icon btn-light-danger btn-remove-item">
-                        <i class="ki-outline ki-trash fs-5"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-        <button type="button" class="btn btn-light-primary border-dashed w-100 mt-5 btn-add-item">
-            <i class="ki-outline ki-plus fs-4 me-1"></i> Agregar elemento
-        </button>
-    </div>
-</template>
-
 <template id="new-custom-document-template">
     <div class="border rounded p-5 new-custom-document-row">
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -1164,7 +879,7 @@
 @push('scripts')
     <script>
         (() => {
-            const totalSteps = 6;
+            const totalSteps = 5;
             const stepper = document.getElementById('property-stepper');
             const panels = [...document.querySelectorAll('.wizard-step')];
             const prevBtn = document.getElementById('wizard-prev');
@@ -1202,7 +917,6 @@
                     alert(message);
                 }
             };
-            const removalsContainer = document.getElementById('inventory-photo-removals');
 
             const confirmWithSwal = async ({
                 title = 'Confirmar',
@@ -1250,10 +964,6 @@
                     return 4;
                 }
 
-                if (errorKey.startsWith('inventory_areas.')) {
-                    return 5;
-                }
-
                 if (
                     errorKey === 'status' ||
                     errorKey === 'tenant_id' ||
@@ -1262,7 +972,7 @@
                     errorKey === 'rent_charge_plan' ||
                     errorKey.startsWith('rent_charge_plan.')
                 ) {
-                    return 6;
+                    return 5;
                 }
 
                 return 1;
@@ -1894,200 +1604,6 @@
                 refreshCustomDocumentTitles();
             });
 
-            const areasContainer = document.getElementById('inventory-areas-container');
-            const areaTemplate = document.getElementById('inventory-area-template').innerHTML;
-            const addAreaBtn = document.getElementById('add-area-btn');
-            let areaIndex = areasContainer.querySelectorAll('.inventory-area').length;
-            const markedAreaPhotoIds = new Set(
-                [...removalsContainer.querySelectorAll('input[name="removed_area_photo_ids[]"]')]
-                    .map((input) => input.value)
-            );
-            const markedItemPhotoIds = new Set(
-                [...removalsContainer.querySelectorAll('input[name="removed_item_photo_ids[]"]')]
-                    .map((input) => input.value)
-            );
-
-            const appendRemovalInput = (name, value) => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = name;
-                input.value = value;
-                removalsContainer.appendChild(input);
-            };
-
-            const refreshAreaButtons = () => {
-                const areas = areasContainer.querySelectorAll('.inventory-area');
-                areas.forEach((area, index) => {
-                    const title = area.querySelector('h4');
-                    if (title) {
-                        title.textContent = `Área ${index + 1}`;
-                    }
-                    const removeBtn = area.querySelector('.btn-remove-area');
-                    if (removeBtn) {
-                        removeBtn.classList.toggle('d-none', areas.length === 1);
-                    }
-                });
-            };
-
-            const itemTemplate = (currentAreaIndex, itemIndex) => `
-                <div class="row g-4 inventory-item">
-                    <div class="col-lg-3">
-                        <input type="text" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][name]" class="form-control" placeholder="Elemento (Ej: Parrilla)">
-                    </div>
-                    <div class="col-lg-2">
-                        <select name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][condition]" class="form-select">
-                            <option value="">Seleccionar estado</option>
-                            <option value="bueno">Bueno</option>
-                            <option value="regular">Regular</option>
-                            <option value="malo">Malo</option>
-                        </select>
-                    </div>
-                    <div class="col-lg-3">
-                        <input type="text" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][notes]" class="form-control" placeholder="Notas">
-                    </div>
-                    <div class="col-lg-3">
-                        <input type="file" name="inventory_areas[${currentAreaIndex}][items][${itemIndex}][photos][]" class="form-control js-drop-input" accept=".jpg,.jpeg,.png,.webp" multiple>
-                    </div>
-                    <div class="col-lg-1">
-                        <button type="button" class="btn btn-icon btn-light-danger btn-remove-item">
-                            <i class="ki-outline ki-trash fs-5"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-
-            addAreaBtn.addEventListener('click', () => {
-                const html = areaTemplate
-                    .replaceAll('__AREA_INDEX__', areaIndex.toString())
-                    .replaceAll('__AREA_NUMBER__', (areaIndex + 1).toString());
-                areasContainer.insertAdjacentHTML('beforeend', html);
-                areaIndex++;
-                refreshAreaButtons();
-                initDropInputs(areasContainer);
-            });
-
-            const clearInventoryBtn = document.getElementById('clear-inventory-btn');
-            clearInventoryBtn?.addEventListener('click', () => {
-                areasContainer.innerHTML = '';
-                areaIndex = 0;
-                const html = areaTemplate
-                    .replaceAll('__AREA_INDEX__', '0')
-                    .replaceAll('__AREA_NUMBER__', '1');
-                areasContainer.insertAdjacentHTML('beforeend', html);
-                areaIndex = 1;
-                refreshAreaButtons();
-                initDropInputs(areasContainer);
-            });
-
-            form.addEventListener('click', async (event) => {
-                const removeExistingBtn = event.target.closest('.js-remove-existing-photo');
-                if (removeExistingBtn) {
-                    const confirmed = await confirmWithSwal({
-                        title: 'Eliminar imagen',
-                        text: 'La imagen se eliminara al guardar los cambios del inventario.',
-                        confirmButtonText: 'Si, eliminar',
-                        cancelButtonText: 'Cancelar',
-                    });
-
-                    if (!confirmed) {
-                        return;
-                    }
-
-                    const photoId = (removeExistingBtn.dataset.photoId || '').trim();
-                    const photoType = removeExistingBtn.dataset.photoType || '';
-                    if (!photoId) {
-                        return;
-                    }
-
-                    if (photoType === 'area') {
-                        if (!markedAreaPhotoIds.has(photoId)) {
-                            markedAreaPhotoIds.add(photoId);
-                            appendRemovalInput('removed_area_photo_ids[]', photoId);
-                        }
-                    } else if (photoType === 'item') {
-                        if (!markedItemPhotoIds.has(photoId)) {
-                            markedItemPhotoIds.add(photoId);
-                            appendRemovalInput('removed_item_photo_ids[]', photoId);
-                        }
-                    }
-
-                    removeExistingBtn.closest('.inventory-thumb-item')?.remove();
-                    showToast('success', 'Imagen marcada para eliminacion.');
-                    return;
-                }
-
-                const removeSelectedBtn = event.target.closest('.js-remove-selected-photo');
-                if (!removeSelectedBtn) {
-                    return;
-                }
-
-                const confirmed = await confirmWithSwal({
-                    title: 'Quitar imagen seleccionada',
-                    text: 'La imagen se quitara de esta carga.',
-                    confirmButtonText: 'Si, quitar',
-                    cancelButtonText: 'Cancelar',
-                });
-
-                if (!confirmed) {
-                    return;
-                }
-
-                const targetInputName = removeSelectedBtn.dataset.targetInput || '';
-                const fileIndex = Number(removeSelectedBtn.dataset.fileIndex ?? -1);
-                if (!targetInputName || Number.isNaN(fileIndex) || fileIndex < 0) {
-                    return;
-                }
-
-                const targetInput = [...form.querySelectorAll('input[type="file"]')]
-                    .find((input) => input.name === targetInputName);
-                if (!targetInput?.files?.length) {
-                    return;
-                }
-
-                const dt = new DataTransfer();
-                [...targetInput.files].forEach((file, index) => {
-                    if (index !== fileIndex) {
-                        dt.items.add(file);
-                    }
-                });
-                targetInput.files = dt.files;
-                targetInput.dispatchEvent(new Event('change', { bubbles: true }));
-                showToast('success', 'Imagen eliminada de la seleccion.');
-            });
-
-            areasContainer.addEventListener('click', (event) => {
-                const addItemBtn = event.target.closest('.btn-add-item');
-                if (addItemBtn) {
-                    const area = addItemBtn.closest('.inventory-area');
-                    const itemsContainer = area.querySelector('.items-container');
-                    const currentAreaIndex = area.dataset.areaIndex;
-                    const nextItemIndex = parseInt(area.dataset.nextItemIndex || '0', 10);
-                    itemsContainer.insertAdjacentHTML('beforeend', itemTemplate(currentAreaIndex, nextItemIndex));
-                    area.dataset.nextItemIndex = (nextItemIndex + 1).toString();
-                    initDropInputs(area);
-                    return;
-                }
-
-                const removeAreaBtn = event.target.closest('.btn-remove-area');
-                if (removeAreaBtn) {
-                    const area = removeAreaBtn.closest('.inventory-area');
-                    if (area && areasContainer.querySelectorAll('.inventory-area').length > 1) {
-                        area.remove();
-                        refreshAreaButtons();
-                    }
-                    return;
-                }
-
-                const removeItemBtn = event.target.closest('.btn-remove-item');
-                if (removeItemBtn) {
-                    const item = removeItemBtn.closest('.inventory-item');
-                    const area = removeItemBtn.closest('.inventory-area');
-                    if (item && area && area.querySelectorAll('.inventory-item').length > 1) {
-                        item.remove();
-                    }
-                }
-            });
-
             document.querySelectorAll('input[name="status"]').forEach((radio) => {
                 radio.addEventListener('change', () => {
                     document.querySelectorAll('.status-option').forEach((node) => node.classList.remove('is-selected'));
@@ -2097,7 +1613,6 @@
 
             refreshInlineOwners();
             refreshCustomDocumentTitles();
-            refreshAreaButtons();
             renderWizard();
             initDropInputs();
 

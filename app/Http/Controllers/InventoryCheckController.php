@@ -7,13 +7,17 @@ use App\Models\InventoryCheck;
 use App\Models\InventoryCheckItem;
 use App\Models\Property;
 use App\Models\PropertyInventoryArea;
+use App\Models\PropertyInventoryPhoto;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\View\View;
 use App\Models\PropertyInventoryItem;
 use App\Models\PropertyInventoryItemPhoto;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class InventoryCheckController extends Controller
 {
@@ -397,27 +401,8 @@ class InventoryCheckController extends Controller
             'condition' => 'Nuevo elemento agregado durante check',
         ]);
 
-        // Subir foto si se proporcionó
         if ($request->hasFile('photo')) {
-            $photoPath = $request->file('photo')->store(
-                "properties/{$property->id}/inventory/items",
-                'public'
-            );
-
-            // Crear registro de foto
-            $photo = $inventoryItem->photos()->create([
-                'name' => $request->file('photo')->getClientOriginalName(),
-                'status' => PropertyInventoryItemPhoto::STATUS_ACTIVE,
-            ]);
-
-            // Crear versión de la foto
-            $photo->versions()->create([
-                'file_path' => $photoPath,
-                'file_name' => $request->file('photo')->getClientOriginalName(),
-                'mime_type' => $request->file('photo')->getMimeType(),
-                'file_size' => $request->file('photo')->getSize(),
-                'uploaded_by' => $request->user()->id,
-            ]);
+            $this->storeItemPhotos($request, $property, $inventoryItem, [$request->file('photo')]);
         }
 
         // Agregar el elemento al check
@@ -434,104 +419,92 @@ class InventoryCheckController extends Controller
     }
 
     // Inventory Management Methods
-    public function storeArea(Request $request, Property $property)
+    public function storeArea(Request $request, Property $property): RedirectResponse|JsonResponse
     {
-        
-
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-            'photos' => ['nullable', 'array'],
-            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
-        ]);
+        $validated = $request->validate(
+            $this->inventoryAreaRules(),
+            $this->inventoryAreaMessages(),
+            $this->inventoryAreaAttributes(),
+        );
 
         $area = $property->inventoryAreas()->create([
             'name' => $validated['name'],
             'notes' => $validated['notes'] ?? null,
         ]);
 
-        // Handle photos
-        if ($request->hasFile('photos')) {
-            foreach ($request->file('photos') as $photo) {
-                $filePath = $photo->store("properties/{$property->id}/inventory/{$area->id}", 'public');
-                $area->photos()->create([
-                    'file_path' => $filePath,
-                    'file_name' => $photo->getClientOriginalName(),
-                    'mime_type' => $photo->getMimeType(),
-                    'file_size' => $photo->getSize(),
-                ]);
-            }
+        $photos = $this->storeAreaPhotos($property, $area, $this->uploadedFiles($request, 'photos'));
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Área guardada correctamente.',
+                'area' => $this->serializeArea($area->fresh(['photos', 'items.photos.latestVersion'])),
+                'photos' => $photos,
+            ]);
         }
 
-        if ($request->ajax()) {
-            return response()->json(['success' => true, 'area' => $area->load('photos')]);
-        }
         return back()->with('success', 'Área creada exitosamente.');
     }
 
-    public function updateArea(Request $request, Property $property, PropertyInventoryArea $area)
+    public function updateArea(Request $request, Property $property, PropertyInventoryArea $area): RedirectResponse|JsonResponse
     {
-        if ($property->user_id !== auth()->id() || $area->property_id !== $property->id) {
-            abort(403, 'No autorizado');
-        }
+        $this->abortUnlessAreaBelongsToProperty($property, $area);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-            'photos' => ['nullable', 'array'],
-            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
-        ]);
+        $validated = $request->validate(
+            $this->inventoryAreaRules(),
+            $this->inventoryAreaMessages(),
+            $this->inventoryAreaAttributes(),
+        );
 
         $area->update([
             'name' => $validated['name'],
             'notes' => $validated['notes'] ?? null,
         ]);
 
-        // Handle new photos
-        if ($request->hasFile('photos')) {
-            foreach ($request->file('photos') as $photo) {
-                $filePath = $photo->store("properties/{$property->id}/inventory/{$area->id}", 'public');
-                $area->photos()->create([
-                    'file_path' => $filePath,
-                    'file_name' => $photo->getClientOriginalName(),
-                    'mime_type' => $photo->getMimeType(),
-                    'file_size' => $photo->getSize(),
-                ]);
-            }
+        $photos = $this->storeAreaPhotos($property, $area, $this->uploadedFiles($request, 'photos'));
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $photos ? 'Imagen guardada correctamente.' : 'Área actualizada correctamente.',
+                'area' => $this->serializeArea($area->fresh(['photos', 'items.photos.latestVersion'])),
+                'photos' => $photos,
+            ]);
         }
 
-        if ($request->ajax()) {
-            return response()->json(['success' => true, 'area' => $area->load('photos')]);
-        }
         return back()->with('success', 'Área actualizada exitosamente.');
     }
 
-    public function destroyArea(Property $property, PropertyInventoryArea $area)
+    public function destroyArea(Request $request, Property $property, PropertyInventoryArea $area): RedirectResponse|JsonResponse
     {
-        if ($property->user_id !== auth()->id() || $area->property_id !== $property->id) {
-            abort(403, 'No autorizado');
+        $this->abortUnlessAreaBelongsToProperty($property, $area);
+        $area->load(['photos', 'items.photos.versions']);
+
+        foreach ($area->photos as $photo) {
+            $this->deleteStoragePath($photo->file_path);
+        }
+        foreach ($area->items as $item) {
+            $this->deleteItemPhotoFiles($item->photos);
         }
 
         $area->delete();
 
-        if (request()->ajax()) {
-            return response()->json(['success' => true]);
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Área eliminada correctamente.']);
         }
+
         return back()->with('success', 'Área eliminada exitosamente.');
     }
 
-    public function storeItem(Request $request, $propertyId, $areaId)
+    public function storeItem(Request $request, Property $property, PropertyInventoryArea $area): RedirectResponse|JsonResponse
     {
-        $property = Property::findOrFail($propertyId);
-        $area = $property->inventoryAreas()->findOrFail($areaId);
+        $this->abortUnlessAreaBelongsToProperty($property, $area);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'condition' => ['nullable', 'string', 'max:1000'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-            'photos' => ['nullable', 'array'],
-            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
-        ]);
+        $validated = $request->validate(
+            $this->inventoryItemRules(),
+            $this->inventoryItemMessages(),
+            $this->inventoryItemAttributes(),
+        );
 
         $item = $area->items()->create([
             'name' => $validated['name'],
@@ -539,45 +512,29 @@ class InventoryCheckController extends Controller
             'notes' => $validated['notes'] ?? null,
         ]);
 
-        // Handle photos
-        if ($request->hasFile('photos')) {
-            foreach ($request->file('photos') as $photo) {
-                $filePath = $photo->store("properties/{$property->id}/inventory/items/{$item->id}", 'public');
+        $photos = $this->storeItemPhotos($request, $property, $item, $this->uploadedFiles($request, 'photos'));
 
-                $photoRecord = $item->photos()->create([
-                    'name' => $photo->getClientOriginalName(),
-                    'status' => PropertyInventoryItemPhoto::STATUS_ACTIVE,
-                ]);
-
-                $photoRecord->versions()->create([
-                    'file_path' => $filePath,
-                    'file_name' => $photo->getClientOriginalName(),
-                    'mime_type' => $photo->getMimeType(),
-                    'file_size' => $photo->getSize(),
-                    'uploaded_by' => $request->user()->id,
-                ]);
-            }
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Elemento guardado correctamente.',
+                'item' => $this->serializeItem($item->fresh('photos.latestVersion')),
+                'photos' => $photos,
+            ]);
         }
 
-        if ($request->ajax()) {
-            return response()->json(['success' => true, 'item' => $item->load('photos')]);
-        }
         return back()->with('success', 'Elemento creado exitosamente.');
     }
 
-    public function updateInventoryItem(Request $request, Property $property, PropertyInventoryArea $area, PropertyInventoryItem $item)
+    public function updateInventoryItem(Request $request, Property $property, PropertyInventoryArea $area, PropertyInventoryItem $item): RedirectResponse|JsonResponse
     {
-        if ($property->user_id !== auth()->id() || $area->property_id !== $property->id || $item->area_id !== $area->id) {
-            abort(403, 'No autorizado');
-        }
+        $this->abortUnlessItemBelongsToArea($property, $area, $item);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'condition' => ['nullable', 'string', 'max:1000'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-            'photos' => ['nullable', 'array'],
-            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
-        ]);
+        $validated = $request->validate(
+            $this->inventoryItemRules(),
+            $this->inventoryItemMessages(),
+            $this->inventoryItemAttributes(),
+        );
 
         $item->update([
             'name' => $validated['name'],
@@ -585,43 +542,411 @@ class InventoryCheckController extends Controller
             'notes' => $validated['notes'] ?? null,
         ]);
 
-        // Handle new photos
-        if ($request->hasFile('photos')) {
-            foreach ($request->file('photos') as $photo) {
-                $filePath = $photo->store("properties/{$property->id}/inventory/items/{$item->id}", 'public');
+        $photos = $this->storeItemPhotos($request, $property, $item, $this->uploadedFiles($request, 'photos'));
 
-                $photoRecord = $item->photos()->create([
-                    'name' => $photo->getClientOriginalName(),
-                    'status' => PropertyInventoryItemPhoto::STATUS_ACTIVE,
-                ]);
-
-                $photoRecord->versions()->create([
-                    'file_path' => $filePath,
-                    'file_name' => $photo->getClientOriginalName(),
-                    'mime_type' => $photo->getMimeType(),
-                    'file_size' => $photo->getSize(),
-                    'uploaded_by' => $request->user()->id,
-                ]);
-            }
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $photos ? 'Imagen guardada correctamente.' : 'Elemento actualizado correctamente.',
+                'item' => $this->serializeItem($item->fresh('photos.latestVersion')),
+                'photos' => $photos,
+            ]);
         }
 
-        if ($request->ajax()) {
-            return response()->json(['success' => true, 'item' => $item->load('photos')]);
-        }
         return back()->with('success', 'Elemento actualizado exitosamente.');
     }
 
-    public function destroyInventoryItem(Property $property, PropertyInventoryArea $area, PropertyInventoryItem $item)
+    public function destroyInventoryItem(Request $request, Property $property, PropertyInventoryArea $area, PropertyInventoryItem $item): RedirectResponse|JsonResponse
     {
-        if ($property->user_id !== auth()->id() || $area->property_id !== $property->id || $item->area_id !== $area->id) {
+        $this->abortUnlessItemBelongsToArea($property, $area, $item);
+        $item->load('photos.versions');
+        $this->deleteItemPhotoFiles($item->photos);
+        $item->delete();
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Elemento eliminado correctamente.']);
+        }
+
+        return back()->with('success', 'Elemento eliminado exitosamente.');
+    }
+
+    public function destroyAreaPhoto(Request $request, Property $property, PropertyInventoryArea $area, PropertyInventoryPhoto $photo): RedirectResponse|JsonResponse
+    {
+        $this->abortUnlessAreaBelongsToProperty($property, $area);
+        if ((int) $photo->property_inventory_area_id !== (int) $area->id) {
             abort(403, 'No autorizado');
         }
 
-        $item->delete();
+        $this->deleteStoragePath($photo->file_path);
+        $photo->delete();
 
-        if (request()->ajax()) {
-            return response()->json(['success' => true]);
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Imagen eliminada correctamente.']);
         }
-        return back()->with('success', 'Elemento eliminado exitosamente.');
+
+        return back()->with('success', 'Imagen eliminada correctamente.');
+    }
+
+    public function destroyItemPhoto(Request $request, Property $property, PropertyInventoryArea $area, PropertyInventoryItem $item, PropertyInventoryItemPhoto $photo): RedirectResponse|JsonResponse
+    {
+        $this->abortUnlessItemBelongsToArea($property, $area, $item);
+        if ((int) $photo->property_inventory_item_id !== (int) $item->id) {
+            abort(403, 'No autorizado');
+        }
+
+        $photo->load('versions');
+        $this->deleteItemPhotoFiles([$photo]);
+        $photo->delete();
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Imagen eliminada correctamente.']);
+        }
+
+        return back()->with('success', 'Imagen eliminada correctamente.');
+    }
+
+    private function inventoryAreaRules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'photos' => ['nullable', 'array'],
+            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+        ];
+    }
+
+    private function inventoryAreaMessages(): array
+    {
+        return [
+            'name.required' => 'El nombre del espacio es obligatorio.',
+        ];
+    }
+
+    private function inventoryAreaAttributes(): array
+    {
+        return [
+            'name' => 'nombre del espacio',
+            'notes' => 'notas del espacio',
+            'photos.*' => 'foto del espacio',
+        ];
+    }
+
+    private function inventoryItemRules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'condition' => ['nullable', 'string', 'max:1000'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'photos' => ['nullable', 'array'],
+            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+        ];
+    }
+
+    private function inventoryItemMessages(): array
+    {
+        return [
+            'name.required' => 'El nombre del item es obligatorio.',
+        ];
+    }
+
+    private function inventoryItemAttributes(): array
+    {
+        return [
+            'name' => 'nombre del item',
+            'condition' => 'estado del item',
+            'notes' => 'notas del item',
+            'photos.*' => 'foto del item',
+        ];
+    }
+
+    private function abortUnlessAreaBelongsToProperty(Property $property, PropertyInventoryArea $area): void
+    {
+        if ((int) $area->property_id !== (int) $property->id) {
+            abort(403, 'No autorizado');
+        }
+    }
+
+    private function abortUnlessItemBelongsToArea(Property $property, PropertyInventoryArea $area, PropertyInventoryItem $item): void
+    {
+        $this->abortUnlessAreaBelongsToProperty($property, $area);
+        if ((int) $item->property_inventory_area_id !== (int) $area->id) {
+            abort(403, 'No autorizado');
+        }
+    }
+
+    /**
+     * @return array<int, UploadedFile>
+     */
+    private function uploadedFiles(Request $request, string $key): array
+    {
+        $files = $request->file($key, []);
+        if ($files instanceof UploadedFile) {
+            return [$files];
+        }
+
+        return collect($files)
+            ->filter(fn($file) => $file instanceof UploadedFile)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param array<int, UploadedFile> $files
+     * @return array<int, array<string, mixed>>
+     */
+    private function storeAreaPhotos(Property $property, PropertyInventoryArea $area, array $files): array
+    {
+        $storedPhotos = [];
+        foreach ($files as $index => $photo) {
+            $stored = $this->storeCompressedInventoryImage($photo, "properties/{$property->id}/inventory/{$area->id}");
+            $photoRecord = $area->photos()->create([
+                'file_path' => $stored['path'],
+                'display_order' => (int) $area->photos()->count() + $index,
+            ]);
+
+            $storedPhotos[] = $this->serializeAreaPhoto($photoRecord);
+        }
+
+        return $storedPhotos;
+    }
+
+    /**
+     * @param array<int, UploadedFile> $files
+     * @return array<int, array<string, mixed>>
+     */
+    private function storeItemPhotos(Request $request, Property $property, PropertyInventoryItem $item, array $files): array
+    {
+        $storedPhotos = [];
+        foreach ($files as $photo) {
+            $stored = $this->storeCompressedInventoryImage($photo, "properties/{$property->id}/inventory/items/{$item->id}");
+            $photoRecord = $item->photos()->create([
+                'name' => $photo->getClientOriginalName(),
+                'status' => PropertyInventoryItemPhoto::STATUS_ACTIVE,
+            ]);
+
+            $photoRecord->versions()->create([
+                'file_path' => $stored['path'],
+                'file_name' => $photo->getClientOriginalName(),
+                'mime_type' => $stored['mime_type'],
+                'file_size' => $stored['file_size'],
+                'uploaded_by' => $request->user()->id,
+            ]);
+
+            $storedPhotos[] = $this->serializeItemPhoto($photoRecord->fresh('latestVersion'));
+        }
+
+        return $storedPhotos;
+    }
+
+    private function serializeArea(PropertyInventoryArea $area): array
+    {
+        $area->loadMissing(['photos', 'items.photos.latestVersion']);
+
+        return [
+            'id' => $area->id,
+            'name' => $area->name,
+            'notes' => $area->notes,
+            'photos' => $area->photos->map(fn($photo) => $this->serializeAreaPhoto($photo))->values()->all(),
+            'items' => $area->items->map(fn($item) => $this->serializeItem($item))->values()->all(),
+        ];
+    }
+
+    private function serializeItem(PropertyInventoryItem $item): array
+    {
+        $item->loadMissing('photos.latestVersion');
+
+        return [
+            'id' => $item->id,
+            'name' => $item->name,
+            'condition' => $item->condition,
+            'notes' => $item->notes,
+            'photos' => $item->photos->map(fn($photo) => $this->serializeItemPhoto($photo))->values()->all(),
+        ];
+    }
+
+    private function serializeAreaPhoto(PropertyInventoryPhoto $photo): array
+    {
+        return [
+            'id' => $photo->id,
+            'url' => Storage::url($photo->file_path),
+        ];
+    }
+
+    private function serializeItemPhoto(PropertyInventoryItemPhoto $photo): array
+    {
+        $photo->loadMissing('latestVersion');
+        $path = $photo->latestVersion?->file_path;
+
+        return [
+            'id' => $photo->id,
+            'url' => $path ? Storage::url($path) : null,
+        ];
+    }
+
+    /**
+     * @return array{path: string, mime_type: string, file_size: int}
+     */
+    private function storeCompressedInventoryImage(UploadedFile $photo, string $directory): array
+    {
+        $encoded = $this->encodeCompressedInventoryImage($photo);
+
+        if ($encoded === null) {
+            $path = $photo->store($directory, 'public');
+
+            return [
+                'path' => $path,
+                'mime_type' => $photo->getClientMimeType() ?: 'application/octet-stream',
+                'file_size' => (int) ($photo->getSize() ?: 0),
+            ];
+        }
+
+        $path = trim($directory, '/') . '/' . Str::uuid() . '.' . $encoded['extension'];
+        Storage::disk('public')->put($path, $encoded['binary']);
+
+        return [
+            'path' => $path,
+            'mime_type' => $encoded['mime_type'],
+            'file_size' => strlen($encoded['binary']),
+        ];
+    }
+
+    /**
+     * @return array{binary: string, extension: string, mime_type: string}|null
+     */
+    private function encodeCompressedInventoryImage(UploadedFile $photo): ?array
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            return null;
+        }
+
+        $sourcePath = $photo->getRealPath();
+        if (!$sourcePath) {
+            return null;
+        }
+
+        $imageInfo = @getimagesize($sourcePath);
+        if ($imageInfo === false) {
+            return null;
+        }
+
+        $sourceWidth = (int) ($imageInfo[0] ?? 0);
+        $sourceHeight = (int) ($imageInfo[1] ?? 0);
+        $imageType = (int) ($imageInfo[2] ?? 0);
+        if ($sourceWidth < 1 || $sourceHeight < 1) {
+            return null;
+        }
+
+        $sourceImage = match ($imageType) {
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($sourcePath),
+            IMAGETYPE_PNG => @imagecreatefrompng($sourcePath),
+            IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($sourcePath) : null,
+            default => null,
+        };
+        if (!$sourceImage) {
+            return null;
+        }
+
+        $maxBytes = 512000;
+        $maxDimension = 2200;
+        $largestSide = max($sourceWidth, $sourceHeight);
+        $baseScale = $largestSide > $maxDimension ? $maxDimension / $largestSide : 1;
+        $baseWidth = max(1, (int) round($sourceWidth * $baseScale));
+        $baseHeight = max(1, (int) round($sourceHeight * $baseScale));
+        $bestMatch = null;
+
+        try {
+            foreach ([1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3] as $scale) {
+                $targetWidth = max(1, (int) round($baseWidth * $scale));
+                $targetHeight = max(1, (int) round($baseHeight * $scale));
+                $resizedImage = imagecreatetruecolor($targetWidth, $targetHeight);
+                if (!$resizedImage) {
+                    continue;
+                }
+
+                imagealphablending($resizedImage, false);
+                imagesavealpha($resizedImage, true);
+                $transparent = imagecolorallocatealpha($resizedImage, 255, 255, 255, 127);
+                imagefilledrectangle($resizedImage, 0, 0, $targetWidth, $targetHeight, $transparent);
+                imagecopyresampled($resizedImage, $sourceImage, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
+
+                foreach ([82, 76, 70, 64, 58, 52, 46, 40] as $quality) {
+                    $encoded = $this->encodeImageBinary($resizedImage, $quality);
+                    if ($encoded === null || $encoded['binary'] === '') {
+                        continue;
+                    }
+
+                    if ($bestMatch === null || strlen($encoded['binary']) < strlen($bestMatch['binary'])) {
+                        $bestMatch = $encoded;
+                    }
+
+                    if (strlen($encoded['binary']) <= $maxBytes) {
+                        imagedestroy($resizedImage);
+
+                        return $encoded;
+                    }
+                }
+
+                imagedestroy($resizedImage);
+            }
+        } finally {
+            imagedestroy($sourceImage);
+        }
+
+        return $bestMatch;
+    }
+
+    /**
+     * @return array{binary: string, extension: string, mime_type: string}|null
+     */
+    private function encodeImageBinary($image, int $quality): ?array
+    {
+        if (function_exists('imagewebp')) {
+            ob_start();
+            $encoded = @imagewebp($image, null, $quality);
+            $binary = (string) ob_get_clean();
+
+            if ($encoded && $binary !== '') {
+                return [
+                    'binary' => $binary,
+                    'extension' => 'webp',
+                    'mime_type' => 'image/webp',
+                ];
+            }
+        }
+
+        ob_start();
+        $encoded = @imagejpeg($image, null, $quality);
+        $binary = (string) ob_get_clean();
+
+        if (!$encoded || $binary === '') {
+            return null;
+        }
+
+        return [
+            'binary' => $binary,
+            'extension' => 'jpg',
+            'mime_type' => 'image/jpeg',
+        ];
+    }
+
+    private function deleteItemPhotoFiles(iterable $photos): void
+    {
+        foreach ($photos as $photo) {
+            foreach ($photo->versions ?? [] as $version) {
+                $this->deleteStoragePath($version->file_path ?? null);
+            }
+        }
+    }
+
+    private function deleteStoragePath(?string $path): void
+    {
+        if (!filled($path)) {
+            return;
+        }
+
+        $disk = Storage::disk('public');
+        if ($disk->exists($path)) {
+            $disk->delete($path);
+        }
     }
 }
