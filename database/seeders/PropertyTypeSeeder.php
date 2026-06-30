@@ -19,6 +19,7 @@ class PropertyTypeSeeder extends Seeder
             'Local',
             'Townhouse',
             'Oficina',
+            'Terreno',
         ];
 
         foreach ($types as $type) {
@@ -29,4 +30,3 @@ class PropertyTypeSeeder extends Seeder
         }
     }
 }
-

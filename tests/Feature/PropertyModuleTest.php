@@ -57,6 +57,12 @@ class PropertyModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Nueva Propiedad');
+        $response->assertSee('Terreno');
+        $this->assertDatabaseHas('property_types', [
+            'name' => 'Terreno',
+            'slug' => 'terreno',
+            'is_active' => true,
+        ]);
     }
 
     public function test_advisor_role_sees_assigned_properties_by_default_and_can_view_all(): void
@@ -240,14 +246,14 @@ class PropertyModuleTest extends TestCase
         Storage::fake('public');
 
         $user = User::factory()->create();
-        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $type = PropertyType::create(['name' => 'Terreno', 'slug' => 'terreno', 'is_active' => true]);
         $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
 
         $response = $this
             ->actingAs($user)
             ->post(route('properties.store'), [
-                'internal_name' => 'Casa Centro 201',
-                'internal_reference' => 'CC-201',
+                'internal_name' => 'Terreno Centro 201',
+                'internal_reference' => 'TC-201',
                 'property_type_id' => $type->id,
                 'zone_id' => $zone->id,
                 'full_address' => 'Calle 20 #201',
@@ -265,7 +271,10 @@ class PropertyModuleTest extends TestCase
             ]);
 
         $response->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('properties', ['internal_name' => 'Casa Centro 201']);
+        $this->assertDatabaseHas('properties', [
+            'internal_name' => 'Terreno Centro 201',
+            'property_type_id' => $type->id,
+        ]);
         $this->assertDatabaseHas('owners', ['email' => 'juan@example.com']);
         $this->assertDatabaseCount('property_documents', DossierDocumentRequirement::query()->where('entity_type', 'property')->where('is_active', true)->count());
         $this->assertDatabaseCount('owner_property', 1);
@@ -302,7 +311,7 @@ class PropertyModuleTest extends TestCase
 
         $user = User::factory()->create();
         $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
-        $type2 = PropertyType::create(['name' => 'Local', 'slug' => 'local', 'is_active' => true]);
+        $type2 = PropertyType::create(['name' => 'Terreno', 'slug' => 'terreno', 'is_active' => true]);
         $zone = Zone::create(['name' => 'Playa', 'slug' => 'playa', 'is_active' => true]);
         $zone2 = Zone::create(['name' => 'Montebello', 'slug' => 'montebello', 'is_active' => true]);
         $owner = Owner::create([
@@ -327,8 +336,8 @@ class PropertyModuleTest extends TestCase
         $response = $this
             ->actingAs($user)
             ->put(route('properties.update', $property), [
-                'internal_name' => 'Local Montebello 20',
-                'internal_reference' => 'LM-20',
+                'internal_name' => 'Terreno Montebello 20',
+                'internal_reference' => 'TM-20',
                 'property_type_id' => $type2->id,
                 'zone_id' => $zone2->id,
                 'full_address' => 'Calle 20',
@@ -341,9 +350,18 @@ class PropertyModuleTest extends TestCase
         $response->assertSessionHasNoErrors();
         $this->assertDatabaseHas('properties', [
             'id' => $property->id,
-            'internal_name' => 'Local Montebello 20',
+            'internal_name' => 'Terreno Montebello 20',
+            'property_type_id' => $type2->id,
             'status' => Property::STATUS_BLOCKED,
         ]);
+
+        $editResponse = $this->actingAs($user)
+            ->get(route('properties.edit', $property))
+            ->assertOk();
+        $this->assertMatchesRegularExpression(
+            '/<option\s+value="' . $type2->id . '"\s+selected>\s*Terreno\s*<\/option>/',
+            $editResponse->getContent(),
+        );
         $this->assertDatabaseHas('owner_property', [
             'property_id' => $property->id,
             'owner_id' => $owner->id,
