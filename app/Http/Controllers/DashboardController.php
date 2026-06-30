@@ -14,6 +14,8 @@ use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
+    private const ADVISOR_COMMISSION_RATE = 0.10;
+
     public function index(Request $request): View
     {
         $validated = $request->validate([
@@ -51,6 +53,7 @@ class DashboardController extends Controller
         $alerts = $this->buildImportantAlerts($periodStart, $periodEnd, $referenceDate, $filteredPropertyIds);
         $propertySummaries = $this->buildPropertySummaries($periodStart, $periodEnd, $referenceDate, $filteredPropertyIds);
         $profitability = $this->buildProfitabilitySummary($periodStart, $periodEnd, $filteredPropertyIds);
+        $advisorCommissions = $this->buildCurrentMonthAdvisorCommissions();
 
         return view('dashboard', [
             'selectedMonth' => $selectedMonth,
@@ -68,7 +71,49 @@ class DashboardController extends Controller
             'importantAlerts' => $alerts,
             'propertySummaries' => $propertySummaries,
             'profitabilitySummary' => $profitability,
+            'advisorCommissions' => $advisorCommissions,
+            'advisorCommissionMonthLabel' => ucfirst(now()->translatedFormat('F Y')),
         ]);
+    }
+
+    private function buildCurrentMonthAdvisorCommissions(): Collection
+    {
+        $monthStart = now()->startOfMonth();
+        $monthEnd = now()->endOfMonth();
+
+        $paymentTotals = ChargePayment::query()
+            ->selectRaw('properties.advisor_user_id as advisor_id')
+            ->selectRaw('SUM(charge_payments.amount) as collected_amount')
+            ->selectRaw('COUNT(DISTINCT charges.property_id) as collected_properties_count')
+            ->join('charges', 'charges.id', '=', 'charge_payments.charge_id')
+            ->join('properties', 'properties.id', '=', 'charges.property_id')
+            ->whereNotNull('properties.advisor_user_id')
+            ->where('charge_payments.status', ChargePayment::STATUS_SUCCEEDED)
+            ->whereBetween('charge_payments.paid_at', [
+                $monthStart->copy()->startOfDay(),
+                $monthEnd->copy()->endOfDay(),
+            ])
+            ->groupBy('properties.advisor_user_id')
+            ->get()
+            ->keyBy(fn ($total) => (int) $total->advisor_id);
+
+        return User::query()
+            ->whereHas('assignedProperties')
+            ->withCount('assignedProperties')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email'])
+            ->map(function (User $advisor) use ($paymentTotals): array {
+                $totals = $paymentTotals->get($advisor->id);
+                $collectedAmount = round((float) ($totals?->collected_amount ?? 0), 2);
+
+                return [
+                    'advisor' => $advisor,
+                    'assigned_properties_count' => (int) $advisor->assigned_properties_count,
+                    'collected_properties_count' => (int) ($totals?->collected_properties_count ?? 0),
+                    'collected_amount' => $collectedAmount,
+                    'commission_amount' => round($collectedAmount * self::ADVISOR_COMMISSION_RATE, 2),
+                ];
+            });
     }
 
     private function buildKpis(Carbon $periodStart, Carbon $periodEnd, Carbon $referenceDate, ?Collection $visiblePropertyIds): array

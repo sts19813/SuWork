@@ -209,6 +209,10 @@
                 background: #f8fafc;
             }
 
+            .executive-dashboard #dashboard_advisor_commissions_card table {
+                min-width: 620px;
+            }
+
             .executive-dashboard .executive-summary-box {
                 min-height: 92px;
                 padding: 0.85rem !important;
@@ -295,7 +299,7 @@
                     </div>
                 </div>
             @endforeach
-        </div>
+        </div>  
 
         <div class="row g-5 mb-8 dashboard-content-row">
             <div class="col-xl-5">
@@ -461,6 +465,65 @@
                     </div>
                 </div>
             </div>
+
+            <div id="dashboard_advisor_commissions_card" class="card mb-8">
+            <div class="card-header border-0 pt-7">
+                <div>
+                    <h3 class="card-title fw-bold text-dark">Comisiones de asesores</h3>
+                    <div class="text-muted fs-7">
+                        10% de los cobros confirmados de propiedades durante {{ $advisorCommissionMonthLabel }}
+                    </div>
+                </div>
+                <div class="card-toolbar">
+                    <span class="badge badge-light-success text-success fs-7 fw-bold">
+                        Total: ${{ number_format((float) $advisorCommissions->sum('commission_amount'), 2) }}
+                    </span>
+                </div>
+            </div>
+            <div class="card-body pt-2">
+                <div class="table-responsive">
+                    <table class="table table-row-dashed align-middle gs-0 gy-4 mb-0">
+                        <thead>
+                            <tr class="fw-bold text-muted text-uppercase fs-8">
+                                <th>Asesor responsable</th>
+                                <th class="text-end">Propiedades asignadas</th>
+                                <th class="text-end">Propiedades cobradas</th>
+                                <th class="text-end">Monto cobrado</th>
+                                <th class="text-end">Comisión (10%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($advisorCommissions as $commission)
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold text-dark">{{ $commission['advisor']->name }}</div>
+                                        <div class="text-muted fs-8">{{ $commission['advisor']->email }}</div>
+                                    </td>
+                                    <td class="text-end text-gray-700 fw-semibold">
+                                        {{ number_format($commission['assigned_properties_count']) }}
+                                    </td>
+                                    <td class="text-end text-gray-700 fw-semibold">
+                                        {{ number_format($commission['collected_properties_count']) }}
+                                    </td>
+                                    <td class="text-end text-gray-700 fw-semibold">
+                                        ${{ number_format($commission['collected_amount'], 2) }}
+                                    </td>
+                                    <td class="text-end text-success fw-bold">
+                                        ${{ number_format($commission['commission_amount'], 2) }}
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-10">
+                                        No hay usuarios con propiedades asignadas como responsables.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
         </div>
     </div>
 @endsection
