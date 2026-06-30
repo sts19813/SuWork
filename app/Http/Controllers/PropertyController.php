@@ -39,6 +39,7 @@ class PropertyController extends Controller
         'Local',
         'Townhouse',
         'Oficina',
+        'Terreno',
     ];
 
     private const DEFAULT_ZONES = [
