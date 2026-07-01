@@ -16,9 +16,12 @@ class RecurringExpenseItem extends Model
 
     public const FREQUENCY_ANNUAL = 'annual';
 
+    public const FREQUENCY_ONCE = 'once';
+
     public const FREQUENCY_LABELS = [
         self::FREQUENCY_MONTHLY => 'Mensual',
         self::FREQUENCY_ANNUAL => 'Anual',
+        self::FREQUENCY_ONCE => 'Pago único',
     ];
 
     protected $fillable = [
