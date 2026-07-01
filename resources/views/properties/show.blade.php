@@ -191,62 +191,64 @@
                                     </div>
 
                                     <!-- ASIGNAR INQUILINO -->
-                                    @if ($canReassignTenant)
-                                        <div class="mt-4">
-                                            <div class="dropdown">
-                                                <button class="btn btn-sm btn-primary dropdown-toggle" type="button"
-                                                    data-bs-toggle="dropdown">
-                                                    {{ $property->tenant_id ? 'Cambiar inquilino' : 'Asignar inquilino' }}
-                                                </button>
+                                    <div class="mt-4">
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-primary dropdown-toggle" type="button"
+                                                data-bs-toggle="dropdown">
+                                                {{ $property->tenant_id ? 'Cambiar inquilino' : 'Asignar inquilino' }}
+                                            </button>
 
-                                                <ul class="dropdown-menu">
-                                                    @if ($canRemoveTenant)
-                                                        <li>
-                                                            <form method="POST"
-                                                                action="{{ route('properties.update.tenant', $property) }}"
-                                                                class="d-inline js-remove-tenant-form"
-                                                                data-current-tenant-name="{{ $property->tenant?->full_name ?: 'el inquilino actual' }}">
-                                                                @csrf
-                                                                @method('PUT')
+                                            <ul class="dropdown-menu">
+                                                @if ($property->tenant_id)
+                                                    <li>
+                                                        <form method="POST"
+                                                            action="{{ route('properties.update.tenant', $property) }}"
+                                                            class="d-inline js-remove-tenant-form"
+                                                            data-tenant-change-allowed="{{ $canRemoveTenant ? 'true' : 'false' }}"
+                                                            data-blocked-message="{{ $tenantChangeBlockedMessage }}"
+                                                            data-current-tenant-name="{{ $property->tenant?->full_name ?: 'el inquilino actual' }}">
+                                                            @csrf
+                                                            @method('PUT')
 
-                                                                <input type="hidden" name="tenant_id" value="">
+                                                            <input type="hidden" name="tenant_id" value="">
 
-                                                                <button type="submit" class="dropdown-item text-danger">
-                                                                    <i class="bi bi-person-dash me-2"></i> Quitar inquilino
-                                                                </button>
-                                                            </form>
-                                                        </li>
-                                                        <li><hr class="dropdown-divider"></li>
-                                                    @endif
-                                                    @foreach ($tenants as $tenant)
-                                                        @php
-                                                            $assignmentCheck = $tenantAssignmentChecks[(string) $tenant->id] ?? ['missing' => [], 'is_complete' => true];
-                                                        @endphp
-                                                        <li>
-                                                            <form method="POST"
-                                                                action="{{ route('properties.update.tenant', $property) }}"
-                                                                class="d-inline js-assign-tenant-form"
-                                                                data-tenant-name="{{ $tenant->full_name }}"
-                                                                data-missing='@json($assignmentCheck['missing'])'>
-                                                                @csrf
-                                                                @method('PUT')
+                                                            <button type="submit" class="dropdown-item text-danger">
+                                                                <i class="bi bi-person-dash me-2"></i> Quitar inquilino
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                @endif
+                                                @foreach ($tenants as $tenant)
+                                                    @php
+                                                        $assignmentCheck = $tenantAssignmentChecks[(string) $tenant->id] ?? ['missing' => [], 'is_complete' => true];
+                                                    @endphp
+                                                    <li>
+                                                        <form method="POST"
+                                                            action="{{ route('properties.update.tenant', $property) }}"
+                                                            class="d-inline js-assign-tenant-form"
+                                                            data-tenant-change-allowed="{{ $canReassignTenant ? 'true' : 'false' }}"
+                                                            data-blocked-message="{{ $tenantChangeBlockedMessage }}"
+                                                            data-tenant-name="{{ $tenant->full_name }}"
+                                                            data-missing='@json($assignmentCheck['missing'])'>
+                                                            @csrf
+                                                            @method('PUT')
 
-                                                                <input type="hidden" name="tenant_id" value="{{ $tenant->id }}">
-                                                                <input type="hidden" name="force_assignment" value="0">
+                                                            <input type="hidden" name="tenant_id" value="{{ $tenant->id }}">
+                                                            <input type="hidden" name="force_assignment" value="0">
 
-                                                                <button type="submit" class="dropdown-item">
-                                                                    {{ $tenant->full_name }}
-                                                                    @unless ($assignmentCheck['is_complete'])
-                                                                        <span class="text-warning">(incompleto)</span>
-                                                                    @endunless
-                                                                </button>
-                                                            </form>
-                                                        </li>
-                                                    @endforeach
-                                                </ul>
-                                            </div>
+                                                            <button type="submit" class="dropdown-item">
+                                                                {{ $tenant->full_name }}
+                                                                @unless ($assignmentCheck['is_complete'])
+                                                                    <span class="text-warning">(incompleto)</span>
+                                                                @endunless
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
                                         </div>
-                                    @endif
+                                    </div>
 
                                 </div>
 
@@ -767,10 +769,25 @@
                                             class="card-header border-0 pt-6 d-flex justify-content-between align-items-center flex-wrap gap-3">
                                             <h3 class="card-title fw-bold mb-0">Información del inquilino</h3>
 
-                                            <a href="{{ url('/inquilinos/' . $tenantUuid . '/editar') }}"
-                                                class="btn btn-sm btn-light-primary">
-                                                Editar inquilino
-                                            </a>
+                                            <div class="d-flex flex-wrap gap-2">
+                                                <a href="{{ url('/inquilinos/' . $tenantUuid . '/editar') }}"
+                                                    class="btn btn-sm btn-light-primary">
+                                                    Editar inquilino
+                                                </a>
+                                                <form method="POST"
+                                                    action="{{ route('properties.update.tenant', $property) }}"
+                                                    class="d-inline js-remove-tenant-form"
+                                                    data-tenant-change-allowed="{{ $canRemoveTenant ? 'true' : 'false' }}"
+                                                    data-blocked-message="{{ $tenantChangeBlockedMessage }}"
+                                                    data-current-tenant-name="{{ $property->tenant?->full_name ?: 'el inquilino actual' }}">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <input type="hidden" name="tenant_id" value="">
+                                                    <button type="submit" class="btn btn-sm btn-light-danger">
+                                                        <i class="bi bi-person-dash me-1"></i> Quitar inquilino
+                                                    </button>
+                                                </form>
+                                            </div>
                                         </div>
 
                                         <!-- BODY -->
@@ -1416,9 +1433,30 @@
 @push('scripts')
     <script>
         (() => {
+            const showTenantChangeBlockedAlert = async (form) => {
+                const message = form.dataset.blockedMessage
+                    || 'No es posible cambiar el inquilino mientras existan cargos pendientes, en validación o vencidos.';
+
+                if (window.Swal?.fire) {
+                    await window.Swal.fire({
+                        title: 'No es posible cambiar el inquilino',
+                        text: message,
+                        icon: 'warning',
+                        confirmButtonText: 'Entendido',
+                    });
+                } else {
+                    window.alert(message);
+                }
+            };
+
             document.querySelectorAll('.js-remove-tenant-form').forEach((form) => {
                 form.addEventListener('submit', async (event) => {
                     event.preventDefault();
+
+                    if (form.dataset.tenantChangeAllowed === 'false') {
+                        await showTenantChangeBlockedAlert(form);
+                        return;
+                    }
 
                     const tenantName = form.dataset.currentTenantName || 'el inquilino actual';
                     const message = `¿Deseas quitar a ${tenantName} de esta propiedad?`;
@@ -1448,6 +1486,12 @@
 
             document.querySelectorAll('.js-assign-tenant-form').forEach((form) => {
                 form.addEventListener('submit', async (event) => {
+                    if (form.dataset.tenantChangeAllowed === 'false') {
+                        event.preventDefault();
+                        await showTenantChangeBlockedAlert(form);
+                        return;
+                    }
+
                     const forceInput = form.querySelector('input[name="force_assignment"]');
                     if (forceInput && forceInput.value === '1') {
                         return;

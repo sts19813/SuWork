@@ -33,6 +33,8 @@ use Illuminate\View\View;
 
 class PropertyController extends Controller
 {
+    private const TENANT_CHANGE_BLOCKED_MESSAGE = 'No es posible cambiar o quitar el inquilino mientras existan cargos pendientes, en validación o vencidos.';
+
     private const DEFAULT_PROPERTY_TYPES = [
         'Casa',
         'Departamento',
@@ -237,7 +239,7 @@ class PropertyController extends Controller
             if ($hasOpenCharges || $hasOverdueCharges) {
                 return redirect()
                     ->back()
-                    ->with('warning', 'No es posible cambiar el inquilino mientras existan cargos pendientes, en validación o vencidos.');
+                    ->with('warning', self::TENANT_CHANGE_BLOCKED_MESSAGE);
             }
         }
 
@@ -468,6 +470,7 @@ class PropertyController extends Controller
             'propertyCurrentMonthLabel' => Carbon::create(now()->year, now()->month, 1)->translatedFormat('M Y'),
             'canReassignTenant' => $canReassignTenant,
             'canRemoveTenant' => $canRemoveTenant,
+            'tenantChangeBlockedMessage' => self::TENANT_CHANGE_BLOCKED_MESSAGE,
             'propertyExpenseSummary' => $propertyExpenseSummary,
             'globalExpenseNotificationSetup' => $globalExpenseNotificationSetup,
             'resolvedPropertyExpenseNotificationSetup' => $resolvedPropertyExpenseNotificationSetup,

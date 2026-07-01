@@ -301,6 +301,7 @@ class PropertyModuleTest extends TestCase
             ->get(route('properties.show', $property));
 
         $response->assertOk();
+        $response->assertSee('Asignar inquilino');
         $this->assertNotNull($property->uuid);
         $this->assertStringContainsString('/propiedades/' . $property->uuid, route('properties.show', $property));
     }
@@ -597,10 +598,12 @@ class PropertyModuleTest extends TestCase
             'created_by' => $user->id,
         ]);
 
-        $this->actingAs($user)
+        $response = $this->actingAs($user)
             ->get(route('properties.show', $property))
             ->assertOk()
             ->assertSee('data-current-tenant-name="Inquilino Pagado"', false);
+
+        $this->assertGreaterThanOrEqual(2, substr_count($response->getContent(), 'js-remove-tenant-form'));
 
         $this->actingAs($user)
             ->from(route('properties.show', $property))
@@ -611,7 +614,7 @@ class PropertyModuleTest extends TestCase
         $this->assertNull($property->fresh()->tenant_id);
     }
 
-    public function test_remove_tenant_option_is_hidden_when_property_has_pending_charges(): void
+    public function test_tenant_controls_remain_visible_and_block_changes_when_property_has_pending_charges(): void
     {
         $user = User::factory()->create();
         $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
@@ -646,9 +649,25 @@ class PropertyModuleTest extends TestCase
             'created_by' => $user->id,
         ]);
 
-        $this->actingAs($user)
+        $response = $this->actingAs($user)
             ->get(route('properties.show', $property))
             ->assertOk()
-            ->assertDontSee('data-current-tenant-name="Inquilino Pendiente"', false);
+            ->assertSee('Cambiar inquilino')
+            ->assertSee('data-current-tenant-name="Inquilino Pendiente"', false)
+            ->assertSee('data-tenant-change-allowed="false"', false)
+            ->assertSee('No es posible cambiar el inquilino', false);
+
+        $this->assertGreaterThanOrEqual(2, substr_count($response->getContent(), 'js-remove-tenant-form'));
+
+        $this->actingAs($user)
+            ->from(route('properties.show', $property))
+            ->put(route('properties.update.tenant', $property), ['tenant_id' => ''])
+            ->assertRedirect(route('properties.show', $property))
+            ->assertSessionHas(
+                'warning',
+                'No es posible cambiar o quitar el inquilino mientras existan cargos pendientes, en validación o vencidos.'
+            );
+
+        $this->assertSame($tenant->id, $property->fresh()->tenant_id);
     }
 }
