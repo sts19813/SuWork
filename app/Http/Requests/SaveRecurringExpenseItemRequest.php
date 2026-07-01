@@ -15,6 +15,23 @@ class SaveRecurringExpenseItemRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $frequency = (string) $this->input('frequency');
+
+        if ($frequency === RecurringExpenseItem::FREQUENCY_ONCE) {
+            $this->merge(['occurrences_count' => 1]);
+
+            return;
+        }
+
+        if (blank($this->input('occurrences_count'))) {
+            $this->merge([
+                'occurrences_count' => $frequency === RecurringExpenseItem::FREQUENCY_MONTHLY ? 12 : 1,
+            ]);
+        }
+    }
+
     public function rules(): array
     {
         return [

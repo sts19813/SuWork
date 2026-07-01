@@ -7,11 +7,11 @@
             </div>
             <div class="d-flex flex-wrap gap-2">
                  <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createExpenseModalProperty">
-                    Nuevo gasto
+                   + Nuevo gasto
                 </button>
                 <button type="button" class="btn btn-sm btn-light-primary" data-bs-toggle="modal"
                     data-bs-target="#createRecurringExpenseItemModal">
-                    Mantenimiento
+                    + Mantenimiento
                 </button>
                 <button type="button" class="btn btn-sm btn-light-primary" data-bs-toggle="modal" data-bs-target="#expenseSetupModal d-none" style="display: none;">
                     Configuración de notificación
@@ -47,7 +47,7 @@
                                 <th>Concepto</th>
                                 <th>Monto</th>
                                 <th>Frecuencia</th>
-                                <th>Primer vencimiento</th>
+                                <th>Fecha de inicio</th>
                                 <th>Registros</th>
                                 <th>Estado</th>
                                 <th class="text-end">Acciones</th>
@@ -92,7 +92,7 @@
                                 <tr class="collapse" id="recurring-expense-item-{{ $item->uuid }}">
                                     <td colspan="7" class="bg-light-primary">
                                         <form method="POST" action="{{ route('expenses.recurring-items.update', $item) }}"
-                                            class="row g-4 p-2">
+                                            class="row g-4 p-2 js-recurring-item-form">
                                             @csrf
                                             @method('PUT')
 
@@ -108,7 +108,7 @@
                                             </div>
                                             <div class="col-md-2">
                                                 <label class="form-label required">Frecuencia</label>
-                                                <select name="frequency" class="form-select" required>
+                                                <select name="frequency" class="form-select js-recurring-frequency" required>
                                                     @foreach ($recurringExpenseFrequencyOptions as $frequency => $label)
                                                         <option value="{{ $frequency }}" {{ $item->frequency === $frequency ? 'selected' : '' }}>
                                                             {{ $label }}
@@ -117,13 +117,14 @@
                                                 </select>
                                             </div>
                                             <div class="col-md-2">
-                                                <label class="form-label required">Primer vencimiento</label>
+                                                <label class="form-label required">Fecha de inicio</label>
                                                 <input type="date" name="starts_on" class="form-control"
                                                     value="{{ $item->starts_on?->format('Y-m-d') }}" required>
                                             </div>
                                             <div class="col-md-2">
                                                 <label class="form-label required">Cantidad de registros</label>
-                                                <input type="number" name="occurrences_count" min="1" max="120" class="form-control"
+                                                <input type="number" name="occurrences_count" min="1" max="120"
+                                                    class="form-control js-recurring-count"
                                                     value="{{ $item->occurrences_count }}" required>
                                             </div>
                                             <div class="col-md-9">
@@ -317,7 +318,8 @@
     <div class="modal fade" id="createRecurringExpenseItemModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
-                <form method="POST" action="{{ route('expenses.recurring-items.store', $property) }}">
+                <form method="POST" action="{{ route('expenses.recurring-items.store', $property) }}"
+                    class="js-recurring-item-form">
                     @csrf
 
                     <div class="modal-header">
@@ -344,7 +346,7 @@
                             <div class="col-md-3">
                                 <label class="form-label required">Frecuencia</label>
                                 <select name="frequency"
-                                    class="form-select @error('frequency', 'recurringExpenseItem') is-invalid @enderror" required>
+                                    class="form-select js-recurring-frequency @error('frequency', 'recurringExpenseItem') is-invalid @enderror" required>
                                     @foreach ($recurringExpenseFrequencyOptions as $frequency => $label)
                                         <option value="{{ $frequency }}" {{ old('frequency', 'monthly') === $frequency ? 'selected' : '' }}>
                                             {{ $label }}
@@ -353,7 +355,7 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label required">Primer vencimiento</label>
+                                <label class="form-label required">Fecha de inicio</label>
                                 <input type="date" name="starts_on"
                                     class="form-control @error('starts_on', 'recurringExpenseItem') is-invalid @enderror"
                                     value="{{ old('starts_on', now()->toDateString()) }}" required>
@@ -362,7 +364,7 @@
                             <div class="col-md-6">
                                 <label class="form-label required">Cantidad de registros</label>
                                 <input type="number" name="occurrences_count" min="1" max="120"
-                                    class="form-control @error('occurrences_count', 'recurringExpenseItem') is-invalid @enderror"
+                                    class="form-control js-recurring-count @error('occurrences_count', 'recurringExpenseItem') is-invalid @enderror"
                                     value="{{ old('occurrences_count', 12) }}" required>
                                 <div class="text-muted fs-8 mt-1">Ejemplo: 12 mensuales crean un registro por mes durante 12 meses.</div>
                             </div>
@@ -588,6 +590,34 @@
             const csrfToken = @json(csrf_token());
             const propertyContext = @json($property->uuid);
             let payload = null;
+
+            document.querySelectorAll('.js-recurring-item-form').forEach((recurringForm) => {
+                const frequencySelect = recurringForm.querySelector('.js-recurring-frequency');
+                const countInput = recurringForm.querySelector('.js-recurring-count');
+
+                if (!frequencySelect || !countInput) {
+                    return;
+                }
+
+                const syncOccurrencesCount = (resetValue = false) => {
+                    const frequency = frequencySelect.value;
+                    const isSinglePayment = frequency === 'once';
+
+                    if (isSinglePayment) {
+                        countInput.value = '1';
+                        countInput.disabled = true;
+                        return;
+                    }
+
+                    countInput.disabled = false;
+                    if (resetValue) {
+                        countInput.value = frequency === 'monthly' ? '12' : '1';
+                    }
+                };
+
+                frequencySelect.addEventListener('change', () => syncOccurrencesCount(true));
+                syncOccurrencesCount(false);
+            });
 
             document.querySelectorAll('.js-expense-delete-form').forEach((deleteForm) => {
                 deleteForm.addEventListener('submit', async (event) => {

@@ -16,7 +16,10 @@ class RecurringExpenseGenerator
         }
 
         $created = 0;
-        $desiredDates = collect(range(0, max(1, $item->occurrences_count) - 1))
+        $occurrencesCount = $item->frequency === RecurringExpenseItem::FREQUENCY_ONCE
+            ? 1
+            : max(1, $item->occurrences_count);
+        $desiredDates = collect(range(0, $occurrencesCount - 1))
             ->map(fn (int $index): Carbon => $this->occurrenceDate($item, $index));
 
         foreach ($desiredDates as $occurrence) {

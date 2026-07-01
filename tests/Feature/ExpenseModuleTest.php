@@ -190,14 +190,23 @@ class ExpenseModuleTest extends TestCase
                 ->put(route('expenses.recurring-items.update', $item), [
                     'concept' => 'Cuota única',
                     'amount' => 2750,
-                    'frequency' => RecurringExpenseItem::FREQUENCY_MONTHLY,
+                    'frequency' => RecurringExpenseItem::FREQUENCY_ONCE,
                     'starts_on' => '2026-01-31',
-                    'occurrences_count' => 1,
+                    'occurrences_count' => 99,
                     'is_active' => 1,
                 ])
                 ->assertSessionHasNoErrors();
 
+            $item->refresh();
+            $this->assertSame(RecurringExpenseItem::FREQUENCY_ONCE, $item->frequency);
+            $this->assertSame(1, $item->occurrences_count);
             $this->assertSame(1, $item->expenses()->count());
+
+            $this->actingAs($user)
+                ->get(route('properties.show', $property))
+                ->assertOk()
+                ->assertSee('Pago único')
+                ->assertSee('js-recurring-count', false);
         } finally {
             Carbon::setTestNow();
         }
