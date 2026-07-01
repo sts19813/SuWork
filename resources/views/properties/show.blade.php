@@ -447,12 +447,6 @@
                                                     {{ is_null($property->charge_tolerance_days) ? '-' : (int) $property->charge_tolerance_days }}
                                                 </div>
                                             </div>
-                                            <div class="col-lg-3">
-                                                <div class="property-value-label">Cuota mantenimiento</div>
-                                                <div class="property-value-content">
-                                                    {{ $property->maintenance_fee ? '$' . number_format((float) $property->maintenance_fee, 2) : '-' }}
-                                                </div>
-                                            </div>
                                             <div class="col-lg-6">
                                                 <div class="property-value-label">Inquilino actual</div>
                                                 <div class="property-value-content">

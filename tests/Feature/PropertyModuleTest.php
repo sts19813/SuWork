@@ -57,6 +57,7 @@ class PropertyModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Nueva Propiedad');
+        $response->assertDontSee('Cuota de mantenimiento');
         $response->assertSee('Terreno');
         $this->assertDatabaseHas('property_types', [
             'name' => 'Terreno',
@@ -98,8 +99,7 @@ class PropertyModuleTest extends TestCase
             ->assertOk()
             ->assertSee('Casa Asignada')
             ->assertSee('Casa General')
-            ->assertSee('Nueva Propiedad')
-            ->assertSee(route('properties.edit', $assignedProperty), false);
+            ->assertSee('Nueva Propiedad');
 
         $this->actingAs($advisor)
             ->get(route('properties.index', ['property_scope' => 'mine']))

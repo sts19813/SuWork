@@ -39,7 +39,6 @@ class StorePropertyRequest extends FormRequest
             'unit_number' => ['nullable', 'string', 'max:100'],
             'advisor_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'monthly_rent_price' => ['nullable', 'numeric', 'min:0'],
-            'maintenance_fee' => ['nullable', 'numeric', 'min:0'],
             'facade_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'details' => ['nullable', 'string'],
             'description' => ['nullable', 'string'],
@@ -145,7 +144,7 @@ class StorePropertyRequest extends FormRequest
                     ]))
                     ->exists();
 
-                if (!$isAssignableAdvisor) {
+                if (! $isAssignableAdvisor) {
                     $validator->errors()->add('advisor_user_id', 'Debes seleccionar un asesor o administrador activo.');
                 }
             }

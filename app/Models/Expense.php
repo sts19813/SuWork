@@ -32,9 +32,11 @@ class Expense extends Model
     protected $fillable = [
         'uuid',
         'property_id',
+        'recurring_expense_item_id',
         'concept',
         'amount',
         'due_date',
+        'recurrence_date',
         'description',
         'paid_at',
         'upcoming_notified_at',
@@ -47,6 +49,7 @@ class Expense extends Model
         return [
             'amount' => 'decimal:2',
             'due_date' => 'date',
+            'recurrence_date' => 'date',
             'paid_at' => 'datetime',
             'upcoming_notified_at' => 'datetime',
             'overdue_notified_at' => 'datetime',
@@ -65,6 +68,11 @@ class Expense extends Model
     public function property(): BelongsTo
     {
         return $this->belongsTo(Property::class);
+    }
+
+    public function recurringItem(): BelongsTo
+    {
+        return $this->belongsTo(RecurringExpenseItem::class, 'recurring_expense_item_id');
     }
 
     public function creator(): BelongsTo

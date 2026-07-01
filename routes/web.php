@@ -161,6 +161,9 @@ Route::middleware(['auth', 'system.access'])
         Route::post('/gastos', [ExpenseController::class, 'store'])->name('expenses.store');
         Route::put('/gastos/configuracion', [ExpenseController::class, 'updateGlobalSetup'])->name('expenses.setup.global');
         Route::put('/gastos/propiedades/{property}/configuracion', [ExpenseController::class, 'updatePropertySetup'])->name('expenses.properties.setup');
+        Route::post('/gastos/propiedades/{property}/items-recurrentes', [ExpenseController::class, 'storeRecurringItem'])->name('expenses.recurring-items.store');
+        Route::put('/gastos/items-recurrentes/{recurringExpenseItem}', [ExpenseController::class, 'updateRecurringItem'])->name('expenses.recurring-items.update');
+        Route::delete('/gastos/items-recurrentes/{recurringExpenseItem}', [ExpenseController::class, 'destroyRecurringItem'])->name('expenses.recurring-items.destroy');
         Route::put('/gastos/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
         Route::post('/gastos/{expense}/marcar-pagado', [ExpenseController::class, 'markAsPaid'])->name('expenses.mark-paid');
         Route::delete('/gastos/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');

@@ -64,7 +64,6 @@ class Property extends Model
         'expense_notification_days_before',
         'expense_notification_emails',
         'expense_notification_phones',
-        'maintenance_fee',
         'rent_charge_plan',
         'facade_photo_path',
         'details',
@@ -94,7 +93,6 @@ class Property extends Model
             'expense_notification_days_before' => 'integer',
             'expense_notification_emails' => 'array',
             'expense_notification_phones' => 'array',
-            'maintenance_fee' => 'decimal:2',
             'rent_charge_plan' => 'array',
         ];
     }
@@ -191,6 +189,13 @@ class Property extends Model
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class);
+    }
+
+    public function recurringExpenseItems(): HasMany
+    {
+        return $this->hasMany(RecurringExpenseItem::class)
+            ->orderByDesc('is_active')
+            ->orderBy('concept');
     }
 
     public function maintenanceTickets(): HasMany
