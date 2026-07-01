@@ -78,7 +78,10 @@
                                                 Editar
                                             </button>
                                             <form method="POST" action="{{ route('expenses.recurring-items.destroy', $item) }}"
-                                                onsubmit="return confirm('¿Eliminar este ítem recurrente? Los gastos ya generados se conservarán.');">
+                                                class="js-expense-delete-form"
+                                                data-confirm-title="Eliminar ítem recurrente"
+                                                data-confirm-message="Los gastos ya generados se conservarán. ¿Deseas eliminar este ítem recurrente?"
+                                                data-confirm-button="Sí, eliminar">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-light-danger">Eliminar</button>
@@ -220,7 +223,10 @@
                                         </button>
 
                                         <form method="POST" action="{{ route('expenses.destroy', $expense) }}"
-                                            onsubmit="return confirm('¿Deseas eliminar este gasto?');">
+                                            class="js-expense-delete-form"
+                                            data-confirm-title="Eliminar gasto"
+                                            data-confirm-message="¿Deseas eliminar el gasto {{ $expense->concept }}?"
+                                            data-confirm-button="Sí, eliminar">
                                             @csrf
                                             @method('DELETE')
                                             <input type="hidden" name="property_context" value="{{ $property->uuid }}">
@@ -583,6 +589,37 @@
             const propertyContext = @json($property->uuid);
             let payload = null;
 
+            document.querySelectorAll('.js-expense-delete-form').forEach((deleteForm) => {
+                deleteForm.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+
+                    const title = deleteForm.dataset.confirmTitle || 'Eliminar gasto';
+                    const message = deleteForm.dataset.confirmMessage || '¿Deseas eliminar este registro?';
+                    const confirmButtonText = deleteForm.dataset.confirmButton || 'Sí, eliminar';
+                    let confirmed = false;
+
+                    if (window.Swal?.fire) {
+                        const result = await window.Swal.fire({
+                            title,
+                            text: message,
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText,
+                            cancelButtonText: 'Cancelar',
+                            confirmButtonColor: '#d9214e',
+                            reverseButtons: true,
+                        });
+                        confirmed = !!result.isConfirmed;
+                    } else {
+                        confirmed = window.confirm(message);
+                    }
+
+                    if (confirmed) {
+                        deleteForm.submit();
+                    }
+                });
+            });
+
             document.querySelectorAll('.js-mark-paid-btn').forEach((button) => {
                 button.addEventListener('click', () => {
                     try {
@@ -668,6 +705,13 @@
                 const createModal = document.getElementById('createExpenseModalProperty');
                 if (createModal) {
                     new bootstrap.Modal(createModal).show();
+                }
+            @endif
+
+            @if ($errors->recurringExpenseItem->any())
+                const recurringItemModal = document.getElementById('createRecurringExpenseItemModal');
+                if (recurringItemModal) {
+                    new bootstrap.Modal(recurringItemModal).show();
                 }
             @endif
         })();

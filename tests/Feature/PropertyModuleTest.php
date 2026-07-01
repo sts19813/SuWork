@@ -386,6 +386,7 @@ class PropertyModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Asignar inquilino');
+        $response->assertSee('suwork:property-tab-restore:', false);
         $this->assertNotNull($property->uuid);
         $this->assertStringContainsString('/propiedades/' . $property->uuid, route('properties.show', $property));
     }

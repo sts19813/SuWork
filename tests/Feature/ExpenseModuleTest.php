@@ -29,6 +29,7 @@ class ExpenseModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Gastos');
+        $response->assertSee('js-expense-delete-form', false);
     }
 
     public function test_expense_can_be_created_with_attachments(): void
@@ -60,6 +61,13 @@ class ExpenseModuleTest extends TestCase
             'description' => 'Servicio mensual',
         ]);
         $this->assertDatabaseCount('expense_files', 2);
+
+        $this->actingAs($user)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertSee('data-confirm-title="Eliminar gasto"', false)
+            ->assertSee('window.Swal?.fire', false)
+            ->assertDontSee("onsubmit=\"return confirm('¿Deseas eliminar este gasto?');\"", false);
     }
 
     public function test_expense_can_be_marked_as_paid(): void

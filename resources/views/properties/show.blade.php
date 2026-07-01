@@ -1538,6 +1538,21 @@
             });
 
             const tabButtons = document.querySelectorAll('#propertyTabs [data-bs-toggle="tab"]');
+            const tabRestoreKey = `suwork:property-tab-restore:${window.location.pathname}`;
+            const rememberActiveTab = () => {
+                const activeButton = document.querySelector('#propertyTabs [data-bs-toggle="tab"].active');
+                const target = activeButton?.getAttribute('data-bs-target') || '';
+                if (target.startsWith('#tab-')) {
+                    try {
+                        sessionStorage.setItem(tabRestoreKey, target);
+                    } catch (error) {
+                        // The URL hash remains as the fallback when storage is unavailable.
+                    }
+                }
+            };
+
+            document.addEventListener('submit', rememberActiveTab, true);
+
             tabButtons.forEach((button) => {
                 button.addEventListener('shown.bs.tab', (event) => {
                     const target = event.target.getAttribute('data-bs-target') || '';
@@ -1549,16 +1564,27 @@
                 });
             });
 
-            if (window.location.hash) {
-                const hashButton = document.querySelector(`#propertyTabs [data-bs-target="${window.location.hash}"]`);
+            const hashTarget = window.location.hash.startsWith('#tab-') ? window.location.hash : '';
+            let storedTarget = '';
+            try {
+                storedTarget = sessionStorage.getItem(tabRestoreKey) || '';
+                sessionStorage.removeItem(tabRestoreKey);
+            } catch (error) {
+                storedTarget = '';
+            }
+            const targetToRestore = hashTarget || storedTarget;
+
+            if (/^#tab-[a-z0-9-]+$/i.test(targetToRestore)) {
+                const hashButton = document.querySelector(`#propertyTabs [data-bs-target="${targetToRestore}"]`);
                 if (hashButton) {
+                    history.replaceState(null, '', targetToRestore);
                     new bootstrap.Tab(hashButton).show();
                 }
             }
         })();
     </script>
 
-    @if ($errors->createExpense->any() || $errors->updateExpense->any() || $errors->expensePropertySetup->any())
+    @if ($errors->createExpense->any() || $errors->updateExpense->any() || $errors->expensePropertySetup->any() || $errors->recurringExpenseItem->any())
         <script>
             (() => {
                 const tabButton = document.querySelector('#propertyTabs [data-bs-target="#tab-expenses"]');
