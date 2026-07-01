@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Owner;
 use App\Models\Property;
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -130,6 +131,25 @@ class StorePropertyRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            $advisorId = $this->input('advisor_user_id');
+            if (filled($advisorId)) {
+                $isAssignableAdvisor = User::query()
+                    ->whereKey($advisorId)
+                    ->where('is_active', true)
+                    ->whereHas('roles', fn ($query) => $query->whereIn('name', [
+                        'asesores',
+                        'asesor',
+                        'advisor',
+                        'administrador',
+                        'admin',
+                    ]))
+                    ->exists();
+
+                if (!$isAssignableAdvisor) {
+                    $validator->errors()->add('advisor_user_id', 'Debes seleccionar un asesor o administrador activo.');
+                }
+            }
+
             $ownerIds = collect($this->input('owner_ids', []))
                 ->filter(fn ($ownerId) => filled($ownerId));
 

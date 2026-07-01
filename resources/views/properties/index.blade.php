@@ -397,12 +397,6 @@
 @endpush
 
 @section('content')
-    @php
-        $canManagePropertyAdvisors = auth()->user()?->hasRole('administrador')
-            || auth()->user()?->hasRole('admin')
-            || auth()->user()?->can('propiedades.asignar_asesores');
-    @endphp
-
     <div class="py-10 property-module property-list-module">
         @if (session('success'))
             <div class="alert alert-success d-flex align-items-center p-5 mb-8">
@@ -418,15 +412,13 @@
                 <h1 class="mb-1 fw-bold text-dark">Propiedades</h1>
                 <div class="text-muted fs-6">{{ $properties->count() }} propiedades encontradas</div>
             </div>
-            @unless ($isAdvisorUser)
-                <a href="{{ route('properties.create') }}" class="btn btn-primary fw-bold">
-                    <i class="ki-outline ki-plus fs-4 me-1"></i> Nueva Propiedad
-                </a>
-            @endunless
+            <a href="{{ route('properties.create') }}" class="btn btn-primary fw-bold">
+                <i class="ki-outline ki-plus fs-4 me-1"></i> Nueva Propiedad
+            </a>
         </div>
 
         <div class="property-list-toolbar">
-            <form method="GET" action="{{ route('properties.index', $propertyScope === 'all' ? ['property_scope' => 'all'] : []) }}"
+            <form method="GET" action="{{ route('properties.index') }}"
                 id="propertySearchForm" class="property-list-search mb-0">
                 <i class="bi bi-search"></i>
                 <input
