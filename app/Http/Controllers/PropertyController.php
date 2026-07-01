@@ -28,11 +28,12 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PropertyController extends Controller
 {
+    private const TENANT_CHANGE_BLOCKED_MESSAGE = 'No es posible cambiar o quitar el inquilino mientras existan cargos pendientes, en validación o vencidos.';
+
     private const DEFAULT_PROPERTY_TYPES = [
         'Casa',
         'Departamento',
@@ -55,41 +56,30 @@ class PropertyController extends Controller
 
     public function index(Request $request): View
     {
-        $request->validate([
-            'property_scope' => ['nullable', Rule::in(['mine', 'all'])],
-        ]);
-
         $availableAdvisors = $this->availableAdvisors();
-        $propertyScope = $this->resolveAdvisorScope($request);
 
         $properties = Property::query()
             ->with(['type', 'zone', 'tenant', 'advisor', 'advisors:id,name,email'])
             ->withCount([
                 'documents as incidents_count' => fn($query) => $query->where('status', PropertyDocument::STATUS_PENDING),
             ])
-            ->when($propertyScope === 'mine', fn($query) => $this->scopeQueryToAdvisor($query, $request->user()))
             ->latest()
             ->get();
 
         return view('properties.index', [
             'properties' => $properties,
             'availableAdvisors' => $availableAdvisors,
-            'propertyScope' => $propertyScope,
-            'isAdvisorUser' => $this->isAdvisorUser($request->user()),
+            'canManagePropertyAdvisors' => $this->canManagePropertyAssignments($request->user()),
         ]);
     }
 
     public function create(Request $request): View
     {
-        $this->ensureAdvisorIsReadOnly($request);
-
         return view('properties.create', $this->formViewData());
     }
 
     public function store(StorePropertyRequest $request): RedirectResponse|JsonResponse
     {
-        $this->ensureAdvisorIsReadOnly($request);
-
         $property = $this->saveProperty($request);
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
@@ -106,8 +96,6 @@ class PropertyController extends Controller
 
     public function edit(Request $request, Property $property): View
     {
-        $this->ensureAdvisorIsReadOnly($request);
-
         $property->load([
             'owners',
             'documents.versions',
@@ -121,8 +109,6 @@ class PropertyController extends Controller
 
     public function update(StorePropertyRequest $request, Property $property): RedirectResponse|JsonResponse
     {
-        $this->ensureAdvisorIsReadOnly($request);
-
         $property = $this->saveProperty($request, $property);
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
@@ -237,7 +223,7 @@ class PropertyController extends Controller
             if ($hasOpenCharges || $hasOverdueCharges) {
                 return redirect()
                     ->back()
-                    ->with('warning', 'No es posible cambiar el inquilino mientras existan cargos pendientes, en validación o vencidos.');
+                    ->with('warning', self::TENANT_CHANGE_BLOCKED_MESSAGE);
             }
         }
 
@@ -468,6 +454,7 @@ class PropertyController extends Controller
             'propertyCurrentMonthLabel' => Carbon::create(now()->year, now()->month, 1)->translatedFormat('M Y'),
             'canReassignTenant' => $canReassignTenant,
             'canRemoveTenant' => $canRemoveTenant,
+            'tenantChangeBlockedMessage' => self::TENANT_CHANGE_BLOCKED_MESSAGE,
             'propertyExpenseSummary' => $propertyExpenseSummary,
             'globalExpenseNotificationSetup' => $globalExpenseNotificationSetup,
             'resolvedPropertyExpenseNotificationSetup' => $resolvedPropertyExpenseNotificationSetup,
@@ -647,33 +634,16 @@ class PropertyController extends Controller
             ->get(['id', 'name', 'email']);
     }
 
-    private function resolveAdvisorScope(Request $request): ?string
-    {
-        if (!$this->isAdvisorUser($request->user())) {
-            return null;
-        }
-
-        return $request->query('property_scope') === 'all' ? 'all' : 'mine';
-    }
-
-    private function scopeQueryToAdvisor($query, ?User $user): void
-    {
-        if (!$user) {
-            $query->whereRaw('1 = 0');
-            return;
-        }
-
-        $query->where(function ($inner) use ($user): void {
-            $inner->where('advisor_user_id', $user->id)
-                ->orWhereHas('advisors', fn($advisorQuery) => $advisorQuery->whereKey($user->id));
-        });
-    }
-
     private function isAdvisorUser(?User $user): bool
     {
         return (bool) $user
             && !$this->isAdminUser($user)
-            && ($user->hasRole('asesores') || $user->can('propiedades.ver_propias'));
+            && ($this->hasAdvisorRole($user) || $user->can('propiedades.ver_propias'));
+    }
+
+    private function hasAdvisorRole(?User $user): bool
+    {
+        return (bool) $user && $user->hasAnyRole(['asesores', 'asesor', 'advisor']);
     }
 
     private function isAdminUser(?User $user): bool
@@ -683,11 +653,16 @@ class PropertyController extends Controller
 
     private function ensureCanManagePropertyAssignments(Request $request): void
     {
-        $user = $request->user();
-
-        if (!$this->isAdminUser($user) && !$user?->can('propiedades.asignar_asesores')) {
+        if (!$this->canManagePropertyAssignments($request->user())) {
             abort(403);
         }
+    }
+
+    private function canManagePropertyAssignments(?User $user): bool
+    {
+        return $this->isAdminUser($user)
+            || $this->hasAdvisorRole($user)
+            || (bool) $user?->can('propiedades.asignar_asesores');
     }
 
     private function ensureAdvisorIsReadOnly(Request $request): void

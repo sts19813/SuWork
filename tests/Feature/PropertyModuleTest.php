@@ -65,7 +65,7 @@ class PropertyModuleTest extends TestCase
         ]);
     }
 
-    public function test_advisor_role_sees_assigned_properties_by_default_and_can_view_all(): void
+    public function test_advisor_role_sees_all_properties_by_default(): void
     {
         $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
         $advisor = User::factory()->create();
@@ -97,13 +97,97 @@ class PropertyModuleTest extends TestCase
             ->get(route('properties.index'))
             ->assertOk()
             ->assertSee('Casa Asignada')
-            ->assertDontSee('Casa General');
+            ->assertSee('Casa General')
+            ->assertSee('Nueva Propiedad')
+            ->assertSee(route('properties.edit', $assignedProperty), false);
 
         $this->actingAs($advisor)
-            ->get(route('properties.index', ['property_scope' => 'all']))
+            ->get(route('properties.index', ['property_scope' => 'mine']))
             ->assertOk()
             ->assertSee('Casa Asignada')
             ->assertSee('Casa General');
+    }
+
+    public function test_advisor_role_can_create_edit_and_assign_property_to_another_advisor(): void
+    {
+        Storage::fake('public');
+
+        $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $advisor = User::factory()->create(['name' => 'Asesor Creador']);
+        $advisor->assignRole($advisorRole);
+        $otherAdvisor = User::factory()->create(['name' => 'Asesor Responsable']);
+        $otherAdvisor->assignRole($advisorRole);
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+
+        $this->actingAs($advisor)
+            ->get(route('properties.create'))
+            ->assertOk()
+            ->assertSee('Nueva Propiedad')
+            ->assertSee('Asesor Responsable');
+
+        $createResponse = $this->actingAs($advisor)
+            ->post(route('properties.store'), [
+                'internal_name' => 'Casa Creada por Asesor',
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle Asesor 100',
+                'status' => Property::STATUS_AVAILABLE,
+                'advisor_user_id' => $otherAdvisor->id,
+                'facade_photo' => UploadedFile::fake()->image('fachada.jpg'),
+                'new_owners' => [
+                    [
+                        'name' => 'Propietario Asesor',
+                        'phone' => '9991112233',
+                    ],
+                ],
+            ]);
+
+        $property = Property::query()->where('internal_name', 'Casa Creada por Asesor')->firstOrFail();
+        $owner = $property->owners()->firstOrFail();
+
+        $createResponse
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('properties.show', $property));
+        $this->assertSame($otherAdvisor->id, $property->advisor_user_id);
+        $this->assertDatabaseHas('property_advisor', [
+            'property_id' => $property->id,
+            'user_id' => $otherAdvisor->id,
+        ]);
+
+        $this->actingAs($advisor)
+            ->get(route('properties.edit', $property))
+            ->assertOk()
+            ->assertSee('Editar Propiedad')
+            ->assertSee('Asesor Responsable');
+
+        $this->actingAs($advisor)
+            ->put(route('properties.update', $property), [
+                'internal_name' => 'Casa Editada por Asesor',
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle Asesor 200',
+                'status' => Property::STATUS_AVAILABLE,
+                'advisor_user_id' => $otherAdvisor->id,
+                'owner_ids' => [$owner->id],
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('properties.show', $property));
+
+        $this->assertDatabaseHas('properties', [
+            'id' => $property->id,
+            'internal_name' => 'Casa Editada por Asesor',
+            'advisor_user_id' => $otherAdvisor->id,
+        ]);
+
+        $this->actingAs($advisor)
+            ->putJson(route('properties.update.advisors', $property), [
+                'advisor_user_ids' => [$advisor->id],
+            ])
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $this->assertSame($advisor->id, $property->fresh()->advisor_user_id);
     }
 
     public function test_admin_can_assign_responsible_advisors_from_properties_index(): void
@@ -301,6 +385,7 @@ class PropertyModuleTest extends TestCase
             ->get(route('properties.show', $property));
 
         $response->assertOk();
+        $response->assertSee('Asignar inquilino');
         $this->assertNotNull($property->uuid);
         $this->assertStringContainsString('/propiedades/' . $property->uuid, route('properties.show', $property));
     }
@@ -597,10 +682,12 @@ class PropertyModuleTest extends TestCase
             'created_by' => $user->id,
         ]);
 
-        $this->actingAs($user)
+        $response = $this->actingAs($user)
             ->get(route('properties.show', $property))
             ->assertOk()
             ->assertSee('data-current-tenant-name="Inquilino Pagado"', false);
+
+        $this->assertGreaterThanOrEqual(2, substr_count($response->getContent(), 'js-remove-tenant-form'));
 
         $this->actingAs($user)
             ->from(route('properties.show', $property))
@@ -611,7 +698,7 @@ class PropertyModuleTest extends TestCase
         $this->assertNull($property->fresh()->tenant_id);
     }
 
-    public function test_remove_tenant_option_is_hidden_when_property_has_pending_charges(): void
+    public function test_tenant_controls_remain_visible_and_block_changes_when_property_has_pending_charges(): void
     {
         $user = User::factory()->create();
         $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
@@ -646,9 +733,25 @@ class PropertyModuleTest extends TestCase
             'created_by' => $user->id,
         ]);
 
-        $this->actingAs($user)
+        $response = $this->actingAs($user)
             ->get(route('properties.show', $property))
             ->assertOk()
-            ->assertDontSee('data-current-tenant-name="Inquilino Pendiente"', false);
+            ->assertSee('Cambiar inquilino')
+            ->assertSee('data-current-tenant-name="Inquilino Pendiente"', false)
+            ->assertSee('data-tenant-change-allowed="false"', false)
+            ->assertSee('No es posible cambiar el inquilino', false);
+
+        $this->assertGreaterThanOrEqual(2, substr_count($response->getContent(), 'js-remove-tenant-form'));
+
+        $this->actingAs($user)
+            ->from(route('properties.show', $property))
+            ->put(route('properties.update.tenant', $property), ['tenant_id' => ''])
+            ->assertRedirect(route('properties.show', $property))
+            ->assertSessionHas(
+                'warning',
+                'No es posible cambiar o quitar el inquilino mientras existan cargos pendientes, en validación o vencidos.'
+            );
+
+        $this->assertSame($tenant->id, $property->fresh()->tenant_id);
     }
 }

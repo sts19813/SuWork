@@ -380,6 +380,10 @@
             min-width: 76px;
         }
 
+        .property-control-action-mobile {
+            display: none;
+        }
+
         .property-control-child-row td {
             padding: 0 !important;
             border-top: 0 !important;
@@ -477,6 +481,406 @@
                 padding-right: 16px;
             }
         }
+
+        @media (max-width: 767.98px) {
+            .property-control-module {
+                --pc-card-radius: 8px;
+            }
+
+            .property-control-module.py-10 {
+                padding-top: 1.25rem !important;
+                padding-bottom: 1.25rem !important;
+            }
+
+            .property-control-module > .d-flex.flex-wrap.justify-content-between {
+                align-items: flex-start !important;
+                gap: 8px !important;
+                margin-bottom: 18px !important;
+            }
+
+            .property-control-module h1 {
+                font-size: 1.35rem;
+                line-height: 1.2;
+                overflow-wrap: anywhere;
+            }
+
+            .property-control-module h1 + .text-muted {
+                font-size: 0.84rem !important;
+                line-height: 1.35;
+            }
+
+            .property-control-module > .d-flex.flex-wrap.justify-content-between > .text-muted {
+                width: 100%;
+                font-size: 0.78rem;
+            }
+
+            .property-control-summary-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                margin-bottom: 18px !important;
+            }
+
+            .property-control-summary-grid > [class*="col-"] {
+                width: auto;
+                max-width: none;
+                padding: 0 !important;
+            }
+
+            .property-control-summary-grid > .col-xl-5 {
+                grid-column: 1 / -1;
+            }
+
+            .property-control-hero,
+            .property-control-summary-card {
+                border-radius: var(--pc-card-radius);
+                min-width: 0;
+            }
+
+            .property-control-hero .card-body {
+                padding: 16px !important;
+            }
+
+            .property-control-hero__eyebrow {
+                margin-bottom: 10px !important;
+                font-size: 0.74rem;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+
+            .property-control-hero__percent {
+                border-radius: 8px;
+                padding: 8px 10px;
+            }
+
+            .property-control-hero__percent strong {
+                font-size: clamp(2rem, 12vw, 3rem);
+                letter-spacing: 0;
+            }
+
+            .property-control-hero__percent span {
+                font-size: 1rem;
+            }
+
+            .property-control-hero__description {
+                max-width: none;
+                font-size: 0.86rem;
+                line-height: 1.4;
+            }
+
+            .property-control-summary-card .card-body {
+                min-width: 0;
+                padding: 14px !important;
+            }
+
+            .property-control-summary-card__label {
+                min-height: 2rem;
+                margin-bottom: 8px !important;
+                font-size: 0.68rem;
+                line-height: 1.2;
+                letter-spacing: 0.03em;
+                text-transform: uppercase;
+            }
+
+            .property-control-summary-card__value {
+                font-size: clamp(1.45rem, 8vw, 2rem);
+                overflow-wrap: anywhere;
+            }
+
+            .property-control-summary-card__note {
+                margin-top: 8px !important;
+                font-size: 0.72rem;
+                line-height: 1.3;
+                overflow-wrap: anywhere;
+            }
+
+            .property-control-module .property-tabs-wrap {
+                padding: 12px;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+                overflow: visible;
+            }
+
+            .property-control-toolbar {
+                gap: 10px;
+                margin-bottom: 14px;
+            }
+
+            .property-control-search {
+                flex-basis: 100%;
+                min-width: 0;
+            }
+
+            .property-control-search .form-control {
+                height: 46px;
+                border-radius: 8px;
+                font-size: 0.86rem;
+            }
+
+            .property-control-results {
+                width: 100%;
+                font-size: 0.8rem;
+                white-space: normal;
+            }
+
+            .property-control-module .property-tabs-nav {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+            }
+
+            .property-control-module .property-tabs-nav .nav-item,
+            .property-control-module .property-tabs-nav .nav-link {
+                width: 100%;
+            }
+
+            .property-control-module .property-tabs-nav .nav-link {
+                justify-content: center;
+                min-height: 44px;
+                border-radius: 8px;
+                padding: 9px 10px;
+                font-size: 0.78rem;
+                line-height: 1.2;
+                text-align: center;
+                white-space: normal;
+            }
+
+            .property-control-module .property-tabs-nav__count {
+                min-width: 24px;
+                height: 24px;
+                font-size: 0.7rem;
+            }
+
+            .property-tab-pane {
+                padding: 14px 0 0 !important;
+            }
+
+            .property-control-table-card {
+                margin-top: 0;
+                border: 0;
+                border-radius: 0;
+                overflow: visible;
+                background: transparent;
+            }
+
+            .property-control-table-card .table-responsive {
+                overflow: visible;
+            }
+
+            .property-control-table-card table,
+            .property-control-table-card table.dataTable,
+            .property-control-table-card tbody {
+                display: block;
+                width: 100% !important;
+            }
+
+            .property-control-table-card thead {
+                display: none;
+            }
+
+            .property-control-table-card tbody {
+                display: grid;
+                gap: 14px;
+            }
+
+            .property-control-row {
+                display: block;
+                padding: 18px;
+                border: 1px solid #e8eef7;
+                border-radius: var(--pc-card-radius);
+                background: #fff !important;
+                box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+                overflow: hidden;
+            }
+
+            .property-control-row.is-expanded {
+                border-bottom-right-radius: 0;
+                border-bottom-left-radius: 0;
+            }
+
+            .property-control-table-card table:not(.table-bordered) tr.property-control-row {
+                padding: 18px !important;
+            }
+
+            .property-control-row:hover td,
+            .property-control-row.is-expanded td {
+                background: transparent;
+            }
+
+            .property-control-row td {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                min-width: 0;
+                padding: 10px 0 !important;
+                border-top: 1px solid #f0f3f8 !important;
+                background: transparent !important;
+                text-align: right !important;
+            }
+
+            .property-control-row td::before {
+                flex: 0 0 82px;
+                color: #8b96b2;
+                font-size: 0.66rem;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+                line-height: 1.25;
+                text-align: left;
+                text-transform: uppercase;
+            }
+
+            .property-control-row td:nth-child(1) {
+                display: block;
+                padding-top: 0 !important;
+                padding-bottom: 14px !important;
+                border-top: 0 !important;
+                text-align: left !important;
+            }
+
+            .property-control-row td:nth-child(1)::before,
+            .property-control-row td:nth-child(3)::before {
+                content: none;
+            }
+
+            .property-control-row td:nth-child(2)::before {
+                content: 'Asesor';
+            }
+
+            .property-control-row td:nth-child(3) {
+                margin-top: 6px;
+                padding-top: 14px !important;
+                border-top: 1px solid #e8eef7 !important;
+            }
+
+            .property-control-property {
+                gap: 12px;
+            }
+
+            .property-control-expander {
+                width: 34px;
+                height: 34px;
+                border-radius: 8px;
+            }
+
+            .property-control-property__body {
+                min-width: 0;
+            }
+
+            .property-control-property__title {
+                font-size: 1rem;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+            }
+
+            .property-control-inline-meta {
+                margin-top: 8px;
+            }
+
+            .property-control-inline-meta span {
+                border-radius: 8px;
+                font-size: 0.72rem;
+                line-height: 1.25;
+                white-space: normal;
+            }
+
+            .property-control-party__label {
+                display: none;
+            }
+
+            .property-control-party__value {
+                max-width: 58%;
+                min-width: 0;
+                font-size: 0.84rem;
+                line-height: 1.35;
+                overflow-wrap: anywhere;
+                text-align: right;
+            }
+
+            .property-control-actions {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 8px;
+                width: 100%;
+            }
+
+            .property-control-action-desktop {
+                display: none;
+            }
+
+            .property-control-action-mobile {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+            }
+
+            .property-control-actions .btn {
+                width: 100%;
+                min-width: 0;
+                border-radius: 8px;
+                padding: 9px 10px;
+                font-size: 0.8rem;
+                line-height: 1.2;
+            }
+
+            .property-control-child-row {
+                display: block;
+                margin-top: -14px;
+                border: 1px solid #e8eef7;
+                border-top: 0;
+                border-radius: 0 0 var(--pc-card-radius) var(--pc-card-radius);
+                background: #fffaf5 !important;
+                overflow: hidden;
+                box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+            }
+
+            .property-control-child-row td {
+                display: block;
+                width: 100%;
+                background: transparent !important;
+            }
+
+            .property-control-child {
+                padding: 0 12px 12px;
+            }
+
+            .property-control-detail {
+                border-radius: 8px;
+                padding: 12px;
+            }
+
+            .property-control-detail-card {
+                border-radius: 8px;
+                padding: 12px;
+            }
+
+            .property-control-check {
+                border-radius: 8px;
+                padding: 10px 12px;
+                font-size: 0.82rem;
+                line-height: 1.3;
+            }
+
+            .property-control-table-card .dataTables_info {
+                padding: 14px 2px 0;
+                font-size: 0.78rem;
+                text-align: center;
+            }
+
+            .property-control-table-card .dataTables_paginate {
+                padding: 12px 2px 0;
+            }
+
+            .property-control-table-card .dataTables_paginate .pagination {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+        }
     </style>
 @endpush
 
@@ -490,7 +894,7 @@
             <div class="text-muted fw-semibold">{{ now()->translatedFormat('d M Y') }}</div>
         </div>
 
-        <div class="row g-5 mb-8">
+        <div class="row g-5 mb-8 property-control-summary-grid">
             <div class="col-xl-5">
                 <div class="card h-100 property-control-hero">
                     <div class="card-body p-8 p-xl-10">
@@ -650,8 +1054,13 @@
                                         <td class="text-end pe-7">
                                             <div class="property-control-actions">
                                                 <a href="{{ route('properties.show', $property) }}"
-                                                    class="btn btn-sm btn-primary js-property-control-action">
+                                                    class="btn btn-sm btn-primary js-property-control-action property-control-action-desktop">
                                                     Ver
+                                                </a>
+                                                <a href="{{ route('properties.show', $property) }}"
+                                                    class="btn btn-sm btn-primary js-property-control-action property-control-action-mobile">
+                                                    <i class="bi bi-box-arrow-up-right"></i>
+                                                    Ir a la propiedad
                                                 </a>
                                             </div>
 

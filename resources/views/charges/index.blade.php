@@ -224,6 +224,322 @@
             }
         }
 
+        @media (max-width: 767.98px) {
+            .charges-list-module {
+                --cl-card-radius: 8px;
+            }
+
+            .charges-list-module.py-10 {
+                padding-top: 1.25rem !important;
+                padding-bottom: 1.25rem !important;
+            }
+
+            .charges-list-module > .d-flex.flex-wrap.justify-content-between {
+                align-items: stretch !important;
+                gap: 12px !important;
+                margin-bottom: 18px !important;
+            }
+
+            .charges-list-module > .d-flex.flex-wrap.justify-content-between > div:first-child {
+                min-width: 0;
+                width: 100%;
+            }
+
+            .charges-list-module h1 {
+                font-size: 1.35rem;
+                line-height: 1.2;
+                overflow-wrap: anywhere;
+            }
+
+            .charges-list-module > .d-flex.flex-wrap.justify-content-between > .d-flex {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px !important;
+                width: 100%;
+            }
+
+            .charges-list-module > .d-flex.flex-wrap.justify-content-between > .d-flex .btn {
+                min-width: 0;
+                border-radius: 8px;
+                padding-left: 10px;
+                padding-right: 10px;
+                white-space: normal;
+            }
+
+            .charges-kpi-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                margin-bottom: 18px !important;
+            }
+
+            .charges-kpi-grid > [class*="col-"] {
+                width: auto;
+                max-width: none;
+                padding: 0 !important;
+            }
+
+            .charges-kpi-grid .card {
+                border-radius: 8px;
+                min-width: 0;
+            }
+
+            .charges-kpi-grid .card-body {
+                align-items: flex-start !important;
+                flex-direction: column;
+                gap: 8px !important;
+                min-width: 0;
+                padding: 14px !important;
+            }
+
+            .charges-kpi-grid .card-body > div:last-child {
+                min-width: 0;
+                width: 100%;
+            }
+
+            .charges-kpi-grid .symbol,
+            .charges-kpi-grid .symbol-label {
+                width: 34px !important;
+                height: 34px !important;
+                min-width: 34px !important;
+            }
+
+            .charges-kpi-grid .text-muted {
+                font-size: 0.68rem !important;
+                font-weight: 800;
+                letter-spacing: 0.02em;
+                line-height: 1.15;
+                min-height: 1.55rem;
+                text-transform: uppercase;
+            }
+
+            .charges-kpi-grid .fw-bold.fs-2 {
+                max-width: 100%;
+                color: var(--cl-ink);
+                font-size: clamp(1rem, 4.4vw, 1.35rem) !important;
+                line-height: 1.08;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+
+            .charges-list-toolbar {
+                gap: 10px;
+                margin-bottom: 14px;
+            }
+
+            .charges-list-search {
+                flex-basis: 100%;
+                min-width: 0;
+            }
+
+            .charges-list-search .form-control {
+                height: 46px;
+                border-radius: 8px;
+                font-size: 0.86rem;
+            }
+
+            .charges-list-results {
+                width: 100%;
+                font-size: 0.8rem;
+            }
+
+            .charges-list-tabs {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+
+            .charges-list-tabs .nav-item,
+            .charges-list-tabs .nav-link {
+                width: 100%;
+            }
+
+            .charges-list-tabs .nav-link {
+                justify-content: center;
+                border-radius: 8px;
+                padding: 10px;
+                font-size: 0.82rem;
+                white-space: normal;
+            }
+
+            .charges-list-table-card {
+                margin-top: 14px;
+                border: 0;
+                border-radius: 0;
+                overflow: visible;
+                background: transparent;
+            }
+
+            .charges-list-table-card .table-responsive {
+                overflow: visible;
+            }
+
+            .charges-list-table-card table,
+            .charges-list-table-card table.dataTable,
+            .charges-list-table-card tbody {
+                display: block;
+                width: 100% !important;
+            }
+
+            .charges-list-table-card thead {
+                display: none;
+            }
+
+            .charges-list-table-card tbody {
+                display: grid;
+                gap: 14px;
+            }
+
+            .charges-list-row {
+                display: block;
+                padding: 18px;
+                border: 1px solid #e8eef7;
+                border-radius: 8px;
+                background: #fff !important;
+                box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+                overflow: hidden;
+            }
+
+            .charges-list-table-card table:not(.table-bordered) tr.charges-list-row {
+                padding: 18px !important;
+            }
+
+            .charges-list-row:hover td {
+                background: transparent;
+            }
+
+            .charges-list-row td {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                min-width: 0;
+                padding: 10px 0 !important;
+                border-top: 1px solid #f0f3f8 !important;
+                background: transparent !important;
+                text-align: right !important;
+            }
+
+            .charges-list-row td::before {
+                content: attr(data-mobile-label);
+                flex: 0 0 94px;
+                color: #8b96b2;
+                font-size: 0.66rem;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+                line-height: 1.25;
+                text-align: left;
+                text-transform: uppercase;
+            }
+
+            .charges-list-row td:first-child {
+                display: block;
+                padding-top: 0 !important;
+                padding-bottom: 14px !important;
+                border-top: 0 !important;
+                text-align: left !important;
+            }
+
+            .charges-list-row td:first-child::before {
+                content: none;
+            }
+
+            .charges-list-title {
+                display: block;
+                font-size: 1rem;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+            }
+
+            .charges-list-meta {
+                font-size: 0.78rem;
+                overflow-wrap: anywhere;
+            }
+
+            .charges-list-value,
+            .charges-list-row .badge {
+                max-width: 58%;
+                min-width: 0;
+                font-size: 0.84rem;
+                line-height: 1.3;
+                overflow-wrap: anywhere;
+                text-align: right;
+                white-space: normal;
+            }
+
+            #chargesTable .charges-list-row td:nth-child(2)::before,
+            #paymentsTable .charges-list-row td:nth-child(2)::before {
+                content: 'Inquilino / propiedad';
+            }
+
+            #chargesTable .charges-list-row td:nth-child(3)::before {
+                content: 'Vence';
+            }
+
+            #chargesTable .charges-list-row td:nth-child(4)::before,
+            #paymentsTable .charges-list-row td:nth-child(4)::before {
+                content: 'Monto';
+            }
+
+            #chargesTable .charges-list-row td:nth-child(5)::before,
+            #paymentsTable .charges-list-row td:nth-child(6)::before {
+                content: 'Estado';
+            }
+
+            #paymentsTable .charges-list-row td:nth-child(3)::before {
+                content: 'Fecha';
+            }
+
+            #paymentsTable .charges-list-row td:nth-child(5)::before {
+                content: 'Metodo';
+            }
+
+            #chargesTable .charges-list-row td:last-child {
+                margin-top: 6px;
+                padding-top: 14px !important;
+                border-top: 1px solid #e8eef7 !important;
+            }
+
+            #chargesTable .charges-list-row td:last-child::before {
+                content: none;
+            }
+
+            .charges-list-actions {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+                width: 100%;
+            }
+
+            .charges-list-actions .btn {
+                min-width: 0;
+                width: 100%;
+                border-radius: 8px;
+                padding: 8px 10px;
+                font-size: 0.76rem;
+                line-height: 1.2;
+                white-space: normal;
+            }
+
+            .charges-list-table-card .dataTables_info {
+                padding: 14px 2px 0;
+                font-size: 0.78rem;
+                text-align: center;
+            }
+
+            .charges-list-table-card .dataTables_paginate {
+                padding: 12px 2px 0;
+            }
+
+            .charges-list-table-card .dataTables_paginate .pagination {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+        }
+
         #registerPaymentModal .modal-content {
             max-height: calc(100dvh - 2rem);
             overflow: hidden;
@@ -312,7 +628,7 @@
         </div>
 
         @if ($canManageCharges)
-        <div class="row g-5 mb-8">
+        <div class="row g-5 mb-8 charges-kpi-grid">
             <div class="col-md-6 col-xl-3">
                 <div class="card h-100">
                     <div class="card-body d-flex align-items-center gap-4 py-6">

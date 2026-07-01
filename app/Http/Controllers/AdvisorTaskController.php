@@ -49,12 +49,8 @@ class AdvisorTaskController extends Controller
             'periodEnd' => $period['end'],
             'periodLabel' => $period['label'],
             'periodIncludesOverdue' => $period['include_overdue'],
-            'assignedPropertyCount' => $propertyIds->count(),
             'tasks' => $filteredTasks,
             'allTasksCount' => $tasks->count(),
-            'urgentTasksCount' => $tasks->where('priority', 'urgent')->count(),
-            'todayTasksCount' => $tasks->where('is_today', true)->count(),
-            'upcomingTasksCount' => $tasks->where('priority', 'upcoming')->count(),
             'filterCounts' => [
                 'all' => $tasks->count(),
                 'urgent' => $tasks->where('priority', 'urgent')->count(),
@@ -74,7 +70,7 @@ class AdvisorTaskController extends Controller
         }
 
         $query = Charge::query()
-            ->with(['property:id,uuid,internal_name,internal_reference', 'tenant:id,full_name'])
+            ->with('property:id,uuid,internal_name,internal_reference,facade_photo_path')
             ->whereIn('property_id', $propertyIds->all())
             ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
             ->whereDate('due_date', '<=', $periodEnd->toDateString());
@@ -90,22 +86,20 @@ class AdvisorTaskController extends Controller
                 $dueDate = $charge->due_date?->copy()->startOfDay();
                 $isOverdue = $dueDate?->lt($today) ?? false;
                 $isToday = $dueDate?->isSameDay($today) ?? false;
-                $isRent = $charge->type === Charge::TYPE_RENT;
                 $priority = $isOverdue ? 'urgent' : ($isToday ? 'today' : 'upcoming');
 
                 return [
                     'id' => 'charge-'.$charge->id,
                     'category' => 'charges',
-                    'category_label' => $isRent ? 'Renta' : 'Cobranza',
+                    'category_label' => 'Cobranza',
                     'priority' => $priority,
                     'is_today' => $isToday,
                     'tone' => $isOverdue ? 'danger' : ($charge->status === Charge::STATUS_IN_VALIDATION ? 'primary' : 'warning'),
-                    'icon' => $isOverdue ? 'bi-exclamation-octagon' : 'bi-wallet2',
-                    'title' => $charge->property?->internal_name ?: 'Propiedad',
-                    'subtitle' => ($isOverdue ? 'Cobro vencido' : 'Cobro por atender').' por '.$this->money($charge->outstanding_amount),
-                    'detail' => ($charge->tenant?->full_name ?: 'Sin inquilino').' · '.$charge->type_label,
-                    'due_label' => $this->dateStatusLabel($dueDate),
-                    'due_detail' => $dueDate?->translatedFormat('d M Y') ?: 'Sin fecha',
+                    'property_name' => $charge->property?->internal_name ?: 'Propiedad',
+                    'property_photo_path' => $charge->property?->facade_photo_path,
+                    'subject' => ($isOverdue ? 'Cobro vencido' : 'Cobro por atender').' por '.$this->money($charge->outstanding_amount),
+                    'time_label' => $this->relativeTimeLabel($dueDate),
+                    'date_label' => $this->formattedDateLabel($dueDate),
                     'route' => route('charges.show', $charge),
                     'sort_at' => $dueDate,
                     'sort_rank' => $isOverdue ? 10 : ($isToday ? 20 : 40),
@@ -122,7 +116,7 @@ class AdvisorTaskController extends Controller
         $activeStatuses = array_diff(array_keys(MaintenanceTicket::STATUS_LABELS), ['completado', 'cancelado']);
 
         $query = MaintenanceTicket::query()
-            ->with(['property:id,uuid,internal_name,internal_reference', 'currentProvider:id,name'])
+            ->with('property:id,uuid,internal_name,internal_reference,facade_photo_path')
             ->whereIn('property_id', $propertyIds->all())
             ->whereIn('status', $activeStatuses)
             ->whereNotNull('scheduled_visit_at')
@@ -146,16 +140,15 @@ class AdvisorTaskController extends Controller
                 return [
                     'id' => 'maintenance-'.$ticket->id,
                     'category' => 'maintenance',
-                    'category_label' => 'Mantenimiento',
+                    'category_label' => 'Ticket de mantenimiento',
                     'priority' => $isUrgent ? 'urgent' : ($isToday ? 'today' : 'upcoming'),
                     'is_today' => $isToday,
                     'tone' => $isUrgent ? 'danger' : 'info',
-                    'icon' => $isUrgent ? 'bi-tools' : 'bi-calendar2-check',
-                    'title' => $ticket->title,
-                    'subtitle' => $ticket->property?->internal_name ?: 'Propiedad',
-                    'detail' => ($ticket->currentProvider?->name ?: 'Sin técnico').' · '.(MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status),
-                    'due_label' => $scheduledAt ? $this->dateStatusLabel($scheduledAt) : 'Urgente',
-                    'due_detail' => $scheduledAt?->translatedFormat('d M Y H:i') ?: 'Sin visita programada',
+                    'property_name' => $ticket->property?->internal_name ?: 'Propiedad',
+                    'property_photo_path' => $ticket->property?->facade_photo_path,
+                    'subject' => ($isOverdue ? 'Visita vencida: ' : 'Visita programada: ').$ticket->title,
+                    'time_label' => $this->relativeTimeLabel($scheduledAt),
+                    'date_label' => $this->formattedDateLabel($scheduledAt),
                     'route' => route('maintenance.show', $ticket),
                     'sort_at' => $scheduledAt,
                     'sort_rank' => $isOverdue ? 10 : ($isUrgent ? 15 : ($isToday ? 20 : 45)),
@@ -170,7 +163,6 @@ class AdvisorTaskController extends Controller
         }
 
         $query = Property::query()
-            ->with('tenant:id,full_name')
             ->whereIn('id', $propertyIds->all())
             ->whereNotNull('contract_expires_at')
             ->whereDate('contract_expires_at', '<=', $periodEnd->toDateString());
@@ -190,16 +182,15 @@ class AdvisorTaskController extends Controller
                 return [
                     'id' => 'contract-'.$property->id,
                     'category' => 'contracts',
-                    'category_label' => 'Contrato',
+                    'category_label' => 'Vencimiento de contrato',
                     'priority' => $isOverdue ? 'urgent' : ($isToday ? 'today' : 'upcoming'),
                     'is_today' => $isToday,
                     'tone' => $isOverdue ? 'danger' : 'warning',
-                    'icon' => 'bi-file-earmark-text',
-                    'title' => $property->internal_name,
-                    'subtitle' => $isOverdue ? 'Contrato vencido' : 'Contrato por vencer',
-                    'detail' => $property->tenant?->full_name ?: 'Sin inquilino asignado',
-                    'due_label' => $this->dateStatusLabel($expiresAt),
-                    'due_detail' => $expiresAt?->translatedFormat('d M Y') ?: 'Sin fecha',
+                    'property_name' => $property->internal_name,
+                    'property_photo_path' => $property->facade_photo_path,
+                    'subject' => $isOverdue ? 'Contrato vencido' : 'Contrato por vencer',
+                    'time_label' => $this->relativeTimeLabel($expiresAt),
+                    'date_label' => $this->formattedDateLabel($expiresAt),
                     'route' => route('properties.show', $property),
                     'sort_at' => $expiresAt,
                     'sort_rank' => $isOverdue ? 12 : ($isToday ? 22 : 55),
@@ -214,7 +205,7 @@ class AdvisorTaskController extends Controller
         }
 
         $query = PropertyDocument::query()
-            ->with('property:id,uuid,internal_name,internal_reference')
+            ->with('property:id,uuid,internal_name,internal_reference,facade_photo_path')
             ->whereIn('property_id', $propertyIds->all())
             ->whereNotNull('expires_at')
             ->whereDate('expires_at', '<=', $periodEnd->toDateString());
@@ -234,16 +225,15 @@ class AdvisorTaskController extends Controller
                 return [
                     'id' => 'property-document-'.$document->id,
                     'category' => 'documents',
-                    'category_label' => 'Documento',
+                    'category_label' => 'Vencimiento de documento',
                     'priority' => $isOverdue ? 'urgent' : ($isToday ? 'today' : 'upcoming'),
                     'is_today' => $isToday,
                     'tone' => $isOverdue ? 'danger' : 'warning',
-                    'icon' => 'bi-folder2-open',
-                    'title' => $document->label ?: 'Documento de propiedad',
-                    'subtitle' => $document->property?->internal_name ?: 'Propiedad',
-                    'detail' => 'Expediente de propiedad',
-                    'due_label' => $this->dateStatusLabel($expiresAt),
-                    'due_detail' => $expiresAt?->translatedFormat('d M Y') ?: 'Sin fecha',
+                    'property_name' => $document->property?->internal_name ?: 'Propiedad',
+                    'property_photo_path' => $document->property?->facade_photo_path,
+                    'subject' => ($isOverdue ? 'Documento vencido: ' : 'Documento por vencer: ').($document->label ?: 'Documento de propiedad'),
+                    'time_label' => $this->relativeTimeLabel($expiresAt),
+                    'date_label' => $this->formattedDateLabel($expiresAt),
                     'route' => $document->property ? route('dossiers.properties.show', $document->property) : route('documents.index'),
                     'sort_at' => $expiresAt,
                     'sort_rank' => $isOverdue ? 14 : ($isToday ? 24 : 60),
@@ -258,7 +248,7 @@ class AdvisorTaskController extends Controller
         }
 
         $query = TenantDocument::query()
-            ->with('tenant.properties:id,uuid,internal_name,tenant_id')
+            ->with('tenant.properties:id,uuid,internal_name,tenant_id,facade_photo_path')
             ->whereHas('tenant.properties', fn ($query) => $query->whereIn('properties.id', $propertyIds->all()))
             ->whereNotNull('expires_at')
             ->whereDate('expires_at', '<=', $periodEnd->toDateString());
@@ -280,16 +270,15 @@ class AdvisorTaskController extends Controller
                 return [
                     'id' => 'tenant-document-'.$document->id,
                     'category' => 'documents',
-                    'category_label' => 'Documento',
+                    'category_label' => 'Vencimiento de documento',
                     'priority' => $isOverdue ? 'urgent' : ($isToday ? 'today' : 'upcoming'),
                     'is_today' => $isToday,
                     'tone' => $isOverdue ? 'danger' : 'warning',
-                    'icon' => 'bi-person-vcard',
-                    'title' => $document->label ?: 'Documento de inquilino',
-                    'subtitle' => $document->tenant?->full_name ?: 'Inquilino',
-                    'detail' => $property?->internal_name ?: 'Propiedad asignada',
-                    'due_label' => $this->dateStatusLabel($expiresAt),
-                    'due_detail' => $expiresAt?->translatedFormat('d M Y') ?: 'Sin fecha',
+                    'property_name' => $property?->internal_name ?: 'Propiedad asignada',
+                    'property_photo_path' => $property?->facade_photo_path,
+                    'subject' => ($isOverdue ? 'Documento vencido: ' : 'Documento por vencer: ').($document->label ?: 'Documento de inquilino'),
+                    'time_label' => $this->relativeTimeLabel($expiresAt),
+                    'date_label' => $this->formattedDateLabel($expiresAt),
                     'route' => $document->tenant ? route('dossiers.tenants.show', $document->tenant) : route('documents.index'),
                     'sort_at' => $expiresAt,
                     'sort_rank' => $isOverdue ? 14 : ($isToday ? 24 : 62),
@@ -359,7 +348,7 @@ class AdvisorTaskController extends Controller
         ];
     }
 
-    private function dateStatusLabel(?Carbon $date): string
+    private function relativeTimeLabel(?Carbon $date): string
     {
         if (! $date) {
             return 'Sin fecha';
@@ -377,10 +366,15 @@ class AdvisorTaskController extends Controller
         }
 
         if ($day->lt($today)) {
-            return 'Vencido hace '.$day->diffForHumans($today, true);
+            return 'Hace '.$day->diffForHumans($today, true);
         }
 
         return 'En '.$today->diffForHumans($day, true);
+    }
+
+    private function formattedDateLabel(?Carbon $date): string
+    {
+        return $date?->translatedFormat('d M Y') ?: 'Sin fecha';
     }
 
     private function money(float $amount): string

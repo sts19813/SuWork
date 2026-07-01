@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -276,6 +277,143 @@ class DashboardModulesTest extends TestCase
             ->assertSee('Admin Dashboard Selector')
             ->assertSee('Asesor Dashboard Selector')
             ->assertDontSee('Inquilino Dashboard Selector');
+    }
+
+    public function test_dashboard_lists_current_month_commissions_for_all_property_responsibles(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00'));
+
+        try {
+            $viewer = User::factory()->create();
+            $advisor = User::factory()->create(['name' => 'Responsable Con Cobros']);
+            $advisorWithoutPayments = User::factory()->create(['name' => 'Responsable Sin Cobros']);
+            $userWithoutProperties = User::factory()->create(['name' => 'Usuario Sin Propiedades']);
+            $type = PropertyType::query()->create([
+                'name' => 'Casa',
+                'slug' => 'casa',
+                'is_active' => true,
+            ]);
+            $zone = Zone::query()->create([
+                'name' => 'Centro',
+                'slug' => 'centro',
+                'is_active' => true,
+            ]);
+            $tenant = Tenant::query()->create([
+                'full_name' => 'Cliente de Comisiones',
+                'phone_primary' => '5555555555',
+            ]);
+
+            $firstProperty = Property::query()->create([
+                'internal_name' => 'Propiedad Comisión Uno',
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle 10',
+                'status' => Property::STATUS_OCCUPIED,
+                'tenant_id' => $tenant->id,
+                'advisor_user_id' => $advisor->id,
+                'created_by' => $viewer->id,
+            ]);
+            $secondProperty = Property::query()->create([
+                'internal_name' => 'Propiedad Comisión Dos',
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle 20',
+                'status' => Property::STATUS_OCCUPIED,
+                'tenant_id' => $tenant->id,
+                'advisor_user_id' => $advisor->id,
+                'created_by' => $viewer->id,
+            ]);
+            Property::query()->create([
+                'internal_name' => 'Propiedad Sin Cobros',
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle 30',
+                'status' => Property::STATUS_OCCUPIED,
+                'tenant_id' => $tenant->id,
+                'advisor_user_id' => $advisorWithoutPayments->id,
+                'created_by' => $viewer->id,
+            ]);
+
+            $firstCharge = Charge::query()->create([
+                'property_id' => $firstProperty->id,
+                'tenant_id' => $tenant->id,
+                'type' => Charge::TYPE_RENT,
+                'due_date' => '2026-06-05',
+                'amount' => 10000,
+                'paid_amount' => 10000,
+                'period_month' => 6,
+                'period_year' => 2026,
+                'concept' => 'Renta junio propiedad uno',
+                'status' => Charge::STATUS_PAID,
+                'created_by' => $viewer->id,
+            ]);
+            $secondCharge = Charge::query()->create([
+                'property_id' => $secondProperty->id,
+                'tenant_id' => $tenant->id,
+                'type' => Charge::TYPE_RENT,
+                'due_date' => '2026-06-08',
+                'amount' => 5000,
+                'paid_amount' => 5000,
+                'period_month' => 6,
+                'period_year' => 2026,
+                'concept' => 'Renta junio propiedad dos',
+                'status' => Charge::STATUS_PAID,
+                'created_by' => $viewer->id,
+            ]);
+
+            ChargePayment::query()->create([
+                'charge_id' => $firstCharge->id,
+                'amount' => 10000,
+                'status' => ChargePayment::STATUS_SUCCEEDED,
+                'paid_at' => Carbon::parse('2026-06-05 09:00:00'),
+            ]);
+            ChargePayment::query()->create([
+                'charge_id' => $secondCharge->id,
+                'amount' => 5000,
+                'status' => ChargePayment::STATUS_SUCCEEDED,
+                'paid_at' => Carbon::parse('2026-06-08 09:00:00'),
+            ]);
+            ChargePayment::query()->create([
+                'charge_id' => $firstCharge->id,
+                'amount' => 7000,
+                'status' => ChargePayment::STATUS_SUCCEEDED,
+                'paid_at' => Carbon::parse('2026-05-20 09:00:00'),
+            ]);
+            ChargePayment::query()->create([
+                'charge_id' => $secondCharge->id,
+                'amount' => 3000,
+                'status' => ChargePayment::STATUS_FAILED,
+                'paid_at' => Carbon::parse('2026-06-10 09:00:00'),
+            ]);
+
+            $response = $this->actingAs($viewer)
+                ->get(route('dashboard', [
+                    'preset' => 'custom',
+                    'start_date' => '2026-05-01',
+                    'end_date' => '2026-05-31',
+                ]))
+                ->assertOk()
+                ->assertSee('Comisiones de asesores')
+                ->assertSee('Responsable Con Cobros')
+                ->assertSee('Responsable Sin Cobros')
+                ->assertDontSee('Usuario Sin Propiedades');
+
+            $response->assertViewHas('advisorCommissions', function (Collection $commissions) use ($advisor, $advisorWithoutPayments): bool {
+                $withPayments = $commissions->first(fn (array $row) => $row['advisor']->is($advisor));
+                $withoutPayments = $commissions->first(fn (array $row) => $row['advisor']->is($advisorWithoutPayments));
+
+                return $withPayments['assigned_properties_count'] === 2
+                    && $withPayments['collected_properties_count'] === 2
+                    && $withPayments['collected_amount'] === 15000.0
+                    && $withPayments['commission_amount'] === 1500.0
+                    && $withoutPayments['assigned_properties_count'] === 1
+                    && $withoutPayments['collected_properties_count'] === 0
+                    && $withoutPayments['collected_amount'] === 0.0
+                    && $withoutPayments['commission_amount'] === 0.0;
+            });
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_property_control_requires_explicit_permission(): void

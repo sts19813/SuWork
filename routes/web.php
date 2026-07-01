@@ -100,6 +100,7 @@ Route::middleware(['auth', 'system.access'])
 
         Route::get('/propietarios', [OwnerController::class, 'index'])->name('owners.index');
         Route::post('/propietarios', [OwnerController::class, 'store'])->name('owners.store');
+        Route::get('/propietarios/{owner}', [OwnerController::class, 'show'])->name('owners.show');
         Route::get('/propietarios/{owner}/editar', [OwnerController::class, 'edit'])->name('owners.edit');
         Route::put('/propietarios/{owner}', [OwnerController::class, 'update'])->name('owners.update');
         Route::delete('/propietarios/{owner}', [OwnerController::class, 'destroy'])->name('owners.destroy');
@@ -112,6 +113,7 @@ Route::middleware(['auth', 'system.access'])
 
         Route::get('/inquilinos', [TenantController::class, 'index'])->name('tenants.index');
         Route::post('/inquilinos', [TenantController::class, 'store'])->name('tenants.store');
+        Route::get('/inquilinos/{tenant}', [TenantController::class, 'show'])->name('tenants.show');
         Route::get('/inquilinos/{tenant}/editar', [TenantController::class, 'edit'])->name('tenants.edit');
         Route::put('/inquilinos/{tenant}', [TenantController::class, 'update'])->name('tenants.update');
         Route::get('/inquilinos/{tenant}/expediente', [DocumentController::class, 'tenantDossier'])->name('dossiers.tenants.show');

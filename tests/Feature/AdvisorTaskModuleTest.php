@@ -55,6 +55,8 @@ class AdvisorTaskModuleTest extends TestCase
                 'status' => Property::STATUS_OCCUPIED,
                 'tenant_id' => $tenant->id,
                 'monthly_rent_price' => 12000,
+                'facade_photo_path' => 'properties/facades/casa-pendientes-visible.jpg',
+                'contract_expires_at' => now()->addDays(6)->toDateString(),
                 'created_by' => $creator->id,
             ]);
             $assignedProperty->advisors()->attach($advisor->id);
@@ -176,16 +178,24 @@ class AdvisorTaskModuleTest extends TestCase
                 'expires_at' => now()->addDays(5)->toDateString(),
             ]);
 
-            $this->actingAs($advisor)
+            $response = $this->actingAs($advisor)
                 ->get(route('advisor.tasks.index'))
                 ->assertOk()
                 ->assertSee('Mis pendientes')
+                ->assertSee('Nombre de la propiedad')
+                ->assertSee('Tipo del asunto')
+                ->assertSee('Tiempo')
+                ->assertSee('Fecha')
                 ->assertSee('Casa Pendientes Visible')
-                ->assertSee('Renta')
+                ->assertSee('Cobranza')
+                ->assertSee('Ticket de mantenimiento')
+                ->assertSee('/storage/properties/facades/casa-pendientes-visible.jpg', false)
                 ->assertSee('$777.00')
                 ->assertSee('$12,000.00')
                 ->assertSee('$555.00')
                 ->assertSee('Cobro vencido')
+                ->assertSee('Hace 4 días')
+                ->assertSee('20 jun. 2026')
                 ->assertSee('Visita Atrasada Hoy')
                 ->assertSee('Urgente')
                 ->assertDontSee('Visita Visible')
@@ -215,12 +225,20 @@ class AdvisorTaskModuleTest extends TestCase
                 ->assertSee('Visita Visible')
                 ->assertDontSee('Poliza Visible');
 
-            $this->actingAs($advisor)
-                ->get(route('advisor.tasks.index', ['range' => 'current_month']))
+            $monthResponse = $this->actingAs($advisor)
+                ->get(route('advisor.tasks.index', ['range' => 'current_month']));
+
+            $monthResponse
                 ->assertOk()
                 ->assertSee('$555.00')
                 ->assertSee('Visita Visible')
                 ->assertSee('Poliza Visible')
+                ->assertSee('Vencimiento de documento')
+                ->assertSee('Documento por vencer: Poliza Visible')
+                ->assertSee('Vencimiento de contrato')
+                ->assertSee('Contrato por vencer')
+                ->assertSee('En 6 días')
+                ->assertSee('30 jun. 2026')
                 ->assertDontSee('Visita Oculta');
         } finally {
             Carbon::setTestNow();

@@ -19,12 +19,6 @@
         'current_month' => ['label' => 'Este mes', 'icon' => 'bi-calendar3'],
     ];
 
-    $summaryCards = [
-        ['label' => 'Urgentes', 'value' => $urgentTasksCount, 'tone' => 'danger', 'icon' => 'bi-exclamation-octagon'],
-        ['label' => 'Para hoy', 'value' => $todayTasksCount, 'tone' => 'primary', 'icon' => 'bi-calendar-day'],
-        ['label' => 'Proximos', 'value' => $upcomingTasksCount, 'tone' => 'warning', 'icon' => 'bi-hourglass-split'],
-        ['label' => 'Propiedades', 'value' => $assignedPropertyCount, 'tone' => 'success', 'icon' => 'bi-house-door'],
-    ];
 @endphp
 
 @push('styles')
@@ -45,30 +39,6 @@
         .advisor-tasks-title {
             font-size: 2rem;
             line-height: 1.15;
-        }
-
-        .advisor-summary-grid {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 0.875rem;
-            margin-bottom: 1rem;
-        }
-
-        .advisor-summary-card {
-            border: 1px solid #e9edf4;
-            border-radius: 8px;
-            background: #fff;
-            padding: 1rem;
-        }
-
-        .advisor-summary-card__icon {
-            width: 36px;
-            height: 36px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            background: #f5f8fa;
         }
 
         .advisor-filter-strip {
@@ -140,51 +110,97 @@
         }
 
         .advisor-task-list {
+            background: #fff;
+        }
+
+        .advisor-task-table {
+            overflow: hidden;
+            border: 1px solid #e9edf4;
+            border-radius: 10px;
+            background: #fff;
+        }
+
+        .advisor-task-table-header,
+        .advisor-task-item {
             display: grid;
-            gap: 0.85rem;
+            grid-template-columns: minmax(180px, .9fr) minmax(240px, 1.5fr) 120px 115px;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .advisor-task-table-header {
+            padding: 0.75rem 1rem;
+            background: #f8fafc;
+            color: #99a1b7;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
         }
 
         .advisor-task-item {
-            display: grid;
-            grid-template-columns: auto minmax(0, 1fr) auto;
-            gap: 1rem;
-            align-items: center;
-            border: 1px solid #e9edf4;
-            border-radius: 8px;
-            background: #fff;
-            padding: 1rem;
+            border-top: 1px solid #eef1f6;
+            padding: 0.85rem 1rem;
             text-decoration: none;
             color: inherit;
-            transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+            transition: background-color .15s ease;
         }
 
         .advisor-task-item:hover {
-            border-color: #b9d8ff;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-            transform: translateY(-1px);
+            background: #f8fbff;
         }
 
-        .advisor-task-icon {
-            width: 44px;
-            height: 44px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            background: #f5f8fa;
-            font-size: 1.25rem;
-        }
-
-        .advisor-task-meta {
+        .advisor-task-property {
             display: flex;
-            flex-wrap: wrap;
-            gap: 0.45rem;
-            margin-bottom: 0.35rem;
+            align-items: center;
+            gap: 0.75rem;
+            min-width: 0;
         }
 
-        .advisor-task-due {
-            min-width: 116px;
-            text-align: right;
+        .advisor-task-photo {
+            width: 48px;
+            height: 48px;
+            flex: 0 0 48px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #f5f8fa;
+        }
+
+        .advisor-task-subject {
+            min-width: 0;
+        }
+
+        .advisor-task-category {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-bottom: 0.2rem;
+            color: #99a1b7;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .advisor-task-category-dot {
+            width: 7px;
+            height: 7px;
+            flex: 0 0 7px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .advisor-task-time,
+        .advisor-task-date {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .advisor-task-date {
+            color: #78829d;
+            text-transform: capitalize;
+        }
+
+        .advisor-task-mobile-label {
+            display: none;
         }
 
         .advisor-empty {
@@ -208,10 +224,6 @@
                 font-size: 1.65rem;
             }
 
-            .advisor-summary-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
             .advisor-range-bar {
                 align-items: stretch;
             }
@@ -227,39 +239,64 @@
                 padding: 0.65rem 0.45rem;
             }
 
-            .advisor-task-item {
-                grid-template-columns: auto minmax(0, 1fr);
-                align-items: flex-start;
-                padding: 0.95rem;
+            .advisor-task-table-header {
+                display: none;
             }
 
-            .advisor-task-due {
+            .advisor-task-table {
+                overflow: visible;
+                border: 0;
+                background: transparent;
+            }
+
+            .advisor-task-list {
+                display: grid;
+                gap: 0.85rem;
+                background: transparent;
+            }
+
+            .advisor-task-item {
+                grid-template-columns: minmax(0, 1fr) auto;
+                gap: 0.75rem 1rem;
+                align-items: start;
+                border: 1px solid #c8ced9;
+                border-radius: 10px;
+                background: #fff;
+                padding: 1rem;
+                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+            }
+
+            .advisor-task-property,
+            .advisor-task-subject {
                 grid-column: 1 / -1;
-                width: 100%;
-                min-width: 0;
-                text-align: left;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
+            }
+
+            .advisor-task-subject {
+                padding-left: 60px;
+            }
+
+            .advisor-task-time,
+            .advisor-task-date {
+                display: grid;
+                gap: 0.15rem;
                 padding-top: 0.75rem;
                 border-top: 1px solid #eef1f6;
             }
-        }
 
-        @media (max-width: 575.98px) {
-            .advisor-summary-grid {
-                gap: 0.65rem;
+            .advisor-task-date {
+                text-align: right;
             }
 
-            .advisor-summary-card {
-                padding: 0.85rem;
-            }
-
-            .advisor-summary-card__icon {
-                width: 32px;
-                height: 32px;
+            .advisor-task-mobile-label {
+                display: block;
+                color: #99a1b7;
+                font-size: 0.65rem;
+                font-weight: 700;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
             }
         }
+
     </style>
 @endpush
 
@@ -277,20 +314,6 @@
             <div class="badge badge-light-primary text-primary fs-7 fw-bold mt-2">
                 {{ $allTasksCount }} pendiente{{ $allTasksCount === 1 ? '' : 's' }}
             </div>
-        </div>
-
-        <div class="advisor-summary-grid">
-            @foreach ($summaryCards as $card)
-                <div class="advisor-summary-card">
-                    <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
-                        <div class="text-muted fs-8 fw-bold text-uppercase">{{ $card['label'] }}</div>
-                        <span class="advisor-summary-card__icon text-{{ $card['tone'] }}">
-                            <i class="bi {{ $card['icon'] }}"></i>
-                        </span>
-                    </div>
-                    <div class="fs-2 fw-bold text-dark">{{ number_format($card['value']) }}</div>
-                </div>
-            @endforeach
         </div>
 
         <div class="advisor-range-bar">
@@ -329,38 +352,57 @@
             @endforeach
         </div>
 
-        <div class="advisor-task-list">
-            @forelse ($tasks as $task)
-                <a href="{{ $task['route'] }}" class="advisor-task-item">
-                    <span class="advisor-task-icon text-{{ $task['tone'] }}">
-                        <i class="bi {{ $task['icon'] }}"></i>
-                    </span>
+        <div class="advisor-task-table" role="table" aria-label="Lista de pendientes">
+            <div class="advisor-task-table-header" role="row">
+                <span role="columnheader">Nombre de la propiedad</span>
+                <span role="columnheader">Tipo del asunto</span>
+                <span role="columnheader">Tiempo</span>
+                <span role="columnheader">Fecha</span>
+            </div>
 
-                    <span class="min-w-0">
-                        <span class="advisor-task-meta">
-                            <span class="badge badge-light-{{ $task['tone'] }} text-{{ $task['tone'] }}">{{ $task['category_label'] }}</span>
-                            @if ($task['priority'] === 'urgent')
-                                <span class="badge badge-light-danger text-danger">Urgente</span>
-                            @elseif ($task['is_today'])
-                                <span class="badge badge-light-primary text-primary">Hoy</span>
-                            @endif
+            <div class="advisor-task-list" role="rowgroup">
+                @forelse ($tasks as $task)
+                    @php
+                        $propertyPhotoUrl = $task['property_photo_path']
+                            ? \Illuminate\Support\Facades\Storage::url($task['property_photo_path'])
+                            : asset('metronic/assets/media/svg/files/blank-image.svg');
+                    @endphp
+                    <a href="{{ $task['route'] }}" class="advisor-task-item" role="row">
+                        <span class="advisor-task-property" role="cell">
+                            <img src="{{ $propertyPhotoUrl }}" class="advisor-task-photo"
+                                alt="{{ $task['property_name'] }}" loading="lazy">
+                            <span class="fw-bold text-dark text-truncate" title="{{ $task['property_name'] }}">
+                                {{ $task['property_name'] }}
+                            </span>
                         </span>
-                        <span class="d-block fw-bold text-dark text-truncate">{{ $task['title'] }}</span>
-                        <span class="d-block text-gray-700 fw-semibold text-truncate">{{ $task['subtitle'] }}</span>
-                        <span class="d-block text-muted fs-7 text-truncate">{{ $task['detail'] }}</span>
-                    </span>
 
-                    <span class="advisor-task-due">
-                        <span class="d-block fw-bold text-{{ $task['tone'] }}">{{ $task['due_label'] }}</span>
-                        <span class="d-block text-muted fs-8">{{ $task['due_detail'] }}</span>
-                    </span>
-                </a>
-            @empty
-                <div class="advisor-empty">
-                    <div class="fw-bold mb-1">No hay pendientes en este filtro.</div>
-                    <div>Cuando exista cobranza próxima, tickets, contratos o documentos por atender, aparecerán aquí.</div>
-                </div>
-            @endforelse
+                        <span class="advisor-task-subject" role="cell">
+                            <span class="advisor-task-category text-{{ $task['tone'] }}">
+                                <span class="advisor-task-category-dot"></span>
+                                <span>{{ $task['category_label'] }}</span>
+                            </span>
+                            <span class="d-block text-gray-800 fw-semibold text-truncate" title="{{ $task['subject'] }}">
+                                {{ $task['subject'] }}
+                            </span>
+                        </span>
+
+                        <span class="advisor-task-time text-{{ $task['tone'] }}" role="cell">
+                            <span class="advisor-task-mobile-label">Tiempo</span>
+                            <span>{{ $task['time_label'] }}</span>
+                        </span>
+
+                        <span class="advisor-task-date" role="cell">
+                            <span class="advisor-task-mobile-label">Fecha</span>
+                            <span>{{ $task['date_label'] }}</span>
+                        </span>
+                    </a>
+                @empty
+                    <div class="advisor-empty">
+                        <div class="fw-bold mb-1">No hay pendientes en este filtro.</div>
+                        <div>Cuando exista cobranza próxima, tickets, contratos o documentos por atender, aparecerán aquí.</div>
+                    </div>
+                @endforelse
+            </div>
         </div>
     </div>
 @endsection

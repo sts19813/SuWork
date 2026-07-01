@@ -284,6 +284,262 @@
             margin-top: 1.5rem;
             padding-top: 1.5rem;
         }
+
+        @media (max-width: 767.98px) {
+            .dossier-drive.py-10 {
+                padding-top: 1.25rem !important;
+                padding-bottom: 1.25rem !important;
+            }
+
+            .dossier-drive .dossier-overview-card {
+                border: 0;
+                border-radius: 8px;
+                box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+            }
+
+            .dossier-drive .dossier-overview-card .card-body {
+                display: block !important;
+                gap: 18px !important;
+                padding: 20px !important;
+            }
+
+            .dossier-drive .dossier-overview-card h1 {
+                font-size: 1.45rem;
+                line-height: 1.2;
+                margin-bottom: 12px !important;
+                overflow-wrap: anywhere;
+            }
+
+            .dossier-drive .dossier-overview-card .fs-4 {
+                font-size: 1.05rem !important;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+            }
+
+            .dossier-drive .dossier-overview-card .min-w-250px {
+                min-width: 0 !important;
+                width: 100%;
+            }
+
+            .dossier-drive .dossier-overview-card .d-flex.justify-content-between {
+                gap: 12px;
+            }
+
+            .dossier-drive .dossier-overview-card .text-muted,
+            .dossier-drive .dossier-overview-card .fw-bold {
+                font-size: 0.86rem;
+                line-height: 1.25;
+            }
+
+            .dossier-drive .dossier-overview-card .progress,
+            .dossier-drive .dossier-overview-card .storage-mini-meter {
+                width: 100%;
+            }
+
+            .dossier-drive .dossier-table-card {
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+                background: transparent;
+            }
+
+            .dossier-drive .dossier-table-card > .card-header,
+            .dossier-drive .dossier-history-card > .card-header {
+                padding: 18px 0 10px !important;
+            }
+
+            .dossier-drive .dossier-table-card > .card-body,
+            .dossier-drive .dossier-history-card > .card-body {
+                padding: 0 !important;
+            }
+
+            .dossier-drive .dossier-table-card .card-toolbar {
+                width: 100%;
+                margin-top: 10px;
+            }
+
+            .dossier-drive .dossier-table-card .card-toolbar .btn {
+                width: 100%;
+                border-radius: 8px;
+            }
+
+            .dossier-drive .dossier-table-card .table-responsive,
+            .dossier-drive .dossier-history-card .table-responsive {
+                overflow: visible;
+            }
+
+            .dossier-drive .dossier-mobile-table,
+            .dossier-drive .dossier-mobile-table tbody {
+                display: block;
+                width: 100% !important;
+            }
+
+            .dossier-drive .dossier-mobile-table {
+                border: 0 !important;
+                border-collapse: separate !important;
+                border-spacing: 0 !important;
+            }
+
+            .dossier-drive .dossier-mobile-table thead {
+                display: none;
+            }
+
+            .dossier-drive .dossier-mobile-table tbody {
+                display: grid;
+                gap: 14px;
+            }
+
+            .dossier-drive .dossier-mobile-table tbody tr {
+                display: block;
+                padding: 16px !important;
+                border: 1px solid #e8eef7;
+                border-radius: 8px;
+                background: #fff !important;
+                box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+                overflow: hidden;
+            }
+
+            .dossier-drive .dossier-mobile-table tbody td {
+                display: grid;
+                grid-template-columns: minmax(82px, max-content) minmax(0, 1fr);
+                align-items: center;
+                gap: 12px;
+                min-width: 0;
+                padding: 10px 0 !important;
+                border-top: 1px solid #f0f3f8 !important;
+                border-right: 0 !important;
+                border-left: 0 !important;
+                background: transparent !important;
+                text-align: right !important;
+            }
+
+            .dossier-drive .dossier-mobile-table tbody td::before {
+                color: #8b96b2;
+                font-size: 0.66rem;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+                line-height: 1.25;
+                text-align: left;
+                text-transform: uppercase;
+                justify-self: start;
+            }
+
+            .dossier-drive .dossier-mobile-table tbody td > :not(style):not(script) {
+                justify-self: end;
+            }
+
+            .dossier-drive .dossier-mobile-table tbody td:first-child {
+                display: block;
+                padding-top: 0 !important;
+                padding-bottom: 12px !important;
+                border-top: 0 !important;
+                text-align: left !important;
+            }
+
+            .dossier-drive .dossier-mobile-table tbody td:first-child::before,
+            .dossier-drive .dossier-mobile-table tbody td:last-child::before {
+                content: none;
+            }
+
+            .dossier-drive .dossier-documents-table tbody td:nth-child(2)::before {
+                content: 'Archivo';
+            }
+
+            .dossier-drive .dossier-documents-table tbody td:nth-child(3)::before {
+                content: 'Vence';
+            }
+
+            .dossier-drive .dossier-documents-table tbody td:nth-child(4)::before,
+            .dossier-drive .dossier-history-table tbody td:nth-child(4)::before {
+                content: 'Fecha';
+            }
+
+            .dossier-drive .dossier-history-table tbody td:nth-child(2)::before {
+                content: 'Version';
+            }
+
+            .dossier-drive .dossier-history-table tbody td:nth-child(3)::before {
+                content: 'Archivo';
+            }
+
+            .dossier-drive .dossier-mobile-table tbody td:last-child {
+                margin-top: 6px;
+                padding-top: 12px !important;
+                border-top: 1px solid #e8eef7 !important;
+            }
+
+            .dossier-drive .dossier-mobile-table tbody td[colspan] {
+                display: block;
+                padding: 0 !important;
+                border-top: 0 !important;
+                text-align: center !important;
+            }
+
+            .dossier-drive .dossier-mobile-table tbody td[colspan]::before {
+                content: none;
+            }
+
+            .dossier-drive .dossier-mobile-table tbody td:nth-child(2) > .d-flex,
+            .dossier-drive .dossier-history-table tbody td:nth-child(3) > .d-flex {
+                max-width: 100%;
+                min-width: 0;
+                justify-content: flex-end;
+            }
+
+            .dossier-drive .dossier-mobile-table .document-file-icon {
+                width: 38px;
+                height: 38px;
+                flex-basis: 38px;
+            }
+
+            .dossier-drive .dossier-mobile-table .dossier-file-meta,
+            .dossier-drive .dossier-mobile-table .min-w-0 {
+                min-width: 0;
+            }
+
+            .dossier-drive .dossier-mobile-table .dossier-file-meta a,
+            .dossier-drive .dossier-mobile-table .min-w-0 a {
+                display: block;
+                max-width: 100%;
+                text-align: right;
+                overflow-wrap: anywhere;
+            }
+
+            .dossier-drive .dossier-mobile-table .fw-bold,
+            .dossier-drive .dossier-mobile-table td {
+                overflow-wrap: anywhere;
+            }
+
+            .dossier-drive .dossier-mobile-table .text-muted,
+            .dossier-drive .dossier-mobile-table .fs-8 {
+                font-size: 0.76rem !important;
+                line-height: 1.25;
+            }
+
+            .dossier-drive .dossier-mobile-table td:last-ch ild > .d-inline-flex,
+            .dossier-drive .dossier-history-table td:last-child {
+                display: inline-flex !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+                width: 100%;
+            }
+
+            .dossier-drive .dossier-mobile-table td:last-child form {
+                display: contents !important;
+            }
+
+            .dossier-drive .dossier-mobile-table td:last-child .btn {
+                width: 100%;
+                min-width: 0;
+                height: 46px;
+                border-radius: 8px;
+                padding: 8px;
+            }
+
+            .dossier-drive .dossier-mobile-table td:last-child .btn:nth-last-child(1):nth-child(odd) {
+                grid-column: 1 / -1;
+            }
+        }
     </style>
 @endpush
 
@@ -313,7 +569,7 @@
     @endif
 
    
-    <div class="card mb-8">
+    <div class="card mb-8 dossier-overview-card">
         <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-6 p-8">
             <div>
                 <h1 class="mb-2 fw-bold">{{ $title }}</h1>
@@ -382,7 +638,7 @@
                             </div>
                             <div class="card-body pt-0">
                                 <div class="table-responsive">
-                                    <table class="table table-row-dashed align-middle">
+                                    <table class="table table-row-dashed align-middle dossier-mobile-table dossier-documents-table">
                                         <thead>
                                             <tr class="text-muted text-uppercase fs-8">
                                                 <th>Documento</th>
@@ -663,7 +919,7 @@
                         </div>
                         <div class="card-body pt-0">
                             <div class="table-responsive">
-                                <table class="table table-row-dashed align-middle">
+                                <table class="table table-row-dashed align-middle dossier-mobile-table dossier-documents-table">
                                     <thead>
                                         <tr class="text-muted text-uppercase fs-8">
                                             <th>Documento</th>
@@ -789,7 +1045,7 @@
                 </div>
 
                 <div class="tab-pane fade" id="historical-documents-pane">
-                    <div class="card">
+                    <div class="card dossier-history-card">
                         <div class="card-header border-0 pt-6">
                             <div class="card-title flex-column align-items-start">
                                 <h3 class="fw-bold mb-1">Versiones anteriores</h3>
@@ -798,7 +1054,7 @@
                         </div>
                         <div class="card-body pt-0">
                             <div class="table-responsive">
-                                <table class="table table-row-dashed align-middle">
+                                <table class="table table-row-dashed align-middle dossier-mobile-table dossier-history-table">
                                     <thead>
                                         <tr class="text-muted text-uppercase fs-8">
                                             <th>Documento</th>

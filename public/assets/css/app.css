@@ -1933,6 +1933,17 @@ td .btn {
 }
 
 @media (max-width: 767px) {
+    body.su-admin-layout,
+    .su-admin-layout .app-root,
+    .su-admin-layout .app-page,
+    .su-admin-layout .app-wrapper,
+    .su-admin-layout .app-main,
+    .su-admin-layout .app-shell,
+    .su-admin-layout .su-layout-content,
+    .su-admin-layout .app-content {
+        background: #f7f8fc !important;
+    }
+
     .su-admin-layout .app-sidebar {
         display: none;
     }
@@ -1949,6 +1960,28 @@ td .btn {
     .su-admin-layout .app-content,
     .su-admin-layout .su-layout-content {
         padding: 15px 15px calc(108px + env(safe-area-inset-bottom)) 15px !important;
+    }
+
+    .su-admin-layout .su-layout-content > .py-8,
+    .su-admin-layout .su-layout-content > .py-10 {
+        padding-top: 0 !important;
+    }
+
+    .su-admin-layout .su-layout-content > :is(.py-8, .py-10) > .d-flex.flex-wrap.justify-content-between.align-items-center.gap-4.mb-8:has(h1) {
+        justify-content: flex-end !important;
+        margin-bottom: 1rem !important;
+    }
+
+    .su-admin-layout .su-layout-content > :is(.py-8, .py-10) > .d-flex.flex-wrap.justify-content-between.align-items-center.gap-4.mb-8:has(h1) > div:first-child:has(h1) {
+        display: none !important;
+    }
+
+    .su-admin-layout .su-layout-content > :is(.py-8, .py-10) > .d-flex.flex-wrap.justify-content-between.align-items-center.gap-4.mb-8:has(h1):not(:has(> :nth-child(2))) {
+        display: none !important;
+    }
+
+    .advisor-tasks .advisor-tasks-hero {
+        display: none !important;
     }
 
     .su-admin-layout .app-container {
@@ -2108,9 +2141,18 @@ td .btn {
     .su-mobile-more-sheet {
         display: block;
         height: auto !important;
+        max-height: calc(100dvh - 24px);
         border-radius: 24px 24px 0 0;
         border: 0;
         box-shadow: 0 -18px 48px rgba(15, 23, 42, 0.18);
+    }
+
+    .su-mobile-more-sheet .offcanvas-body {
+        max-height: calc(100dvh - 112px);
+        overflow-y: auto;
+        padding-bottom: calc(92px + env(safe-area-inset-bottom));
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
     }
 
     .su-mobile-more-sheet .offcanvas-header {
@@ -2131,7 +2173,7 @@ td .btn {
         display: flex;
         flex-direction: column;
         gap: 10px;
-        padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        padding-bottom: calc(28px + env(safe-area-inset-bottom));
     }
 
     .su-mobile-sheet-link {
@@ -2184,6 +2226,26 @@ td .btn {
     .maintenance-module {
         margin-left: -12px;
         margin-right: -12px;
+    }
+
+    .maintenance-hero {
+        border: 0 !important;
+        background: transparent !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .maintenance-hero > div:first-child {
+        display: none !important;
+    }
+
+    .maintenance-hero:not(:has(.maintenance-actions > *)) {
+        display: none !important;
+    }
+
+    .maintenance-hero .maintenance-actions {
+        justify-content: flex-end;
+        width: 100%;
     }
 
     .maintenance-page,
