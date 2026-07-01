@@ -349,7 +349,8 @@
 
                                         <form method="POST"
                                             action="{{ route('expenses.destroy', $expense) }}"
-                                            onsubmit="return confirm('¿Deseas eliminar este gasto?');">
+                                            class="js-expense-delete-form"
+                                            data-confirm-message="¿Deseas eliminar el gasto {{ $expense->concept }}?">
 
                                             @csrf
                                             @method('DELETE')
@@ -857,6 +858,35 @@
             const input = document.getElementById('expensesSearchInput');
             const table = document.getElementById('expensesTable');
             const resultCount = document.getElementById('expensesResultCount');
+
+            document.querySelectorAll('.js-expense-delete-form').forEach((deleteForm) => {
+                deleteForm.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+
+                    const message = deleteForm.dataset.confirmMessage || '¿Deseas eliminar este gasto?';
+                    let confirmed = false;
+
+                    if (window.Swal?.fire) {
+                        const result = await window.Swal.fire({
+                            title: 'Eliminar gasto',
+                            text: message,
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'Sí, eliminar',
+                            cancelButtonText: 'Cancelar',
+                            confirmButtonColor: '#d9214e',
+                            reverseButtons: true,
+                        });
+                        confirmed = !!result.isConfirmed;
+                    } else {
+                        confirmed = window.confirm(message);
+                    }
+
+                    if (confirmed) {
+                        deleteForm.submit();
+                    }
+                });
+            });
 
             form?.addEventListener('submit', (event) => {
                 event.preventDefault();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\SaveRecurringExpenseItemRequest;
 use App\Http\Requests\StoreExpenseRequest;
 use App\Http\Requests\UpdateExpenseGlobalSetupRequest;
 use App\Http\Requests\UpdateExpensePropertySetupRequest;
@@ -10,6 +11,8 @@ use App\Models\Expense;
 use App\Models\ExpenseFile;
 use App\Models\ExpenseNotificationSetting;
 use App\Models\Property;
+use App\Models\RecurringExpenseItem;
+use App\Services\RecurringExpenseGenerator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -188,6 +191,71 @@ class ExpenseController extends Controller
         return redirect()
             ->to(route('properties.show', $property) . '#tab-expenses')
             ->with('success', 'Configuración de notificaciones de gastos actualizada.');
+    }
+
+    public function storeRecurringItem(
+        SaveRecurringExpenseItemRequest $request,
+        Property $property,
+        RecurringExpenseGenerator $generator,
+    ): RedirectResponse
+    {
+        $validated = $request->validated();
+
+        $item = $property->recurringExpenseItems()->create([
+            'concept' => trim((string) $validated['concept']),
+            'amount' => (float) $validated['amount'],
+            'frequency' => $validated['frequency'],
+            'starts_on' => $validated['starts_on'],
+            'occurrences_count' => (int) $validated['occurrences_count'],
+            'description' => filled($validated['description'] ?? null)
+                ? trim((string) $validated['description'])
+                : null,
+            'is_active' => true,
+            'created_by' => $request->user()?->id,
+        ]);
+
+        $generator->generateForItem($item);
+
+        return redirect()
+            ->to(route('properties.show', $property) . '#tab-expenses')
+            ->with('success', 'Ítem recurrente configurado correctamente.');
+    }
+
+    public function updateRecurringItem(
+        SaveRecurringExpenseItemRequest $request,
+        RecurringExpenseItem $recurringExpenseItem,
+        RecurringExpenseGenerator $generator,
+    ): RedirectResponse
+    {
+        $validated = $request->validated();
+
+        $recurringExpenseItem->update([
+            'concept' => trim((string) $validated['concept']),
+            'amount' => (float) $validated['amount'],
+            'frequency' => $validated['frequency'],
+            'starts_on' => $validated['starts_on'],
+            'occurrences_count' => (int) $validated['occurrences_count'],
+            'description' => filled($validated['description'] ?? null)
+                ? trim((string) $validated['description'])
+                : null,
+            'is_active' => $request->boolean('is_active'),
+        ]);
+
+        $generator->generateForItem($recurringExpenseItem->fresh());
+
+        return redirect()
+            ->to(route('properties.show', $recurringExpenseItem->property) . '#tab-expenses')
+            ->with('success', 'Ítem recurrente actualizado correctamente.');
+    }
+
+    public function destroyRecurringItem(RecurringExpenseItem $recurringExpenseItem): RedirectResponse
+    {
+        $property = $recurringExpenseItem->property;
+        $recurringExpenseItem->delete();
+
+        return redirect()
+            ->to(route('properties.show', $property) . '#tab-expenses')
+            ->with('success', 'Ítem recurrente eliminado. Los gastos ya generados se conservaron.');
     }
 
     /**

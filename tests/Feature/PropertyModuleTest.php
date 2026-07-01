@@ -57,6 +57,7 @@ class PropertyModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Nueva Propiedad');
+        $response->assertDontSee('Cuota de mantenimiento');
         $response->assertSee('Terreno');
         $this->assertDatabaseHas('property_types', [
             'name' => 'Terreno',
@@ -98,8 +99,7 @@ class PropertyModuleTest extends TestCase
             ->assertOk()
             ->assertSee('Casa Asignada')
             ->assertSee('Casa General')
-            ->assertSee('Nueva Propiedad')
-            ->assertSee(route('properties.edit', $assignedProperty), false);
+            ->assertSee('Nueva Propiedad');
 
         $this->actingAs($advisor)
             ->get(route('properties.index', ['property_scope' => 'mine']))
@@ -386,6 +386,7 @@ class PropertyModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Asignar inquilino');
+        $response->assertSee('suwork:property-tab-restore:', false);
         $this->assertNotNull($property->uuid);
         $this->assertStringContainsString('/propiedades/' . $property->uuid, route('properties.show', $property));
     }

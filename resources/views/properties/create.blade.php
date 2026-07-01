@@ -268,15 +268,6 @@
                         </div>
 
                         <div class="col-lg-6">
-                            <label class="form-label">Cuota de mantenimiento</label>
-                            <input type="number" name="maintenance_fee" class="form-control @error('maintenance_fee') is-invalid @enderror"
-                                value="{{ $fieldValue('maintenance_fee') }}" placeholder="0.00" step="0.01">
-                            @error('maintenance_fee')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="col-lg-6">
                             <label class="form-label required">Asesor responsable</label>
                             <select name="advisor_user_id" class="form-select @error('advisor_user_id') is-invalid @enderror">
                                 <option value="">Selecciona un usuario</option>

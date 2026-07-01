@@ -5,10 +5,13 @@ namespace Tests\Feature;
 use App\Models\Expense;
 use App\Models\Property;
 use App\Models\PropertyType;
+use App\Models\RecurringExpenseItem;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -26,6 +29,7 @@ class ExpenseModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Gastos');
+        $response->assertSee('js-expense-delete-form', false);
     }
 
     public function test_expense_can_be_created_with_attachments(): void
@@ -57,6 +61,13 @@ class ExpenseModuleTest extends TestCase
             'description' => 'Servicio mensual',
         ]);
         $this->assertDatabaseCount('expense_files', 2);
+
+        $this->actingAs($user)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertSee('data-confirm-title="Eliminar gasto"', false)
+            ->assertSee('window.Swal?.fire', false)
+            ->assertDontSee("onsubmit=\"return confirm('¿Deseas eliminar este gasto?');\"", false);
     }
 
     public function test_expense_can_be_marked_as_paid(): void
@@ -105,6 +116,163 @@ class ExpenseModuleTest extends TestCase
         $property->refresh();
         $this->assertSame(['admin@example.com', 'pagos@example.com'], $property->expense_notification_emails);
         $this->assertSame(['9991234567'], $property->expense_notification_phones);
+    }
+
+    public function test_monthly_expense_item_generates_records_without_duplicates(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-01-10 10:00:00'));
+
+        try {
+            $user = User::factory()->create();
+            $property = $this->createPropertyFixture($user);
+
+            $this->actingAs($user)
+                ->post(route('expenses.recurring-items.store', $property), [
+                    'concept' => 'Cuota de mantenimiento',
+                    'amount' => 2500,
+                    'frequency' => RecurringExpenseItem::FREQUENCY_MONTHLY,
+                    'starts_on' => '2026-01-31',
+                    'occurrences_count' => 12,
+                    'description' => 'Cuota mensual del edificio',
+                ])
+                ->assertSessionHasNoErrors()
+                ->assertRedirect(route('properties.show', $property) . '#tab-expenses');
+
+            $item = RecurringExpenseItem::query()->where('property_id', $property->id)->firstOrFail();
+
+            $this->assertDatabaseHas('expenses', [
+                'property_id' => $property->id,
+                'recurring_expense_item_id' => $item->id,
+                'concept' => 'Cuota de mantenimiento',
+                'amount' => 2500,
+                'due_date' => '2026-01-31 00:00:00',
+                'recurrence_date' => '2026-01-31 00:00:00',
+            ]);
+            $this->assertDatabaseHas('expenses', [
+                'recurring_expense_item_id' => $item->id,
+                'due_date' => '2026-02-28 00:00:00',
+            ]);
+            $this->assertDatabaseHas('expenses', [
+                'recurring_expense_item_id' => $item->id,
+                'due_date' => '2026-03-31 00:00:00',
+            ]);
+            $this->assertDatabaseHas('expenses', [
+                'recurring_expense_item_id' => $item->id,
+                'due_date' => '2026-04-30 00:00:00',
+            ]);
+            $this->assertSame(12, $item->expenses()->count());
+
+            $this->actingAs($user)
+                ->put(route('expenses.recurring-items.update', $item), [
+                    'concept' => 'Cuota de mantenimiento actualizada',
+                    'amount' => 2750,
+                    'frequency' => RecurringExpenseItem::FREQUENCY_MONTHLY,
+                    'starts_on' => '2026-01-31',
+                    'occurrences_count' => 12,
+                    'description' => 'Nueva cuota mensual',
+                    'is_active' => 1,
+                ])
+                ->assertSessionHasNoErrors();
+
+            $this->assertDatabaseHas('expenses', [
+                'recurring_expense_item_id' => $item->id,
+                'concept' => 'Cuota de mantenimiento actualizada',
+                'amount' => 2750,
+                'due_date' => '2026-02-28 00:00:00',
+            ]);
+
+            Artisan::call('expenses:generate-recurring');
+            Artisan::call('expenses:generate-recurring');
+
+            $this->assertSame(12, $item->expenses()->count());
+
+            $this->actingAs($user)
+                ->put(route('expenses.recurring-items.update', $item), [
+                    'concept' => 'Cuota única',
+                    'amount' => 2750,
+                    'frequency' => RecurringExpenseItem::FREQUENCY_MONTHLY,
+                    'starts_on' => '2026-01-31',
+                    'occurrences_count' => 1,
+                    'is_active' => 1,
+                ])
+                ->assertSessionHasNoErrors();
+
+            $this->assertSame(1, $item->expenses()->count());
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_annual_expense_item_generates_once_per_year_and_can_be_paused(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-10 10:00:00'));
+
+        try {
+            $user = User::factory()->create();
+            $property = $this->createPropertyFixture($user);
+
+            $this->actingAs($user)
+                ->post(route('expenses.recurring-items.store', $property), [
+                    'concept' => 'Seguro anual',
+                    'amount' => 12500,
+                    'frequency' => RecurringExpenseItem::FREQUENCY_ANNUAL,
+                    'starts_on' => '2026-08-20',
+                    'occurrences_count' => 2,
+                ])
+                ->assertSessionHasNoErrors();
+
+            $item = RecurringExpenseItem::query()->where('property_id', $property->id)->firstOrFail();
+            $this->assertDatabaseHas('expenses', [
+                'recurring_expense_item_id' => $item->id,
+                'due_date' => '2027-08-20 00:00:00',
+            ]);
+            $this->assertSame(2, $item->expenses()->count());
+
+            $this->actingAs($user)
+                ->put(route('expenses.recurring-items.update', $item), [
+                    'concept' => 'Seguro anual',
+                    'amount' => 12500,
+                    'frequency' => RecurringExpenseItem::FREQUENCY_ANNUAL,
+                    'starts_on' => '2026-08-20',
+                    'occurrences_count' => 2,
+                    'is_active' => 0,
+                ])
+                ->assertSessionHasNoErrors();
+
+            Carbon::setTestNow(Carbon::parse('2028-07-10 10:00:00'));
+            Artisan::call('expenses:generate-recurring');
+
+            $this->assertSame(2, $item->expenses()->count());
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_february_uses_day_28_for_items_starting_on_day_29_or_later(): void
+    {
+        $user = User::factory()->create();
+        $property = $this->createPropertyFixture($user);
+
+        $this->actingAs($user)
+            ->post(route('expenses.recurring-items.store', $property), [
+                'concept' => 'Cuota fin de mes',
+                'amount' => 900,
+                'frequency' => RecurringExpenseItem::FREQUENCY_MONTHLY,
+                'starts_on' => '2028-01-29',
+                'occurrences_count' => 2,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $item = RecurringExpenseItem::query()->where('property_id', $property->id)->firstOrFail();
+
+        $this->assertDatabaseHas('expenses', [
+            'recurring_expense_item_id' => $item->id,
+            'due_date' => '2028-02-28 00:00:00',
+        ]);
+        $this->assertDatabaseMissing('expenses', [
+            'recurring_expense_item_id' => $item->id,
+            'due_date' => '2028-02-29 00:00:00',
+        ]);
     }
 
     private function createPropertyFixture(User $user): Property

@@ -14,6 +14,7 @@ use App\Models\PropertyDocument;
 use App\Models\PropertyInventoryItemPhoto;
 use App\Models\PropertyInventoryPhoto;
 use App\Models\PropertyType;
+use App\Models\RecurringExpenseItem;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
 use App\Models\User;
@@ -257,6 +258,7 @@ class PropertyController extends Controller
             'inventoryAreas.items.photos',
             'inventoryAreas.photos',
             'tenant.documents.versions',
+            'recurringExpenseItems',
             'advisor',
             'advisors:id,name,email',
         ]);
@@ -441,6 +443,7 @@ class PropertyController extends Controller
             'tenantAssignmentChecks' => $tenantAssignmentChecks,
             'propertyCharges' => $propertyCharges,
             'propertyExpenses' => $propertyExpenses,
+            'propertyRecurringExpenseItems' => $property->recurringExpenseItems,
             'rentChargesTotal' => $rentChargesTotal,
             'rentChargesPaid' => $rentChargesPaid,
             'chargesPorCobrar' => $chargesPorCobrar,
@@ -458,6 +461,7 @@ class PropertyController extends Controller
             'propertyExpenseSummary' => $propertyExpenseSummary,
             'globalExpenseNotificationSetup' => $globalExpenseNotificationSetup,
             'resolvedPropertyExpenseNotificationSetup' => $resolvedPropertyExpenseNotificationSetup,
+            'recurringExpenseFrequencyOptions' => RecurringExpenseItem::FREQUENCY_LABELS,
             'propertyMaintenanceTickets' => $propertyMaintenanceTickets,
             'maintenanceCategoryOptions' => MaintenanceTicket::CATEGORY_LABELS,
             'maintenancePriorityOptions' => MaintenanceTicket::PRIORITY_LABELS,
@@ -495,7 +499,6 @@ class PropertyController extends Controller
             'expense_notification_days_before' => 'Dias aviso de gastos',
             'expense_notification_emails' => 'Correos de gastos',
             'expense_notification_phones' => 'Telefonos de gastos',
-            'maintenance_fee' => 'Cuota de mantenimiento',
             'rent_charge_plan' => 'Plan de cobro de renta',
             'facade_photo_path' => 'Foto de fachada',
             'details' => 'Detalles',
@@ -569,7 +572,6 @@ class PropertyController extends Controller
                 'status' => $validated['status'],
                 'onboarding_step' => 5,
                 'monthly_rent_price' => $validated['monthly_rent_price'] ?? null,
-                'maintenance_fee' => $validated['maintenance_fee'] ?? null,
                 'advisor_user_id' => $validated['advisor_user_id'] ?? $request->user()?->id,
             ];
 
