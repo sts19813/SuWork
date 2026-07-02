@@ -1116,8 +1116,30 @@
                                                             class="badge {{ $charge->status_badge_class }}">{{ $charge->display_status_label }}</span>
                                                     </td>
                                                     <td class="text-end">
-                                                        <a href="{{ route('charges.show', $charge) }}?property={{ urlencode($property->uuid) }}"
+                                                        <a href="{{ route('charges.show', [
+                                                            'charge' => $charge,
+                                                            'property' => $property->uuid,
+                                                            'return_to' => route('properties.show', $property) . '#tab-charges',
+                                                        ]) }}"
                                                             class="btn btn-sm btn-light">Ver</a>
+                                                        @php
+                                                            $canDeleteThisCharge = $canManageCharges
+                                                                && $charge->status !== \App\Models\Charge::STATUS_CANCELED
+                                                                && ($charge->status !== \App\Models\Charge::STATUS_PAID || $canDeletePaidCharges);
+                                                        @endphp
+                                                        @if ($canDeleteThisCharge)
+                                                            <form method="POST" action="{{ route('charges.destroy', $charge) }}"
+                                                                class="d-inline js-delete-charge-form"
+                                                                data-charge-concept="{{ $charge->concept }}"
+                                                                data-charge-paid="{{ $charge->status === \App\Models\Charge::STATUS_PAID ? 'true' : 'false' }}">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <input type="hidden" name="deletion_note" value="">
+                                                                <input type="hidden" name="return_to"
+                                                                    value="{{ route('properties.show', $property) }}#tab-charges">
+                                                                <button type="submit" class="btn btn-sm btn-light-danger">Eliminar</button>
+                                                            </form>
+                                                        @endif
                                                     </td>
                                                 </tr>
                                             @empty
@@ -1425,6 +1447,8 @@
 @endsection
 
 @push('scripts')
+    @include('charges.partials.delete-confirmation-script')
+
     <script>
         (() => {
             const showTenantChangeBlockedAlert = async (form) => {

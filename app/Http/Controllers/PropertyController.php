@@ -432,6 +432,7 @@ class PropertyController extends Controller
             auth()->user()?->hasRole('inquilino')
             || auth()->user()?->hasRole('tenant')
         );
+        $canManageCharges = !$isTenantMaintenanceReporter;
 
         return view('properties.show', [
             'property' => $property,
@@ -476,6 +477,8 @@ class PropertyController extends Controller
             'isTenantMaintenanceReporter' => $isTenantMaintenanceReporter,
             'propertyChangeLogs' => $propertyChangeLogs,
             'propertyChangeFieldLabels' => $this->propertyChangeFieldLabels(),
+            'canManageCharges' => $canManageCharges,
+            'canDeletePaidCharges' => $canManageCharges && (bool) auth()->user()?->can('cobranza.eliminar_pagados'),
         ]);
     }
 

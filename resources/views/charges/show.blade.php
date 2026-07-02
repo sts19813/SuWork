@@ -3,13 +3,11 @@
 @section('title', 'Detalle de cargo | SuWork')
 
 @section('content')
-    @php
-        $backQuery = request()->filled('property') ? ['property' => request('property')] : [];
-    @endphp
     <div class="py-10 charges-module">
         <div class="mb-8">
-            <a href="{{ route('charges.index', $backQuery) }}" class="text-gray-600 text-hover-primary fw-semibold">
-                <i class="ki-outline ki-arrow-left fs-4 me-1"></i> Volver a cobranza
+            <a href="{{ $returnUrl }}" class="text-gray-600 text-hover-primary fw-semibold">
+                <i class="ki-outline ki-arrow-left fs-4 me-1"></i>
+                {{ str_contains($returnUrl, '/propiedades/') ? 'Volver a la propiedad' : 'Volver a cobranza' }}
             </a>
         </div>
 
@@ -49,6 +47,18 @@
                         <button class="btn btn-light-primary btn-sm" data-bs-toggle="modal" data-bs-target="#notifyChargeModal">
                             Notificacion
                         </button>
+                    @endif
+                    @if ($canDeleteCharge)
+                        <form method="POST" action="{{ route('charges.destroy', $charge) }}"
+                            class="d-inline js-delete-charge-form"
+                            data-charge-concept="{{ $charge->concept }}"
+                            data-charge-paid="{{ $charge->status === \App\Models\Charge::STATUS_PAID ? 'true' : 'false' }}">
+                            @csrf
+                            @method('DELETE')
+                            <input type="hidden" name="deletion_note" value="">
+                            <input type="hidden" name="return_to" value="{{ $returnUrl }}">
+                            <button type="submit" class="btn btn-light-danger btn-sm">Eliminar cargo</button>
+                        </form>
                     @endif
                     <a href="{{ route('charges.public.show', ['token' => $charge->payment_token]) }}" target="_blank" class="btn btn-light btn-sm">
                         Abrir link de pago
@@ -288,6 +298,8 @@
 @endsection
 
 @push('scripts')
+    @include('charges.partials.delete-confirmation-script')
+
     @if ($canManageCharges && $errors->registerPayment->any())
         <script>
             (() => {
