@@ -206,6 +206,7 @@ class ChargeController extends Controller
             'selectedProperty' => $selectedProperty,
             'showPropertySetupCard' => $showPropertySetupCard,
             'canManageCharges' => !$isTenant,
+            'canDeletePaidCharges' => !$isTenant && (bool) $user?->can('cobranza.eliminar_pagados'),
         ]);
     }
 
@@ -396,24 +397,6 @@ class ChargeController extends Controller
     {
         $validated = $request->validated();
 
-        if ($request->boolean('delete_charge')) {
-            if (in_array($charge->status, [Charge::STATUS_PAID, Charge::STATUS_CANCELED], true)) {
-                return redirect()
-                    ->route('charges.index', $this->chargesIndexRouteParamsFromRequest($request))
-                    ->with('error', 'Este cargo no se puede eliminar por su estado actual.');
-            }
-
-            DB::transaction(function () use ($charge, $validated, $request): void {
-                $this->logChargeDeletion($charge, (string) ($validated['deletion_note'] ?? ''), $request->user()?->id);
-                $this->removeChargeFromPropertyPlan($charge);
-                $charge->delete();
-            });
-
-            return redirect()
-                ->route('charges.index', $this->chargesIndexRouteParamsFromRequest($request))
-                ->with('success', 'Cargo eliminado correctamente.');
-        }
-
         if (in_array($charge->status, [Charge::STATUS_PAID, Charge::STATUS_CANCELED], true)) {
             return redirect()
                 ->route('charges.index', $this->chargesIndexRouteParamsFromRequest($request))
@@ -448,20 +431,64 @@ class ChargeController extends Controller
             ->with('success', 'Cargo actualizado correctamente.');
     }
 
-    public function show(Charge $charge): View
+    public function show(Request $request, Charge $charge): View
     {
-        $this->ensureChargeVisible($charge, request()->user());
+        $this->ensureChargeVisible($charge, $request->user());
         $charge->load([
             'tenant:id,full_name,email,phone_primary',
             'property.owners:id,name,phone,email,bank_name,clabe,account_holder',
             'payments' => fn ($query) => $query->latest('id'),
         ]);
 
+        $canManageCharges = !$this->isTenantUser($request->user());
+        $fallbackUrl = route('charges.index', $request->filled('property')
+            ? ['property' => $request->string('property')->toString()]
+            : []);
+        $returnUrl = $this->resolveSafeReturnUrl(
+            $request->query('return_to') ?: $request->headers->get('referer'),
+            $fallbackUrl,
+        );
+
         return view('charges.show', [
             'charge' => $charge,
             'paymentMethods' => ChargePayment::METHOD_LABELS,
-            'canManageCharges' => !$this->isTenantUser(request()->user()),
+            'canManageCharges' => $canManageCharges,
+            'canDeleteCharge' => $canManageCharges
+                && $charge->status !== Charge::STATUS_CANCELED
+                && ($charge->status !== Charge::STATUS_PAID || (bool) $request->user()?->can('cobranza.eliminar_pagados')),
+            'returnUrl' => $returnUrl,
         ]);
+    }
+
+    public function destroy(Request $request, Charge $charge): RedirectResponse
+    {
+        if ($this->isTenantUser($request->user())) {
+            abort(403);
+        }
+
+        if ($charge->status === Charge::STATUS_CANCELED) {
+            return redirect()->back()->with('error', 'Este cargo no se puede eliminar por su estado actual.');
+        }
+
+        if ($charge->status === Charge::STATUS_PAID && !$request->user()?->can('cobranza.eliminar_pagados')) {
+            abort(403, 'No tienes permiso para eliminar cargos pagados.');
+        }
+
+        $validated = $request->validate([
+            'deletion_note' => ['required', 'string', 'max:4000'],
+            'return_to' => ['nullable', 'string', 'max:2048'],
+        ]);
+
+        $fallbackUrl = route('charges.index', $this->chargesIndexRouteParamsFromRequest($request));
+        $returnUrl = $this->resolveSafeReturnUrl($validated['return_to'] ?? null, $fallbackUrl);
+
+        DB::transaction(function () use ($charge, $validated, $request): void {
+            $this->logChargeDeletion($charge, $validated['deletion_note'], $request->user()?->id);
+            $this->removeChargeFromPropertyPlan($charge);
+            $charge->delete();
+        });
+
+        return redirect()->to($returnUrl)->with('success', 'Cargo eliminado correctamente.');
     }
 
     public function storePayment(StoreChargePaymentRequest $request, Charge $charge): RedirectResponse
@@ -1154,6 +1181,30 @@ class ChargeController extends Controller
         }
 
         return ['property' => $propertyContext];
+    }
+
+    private function resolveSafeReturnUrl(?string $candidate, string $fallback): string
+    {
+        $candidate = trim((string) $candidate);
+        if ($candidate === '') {
+            return $fallback;
+        }
+
+        if (str_starts_with($candidate, '/') && !str_starts_with($candidate, '//')) {
+            return url($candidate);
+        }
+
+        $candidateParts = parse_url($candidate);
+        $applicationParts = parse_url(url('/'));
+        if (!is_array($candidateParts) || !is_array($applicationParts)) {
+            return $fallback;
+        }
+
+        $sameOrigin = ($candidateParts['scheme'] ?? null) === ($applicationParts['scheme'] ?? null)
+            && ($candidateParts['host'] ?? null) === ($applicationParts['host'] ?? null)
+            && ($candidateParts['port'] ?? null) === ($applicationParts['port'] ?? null);
+
+        return $sameOrigin ? $candidate : $fallback;
     }
 
     private function sendCompletedMail(Charge $charge): void

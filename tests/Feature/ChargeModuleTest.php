@@ -12,6 +12,7 @@ use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -205,6 +206,93 @@ class ChargeModuleTest extends TestCase
 
         $charge->refresh();
         $this->assertSame(Charge::STATUS_PAID, $charge->status);
+    }
+
+    public function test_user_without_permission_cannot_delete_a_paid_charge(): void
+    {
+        $user = User::factory()->create();
+        $charge = $this->createChargeFixture();
+        $charge->forceFill([
+            'status' => Charge::STATUS_PAID,
+            'paid_amount' => $charge->amount,
+            'paid_at' => now(),
+        ])->save();
+
+        $this->actingAs($user)
+            ->delete(route('charges.destroy', $charge), [
+                'deletion_note' => 'Intento sin permiso',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('charges', ['id' => $charge->id]);
+
+        $this->actingAs($user)
+            ->get(route('charges.show', $charge))
+            ->assertOk()
+            ->assertDontSee('data-charge-paid="true"', false);
+    }
+
+    public function test_user_with_permission_can_delete_a_paid_charge_and_its_payments(): void
+    {
+        $user = User::factory()->create();
+        $user->givePermissionTo(Permission::findOrCreate('cobranza.eliminar_pagados', 'web'));
+        $charge = $this->createChargeFixture();
+        $payment = ChargePayment::create([
+            'charge_id' => $charge->id,
+            'amount' => $charge->amount,
+            'currency' => 'mxn',
+            'status' => ChargePayment::STATUS_SUCCEEDED,
+            'paid_at' => now(),
+        ]);
+        $charge->forceFill([
+            'status' => Charge::STATUS_PAID,
+            'paid_amount' => $charge->amount,
+            'paid_at' => now(),
+        ])->save();
+        $returnUrl = route('properties.show', $charge->property) . '#tab-charges';
+
+        $this->actingAs($user)
+            ->delete(route('charges.destroy', $charge), [
+                'deletion_note' => 'Pago capturado por duplicado',
+                'return_to' => $returnUrl,
+            ])
+            ->assertRedirect($returnUrl);
+
+        $this->assertDatabaseMissing('charges', ['id' => $charge->id]);
+        $this->assertDatabaseMissing('charge_payments', ['id' => $payment->id]);
+        $this->assertDatabaseHas('property_change_logs', [
+            'property_id' => $charge->property_id,
+            'user_id' => $user->id,
+        ]);
+    }
+
+    public function test_charge_detail_returns_to_property_and_shows_paid_delete_action_with_permission(): void
+    {
+        $user = User::factory()->create();
+        $user->givePermissionTo(Permission::findOrCreate('cobranza.eliminar_pagados', 'web'));
+        $charge = $this->createChargeFixture();
+        $charge->forceFill([
+            'status' => Charge::STATUS_PAID,
+            'paid_amount' => $charge->amount,
+            'paid_at' => now(),
+        ])->save();
+        $returnUrl = route('properties.show', $charge->property) . '#tab-charges';
+
+        $response = $this->actingAs($user)->get(route('charges.show', [
+            'charge' => $charge,
+            'return_to' => $returnUrl,
+        ]));
+
+        $response->assertOk();
+        $response->assertSee('Volver a la propiedad');
+        $response->assertSee(route('charges.destroy', $charge), false);
+        $response->assertSee('data-charge-paid="true"', false);
+        $response->assertSee('window.Swal?.fire', false);
+
+        $propertyResponse = $this->actingAs($user)->get(route('properties.show', $charge->property));
+        $propertyResponse->assertOk();
+        $propertyResponse->assertSee(route('charges.destroy', $charge), false);
+        $propertyResponse->assertSee('data-charge-paid="true"', false);
     }
 
     public function test_tenant_sees_charges_from_all_assigned_properties_only(): void

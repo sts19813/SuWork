@@ -150,6 +150,7 @@ Route::middleware(['auth', 'system.access'])
         Route::put('/cobranza/propiedades/{property}/configuracion', [ChargeController::class, 'updatePropertySetup'])->name('charges.properties.setup');
         Route::post('/cobranza', [ChargeController::class, 'store'])->name('charges.store');
         Route::put('/cobranza/{charge}', [ChargeController::class, 'update'])->name('charges.update');
+        Route::delete('/cobranza/{charge}', [ChargeController::class, 'destroy'])->name('charges.destroy');
         Route::get('/cobranza/{charge}', [ChargeController::class, 'show'])->name('charges.show');
         Route::post('/cobranza/{charge}/pagos', [ChargeController::class, 'storePayment'])->name('charges.payments.store');
         Route::post('/cobranza/{charge}/pagos/{payment}/validar', [ChargeController::class, 'validatePayment'])->name('charges.payments.validate');

@@ -752,6 +752,9 @@
                                         [\App\Models\Charge::STATUS_PENDING, \App\Models\Charge::STATUS_PARTIAL, \App\Models\Charge::STATUS_IN_VALIDATION],
                                         true,
                                     );
+                                    $canDeleteCharge = $canManageCharges
+                                        && $charge->status !== \App\Models\Charge::STATUS_CANCELED
+                                        && ($charge->status !== \App\Models\Charge::STATUS_PAID || $canDeletePaidCharges);
                                 @endphp
                                 <tr class="charges-list-row" data-charge-row>
                                     <td class="ps-7">
@@ -782,7 +785,11 @@
                                     </td>
                                     <td class="text-end pe-7">
                                         <div class="charges-list-actions">
-                                            <a href="{{ route('charges.show', $charge) }}{{ $selectedProperty ? '?property=' . urlencode($selectedProperty->uuid) : '' }}"
+                                            <a href="{{ route('charges.show', array_filter([
+                                                'charge' => $charge,
+                                                'property' => $selectedProperty?->uuid,
+                                                'return_to' => request()->fullUrl(),
+                                            ])) }}"
                                                 class="btn btn-sm btn-light">
                                                 Ver
                                             </a>
@@ -798,11 +805,19 @@
                                                     data-concept="{{ $charge->concept }}" data-notes="{{ $charge->notes }}">
                                                     Editar cargo
                                                 </button>
-                                                <button type="button" class="btn btn-sm btn-light-danger" data-delete-charge
-                                                    data-action="{{ route('charges.update', $charge) }}"
-                                                    data-charge="{{ $charge->uuid }}" data-concept="{{ $charge->concept }}">
-                                                    Eliminar cargo
-                                                </button>
+                                            @endif
+
+                                            @if ($canDeleteCharge)
+                                                <form method="POST" action="{{ route('charges.destroy', $charge) }}"
+                                                    class="d-inline js-delete-charge-form"
+                                                    data-charge-concept="{{ $charge->concept }}"
+                                                    data-charge-paid="{{ $charge->status === \App\Models\Charge::STATUS_PAID ? 'true' : 'false' }}">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <input type="hidden" name="deletion_note" value="">
+                                                    <input type="hidden" name="return_to" value="{{ request()->fullUrl() }}">
+                                                    <button type="submit" class="btn btn-sm btn-light-danger">Eliminar cargo</button>
+                                                </form>
                                             @endif
 
                                             @if ($canRegisterPayment)
@@ -1145,46 +1160,6 @@
         </div>
     </div>
 
-    <div class="modal fade" id="deleteChargeModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-md modal-dialog-scrollable">
-            <div class="modal-content">
-                <form method="POST" id="deleteChargeForm" class="h-100 d-flex flex-column">
-                    @csrf
-                    @method('PUT')
-                    @if ($selectedProperty)
-                        <input type="hidden" name="property_context" value="{{ $selectedProperty->uuid }}">
-                    @endif
-                    <input type="hidden" name="delete_charge" value="1">
-                    <div class="modal-header">
-                        <h3 class="modal-title">Eliminar cargo</h3>
-                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary" data-bs-dismiss="modal">
-                            <i class="ki-outline ki-cross fs-1"></i>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        @if ($errors->updateCharge->any() && old('delete_charge'))
-                            <div class="alert alert-danger mb-5">
-                                Revisa la información de eliminación.
-                            </div>
-                        @endif
-                        <input type="hidden" name="charge_uuid" id="deleteChargeUuid" value="{{ old('charge_uuid') }}">
-                        <div class="bg-light rounded p-4 mb-5">
-                            <div class="text-muted fs-7 mb-1">Cargo a eliminar</div>
-                            <div class="fw-bold fs-5" id="deleteChargeConcept">-</div>
-                        </div>
-                        <label class="form-label required">Nota de bitácora</label>
-                        <textarea name="deletion_note" id="deleteChargeNote" class="form-control" rows="4"
-                            placeholder="Motivo de eliminación" required>{{ old('deletion_note') }}</textarea>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-light-danger">Eliminar cargo</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
     <div class="modal fade" id="bulkChargeModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" style="max-width:1200px; width:100%;">
             <div class="modal-content">
@@ -1338,6 +1313,8 @@
 @endsection
 
 @push('scripts')
+    @include('charges.partials.delete-confirmation-script')
+
 
     <script>
 
@@ -1481,10 +1458,6 @@
             const editChargePeriodYear = document.getElementById('editChargePeriodYear');
             const editChargeConcept = document.getElementById('editChargeConcept');
             const editChargeNotes = document.getElementById('editChargeNotes');
-            const deleteChargeForm = document.getElementById('deleteChargeForm');
-            const deleteChargeUuid = document.getElementById('deleteChargeUuid');
-            const deleteChargeConcept = document.getElementById('deleteChargeConcept');
-            const deleteChargeNote = document.getElementById('deleteChargeNote');
 
             document.addEventListener('click', async (event) => {
                 const target = event.target instanceof Element ? event.target : null;
@@ -1566,23 +1539,6 @@
                     return;
                 }
 
-                const deleteChargeButton = target.closest('[data-delete-charge]');
-                if (deleteChargeButton) {
-                    if (!deleteChargeForm) {
-                        return;
-                    }
-
-                    deleteChargeForm.setAttribute('action', deleteChargeButton.getAttribute('data-action') || '');
-                    if (deleteChargeUuid) deleteChargeUuid.value = deleteChargeButton.getAttribute('data-charge') || '';
-                    if (deleteChargeConcept) deleteChargeConcept.textContent = deleteChargeButton.getAttribute('data-concept') || '-';
-                    if (deleteChargeNote) deleteChargeNote.value = '';
-
-                    const modalEl = document.getElementById('deleteChargeModal');
-                    if (!modalEl) {
-                        return;
-                    }
-                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
-                }
             });
 
             const previewBtn = document.getElementById('previewBulkChargesBtn');
@@ -2380,23 +2336,15 @@
     @if ($canManageCharges && $errors->updateCharge->any())
         <script>
             (() => {
-                const isDeleteFlow = @json((bool) old('delete_charge'));
-                const modalEl = document.getElementById(isDeleteFlow ? 'deleteChargeModal' : 'editChargeModal');
+                const modalEl = document.getElementById('editChargeModal');
                 if (!modalEl) return;
 
-                const form = document.getElementById(isDeleteFlow ? 'deleteChargeForm' : 'editChargeForm');
+                const form = document.getElementById('editChargeForm');
                 const chargeUuid = @json(old('charge_uuid'));
                 if (form && chargeUuid) {
                     form.setAttribute('action', "{{ url('/cobranza') }}/" + chargeUuid);
                 }
 
-                if (isDeleteFlow) {
-                    const concept = @json(old('concept', '-'));
-                    const conceptLabel = document.getElementById('deleteChargeConcept');
-                    if (conceptLabel) {
-                        conceptLabel.textContent = concept || '-';
-                    }
-                }
                 new bootstrap.Modal(modalEl).show();
             })();
         </script>
