@@ -186,6 +186,8 @@ class AdvisorTaskModuleTest extends TestCase
                 ->assertSee('Tipo del asunto')
                 ->assertSee('Tiempo')
                 ->assertSee('Fecha')
+                ->assertSee('Acciones')
+                ->assertSee('Abrir')
                 ->assertSee('Casa Pendientes Visible')
                 ->assertSee('Cobranza')
                 ->assertSee('Ticket de mantenimiento')

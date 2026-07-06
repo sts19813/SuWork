@@ -3,6 +3,9 @@
 @section('title', 'Pendientes | SuWork')
 
 @php
+    $isAdministrative = $isAdministrative ?? false;
+    $taskRouteName = $isAdministrative ? 'admin.tasks.index' : 'advisor.tasks.index';
+    $selectedUserParameter = $isAdministrative && $selectedTaskUser ? ['user_id' => $selectedTaskUser->id] : [];
     $filters = [
         'all' => ['label' => 'Todos', 'icon' => 'bi-list-check'],
         'urgent' => ['label' => 'Urgentes', 'icon' => 'bi-exclamation-octagon'],
@@ -48,6 +51,52 @@
             padding: 0.25rem 0 0.75rem;
             margin-bottom: 0.5rem;
             scrollbar-width: thin;
+        }
+
+        .advisor-user-panel {
+            border: 1px solid #e9edf4;
+            border-radius: 10px;
+            background: #fff;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .advisor-user-list {
+            display: flex;
+            gap: 0.65rem;
+            overflow-x: auto;
+            padding-top: 0.75rem;
+            scrollbar-width: thin;
+        }
+
+        .advisor-user-option {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            min-width: 210px;
+            border: 1px solid #dfe5ee;
+            border-radius: 8px;
+            color: #4b5675;
+            padding: 0.7rem 0.8rem;
+            text-decoration: none;
+        }
+
+        .advisor-user-option.is-active {
+            border-color: #1b84ff;
+            background: #eef6ff;
+            color: #1b84ff;
+        }
+
+        .advisor-user-avatar {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            flex: 0 0 36px;
+            border-radius: 50%;
+            background: #f1f3f7;
+            font-weight: 800;
         }
 
         .advisor-range-bar {
@@ -123,7 +172,7 @@
         .advisor-task-table-header,
         .advisor-task-item {
             display: grid;
-            grid-template-columns: minmax(180px, .9fr) minmax(240px, 1.5fr) 120px 115px;
+            grid-template-columns: minmax(180px, .9fr) minmax(240px, 1.5fr) 110px 115px 90px;
             gap: 1rem;
             align-items: center;
         }
@@ -141,7 +190,6 @@
         .advisor-task-item {
             border-top: 1px solid #eef1f6;
             padding: 0.85rem 1rem;
-            text-decoration: none;
             color: inherit;
             transition: background-color .15s ease;
         }
@@ -192,6 +240,10 @@
         .advisor-task-date {
             font-size: 0.85rem;
             font-weight: 600;
+        }
+
+        .advisor-task-action {
+            text-align: right;
         }
 
         .advisor-task-date {
@@ -283,6 +335,14 @@
                 border-top: 1px solid #eef1f6;
             }
 
+            .advisor-task-action {
+                grid-column: 1 / -1;
+            }
+
+            .advisor-task-action .btn {
+                width: 100%;
+            }
+
             .advisor-task-date {
                 text-align: right;
             }
@@ -305,9 +365,15 @@
         <div class="advisor-tasks-hero">
             <div>
                 <div class="text-muted fs-7 fw-bold text-uppercase mb-2">Centro de trabajo</div>
-                <h1 class="advisor-tasks-title fw-bold text-dark mb-2">Mis pendientes</h1>
+                <h1 class="advisor-tasks-title fw-bold text-dark mb-2">
+                    {{ $isAdministrative ? 'Pendientes administrativos' : 'Mis pendientes' }}
+                </h1>
                 <div class="text-muted fs-6">
-                    Tareas y urgencias de tus propiedades asignadas para {{ strtolower($periodLabel) }}.
+                    @if ($isAdministrative)
+                        Consulta las tareas de asesores y técnicos por usuario para {{ strtolower($periodLabel) }}.
+                    @else
+                        Tareas y urgencias de tus propiedades asignadas para {{ strtolower($periodLabel) }}.
+                    @endif
                 </div>
             </div>
 
@@ -315,6 +381,44 @@
                 {{ $allTasksCount }} pendiente{{ $allTasksCount === 1 ? '' : 's' }}
             </div>
         </div>
+
+        @if ($isAdministrative)
+            <div class="advisor-user-panel">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div>
+                        <div class="text-muted fs-8 fw-bold text-uppercase">Pendientes por usuario</div>
+                        <div class="fw-bold text-dark">Asesores y técnicos</div>
+                    </div>
+                    <span class="badge badge-light-secondary text-gray-700">
+                        {{ $taskUsers->count() }} usuario{{ $taskUsers->count() === 1 ? '' : 's' }}
+                    </span>
+                </div>
+
+                <div class="advisor-user-list" aria-label="Seleccionar asesor o técnico">
+                    @forelse ($taskUsers as $taskUser)
+                        @php
+                            $isTechnicianUser = $taskUser->hasAnyRole(['tecnico', 'technician']);
+                            $userInitials = collect(preg_split('/\s+/', trim($taskUser->name), -1, PREG_SPLIT_NO_EMPTY))
+                                ->take(2)
+                                ->map(fn ($word) => mb_substr($word, 0, 1))
+                                ->join('');
+                        @endphp
+                        <a href="{{ route($taskRouteName, ['user_id' => $taskUser->id, 'range' => $activeRange, 'filter' => $activeFilter]) }}"
+                            class="advisor-user-option {{ $selectedTaskUser?->is($taskUser) ? 'is-active' : '' }}">
+                            <span class="advisor-user-avatar">{{ $userInitials }}</span>
+                            <span class="min-w-0">
+                                <span class="d-block fw-bold text-truncate">{{ $taskUser->name }}</span>
+                                <span class="d-block fs-8 text-muted">
+                                    {{ $isTechnicianUser ? 'Técnico' : 'Asesor' }}{{ $taskUser->is_active ? '' : ' · Inactivo' }}
+                                </span>
+                            </span>
+                        </a>
+                    @empty
+                        <div class="text-muted py-2">No hay asesores o técnicos registrados.</div>
+                    @endforelse
+                </div>
+            </div>
+        @endif
 
         <div class="advisor-range-bar">
             <div>
@@ -332,7 +436,7 @@
 
             <div class="advisor-range-tabs" aria-label="Rango de fecha de pendientes">
                 @foreach ($dateRanges as $key => $range)
-                    <a href="{{ route('advisor.tasks.index', ['range' => $key, 'filter' => $activeFilter]) }}"
+                    <a href="{{ route($taskRouteName, array_merge($selectedUserParameter, ['range' => $key, 'filter' => $activeFilter])) }}"
                         class="advisor-range-tab {{ $activeRange === $key ? 'is-active' : '' }}">
                         <i class="bi {{ $range['icon'] }}"></i>
                         <span>{{ $range['label'] }}</span>
@@ -343,7 +447,7 @@
 
         <div class="advisor-filter-strip" aria-label="Filtros de pendientes">
             @foreach ($filters as $key => $filter)
-                <a href="{{ route('advisor.tasks.index', ['range' => $activeRange, 'filter' => $key]) }}"
+                <a href="{{ route($taskRouteName, array_merge($selectedUserParameter, ['range' => $activeRange, 'filter' => $key])) }}"
                     class="advisor-filter-chip {{ $activeFilter === $key ? 'is-active' : '' }}">
                     <i class="bi {{ $filter['icon'] }}"></i>
                     <span>{{ $filter['label'] }}</span>
@@ -358,6 +462,7 @@
                 <span role="columnheader">Tipo del asunto</span>
                 <span role="columnheader">Tiempo</span>
                 <span role="columnheader">Fecha</span>
+                <span role="columnheader" class="text-end">Acciones</span>
             </div>
 
             <div class="advisor-task-list" role="rowgroup">
@@ -367,7 +472,7 @@
                             ? \Illuminate\Support\Facades\Storage::url($task['property_photo_path'])
                             : asset('metronic/assets/media/svg/files/blank-image.svg');
                     @endphp
-                    <a href="{{ $task['route'] }}" class="advisor-task-item" role="row">
+                    <div class="advisor-task-item" role="row">
                         <span class="advisor-task-property" role="cell">
                             <img src="{{ $propertyPhotoUrl }}" class="advisor-task-photo"
                                 alt="{{ $task['property_name'] }}" loading="lazy">
@@ -395,7 +500,13 @@
                             <span class="advisor-task-mobile-label">Fecha</span>
                             <span>{{ $task['date_label'] }}</span>
                         </span>
-                    </a>
+
+                        <span class="advisor-task-action" role="cell">
+                            <a href="{{ $task['route'] }}" class="btn btn-sm btn-light-primary">
+                                Abrir
+                            </a>
+                        </span>
+                    </div>
                 @empty
                     <div class="advisor-empty">
                         <div class="fw-bold mb-1">No hay pendientes en este filtro.</div>

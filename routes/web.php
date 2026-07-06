@@ -56,6 +56,7 @@ Route::middleware(['auth', 'system.access'])
         Route::post('/perfil/password', [ProfileController::class, 'updatePassword'])->name('profile.update.password');
 
         Route::get('/asesor/pendientes', [AdvisorTaskController::class, 'index'])->name('advisor.tasks.index');
+        Route::get('/administracion/pendientes', [AdvisorTaskController::class, 'adminIndex'])->name('admin.tasks.index');
 
         Route::get('/propiedades', [PropertyController::class, 'index'])->name('properties.index');
         Route::get('/propiedades/control', [PropertyControlController::class, 'index'])->name('properties.control');

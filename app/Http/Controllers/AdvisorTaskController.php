@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Charge;
+use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\Property;
 use App\Models\PropertyDocument;
 use App\Models\TenantDocument;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -24,10 +26,66 @@ class AdvisorTaskController extends Controller
         $filter = $validated['filter'] ?? 'all';
         $activeRange = $validated['range'] ?? 'today';
         $period = $this->periodForRange($activeRange);
-        $propertyIds = $this->advisorPropertyIds($request);
+        $propertyIds = $this->advisorPropertyIds($request->user());
         $today = now()->startOfDay();
 
-        $tasks = $this->buildChargeTasks($propertyIds, $today, $period['start'], $period['end'], $period['include_overdue'])
+        $tasks = $this->buildPropertyTasks($propertyIds, $today, $period);
+
+        return $this->taskView($tasks, $filter, $activeRange, $period);
+    }
+
+    public function adminIndex(Request $request): View
+    {
+        abort_unless($request->user()?->hasAnyRole(['administrador', 'admin']), 403);
+
+        $validated = $request->validate([
+            'filter' => ['nullable', 'in:all,urgent,today,charges,maintenance,documents,contracts'],
+            'range' => ['nullable', 'in:today,current_week,current_month'],
+            'user_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $taskUsers = User::query()
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', [
+                'asesores',
+                'asesor',
+                'advisor',
+                'tecnico',
+                'technician',
+            ]))
+            ->with('roles:id,name')
+            ->orderBy('name')
+            ->get();
+
+        $selectedUser = isset($validated['user_id'])
+            ? $taskUsers->firstWhere('id', (int) $validated['user_id'])
+            : $taskUsers->first();
+
+        if (isset($validated['user_id']) && ! $selectedUser) {
+            abort(404);
+        }
+
+        $filter = $validated['filter'] ?? 'all';
+        $activeRange = $validated['range'] ?? 'today';
+        $period = $this->periodForRange($activeRange);
+        $today = now()->startOfDay();
+        $selectedUserRole = $selectedUser && $this->isTechnician($selectedUser) ? 'technician' : 'advisor';
+
+        $tasks = match ($selectedUserRole) {
+            'technician' => $this->buildTechnicianTasks($selectedUser, $today, $period),
+            default => $this->buildPropertyTasks($this->advisorPropertyIds($selectedUser), $today, $period),
+        };
+
+        return $this->taskView($tasks, $filter, $activeRange, $period, [
+            'isAdministrative' => true,
+            'taskUsers' => $taskUsers,
+            'selectedTaskUser' => $selectedUser,
+            'selectedTaskUserRole' => $selectedUserRole,
+        ]);
+    }
+
+    private function buildPropertyTasks(Collection $propertyIds, Carbon $today, array $period): Collection
+    {
+        return $this->buildChargeTasks($propertyIds, $today, $period['start'], $period['end'], $period['include_overdue'])
             ->concat($this->buildMaintenanceTasks($propertyIds, $today, $period['start'], $period['end'], $period['include_overdue']))
             ->concat($this->buildContractTasks($propertyIds, $today, $period['start'], $period['end'], $period['include_overdue']))
             ->concat($this->buildPropertyDocumentTasks($propertyIds, $today, $period['start'], $period['end'], $period['include_overdue']))
@@ -39,10 +97,13 @@ class AdvisorTaskController extends Controller
                 $task['id'],
             ))
             ->values();
+    }
 
+    private function taskView(Collection $tasks, string $filter, string $activeRange, array $period, array $extra = []): View
+    {
         $filteredTasks = $this->filterTasks($tasks, $filter)->values();
 
-        return view('advisor-tasks.index', [
+        return view('advisor-tasks.index', array_merge([
             'activeFilter' => $filter,
             'activeRange' => $activeRange,
             'periodStart' => $period['start'],
@@ -60,7 +121,74 @@ class AdvisorTaskController extends Controller
                 'documents' => $tasks->where('category', 'documents')->count(),
                 'contracts' => $tasks->where('category', 'contracts')->count(),
             ],
-        ]);
+            'isAdministrative' => false,
+            'taskUsers' => collect(),
+            'selectedTaskUser' => null,
+            'selectedTaskUserRole' => null,
+        ], $extra));
+    }
+
+    private function buildTechnicianTasks(?User $user, Carbon $today, array $period): Collection
+    {
+        if (! $user) {
+            return collect();
+        }
+
+        $providerIds = MaintenanceProvider::query()
+            ->where('user_id', $user->id)
+            ->pluck('id');
+
+        if ($providerIds->isEmpty()) {
+            return collect();
+        }
+
+        $activeStatuses = array_diff(array_keys(MaintenanceTicket::STATUS_LABELS), ['completado', 'cancelado']);
+
+        return MaintenanceTicket::query()
+            ->with('property:id,uuid,internal_name,internal_reference,facade_photo_path')
+            ->whereIn('current_provider_id', $providerIds->all())
+            ->whereIn('status', $activeStatuses)
+            ->where(function ($query) use ($period): void {
+                $query->whereNull('scheduled_visit_at')
+                    ->orWhere('scheduled_visit_at', '<=', $period['end']);
+            })
+            ->orderByRaw('scheduled_visit_at is null')
+            ->orderBy('scheduled_visit_at')
+            ->limit(100)
+            ->get()
+            ->map(function (MaintenanceTicket $ticket) use ($today): array {
+                $scheduledAt = $ticket->scheduled_visit_at?->copy();
+                $scheduledDate = $scheduledAt?->copy()->startOfDay();
+                $isOverdue = $scheduledAt?->lt(now()) ?? false;
+                $isToday = $scheduledDate?->isSameDay($today) ?? false;
+                $isUrgent = $ticket->priority === 'urgente' || $isOverdue;
+
+                return [
+                    'id' => 'maintenance-'.$ticket->id,
+                    'category' => 'maintenance',
+                    'category_label' => 'Ticket de mantenimiento',
+                    'priority' => $isUrgent ? 'urgent' : ($isToday ? 'today' : 'upcoming'),
+                    'is_today' => $isToday,
+                    'tone' => $isUrgent ? 'danger' : 'info',
+                    'property_name' => $ticket->property?->internal_name ?: 'Propiedad',
+                    'property_photo_path' => $ticket->property?->facade_photo_path,
+                    'subject' => $scheduledAt
+                        ? ($isOverdue ? 'Visita vencida: ' : 'Visita programada: ').$ticket->title
+                        : 'Ticket por programar: '.$ticket->title,
+                    'time_label' => $scheduledAt ? $this->relativeTimeLabel($scheduledAt) : 'Pendiente',
+                    'date_label' => $scheduledAt ? $this->formattedDateLabel($scheduledAt) : 'Sin programar',
+                    'route' => route('maintenance.show', $ticket),
+                    'sort_at' => $scheduledAt ?? $ticket->assigned_at ?? $ticket->reported_at ?? $ticket->created_at,
+                    'sort_rank' => $isUrgent ? 10 : ($isToday ? 20 : ($scheduledAt ? 45 : 30)),
+                ];
+            })
+            ->sortBy(fn (array $task): string => sprintf(
+                '%02d-%s-%s',
+                $task['sort_rank'],
+                $task['sort_at'] instanceof Carbon ? $task['sort_at']->format('Y-m-d H:i:s') : '9999-12-31 23:59:59',
+                $task['id'],
+            ))
+            ->values();
     }
 
     private function buildChargeTasks(Collection $propertyIds, Carbon $today, Carbon $periodStart, Carbon $periodEnd, bool $includeOverdue): Collection
@@ -299,10 +427,8 @@ class AdvisorTaskController extends Controller
         };
     }
 
-    private function advisorPropertyIds(Request $request): Collection
+    private function advisorPropertyIds(?User $user): Collection
     {
-        $user = $request->user();
-
         if (! $user) {
             return collect();
         }
@@ -313,6 +439,11 @@ class AdvisorTaskController extends Controller
             ->merge(Property::query()->where('advisor_user_id', $user->id)->pluck('id'))
             ->unique()
             ->values();
+    }
+
+    private function isTechnician(User $user): bool
+    {
+        return $user->hasAnyRole(['tecnico', 'technician']);
     }
 
     private function periodForRange(string $range): array
