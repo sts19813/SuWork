@@ -212,6 +212,73 @@ class ExpenseModuleTest extends TestCase
         }
     }
 
+    public function test_recurring_expense_attachments_are_copied_to_generated_records_independently(): void
+    {
+        Storage::fake('public');
+        Carbon::setTestNow(Carbon::parse('2026-01-10 10:00:00'));
+
+        try {
+            $user = User::factory()->create();
+            $property = $this->createPropertyFixture($user);
+
+            $this->actingAs($user)
+                ->post(route('expenses.recurring-items.store', $property), [
+                    'concept' => 'Cuota de mantenimiento',
+                    'amount' => 2500,
+                    'frequency' => RecurringExpenseItem::FREQUENCY_MONTHLY,
+                    'starts_on' => '2026-01-15',
+                    'occurrences_count' => 2,
+                    'files' => [
+                        UploadedFile::fake()->create('factura-base.pdf', 120, 'application/pdf'),
+                    ],
+                ])
+                ->assertSessionHasNoErrors()
+                ->assertRedirect(route('properties.show', $property) . '#tab-expenses');
+
+            $item = RecurringExpenseItem::query()->where('property_id', $property->id)->firstOrFail();
+            $expenses = $item->expenses()->with('files')->orderBy('due_date')->get();
+
+            $this->assertDatabaseCount('recurring_expense_item_files', 1);
+            $this->assertDatabaseCount('expense_files', 2);
+            $this->assertCount(2, $expenses);
+            $this->assertSame(1, $expenses[0]->files->count());
+            $this->assertSame(1, $expenses[1]->files->count());
+            $this->assertNotSame($expenses[0]->files->first()->path, $expenses[1]->files->first()->path);
+
+            $firstOriginalPath = $expenses[0]->files->first()->path;
+            $secondOriginalPath = $expenses[1]->files->first()->path;
+
+            $this->actingAs($user)
+                ->put(route('expenses.update', $expenses[0]), [
+                    'concept' => 'Cuota enero ajustada',
+                    'amount' => 2600,
+                    'due_date' => '2026-01-15',
+                    'description' => 'Ajuste de enero',
+                    'remove_file_ids' => [$expenses[0]->files->first()->id],
+                    'files' => [
+                        UploadedFile::fake()->create('factura-enero.pdf', 90, 'application/pdf'),
+                    ],
+                    'property_context' => $property->uuid,
+                ])
+                ->assertSessionHasNoErrors()
+                ->assertRedirect(route('properties.show', $property) . '#tab-expenses');
+
+            Storage::disk('public')->assertMissing($firstOriginalPath);
+            Storage::disk('public')->assertExists($secondOriginalPath);
+
+            $expenses[0]->refresh()->load('files');
+            $expenses[1]->refresh()->load('files');
+
+            $this->assertSame('Cuota enero ajustada', $expenses[0]->concept);
+            $this->assertSame('Cuota de mantenimiento', $expenses[1]->concept);
+            $this->assertSame(1, $expenses[0]->files->count());
+            $this->assertSame(1, $expenses[1]->files->count());
+            $this->assertSame($secondOriginalPath, $expenses[1]->files->first()->path);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_annual_expense_item_generates_once_per_year_and_can_be_paused(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-10 10:00:00'));

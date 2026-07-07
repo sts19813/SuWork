@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Models\Expense;
+use App\Models\ExpenseFile;
 use App\Models\RecurringExpenseItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class RecurringExpenseGenerator
 {
@@ -14,6 +16,8 @@ class RecurringExpenseGenerator
         if (! $item->is_active) {
             return 0;
         }
+
+        $item->loadMissing('files');
 
         $created = 0;
         $occurrencesCount = $item->frequency === RecurringExpenseItem::FREQUENCY_ONCE
@@ -29,7 +33,7 @@ class RecurringExpenseGenerator
                 ->first();
 
             if (! $expense) {
-                Expense::create([
+                $expense = Expense::create([
                     'recurring_expense_item_id' => $item->id,
                     'recurrence_date' => $occurrence,
                     'property_id' => $item->property_id,
@@ -39,6 +43,7 @@ class RecurringExpenseGenerator
                     'description' => $item->description,
                     'created_by' => $item->created_by,
                 ]);
+                $this->copyTemplateFilesToExpense($item, $expense);
                 $created++;
             } elseif (! $expense->is_paid) {
                 $expense->update([
@@ -54,6 +59,41 @@ class RecurringExpenseGenerator
         $this->removeUnusedOccurrences($item, $desiredDates->map->toDateString()->all());
 
         return $created;
+    }
+
+    private function copyTemplateFilesToExpense(RecurringExpenseItem $item, Expense $expense): void
+    {
+        if ($item->files->isEmpty()) {
+            return;
+        }
+
+        $disk = Storage::disk('public');
+
+        foreach ($item->files as $templateFile) {
+            if (! filled($templateFile->path) || ! $disk->exists($templateFile->path)) {
+                continue;
+            }
+
+            $extension = pathinfo($templateFile->path, PATHINFO_EXTENSION);
+            if ($extension === '' && filled($templateFile->original_name)) {
+                $extension = pathinfo((string) $templateFile->original_name, PATHINFO_EXTENSION);
+            }
+
+            $targetPath = 'expenses/' . $expense->id . '/' . (string) Str::uuid() . ($extension !== '' ? ".{$extension}" : '');
+            if (! $disk->copy($templateFile->path, $targetPath)) {
+                continue;
+            }
+
+            $expense->files()->create([
+                'path' => $targetPath,
+                'type' => $templateFile->type === ExpenseFile::TYPE_IMAGE
+                    ? ExpenseFile::TYPE_IMAGE
+                    : ExpenseFile::TYPE_PDF,
+                'mime_type' => $templateFile->mime_type,
+                'original_name' => $templateFile->original_name,
+                'size' => $disk->size($targetPath),
+            ]);
+        }
     }
 
     public function generateAll(): int

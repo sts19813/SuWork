@@ -41,6 +41,8 @@ class SaveRecurringExpenseItemRequest extends FormRequest
             'starts_on' => ['required', 'date'],
             'occurrences_count' => ['required', 'integer', 'min:1', 'max:120'],
             'description' => ['nullable', 'string', 'max:4000'],
+            'files' => ['nullable', 'array'],
+            'files.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
             'is_active' => ['nullable', 'boolean'],
         ];
     }

@@ -12,6 +12,7 @@ use App\Models\ExpenseFile;
 use App\Models\ExpenseNotificationSetting;
 use App\Models\Property;
 use App\Models\RecurringExpenseItem;
+use App\Models\RecurringExpenseItemFile;
 use App\Services\RecurringExpenseGenerator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -201,24 +202,28 @@ class ExpenseController extends Controller
     {
         $validated = $request->validated();
 
-        $item = $property->recurringExpenseItems()->create([
-            'concept' => trim((string) $validated['concept']),
-            'amount' => (float) $validated['amount'],
-            'frequency' => $validated['frequency'],
-            'starts_on' => $validated['starts_on'],
-            'occurrences_count' => (int) $validated['occurrences_count'],
-            'description' => filled($validated['description'] ?? null)
-                ? trim((string) $validated['description'])
-                : null,
-            'is_active' => true,
-            'created_by' => $request->user()?->id,
-        ]);
+        DB::transaction(function () use ($request, $validated, $property, $generator): void {
+            $item = $property->recurringExpenseItems()->create([
+                'concept' => trim((string) $validated['concept']),
+                'amount' => (float) $validated['amount'],
+                'frequency' => $validated['frequency'],
+                'starts_on' => $validated['starts_on'],
+                'occurrences_count' => (int) $validated['occurrences_count'],
+                'description' => filled($validated['description'] ?? null)
+                    ? trim((string) $validated['description'])
+                    : null,
+                'is_active' => true,
+                'created_by' => $request->user()?->id,
+            ]);
 
-        $generator->generateForItem($item);
+            $this->storeRecurringExpenseItemFiles($item, (array) $request->file('files', []));
+
+            $generator->generateForItem($item->fresh('files'));
+        });
 
         return redirect()
             ->to(route('properties.show', $property) . '#tab-expenses')
-            ->with('success', 'Ítem recurrente configurado correctamente.');
+            ->with('success', 'Gasto recurrente configurado correctamente.');
     }
 
     public function updateRecurringItem(
@@ -245,17 +250,24 @@ class ExpenseController extends Controller
 
         return redirect()
             ->to(route('properties.show', $recurringExpenseItem->property) . '#tab-expenses')
-            ->with('success', 'Ítem recurrente actualizado correctamente.');
+            ->with('success', 'Gasto recurrente actualizado correctamente.');
     }
 
     public function destroyRecurringItem(RecurringExpenseItem $recurringExpenseItem): RedirectResponse
     {
         $property = $recurringExpenseItem->property;
-        $recurringExpenseItem->delete();
+
+        DB::transaction(function () use ($recurringExpenseItem): void {
+            foreach ($recurringExpenseItem->files as $file) {
+                $this->deleteStoragePath($file->path);
+            }
+
+            $recurringExpenseItem->delete();
+        });
 
         return redirect()
             ->to(route('properties.show', $property) . '#tab-expenses')
-            ->with('success', 'Ítem recurrente eliminado. Los gastos ya generados se conservaron.');
+            ->with('success', 'Gasto recurrente eliminado. Los gastos ya generados se conservaron.');
     }
 
     /**
@@ -275,6 +287,32 @@ class ExpenseController extends Controller
             $path = $file->store("expenses/{$expense->id}", 'public');
 
             $expense->files()->create([
+                'path' => $path,
+                'type' => $type,
+                'mime_type' => $mimeType,
+                'original_name' => $file->getClientOriginalName(),
+                'size' => (int) ($file->getSize() ?: 0),
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<int, UploadedFile|null>  $files
+     */
+    private function storeRecurringExpenseItemFiles(RecurringExpenseItem $item, array $files): void
+    {
+        foreach ($files as $file) {
+            if (!$file instanceof UploadedFile) {
+                continue;
+            }
+
+            $mimeType = (string) ($file->getClientMimeType() ?: 'application/octet-stream');
+            $type = str_starts_with($mimeType, 'image/')
+                ? RecurringExpenseItemFile::TYPE_IMAGE
+                : RecurringExpenseItemFile::TYPE_PDF;
+            $path = $file->store("recurring-expense-items/{$item->id}", 'public');
+
+            $item->files()->create([
                 'path' => $path,
                 'type' => $type,
                 'mime_type' => $mimeType,
