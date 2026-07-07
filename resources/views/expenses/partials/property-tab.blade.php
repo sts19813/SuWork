@@ -25,136 +25,10 @@
         <div class="card-body pt-0">
             @include('expenses.partials.summary-cards', ['summary' => $propertyExpenseSummary])
 
-            <div class="border rounded p-5 mb-7">
-                <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
-                    <div>
-                        <div class="fw-bold text-dark">Ítems recurrentes</div>
-                        <div class="text-muted fs-7">Generan automáticamente registros de gasto mensuales o anuales.</div>
-                    </div>
-                    <span class="badge badge-light-primary">{{ $propertyRecurringExpenseItems->count() }}</span>
-                </div>
-
-                @if ($errors->recurringExpenseItem->any())
-                    <div class="alert alert-danger py-3 px-4">
-                        {{ $errors->recurringExpenseItem->first() }}
-                    </div>
-                @endif
-
-                <div class="table-responsive">
-                    <table class="table table-row-bordered align-middle mb-0">
-                        <thead>
-                            <tr class="text-muted text-uppercase fs-8">
-                                <th>Concepto</th>
-                                <th>Monto</th>
-                                <th>Frecuencia</th>
-                                <th>Fecha de inicio</th>
-                                <th>Registros</th>
-                                <th>Estado</th>
-                                <th class="text-end">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($propertyRecurringExpenseItems as $item)
-                                <tr>
-                                    <td>
-                                        <div class="fw-bold">{{ $item->concept }}</div>
-                                        @if ($item->description)
-                                            <div class="text-muted fs-7">{{ $item->description }}</div>
-                                        @endif
-                                    </td>
-                                    <td>${{ number_format((float) $item->amount, 2) }}</td>
-                                    <td>{{ $item->frequency_label }}</td>
-                                    <td>{{ $item->starts_on?->format('d/m/Y') }}</td>
-                                    <td>{{ $item->occurrences_count }}</td>
-                                    <td>
-                                        <span class="badge {{ $item->is_active ? 'badge-light-success text-success' : 'badge-light-secondary text-muted' }}">
-                                            {{ $item->is_active ? 'Activo' : 'Pausado' }}
-                                        </span>
-                                    </td>
-                                    <td class="text-end">
-                                        <div class="d-flex justify-content-end gap-2">
-                                            <button type="button" class="btn btn-sm btn-light-primary" data-bs-toggle="collapse"
-                                                data-bs-target="#recurring-expense-item-{{ $item->uuid }}">
-                                                Editar
-                                            </button>
-                                            <form method="POST" action="{{ route('expenses.recurring-items.destroy', $item) }}"
-                                                class="js-expense-delete-form"
-                                                data-confirm-title="Eliminar ítem recurrente"
-                                                data-confirm-message="Los gastos ya generados se conservarán. ¿Deseas eliminar este ítem recurrente?"
-                                                data-confirm-button="Sí, eliminar">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-light-danger">Eliminar</button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr class="collapse" id="recurring-expense-item-{{ $item->uuid }}">
-                                    <td colspan="7" class="bg-light-primary">
-                                        <form method="POST" action="{{ route('expenses.recurring-items.update', $item) }}"
-                                            class="row g-4 p-2 js-recurring-item-form">
-                                            @csrf
-                                            @method('PUT')
-
-                                            <div class="col-md-4">
-                                                <label class="form-label required">Concepto</label>
-                                                <input type="text" name="concept" maxlength="190" class="form-control"
-                                                    value="{{ $item->concept }}" required>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <label class="form-label required">Monto</label>
-                                                <input type="number" name="amount" min="0.01" step="0.01" class="form-control"
-                                                    value="{{ number_format((float) $item->amount, 2, '.', '') }}" required>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <label class="form-label required">Frecuencia</label>
-                                                <select name="frequency" class="form-select js-recurring-frequency" required>
-                                                    @foreach ($recurringExpenseFrequencyOptions as $frequency => $label)
-                                                        <option value="{{ $frequency }}" {{ $item->frequency === $frequency ? 'selected' : '' }}>
-                                                            {{ $label }}
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <label class="form-label required">Fecha de inicio</label>
-                                                <input type="date" name="starts_on" class="form-control"
-                                                    value="{{ $item->starts_on?->format('Y-m-d') }}" required>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <label class="form-label required">Cantidad de registros</label>
-                                                <input type="number" name="occurrences_count" min="1" max="120"
-                                                    class="form-control js-recurring-count"
-                                                    value="{{ $item->occurrences_count }}" required>
-                                            </div>
-                                            <div class="col-md-9">
-                                                <label class="form-label">Descripción</label>
-                                                <input type="text" name="description" maxlength="4000" class="form-control"
-                                                    value="{{ $item->description }}">
-                                            </div>
-                                            <div class="col-md-3 d-flex align-items-end">
-                                                <input type="hidden" name="is_active" value="0">
-                                                <label class="form-check form-switch form-check-custom form-check-solid mb-3">
-                                                    <input class="form-check-input" type="checkbox" name="is_active" value="1"
-                                                        {{ $item->is_active ? 'checked' : '' }}>
-                                                    <span class="form-check-label">Generación activa</span>
-                                                </label>
-                                            </div>
-                                            <div class="col-12 d-flex justify-content-end">
-                                                <button type="submit" class="btn btn-sm btn-primary">Guardar ítem</button>
-                                            </div>
-                                        </form>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-6">
-                                        No hay ítems recurrentes configurados.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+            <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-4">
+                <div>
+                    <div class="fw-bold text-dark">Gastos registrados</div>
+                    <div class="text-muted fs-7">Conceptos únicos y registros generados desde gastos recurrentes.</div>
                 </div>
             </div>
 
@@ -316,70 +190,172 @@
     </div>
 
     <div class="modal fade" id="createRecurringExpenseItemModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
-                <form method="POST" action="{{ route('expenses.recurring-items.store', $property) }}"
-                    class="js-recurring-item-form">
-                    @csrf
+                <div class="modal-header">
+                    <h3 class="modal-title">Mantenimiento / Gastos recurrentes</h3>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary" data-bs-dismiss="modal">
+                        <i class="ki-outline ki-cross fs-1"></i>
+                    </button>
+                </div>
 
-                    <div class="modal-header">
-                        <h3 class="modal-title">Configurar ítem recurrente</h3>
-                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary" data-bs-dismiss="modal">
-                            <i class="ki-outline ki-cross fs-1"></i>
-                        </button>
-                    </div>
+                <div class="modal-body">
+                    @if ($errors->recurringExpenseItem->any())
+                        <div class="alert alert-danger py-3 px-4">
+                            {{ $errors->recurringExpenseItem->first() }}
+                        </div>
+                    @endif
 
-                    <div class="modal-body">
-                        <div class="row g-5">
-                            <div class="col-md-6">
-                                <label class="form-label required">Concepto</label>
-                                <input type="text" name="concept" maxlength="190"
-                                    class="form-control @error('concept', 'recurringExpenseItem') is-invalid @enderror"
-                                    value="{{ old('concept') }}" placeholder="Ej. Cuota de mantenimiento" required>
+                    <ul class="nav nav-tabs nav-line-tabs mb-6" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="recurring-expense-create-tab" data-bs-toggle="tab"
+                                data-bs-target="#recurring-expense-create-pane" type="button" role="tab"
+                                aria-controls="recurring-expense-create-pane" aria-selected="true">
+                                Agregar
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="recurring-expense-history-tab" data-bs-toggle="tab"
+                                data-bs-target="#recurring-expense-history-pane" type="button" role="tab"
+                                aria-controls="recurring-expense-history-pane" aria-selected="false">
+                                Histórico
+                                <span class="badge badge-light-primary ms-2">{{ $propertyRecurringExpenseItems->count() }}</span>
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="recurring-expense-create-pane" role="tabpanel"
+                            aria-labelledby="recurring-expense-create-tab">
+                            <div class="fw-bold text-dark mb-4">Agregar gasto recurrente</div>
+                            <form method="POST" action="{{ route('expenses.recurring-items.store', $property) }}"
+                                class="js-recurring-item-form" enctype="multipart/form-data">
+                                @csrf
+
+                                <div class="row g-5">
+                                    <div class="col-md-6">
+                                        <label class="form-label required">Concepto</label>
+                                        <input type="text" name="concept" maxlength="190"
+                                            class="form-control @error('concept', 'recurringExpenseItem') is-invalid @enderror"
+                                            value="{{ old('concept') }}" placeholder="Ej. Cuota de mantenimiento" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label required">Monto</label>
+                                        <input type="number" name="amount" min="0.01" step="0.01"
+                                            class="form-control @error('amount', 'recurringExpenseItem') is-invalid @enderror"
+                                            value="{{ old('amount') }}" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label required">Frecuencia</label>
+                                        <select name="frequency"
+                                            class="form-select js-recurring-frequency @error('frequency', 'recurringExpenseItem') is-invalid @enderror" required>
+                                            @foreach ($recurringExpenseFrequencyOptions as $frequency => $label)
+                                                <option value="{{ $frequency }}" {{ old('frequency', 'monthly') === $frequency ? 'selected' : '' }}>
+                                                    {{ $label }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required">Fecha de inicio</label>
+                                        <input type="date" name="starts_on"
+                                            class="form-control @error('starts_on', 'recurringExpenseItem') is-invalid @enderror"
+                                            value="{{ old('starts_on', now()->toDateString()) }}" required>
+                                        <div class="text-muted fs-8 mt-1">La repetición conservará este día cada mes o esta fecha cada año.</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label required">Cantidad de registros</label>
+                                        <input type="number" name="occurrences_count" min="1" max="120"
+                                            class="form-control js-recurring-count @error('occurrences_count', 'recurringExpenseItem') is-invalid @enderror"
+                                            value="{{ old('occurrences_count', 12) }}" required>
+                                        <div class="text-muted fs-8 mt-1">Ejemplo: 12 mensuales crean un registro por mes durante 12 meses.</div>
+                                    </div>
+                                    <div class="col-md-12">
+                                        <label class="form-label">Adjuntos</label>
+                                        <input type="file" name="files[]" multiple accept=".jpg,.jpeg,.png,.webp,.pdf"
+                                            class="form-control @error('files.*', 'recurringExpenseItem') is-invalid @enderror">
+                                        <div class="text-muted fs-8 mt-1">Se copiarán a cada gasto generado desde este recurrente.</div>
+                                        @error('files.*', 'recurringExpenseItem')
+                                            <div class="text-danger fs-7 mt-1">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Descripción</label>
+                                        <textarea name="description" rows="3" maxlength="4000" class="form-control">{{ old('description') }}</textarea>
+                                    </div>
+                                    <div class="col-12 d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                                        <button type="submit" class="btn btn-primary">Guardar y generar</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="tab-pane fade" id="recurring-expense-history-pane" role="tabpanel"
+                            aria-labelledby="recurring-expense-history-tab">
+                            <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-4">
+                                <div>
+                                    <div class="fw-bold text-dark">Histórico</div>
+                                    <div class="text-muted fs-7">Consulta los gastos recurrentes usados para generar registros en la tabla principal.</div>
+                                </div>
+                                <span class="badge badge-light-primary">{{ $propertyRecurringExpenseItems->count() }}</span>
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label required">Monto</label>
-                                <input type="number" name="amount" min="0.01" step="0.01"
-                                    class="form-control @error('amount', 'recurringExpenseItem') is-invalid @enderror"
-                                    value="{{ old('amount') }}" required>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label required">Frecuencia</label>
-                                <select name="frequency"
-                                    class="form-select js-recurring-frequency @error('frequency', 'recurringExpenseItem') is-invalid @enderror" required>
-                                    @foreach ($recurringExpenseFrequencyOptions as $frequency => $label)
-                                        <option value="{{ $frequency }}" {{ old('frequency', 'monthly') === $frequency ? 'selected' : '' }}>
-                                            {{ $label }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">Fecha de inicio</label>
-                                <input type="date" name="starts_on"
-                                    class="form-control @error('starts_on', 'recurringExpenseItem') is-invalid @enderror"
-                                    value="{{ old('starts_on', now()->toDateString()) }}" required>
-                                <div class="text-muted fs-8 mt-1">La repetición conservará este día cada mes o esta fecha cada año.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label required">Cantidad de registros</label>
-                                <input type="number" name="occurrences_count" min="1" max="120"
-                                    class="form-control js-recurring-count @error('occurrences_count', 'recurringExpenseItem') is-invalid @enderror"
-                                    value="{{ old('occurrences_count', 12) }}" required>
-                                <div class="text-muted fs-8 mt-1">Ejemplo: 12 mensuales crean un registro por mes durante 12 meses.</div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Descripción</label>
-                                <textarea name="description" rows="3" maxlength="4000" class="form-control">{{ old('description') }}</textarea>
+
+                            <div class="table-responsive">
+                                <table class="table table-row-bordered align-middle mb-0">
+                                    <thead>
+                                        <tr class="text-muted text-uppercase fs-8">
+                                            <th>Concepto</th>
+                                            <th>Monto</th>
+                                            <th>Frecuencia</th>
+                                            <th>Inicio</th>
+                                            <th>Registros</th>
+                                            <th>Adjuntos</th>
+                                            <th>Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse ($propertyRecurringExpenseItems as $item)
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-bold">{{ $item->concept }}</div>
+                                                    @if ($item->description)
+                                                        <div class="text-muted fs-7">{{ $item->description }}</div>
+                                                    @endif
+                                                </td>
+                                                <td>${{ number_format((float) $item->amount, 2) }}</td>
+                                                <td>{{ $item->frequency_label }}</td>
+                                                <td>{{ $item->starts_on?->format('d/m/Y') }}</td>
+                                                <td>{{ $item->occurrences_count }}</td>
+                                                <td>
+                                                    @if ($item->files_count > 0)
+                                                        <span class="badge badge-light-info text-info">
+                                                            <i class="ki-outline ki-paper-clip fs-6 me-1"></i>{{ $item->files_count }}
+                                                        </span>
+                                                        @include('expenses.partials.attachments', ['files' => $item->files->take(3)])
+                                                    @else
+                                                        <span class="text-muted">-</span>
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    <span class="badge {{ $item->is_active ? 'badge-light-success text-success' : 'badge-light-secondary text-muted' }}">
+                                                        {{ $item->is_active ? 'Activo' : 'Pausado' }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="7" class="text-center text-muted py-6">
+                                                    No hay gastos recurrentes en el histórico.
+                                                </td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Guardar y generar</button>
-                    </div>
-                </form>
+                </div>
             </div>
         </div>
     </div>

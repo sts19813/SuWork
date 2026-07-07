@@ -334,6 +334,10 @@ class PropertyController extends Controller
             ->orderBy('due_date', 'asc')
             ->orderBy('id', 'asc')
             ->get();
+        $propertyRecurringExpenseItems = $property->recurringExpenseItems()
+            ->with('files')
+            ->withCount('files')
+            ->get();
         $propertyMaintenanceTickets = MaintenanceTicket::query()
             ->with([
                 'currentProvider:id,uuid,name,type',
@@ -444,7 +448,7 @@ class PropertyController extends Controller
             'tenantAssignmentChecks' => $tenantAssignmentChecks,
             'propertyCharges' => $propertyCharges,
             'propertyExpenses' => $propertyExpenses,
-            'propertyRecurringExpenseItems' => $property->recurringExpenseItems,
+            'propertyRecurringExpenseItems' => $propertyRecurringExpenseItems,
             'rentChargesTotal' => $rentChargesTotal,
             'rentChargesPaid' => $rentChargesPaid,
             'chargesPorCobrar' => $chargesPorCobrar,

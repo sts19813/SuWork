@@ -66,6 +66,11 @@ class RecurringExpenseItem extends Model
         return $this->hasMany(Expense::class);
     }
 
+    public function files(): HasMany
+    {
+        return $this->hasMany(RecurringExpenseItemFile::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
