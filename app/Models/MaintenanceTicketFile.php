@@ -15,6 +15,7 @@ class MaintenanceTicketFile extends Model
         'reporte' => 'Reporte',
         'factura' => 'Factura',
         'evidencia' => 'Evidencia',
+        'trabajo_finalizado' => 'Trabajo finalizado',
         'firma' => 'Firma',
         'documento' => 'Documento',
         'video' => 'Video',

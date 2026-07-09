@@ -1799,6 +1799,21 @@ td .btn {
     text-align: left;
 }
 
+.ticket-file-tile {
+    min-width: 0;
+}
+
+.ticket-file-caption {
+    margin-top: 6px;
+    overflow: hidden;
+    color: var(--maint-muted);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .ticket-file-thumb img,
 .ticket-file-thumb video {
     width: 100%;

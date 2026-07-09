@@ -137,6 +137,7 @@ class MaintenanceModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Evidencias y archivos del incidente');
+        $response->assertSee('Evidencias y archivos del trabajo finalizado');
         $response->assertSee('Chat');
         $response->assertSee('Costos, evidencias de cierre y firma');
     }
@@ -187,6 +188,15 @@ class MaintenanceModuleTest extends TestCase
             'size' => 789,
             'is_compressed' => false,
         ]);
+        $ticket->files()->create([
+            'uploaded_by_user_id' => $user->id,
+            'kind' => 'trabajo_finalizado',
+            'path' => 'maintenance/' . $ticket->id . '/trabajo_finalizado/final.jpg',
+            'original_name' => 'final.jpg',
+            'mime_type' => 'image/jpeg',
+            'size' => 101,
+            'is_compressed' => false,
+        ]);
 
         $response = $this
             ->actingAs($user)
@@ -196,11 +206,17 @@ class MaintenanceModuleTest extends TestCase
         $response->assertSee('/storage/maintenance/' . $ticket->id . '/evidencia/foto.jpg', false);
         $response->assertSee('/storage/maintenance/' . $ticket->id . '/video/video.mp4', false);
         $response->assertSee('/storage/maintenance/' . $ticket->id . '/documento/reporte.pdf', false);
+        $response->assertSee('/storage/maintenance/' . $ticket->id . '/trabajo_finalizado/final.jpg', false);
         $response->assertSee('<video', false);
         $response->assertSee('ticketFilePreviewModal', false);
         $response->assertSee('application/pdf', false);
         $response->assertSee('js-delete-ticket-file', false);
         $response->assertSee('data-file-delete-url=', false);
+        $response->assertSee('Evidencias y archivos del trabajo finalizado');
+        $response->assertSee('name="kind" value="reporte"', false);
+        $response->assertSee('name="kind" value="trabajo_finalizado"', false);
+        $response->assertSee('Evidencia · ' . $ticket->files()->where('original_name', 'foto.jpg')->first()->created_at?->format('d/m/Y H:i'), false);
+        $response->assertSee('Trabajo finalizado · ' . $ticket->files()->where('original_name', 'final.jpg')->first()->created_at?->format('d/m/Y H:i'), false);
         $response->assertDontSee('ticket-file-list', false);
         $response->assertDontSee('http://localhost/storage/maintenance/', false);
         $response->assertDontSee('href="#ticket-chat-section"', false);
