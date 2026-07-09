@@ -200,6 +200,8 @@ class MaintenanceModuleTest extends TestCase
         $response->assertSee('ticketFilePreviewModal', false);
         $response->assertSee('application/pdf', false);
         $response->assertSee('js-delete-ticket-file', false);
+        $response->assertSee('data-file-delete-url=', false);
+        $response->assertDontSee('ticket-file-list', false);
         $response->assertDontSee('http://localhost/storage/maintenance/', false);
         $response->assertDontSee('href="#ticket-chat-section"', false);
         $response->assertSee('<section class="ticket-panel d-none" id="ticket-chat-section" hidden>', false);

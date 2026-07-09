@@ -23,11 +23,7 @@
                 })
                 ->values();
             $previewableFiles = $allFiles
-                ->filter(fn ($file) => (
-                    str_starts_with((string) $file->mime_type, 'image/')
-                    || str_starts_with((string) $file->mime_type, 'video/')
-                    || (string) $file->mime_type === 'application/pdf'
-                ) && filled($file->preview_url))
+                ->filter(fn ($file) => filled($file->preview_url))
                 ->values();
             $statusTone = match ($ticket->status) {
                 'completado' => 'green',
@@ -210,7 +206,8 @@
                                     data-file-url="{{ $file->preview_url }}"
                                     data-file-name="{{ $file->original_name }}"
                                     data-file-mime="{{ $file->mime_type }}"
-                                    data-file-download="{{ $file->preview_url }}">
+                                    data-file-download="{{ $file->preview_url }}"
+                                    data-file-delete-url="{{ route('maintenance.files.destroy', [$ticket, $file]) }}">
                                     @if (str_starts_with((string) $file->mime_type, 'video/'))
                                         <video src="{{ $file->preview_url }}" muted preload="metadata"></video>
                                     @elseif ((string) $file->mime_type === 'application/pdf')
@@ -218,44 +215,15 @@
                                             <i class="bi bi-file-earmark-pdf"></i>
                                             <span>{{ $file->original_name }}</span>
                                         </span>
-                                    @else
+                                    @elseif (str_starts_with((string) $file->mime_type, 'image/'))
                                         <img src="{{ $file->preview_url }}" alt="{{ $file->original_name }}">
+                                    @else
+                                        <span class="ticket-file-pdf-thumb">
+                                            <i class="bi bi-file-earmark"></i>
+                                            <span>{{ $file->original_name }}</span>
+                                        </span>
                                     @endif
                                 </button>
-                            @empty
-                                <div class="text-muted">Sin imágenes, videos o PDFs.</div>
-                            @endforelse
-                        </div>
-
-                        <div class="ticket-file-list mb-4">
-                            @forelse ($allFiles as $file)
-                                <div class="ticket-file-row">
-                                    <div class="min-w-0">
-                                        <div class="maintenance-cell-title">{{ $file->original_name }}</div>
-                                        <div class="maintenance-cell-subtitle">
-                                            {{ \App\Models\MaintenanceTicketFile::KIND_LABELS[$file->kind] ?? $file->kind }} · {{ $file->created_at?->format('d/m/Y H:i') ?: '-' }}
-                                        </div>
-                                    </div>
-                                    <div class="ticket-file-actions">
-                                        @if ($file->preview_url)
-                                            <button type="button" class="maintenance-icon-btn js-ticket-file-preview"
-                                                aria-label="Ver archivo"
-                                                data-file-url="{{ $file->preview_url }}"
-                                                data-file-name="{{ $file->original_name }}"
-                                                data-file-mime="{{ $file->mime_type }}"
-                                                data-file-download="{{ $file->preview_url }}">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                        @endif
-                                        <form method="POST" action="{{ route('maintenance.files.destroy', [$ticket, $file]) }}" class="m-0 js-delete-ticket-file">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="maintenance-icon-btn ticket-file-delete-btn" aria-label="Eliminar archivo">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
                             @empty
                                 <div class="text-muted">No hay archivos cargados.</div>
                             @endforelse
@@ -767,6 +735,13 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <form method="POST" action="#" class="m-0 js-delete-ticket-file" id="ticketFilePreviewDeleteForm">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn btn-light-danger" id="ticketFilePreviewDelete">
+                            <i class="bi bi-trash"></i> Eliminar
+                        </button>
+                    </form>
                     <a href="#" class="btn btn-light-primary" id="ticketFilePreviewDownload" download>
                         <i class="bi bi-download"></i> Descargar
                     </a>
@@ -794,6 +769,7 @@
             const fileModalPdf = document.getElementById('ticketFilePreviewPdf');
             const fileModalFallback = document.getElementById('ticketFilePreviewFallback');
             const fileModalDownload = document.getElementById('ticketFilePreviewDownload');
+            const fileModalDeleteForm = document.getElementById('ticketFilePreviewDeleteForm');
             const hideFilePreviewElements = () => {
                 [fileModalImage, fileModalVideo, fileModalPdf, fileModalFallback].forEach((element) => {
                     element?.classList.add('d-none');
@@ -817,6 +793,9 @@
                 if (fileModalDownload) {
                     fileModalDownload.href = button.dataset.fileDownload || url;
                     fileModalDownload.setAttribute('download', name);
+                }
+                if (fileModalDeleteForm) {
+                    fileModalDeleteForm.action = button.dataset.fileDeleteUrl || '#';
                 }
 
                 if (mime.startsWith('image/') && fileModalImage) {
