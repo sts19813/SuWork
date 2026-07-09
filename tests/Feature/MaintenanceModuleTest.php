@@ -141,6 +141,57 @@ class MaintenanceModuleTest extends TestCase
         $response->assertSee('Costos, evidencias de cierre y firma');
     }
 
+    public function test_ticket_detail_uses_relative_file_urls_and_hides_chat_card(): void
+    {
+        config(['app.url' => 'http://localhost']);
+
+        $user = User::factory()->create();
+        $property = $this->createPropertyFixture($user);
+        $ticket = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'alta',
+            'status' => 'pendiente',
+            'title' => 'Evidencias visibles',
+            'exact_location' => 'Cocina',
+            'description' => 'Archivos de prueba',
+            'reported_at' => now(),
+        ]);
+        $ticket->files()->create([
+            'uploaded_by_user_id' => $user->id,
+            'kind' => 'evidencia',
+            'path' => 'maintenance/' . $ticket->id . '/evidencia/foto.jpg',
+            'original_name' => 'foto.jpg',
+            'mime_type' => 'image/jpeg',
+            'size' => 123,
+            'is_compressed' => false,
+        ]);
+        $ticket->files()->create([
+            'uploaded_by_user_id' => $user->id,
+            'kind' => 'video',
+            'path' => 'maintenance/' . $ticket->id . '/video/video.mp4',
+            'original_name' => 'video.mp4',
+            'mime_type' => 'video/mp4',
+            'size' => 456,
+            'is_compressed' => false,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('maintenance.show', $ticket));
+
+        $response->assertOk();
+        $response->assertSee('/storage/maintenance/' . $ticket->id . '/evidencia/foto.jpg', false);
+        $response->assertSee('/storage/maintenance/' . $ticket->id . '/video/video.mp4', false);
+        $response->assertSee('<video', false);
+        $response->assertDontSee('http://localhost/storage/maintenance/', false);
+        $response->assertDontSee('href="#ticket-chat-section"', false);
+        $response->assertSee('<section class="ticket-panel d-none" id="ticket-chat-section" hidden>', false);
+    }
+
     public function test_ticket_can_be_assigned_and_completed(): void
     {
         Mail::fake();

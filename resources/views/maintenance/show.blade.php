@@ -18,12 +18,15 @@
             }
             $allFiles = $ticket->files
                 ->map(function ($file) {
-                    $file->preview_url = $file->url ?: (filled($file->path) ? \Illuminate\Support\Facades\Storage::disk('public')->url($file->path) : null);
+                    $file->preview_url = $file->url;
                     return $file;
                 })
                 ->values();
-            $evidenceImages = $allFiles
-                ->filter(fn ($file) => str_starts_with((string) $file->mime_type, 'image/') && filled($file->preview_url))
+            $previewableFiles = $allFiles
+                ->filter(fn ($file) => (
+                    str_starts_with((string) $file->mime_type, 'image/')
+                    || str_starts_with((string) $file->mime_type, 'video/')
+                ) && filled($file->preview_url))
                 ->values();
             $statusTone = match ($ticket->status) {
                 'completado' => 'green',
@@ -109,9 +112,6 @@
                 <div class="maintenance-actions">
                     <a class="maintenance-plain-btn" href="{{ route('maintenance.index') }}">
                         <i class="bi bi-arrow-left"></i> Regresar
-                    </a>
-                    <a class="maintenance-plain-btn" href="#ticket-chat-section">
-                        <i class="bi bi-chat-dots"></i> Chat
                     </a>
                     @if ($canQuickScheduleVisit)
                         <button class="maintenance-primary-btn" type="button" data-bs-toggle="collapse"
@@ -204,12 +204,16 @@
                             <span class="maintenance-chip maintenance-chip-neutral">{{ $allFiles->count() }} archivos</span>
                         </div>
                         <div class="ticket-file-grid mb-4">
-                            @forelse ($evidenceImages as $file)
+                            @forelse ($previewableFiles as $file)
                                 <a href="{{ $file->preview_url }}" target="_blank" class="ticket-file-thumb">
-                                    <img src="{{ $file->preview_url }}" alt="{{ $file->original_name }}">
+                                    @if (str_starts_with((string) $file->mime_type, 'video/'))
+                                        <video src="{{ $file->preview_url }}" muted preload="metadata"></video>
+                                    @else
+                                        <img src="{{ $file->preview_url }}" alt="{{ $file->original_name }}">
+                                    @endif
                                 </a>
                             @empty
-                                <div class="text-muted">Sin imágenes.</div>
+                                <div class="text-muted">Sin imágenes o videos.</div>
                             @endforelse
                         </div>
 
@@ -255,7 +259,7 @@
                         </form>
                     </section>
 
-                    <section class="ticket-panel" id="ticket-chat-section">
+                    <section class="ticket-panel d-none" id="ticket-chat-section" hidden>
                         <div class="ticket-panel-header">
                             <h2 class="ticket-panel-title">Chat</h2>
                             <span class="maintenance-chip maintenance-chip-blue">{{ $visibleMessages->count() }} mensajes</span>
@@ -604,9 +608,6 @@
 
             @if ($canChangeStatus && !in_array($ticket->status, ['completado', 'cancelado'], true))
                 <div class="ticket-mobile-actionbar">
-                    <a class="maintenance-icon-btn" href="#ticket-chat-section" aria-label="Abrir chat">
-                        <i class="bi bi-chat-dots"></i>
-                    </a>
                     <form method="POST" action="{{ route('maintenance.status', $ticket) }}" class="flex-grow-1">
                         @csrf
                         @method('PATCH')

@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class MaintenanceTicketFile extends Model
 {
@@ -51,6 +51,14 @@ class MaintenanceTicketFile extends Model
 
     public function getUrlAttribute(): ?string
     {
-        return filled($this->path) ? Storage::disk('public')->url($this->path) : null;
+        if (blank($this->path)) {
+            return null;
+        }
+
+        if (Str::startsWith((string) $this->path, ['http://', 'https://', '//'])) {
+            return (string) $this->path;
+        }
+
+        return '/storage/' . ltrim((string) $this->path, '/');
     }
 }
