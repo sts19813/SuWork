@@ -1187,6 +1187,16 @@
                 });
             });
 
+            document.querySelectorAll('.maintenance-ticket-row .dropdown').forEach((dropdown) => {
+                const row = dropdown.closest('.maintenance-ticket-row');
+                dropdown.addEventListener('shown.bs.dropdown', () => {
+                    row?.classList.add('is-dropdown-open');
+                });
+                dropdown.addEventListener('hidden.bs.dropdown', () => {
+                    row?.classList.remove('is-dropdown-open');
+                });
+            });
+
             const renderNotice = (type, message) => {
                 if (window.SuWorkToast?.fire) {
                     window.SuWorkToast.fire(type, message);
