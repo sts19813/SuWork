@@ -182,6 +182,7 @@ Route::middleware(['auth', 'system.access'])
         Route::post('/mantenimiento/{maintenance}/asignar', [MaintenanceController::class, 'assign'])->name('maintenance.assign');
         Route::put('/mantenimiento/{maintenance}/costos', [MaintenanceController::class, 'updateCosts'])->name('maintenance.costs');
         Route::post('/mantenimiento/{maintenance}/archivos', [MaintenanceController::class, 'uploadFiles'])->name('maintenance.files');
+        Route::delete('/mantenimiento/{maintenance}/archivos/{file}', [MaintenanceController::class, 'destroyFile'])->name('maintenance.files.destroy');
         Route::post('/mantenimiento/{maintenance}/mensajes', [MaintenanceController::class, 'storeMessage'])->name('maintenance.messages');
         Route::post('/mantenimiento/proveedores', [MaintenanceController::class, 'storeProvider'])->name('maintenance.providers.store');
         Route::put('/mantenimiento/proveedores/{provider}', [MaintenanceController::class, 'updateProvider'])->name('maintenance.providers.update');

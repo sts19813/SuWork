@@ -26,6 +26,7 @@
                 ->filter(fn ($file) => (
                     str_starts_with((string) $file->mime_type, 'image/')
                     || str_starts_with((string) $file->mime_type, 'video/')
+                    || (string) $file->mime_type === 'application/pdf'
                 ) && filled($file->preview_url))
                 ->values();
             $statusTone = match ($ticket->status) {
@@ -200,20 +201,29 @@
 
                     <section class="ticket-panel">
                         <div class="ticket-panel-header">
-                            <h2 class="ticket-panel-title">Evidencias y archivos</h2>
+                            <h2 class="ticket-panel-title">Evidencias y archivos del incidente</h2>
                             <span class="maintenance-chip maintenance-chip-neutral">{{ $allFiles->count() }} archivos</span>
                         </div>
                         <div class="ticket-file-grid mb-4">
                             @forelse ($previewableFiles as $file)
-                                <a href="{{ $file->preview_url }}" target="_blank" class="ticket-file-thumb">
+                                <button type="button" class="ticket-file-thumb js-ticket-file-preview"
+                                    data-file-url="{{ $file->preview_url }}"
+                                    data-file-name="{{ $file->original_name }}"
+                                    data-file-mime="{{ $file->mime_type }}"
+                                    data-file-download="{{ $file->preview_url }}">
                                     @if (str_starts_with((string) $file->mime_type, 'video/'))
                                         <video src="{{ $file->preview_url }}" muted preload="metadata"></video>
+                                    @elseif ((string) $file->mime_type === 'application/pdf')
+                                        <span class="ticket-file-pdf-thumb">
+                                            <i class="bi bi-file-earmark-pdf"></i>
+                                            <span>{{ $file->original_name }}</span>
+                                        </span>
                                     @else
                                         <img src="{{ $file->preview_url }}" alt="{{ $file->original_name }}">
                                     @endif
-                                </a>
+                                </button>
                             @empty
-                                <div class="text-muted">Sin imágenes o videos.</div>
+                                <div class="text-muted">Sin imágenes, videos o PDFs.</div>
                             @endforelse
                         </div>
 
@@ -226,11 +236,25 @@
                                             {{ \App\Models\MaintenanceTicketFile::KIND_LABELS[$file->kind] ?? $file->kind }} · {{ $file->created_at?->format('d/m/Y H:i') ?: '-' }}
                                         </div>
                                     </div>
-                                    @if ($file->preview_url)
-                                        <a class="maintenance-icon-btn" href="{{ $file->preview_url }}" target="_blank" aria-label="Abrir archivo">
-                                            <i class="bi bi-box-arrow-up-right"></i>
-                                        </a>
-                                    @endif
+                                    <div class="ticket-file-actions">
+                                        @if ($file->preview_url)
+                                            <button type="button" class="maintenance-icon-btn js-ticket-file-preview"
+                                                aria-label="Ver archivo"
+                                                data-file-url="{{ $file->preview_url }}"
+                                                data-file-name="{{ $file->original_name }}"
+                                                data-file-mime="{{ $file->mime_type }}"
+                                                data-file-download="{{ $file->preview_url }}">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        @endif
+                                        <form method="POST" action="{{ route('maintenance.files.destroy', [$ticket, $file]) }}" class="m-0 js-delete-ticket-file">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="maintenance-icon-btn ticket-file-delete-btn" aria-label="Eliminar archivo">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
                             @empty
                                 <div class="text-muted">No hay archivos cargados.</div>
@@ -726,6 +750,32 @@
         </div>
     @endif
 
+    <div class="modal fade" id="ticketFilePreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable ticket-file-modal-dialog">
+            <div class="modal-content ticket-file-modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title" id="ticketFilePreviewTitle">Archivo</h3>
+                    <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button>
+                </div>
+                <div class="modal-body ticket-file-modal-body">
+                    <img src="" alt="" class="ticket-file-modal-media d-none" id="ticketFilePreviewImage">
+                    <video src="" class="ticket-file-modal-media d-none" id="ticketFilePreviewVideo" controls></video>
+                    <iframe src="" class="ticket-file-modal-frame d-none" id="ticketFilePreviewPdf" title="Vista previa PDF"></iframe>
+                    <div class="ticket-file-modal-fallback d-none" id="ticketFilePreviewFallback">
+                        <i class="bi bi-file-earmark"></i>
+                        <div>Este archivo no tiene vista previa dentro del navegador.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a href="#" class="btn btn-light-primary" id="ticketFilePreviewDownload" download>
+                        <i class="bi bi-download"></i> Descargar
+                    </a>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 @endsection
 
 @push('scripts')
@@ -736,6 +786,82 @@
             const ticketUuid = @json($ticket->uuid);
             const providerSelect = document.querySelector('.js-ticket-meta[data-field="provider_id"]');
             const providerScheduledValue = () => providerSelect?.dataset.scheduledVisitAt || @json($ticket->scheduled_visit_at?->format('Y-m-d\\TH:i:s'));
+            const fileModalEl = document.getElementById('ticketFilePreviewModal');
+            const fileModal = fileModalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(fileModalEl) : null;
+            const fileModalTitle = document.getElementById('ticketFilePreviewTitle');
+            const fileModalImage = document.getElementById('ticketFilePreviewImage');
+            const fileModalVideo = document.getElementById('ticketFilePreviewVideo');
+            const fileModalPdf = document.getElementById('ticketFilePreviewPdf');
+            const fileModalFallback = document.getElementById('ticketFilePreviewFallback');
+            const fileModalDownload = document.getElementById('ticketFilePreviewDownload');
+            const hideFilePreviewElements = () => {
+                [fileModalImage, fileModalVideo, fileModalPdf, fileModalFallback].forEach((element) => {
+                    element?.classList.add('d-none');
+                });
+                if (fileModalVideo) {
+                    fileModalVideo.pause();
+                    fileModalVideo.removeAttribute('src');
+                    fileModalVideo.load();
+                }
+                if (fileModalImage) fileModalImage.removeAttribute('src');
+                if (fileModalPdf) fileModalPdf.removeAttribute('src');
+            };
+            const openFilePreview = (button) => {
+                const url = button.dataset.fileUrl || '';
+                const name = button.dataset.fileName || 'Archivo';
+                const mime = button.dataset.fileMime || '';
+                if (!url || !fileModal) return;
+
+                hideFilePreviewElements();
+                if (fileModalTitle) fileModalTitle.textContent = name;
+                if (fileModalDownload) {
+                    fileModalDownload.href = button.dataset.fileDownload || url;
+                    fileModalDownload.setAttribute('download', name);
+                }
+
+                if (mime.startsWith('image/') && fileModalImage) {
+                    fileModalImage.src = url;
+                    fileModalImage.alt = name;
+                    fileModalImage.classList.remove('d-none');
+                } else if (mime.startsWith('video/') && fileModalVideo) {
+                    fileModalVideo.src = url;
+                    fileModalVideo.classList.remove('d-none');
+                    fileModalVideo.load();
+                } else if (mime === 'application/pdf' && fileModalPdf) {
+                    fileModalPdf.src = url;
+                    fileModalPdf.classList.remove('d-none');
+                } else {
+                    fileModalFallback?.classList.remove('d-none');
+                }
+
+                fileModal.show();
+            };
+
+            document.querySelectorAll('.js-ticket-file-preview').forEach((button) => {
+                button.addEventListener('click', () => openFilePreview(button));
+            });
+            fileModalEl?.addEventListener('hidden.bs.modal', hideFilePreviewElements);
+            document.querySelectorAll('.js-delete-ticket-file').forEach((form) => {
+                form.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+                    let confirmed = false;
+                    if (window.Swal?.fire) {
+                        const result = await window.Swal.fire({
+                            icon: 'warning',
+                            title: 'Eliminar archivo',
+                            text: 'Esta acción eliminará el archivo del ticket.',
+                            showCancelButton: true,
+                            confirmButtonText: 'Sí, eliminar',
+                            cancelButtonText: 'Cancelar',
+                            confirmButtonColor: '#d92d20',
+                        });
+                        confirmed = result.isConfirmed === true;
+                    } else {
+                        confirmed = window.confirm('¿Eliminar este archivo del ticket?');
+                    }
+                    if (confirmed) form.submit();
+                });
+            });
             const askConfirmation = async (message) => {
                 if (window.Swal?.fire) {
                     const result = await window.Swal.fire({

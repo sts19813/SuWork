@@ -136,7 +136,7 @@ class MaintenanceModuleTest extends TestCase
             ->get(route('maintenance.show', $ticket));
 
         $response->assertOk();
-        $response->assertSee('Evidencias y archivos');
+        $response->assertSee('Evidencias y archivos del incidente');
         $response->assertSee('Chat');
         $response->assertSee('Costos, evidencias de cierre y firma');
     }
@@ -178,6 +178,15 @@ class MaintenanceModuleTest extends TestCase
             'size' => 456,
             'is_compressed' => false,
         ]);
+        $ticket->files()->create([
+            'uploaded_by_user_id' => $user->id,
+            'kind' => 'documento',
+            'path' => 'maintenance/' . $ticket->id . '/documento/reporte.pdf',
+            'original_name' => 'reporte.pdf',
+            'mime_type' => 'application/pdf',
+            'size' => 789,
+            'is_compressed' => false,
+        ]);
 
         $response = $this
             ->actingAs($user)
@@ -186,10 +195,53 @@ class MaintenanceModuleTest extends TestCase
         $response->assertOk();
         $response->assertSee('/storage/maintenance/' . $ticket->id . '/evidencia/foto.jpg', false);
         $response->assertSee('/storage/maintenance/' . $ticket->id . '/video/video.mp4', false);
+        $response->assertSee('/storage/maintenance/' . $ticket->id . '/documento/reporte.pdf', false);
         $response->assertSee('<video', false);
+        $response->assertSee('ticketFilePreviewModal', false);
+        $response->assertSee('application/pdf', false);
+        $response->assertSee('js-delete-ticket-file', false);
         $response->assertDontSee('http://localhost/storage/maintenance/', false);
         $response->assertDontSee('href="#ticket-chat-section"', false);
         $response->assertSee('<section class="ticket-panel d-none" id="ticket-chat-section" hidden>', false);
+    }
+
+    public function test_ticket_file_can_be_deleted_from_detail(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $property = $this->createPropertyFixture($user);
+        $ticket = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'alta',
+            'status' => 'pendiente',
+            'title' => 'Eliminar evidencia',
+            'exact_location' => 'Cocina',
+            'description' => 'Archivo para borrar',
+            'reported_at' => now(),
+        ]);
+        $path = 'maintenance/' . $ticket->id . '/evidencia/foto.jpg';
+        Storage::disk('public')->put($path, 'fake-image');
+        $file = $ticket->files()->create([
+            'uploaded_by_user_id' => $user->id,
+            'kind' => 'evidencia',
+            'path' => $path,
+            'original_name' => 'foto.jpg',
+            'mime_type' => 'image/jpeg',
+            'size' => 10,
+            'is_compressed' => false,
+        ]);
+
+        $this->actingAs($user)
+            ->delete(route('maintenance.files.destroy', [$ticket, $file]))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('maintenance_ticket_files', ['id' => $file->id]);
+        Storage::disk('public')->assertMissing($path);
     }
 
     public function test_ticket_can_be_assigned_and_completed(): void

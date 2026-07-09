@@ -844,6 +844,25 @@ class MaintenanceController extends Controller
         return redirect()->back()->with('success', 'Archivos agregados correctamente.');
     }
 
+    public function destroyFile(Request $request, MaintenanceTicket $maintenance, MaintenanceTicketFile $file): RedirectResponse
+    {
+        $user = $request->user();
+        $role = $this->resolveRole($user);
+        $this->ensureTicketVisible($maintenance, $user, $role);
+
+        if ((int) $file->ticket_id !== (int) $maintenance->id) {
+            abort(404);
+        }
+
+        if (filled($file->path)) {
+            Storage::disk('public')->delete((string) $file->path);
+        }
+
+        $file->delete();
+
+        return redirect()->back()->with('success', 'Archivo eliminado correctamente.');
+    }
+
     public function storeMessage(Request $request, MaintenanceTicket $maintenance): RedirectResponse
     {
         $user = $request->user();
