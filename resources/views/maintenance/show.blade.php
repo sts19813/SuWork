@@ -531,7 +531,7 @@
                             </span>
                         </div>
                         @if ($canChangeStatus)
-                            <form method="POST" action="{{ route('maintenance.status', $ticket) }}" class="row g-3 mb-4">
+                            <form method="POST" action="{{ route('maintenance.status', $ticket) }}" class="row g-3 mb-4 js-ticket-status-form">
                                 @csrf
                                 @method('PATCH')
                                 <div class="col-12">
@@ -547,7 +547,10 @@
                                     <textarea class="form-control" name="notes" rows="3" maxlength="3000" placeholder="Opcional"></textarea>
                                 </div>
                                 <div class="col-12 d-grid">
-                                    <button class="maintenance-primary-btn">Actualizar estado</button>
+                                    <button class="maintenance-primary-btn js-ticket-status-submit" type="submit">
+                                        <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                                        <span class="js-ticket-status-submit-text">Actualizar estado</span>
+                                    </button>
                                 </div>
                             </form>
                         @endif
@@ -894,6 +897,32 @@
                         confirmed = window.confirm('¿Eliminar este archivo del ticket?');
                     }
                     if (confirmed) form.submit();
+                });
+            });
+            document.querySelectorAll('.js-ticket-status-form').forEach((form) => {
+                form.addEventListener('submit', () => {
+                    const button = form.querySelector('.js-ticket-status-submit');
+                    const spinner = button?.querySelector('.spinner-border');
+                    const text = button?.querySelector('.js-ticket-status-submit-text');
+                    if (!button) return;
+
+                    const loadingMessages = [
+                        'Guardando cambios...',
+                        'Actualizando historial...',
+                        'Notificando al técnico...',
+                        'Procesando solicitud...',
+                    ];
+                    let messageIndex = 0;
+                    button.disabled = true;
+                    button.setAttribute('aria-busy', 'true');
+                    spinner?.classList.remove('d-none');
+                    if (text) {
+                        text.textContent = loadingMessages[messageIndex];
+                        window.setInterval(() => {
+                            messageIndex = (messageIndex + 1) % loadingMessages.length;
+                            text.textContent = loadingMessages[messageIndex];
+                        }, 2800);
+                    }
                 });
             });
             const askConfirmation = async (message) => {

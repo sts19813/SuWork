@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Mail\MaintenanceTicketEventMail;
 use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
+use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyType;
 use App\Models\Tenant;
@@ -320,6 +322,85 @@ class MaintenanceModuleTest extends TestCase
             'ticket_id' => $ticket->id,
             'to_status' => 'completado',
         ]);
+    }
+
+    public function test_status_change_notifies_only_advisor_assigned_technician_and_tenant(): void
+    {
+        Mail::fake();
+
+        Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        $admin = User::factory()->create(['email' => 'admin@example.com']);
+        $admin->assignRole('administrador');
+        $advisor = User::factory()->create(['email' => 'advisor@example.com']);
+        $technicianUser = User::factory()->create(['email' => 'technician-user@example.com']);
+        $tenant = Tenant::create([
+            'full_name' => 'Inquilino Notificado',
+            'phone_primary' => '9991112233',
+            'email' => 'tenant@example.com',
+            'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
+            'is_active' => true,
+        ]);
+        $owner = Owner::create([
+            'name' => 'Propietario No Notificado',
+            'phone' => '9992223344',
+            'email' => 'owner@example.com',
+            'is_active' => true,
+        ]);
+        $property = $this->createPropertyFixture($admin);
+        $property->update(['tenant_id' => $tenant->id]);
+        $property->advisors()->attach($advisor->id);
+        $property->owners()->attach($owner->id);
+        $provider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico asignado',
+            'email' => 'technician-provider@example.com',
+            'specialty' => 'Electricidad',
+            'user_id' => $technicianUser->id,
+            'is_active' => true,
+        ]);
+        $ticket = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $admin->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $admin->name,
+            'current_provider_id' => $provider->id,
+            'category' => 'electricidad',
+            'priority' => 'media',
+            'status' => 'pendiente',
+            'title' => 'Cambio de estado con destinatarios limitados',
+            'exact_location' => 'Sala',
+            'description' => 'Validar destinatarios',
+            'reported_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('maintenance.status', $ticket), [
+                'status' => 'completado',
+                'notes' => 'Trabajo finalizado',
+            ])
+            ->assertRedirect();
+
+        foreach (['advisor@example.com', 'technician-provider@example.com', 'technician-user@example.com', 'tenant@example.com'] as $recipient) {
+            $this->assertDatabaseHas('maintenance_ticket_notifications', [
+                'ticket_id' => $ticket->id,
+                'event' => 'cierre',
+                'recipient' => $recipient,
+            ]);
+        }
+        Mail::assertSent(MaintenanceTicketEventMail::class, 4);
+        Mail::assertSent(MaintenanceTicketEventMail::class, function (MaintenanceTicketEventMail $mail) use ($ticket): bool {
+            return $mail->ticket->is($ticket)
+                && $mail->event === 'cierre'
+                && $mail->subjectLine === 'Ticket de mantenimiento completado';
+        });
+
+        foreach (['owner@example.com', 'admin@example.com'] as $recipient) {
+            $this->assertDatabaseMissing('maintenance_ticket_notifications', [
+                'ticket_id' => $ticket->id,
+                'event' => 'cierre',
+                'recipient' => $recipient,
+            ]);
+        }
     }
 
     public function test_ticket_priority_and_provider_can_be_changed_from_index_panel(): void
