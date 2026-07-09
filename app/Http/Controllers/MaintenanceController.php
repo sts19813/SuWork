@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreMaintenanceTicketRequest;
 use App\Http\Requests\UpdateMaintenanceTicketRequest;
+use App\Mail\MaintenanceTicketEventMail;
 use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\MaintenanceTicketAssignment;
@@ -1498,6 +1499,7 @@ class MaintenanceController extends Controller
         $notificationEvent = $event === 'nuevo_reporte'
             ? NotificationSettings::EVENT_MAINTENANCE_CREATED
             : NotificationSettings::EVENT_MAINTENANCE_UPDATED;
+        $isStatusEvent = in_array($event, ['cambio_estado', 'cierre'], true);
 
         $adminRecipients = User::query()
             ->whereHas('roles', fn ($query) => $query->whereIn('name', ['administrador', 'admin']))
@@ -1507,11 +1509,7 @@ class MaintenanceController extends Controller
                 'role' => NotificationSettings::ROLE_ADMIN,
             ]);
 
-        $recipients = collect([
-            [
-                'email' => $ticket->reporter?->email,
-                'role' => NotificationSettings::roleForUser($ticket->reporter),
-            ],
+        $statusRecipients = collect([
             [
                 'email' => $ticket->currentProvider?->email,
                 'role' => NotificationSettings::ROLE_TECHNICIAN,
@@ -1528,12 +1526,21 @@ class MaintenanceController extends Controller
                 'email' => $advisor->email,
                 'role' => NotificationSettings::ROLE_ADVISOR,
             ])->all() ?? []),
+        ]);
+
+        $eventRecipients = collect([
+            [
+                'email' => $ticket->reporter?->email,
+                'role' => NotificationSettings::roleForUser($ticket->reporter),
+            ],
             ...($ticket->property?->owners?->map(fn ($owner): array => [
                 'email' => $owner->email,
                 'role' => null,
             ])->all() ?? []),
-        ])
-            ->merge($adminRecipients)
+        ]);
+
+        $recipients = ($isStatusEvent ? $statusRecipients : $statusRecipients->merge($eventRecipients))
+            ->when(!$isStatusEvent, fn ($recipients) => $recipients->merge($adminRecipients))
             ->filter(fn (array $recipient): bool => filled($recipient['email']))
             ->filter(function (array $recipient) use ($notificationEvent): bool {
                 return !$recipient['role'] || NotificationSettings::allows($recipient['role'], $notificationEvent);
@@ -1545,13 +1552,7 @@ class MaintenanceController extends Controller
         foreach ($recipients as $email) {
             $sent = false;
             try {
-                Mail::raw(
-                    "Ticket {$ticket->uuid}\nEstado: {$ticket->status}\nTítulo: {$ticket->title}\nPropiedad: " .
-                    ($ticket->property?->internal_name ?? '-') .
-                    "\nPrioridad: {$ticket->priority}" .
-                    "\nVisita programada: " . ($ticket->scheduled_visit_at?->format('Y-m-d H:i') ?? 'Sin agenda'),
-                    fn($mail) => $mail->to($email)->subject($subject)
-                );
+                Mail::to($email)->send(new MaintenanceTicketEventMail($ticket, $event, $subject));
                 $sent = true;
             } catch (\Throwable) {
                 $sent = false;
