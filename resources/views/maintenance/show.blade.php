@@ -247,60 +247,6 @@
                         </form>
                     </section>
 
-                    <section class="ticket-panel">
-                        <div class="ticket-panel-header">
-                            <h2 class="ticket-panel-title">Evidencias y archivos del trabajo finalizado</h2>
-                            <span class="maintenance-chip maintenance-chip-neutral">{{ $finishedWorkFiles->count() }} archivos</span>
-                        </div>
-                        <div class="ticket-file-grid mb-4">
-                            @forelse ($finishedWorkFiles as $file)
-                                <div class="ticket-file-tile">
-                                    <button type="button" class="ticket-file-thumb js-ticket-file-preview"
-                                        data-file-url="{{ $file->preview_url }}"
-                                        data-file-name="{{ $file->original_name }}"
-                                        data-file-mime="{{ $file->mime_type }}"
-                                        data-file-download="{{ $file->preview_url }}"
-                                        data-file-delete-url="{{ route('maintenance.files.destroy', [$ticket, $file]) }}">
-                                        @if (str_starts_with((string) $file->mime_type, 'video/'))
-                                            <video src="{{ $file->preview_url }}" muted preload="metadata"></video>
-                                        @elseif ((string) $file->mime_type === 'application/pdf')
-                                            <span class="ticket-file-pdf-thumb">
-                                                <i class="bi bi-file-earmark-pdf"></i>
-                                                <span>{{ $file->original_name }}</span>
-                                            </span>
-                                        @elseif (str_starts_with((string) $file->mime_type, 'image/'))
-                                            <img src="{{ $file->preview_url }}" alt="{{ $file->original_name }}">
-                                        @else
-                                            <span class="ticket-file-pdf-thumb">
-                                                <i class="bi bi-file-earmark"></i>
-                                                <span>{{ $file->original_name }}</span>
-                                            </span>
-                                        @endif
-                                    </button>
-                                    <div class="ticket-file-caption">
-                                        {{ \App\Models\MaintenanceTicketFile::KIND_LABELS[$file->kind] ?? $file->kind }} · {{ $file->created_at?->format('d/m/Y H:i') ?: '-' }}
-                                    </div>
-                                </div>
-                            @empty
-                                <div class="text-muted">No hay archivos cargados.</div>
-                            @endforelse
-                        </div>
-
-                        <form method="POST" action="{{ route('maintenance.files', $ticket) }}" enctype="multipart/form-data" class="row g-3 align-items-end">
-                            @csrf
-                            <input type="hidden" name="kind" value="trabajo_finalizado">
-                            <div class="col-md-9">
-                                <label class="form-label">Archivos</label>
-                                <input class="form-control" type="file" name="files[]" multiple required>
-                            </div>
-                            <div class="col-md-3 d-grid">
-                                <button class="maintenance-primary-btn">
-                                    <i class="bi bi-upload"></i> Subir
-                                </button>
-                            </div>
-                        </form>
-                    </section>
-
                     <section class="ticket-panel d-none" id="ticket-chat-section" hidden>
                         <div class="ticket-panel-header">
                             <h2 class="ticket-panel-title">Chat</h2>
@@ -412,7 +358,10 @@
                                                 </td>
                                                 <td>
                                                     @if ($costRow->expense?->files?->isNotEmpty())
-                                                        @include('expenses.partials.attachments', ['files' => $costRow->expense->files])
+                                                        @include('expenses.partials.attachments', [
+                                                            'files' => $costRow->expense->files,
+                                                            'previewInModal' => true,
+                                                        ])
                                                     @else
                                                         <span class="text-muted">-</span>
                                                     @endif
@@ -429,6 +378,60 @@
                             </div>
                         </section>
                     @endif
+
+                    <section class="ticket-panel">
+                        <div class="ticket-panel-header">
+                            <h2 class="ticket-panel-title">Evidencias y archivos del trabajo finalizado</h2>
+                            <span class="maintenance-chip maintenance-chip-neutral">{{ $finishedWorkFiles->count() }} archivos</span>
+                        </div>
+                        <div class="ticket-file-grid mb-4">
+                            @forelse ($finishedWorkFiles as $file)
+                                <div class="ticket-file-tile">
+                                    <button type="button" class="ticket-file-thumb js-ticket-file-preview"
+                                        data-file-url="{{ $file->preview_url }}"
+                                        data-file-name="{{ $file->original_name }}"
+                                        data-file-mime="{{ $file->mime_type }}"
+                                        data-file-download="{{ $file->preview_url }}"
+                                        data-file-delete-url="{{ route('maintenance.files.destroy', [$ticket, $file]) }}">
+                                        @if (str_starts_with((string) $file->mime_type, 'video/'))
+                                            <video src="{{ $file->preview_url }}" muted preload="metadata"></video>
+                                        @elseif ((string) $file->mime_type === 'application/pdf')
+                                            <span class="ticket-file-pdf-thumb">
+                                                <i class="bi bi-file-earmark-pdf"></i>
+                                                <span>{{ $file->original_name }}</span>
+                                            </span>
+                                        @elseif (str_starts_with((string) $file->mime_type, 'image/'))
+                                            <img src="{{ $file->preview_url }}" alt="{{ $file->original_name }}">
+                                        @else
+                                            <span class="ticket-file-pdf-thumb">
+                                                <i class="bi bi-file-earmark"></i>
+                                                <span>{{ $file->original_name }}</span>
+                                            </span>
+                                        @endif
+                                    </button>
+                                    <div class="ticket-file-caption">
+                                        {{ \App\Models\MaintenanceTicketFile::KIND_LABELS[$file->kind] ?? $file->kind }} · {{ $file->created_at?->format('d/m/Y H:i') ?: '-' }}
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="text-muted">No hay archivos cargados.</div>
+                            @endforelse
+                        </div>
+
+                        <form method="POST" action="{{ route('maintenance.files', $ticket) }}" enctype="multipart/form-data" class="row g-3 align-items-end">
+                            @csrf
+                            <input type="hidden" name="kind" value="trabajo_finalizado">
+                            <div class="col-md-9">
+                                <label class="form-label">Archivos</label>
+                                <input class="form-control" type="file" name="files[]" multiple required>
+                            </div>
+                            <div class="col-md-3 d-grid">
+                                <button class="maintenance-primary-btn">
+                                    <i class="bi bi-upload"></i> Subir
+                                </button>
+                            </div>
+                        </form>
+                    </section>
 
                     <section class="ticket-panel" id="ticket-history-section">
                         <div class="ticket-panel-header">
@@ -923,7 +926,9 @@
                     fileModalDownload.setAttribute('download', name);
                 }
                 if (fileModalDeleteForm) {
-                    fileModalDeleteForm.action = button.dataset.fileDeleteUrl || '#';
+                    const deleteUrl = button.dataset.fileDeleteUrl || '';
+                    fileModalDeleteForm.classList.toggle('d-none', deleteUrl === '');
+                    if (deleteUrl !== '') fileModalDeleteForm.action = deleteUrl;
                 }
 
                 if (mime.startsWith('image/') && fileModalImage) {

@@ -142,7 +142,11 @@ class MaintenanceModuleTest extends TestCase
         $response->assertSee('Evidencias y archivos del incidente');
         $response->assertSee('Evidencias y archivos del trabajo finalizado');
         $response->assertSee('Chat');
-        $response->assertSee('Costos y gastos del incidente ');
+        $response->assertSee('Costos y gastos del incidente');
+        $response->assertSeeInOrder([
+            'Costos y gastos del incidente',
+            'Evidencias y archivos del trabajo finalizado',
+        ]);
     }
 
     public function test_ticket_detail_uses_relative_file_urls_and_hides_chat_card(): void
@@ -287,7 +291,8 @@ class MaintenanceModuleTest extends TestCase
             ->get(route('maintenance.show', $ticket))
             ->assertOk()
             ->assertSee('No contabiliza')
-            ->assertSee('factura-inquilino.pdf');
+            ->assertSee('factura-inquilino.pdf')
+            ->assertSee('js-maintenance-invoice-preview', false);
 
         $this->actingAs($user)
             ->get(route('expenses.index', ['property' => $property->uuid]))

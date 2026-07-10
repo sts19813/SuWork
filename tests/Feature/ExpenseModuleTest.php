@@ -65,6 +65,8 @@ class ExpenseModuleTest extends TestCase
         $this->actingAs($user)
             ->get(route('properties.show', $property))
             ->assertOk()
+            ->assertSee('id="expenseFilePreviewModal"', false)
+            ->assertSee('js-expense-file-preview', false)
             ->assertSee('data-confirm-title="Eliminar gasto"', false)
             ->assertSee('window.Swal?.fire', false)
             ->assertDontSee("onsubmit=\"return confirm('¿Deseas eliminar este gasto?');\"", false);
