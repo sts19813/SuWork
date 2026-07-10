@@ -1169,12 +1169,14 @@ td .btn {
 }
 
 .maintenance-primary-btn {
-    background: var(--maint-primary);
+    background: var(--maint-primary, #a23520);
+    border-color: var(--maint-primary, #a23520);
     color: #ffffff;
 }
 
 .maintenance-primary-btn:hover {
-    background: var(--maint-primary-dark);
+    background: var(--maint-primary-dark, #842916);
+    border-color: var(--maint-primary-dark, #842916);
     color: #ffffff;
 }
 

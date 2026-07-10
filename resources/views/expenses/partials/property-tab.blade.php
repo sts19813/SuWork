@@ -52,6 +52,9 @@
                                     @if ($expense->recurring_expense_item_id)
                                         <span class="badge badge-light-primary text-primary mt-1">Generado automáticamente</span>
                                     @endif
+                                    @if ($expense->excluded_from_totals)
+                                        <span class="badge badge-light-secondary text-muted mt-1">Paga inquilino</span>
+                                    @endif
                                     @if ($expense->description)
                                         <div class="text-muted fs-7">{{ $expense->description }}</div>
                                     @endif

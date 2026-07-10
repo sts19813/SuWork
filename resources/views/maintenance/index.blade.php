@@ -709,7 +709,7 @@
                                                 Sin definir
                                             </option>
 
-                                            @foreach (\App\Models\MaintenanceTicket::PAYER_LABELS as $key => $label)
+                                            @foreach (\App\Models\MaintenanceTicket::COST_PAYER_LABELS as $key => $label)
                                                 <option value="{{ $key }}" {{ old('payer') === $key ? 'selected' : '' }}>
                                                     {{ $label }}
                                                 </option>

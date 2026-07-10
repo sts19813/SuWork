@@ -42,14 +42,15 @@ class ExpenseController extends Controller
                 'files:id,expense_id,path,type,mime_type,original_name',
             ])
             ->withCount('files')
-            ->when($selectedProperty, fn(Builder $query) => $query->where('property_id', $selectedProperty->id));
+            ->when($selectedProperty, fn (Builder $query) => $query->where('property_id', $selectedProperty->id));
 
         $expenses = $expensesQuery
             ->upcomingFirst()
             ->get();
 
         $summaryBaseQuery = Expense::query()
-            ->when($selectedProperty, fn(Builder $query) => $query->where('property_id', $selectedProperty->id));
+            ->includedInTotals()
+            ->when($selectedProperty, fn (Builder $query) => $query->where('property_id', $selectedProperty->id));
 
         $summary = [
             'pending_total' => (float) (clone $summaryBaseQuery)->pending()->sum('amount'),
@@ -107,7 +108,7 @@ class ExpenseController extends Controller
             ]);
 
             $removeFileIds = collect((array) ($validated['remove_file_ids'] ?? []))
-                ->map(fn($id) => (int) $id)
+                ->map(fn ($id) => (int) $id)
                 ->filter()
                 ->values();
 
@@ -169,7 +170,7 @@ class ExpenseController extends Controller
         $validated = $request->validated();
         $useGlobalSetup = (bool) ($validated['use_global_setup'] ?? true);
 
-        if (!$useGlobalSetup && !filled($validated['days_before'] ?? null)) {
+        if (! $useGlobalSetup && ! filled($validated['days_before'] ?? null)) {
             return redirect()
                 ->back()
                 ->withInput()
@@ -190,7 +191,7 @@ class ExpenseController extends Controller
         ])->save();
 
         return redirect()
-            ->to(route('properties.show', $property) . '#tab-expenses')
+            ->to(route('properties.show', $property).'#tab-expenses')
             ->with('success', 'Configuración de notificaciones de gastos actualizada.');
     }
 
@@ -198,8 +199,7 @@ class ExpenseController extends Controller
         SaveRecurringExpenseItemRequest $request,
         Property $property,
         RecurringExpenseGenerator $generator,
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         $validated = $request->validated();
 
         DB::transaction(function () use ($request, $validated, $property, $generator): void {
@@ -222,7 +222,7 @@ class ExpenseController extends Controller
         });
 
         return redirect()
-            ->to(route('properties.show', $property) . '#tab-expenses')
+            ->to(route('properties.show', $property).'#tab-expenses')
             ->with('success', 'Gasto recurrente configurado correctamente.');
     }
 
@@ -230,8 +230,7 @@ class ExpenseController extends Controller
         SaveRecurringExpenseItemRequest $request,
         RecurringExpenseItem $recurringExpenseItem,
         RecurringExpenseGenerator $generator,
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         $validated = $request->validated();
 
         $recurringExpenseItem->update([
@@ -249,7 +248,7 @@ class ExpenseController extends Controller
         $generator->generateForItem($recurringExpenseItem->fresh());
 
         return redirect()
-            ->to(route('properties.show', $recurringExpenseItem->property) . '#tab-expenses')
+            ->to(route('properties.show', $recurringExpenseItem->property).'#tab-expenses')
             ->with('success', 'Gasto recurrente actualizado correctamente.');
     }
 
@@ -266,7 +265,7 @@ class ExpenseController extends Controller
         });
 
         return redirect()
-            ->to(route('properties.show', $property) . '#tab-expenses')
+            ->to(route('properties.show', $property).'#tab-expenses')
             ->with('success', 'Gasto recurrente eliminado. Los gastos ya generados se conservaron.');
     }
 
@@ -276,7 +275,7 @@ class ExpenseController extends Controller
     private function storeExpenseFiles(Expense $expense, array $files): void
     {
         foreach ($files as $file) {
-            if (!$file instanceof UploadedFile) {
+            if (! $file instanceof UploadedFile) {
                 continue;
             }
 
@@ -302,7 +301,7 @@ class ExpenseController extends Controller
     private function storeRecurringExpenseItemFiles(RecurringExpenseItem $item, array $files): void
     {
         foreach ($files as $file) {
-            if (!$file instanceof UploadedFile) {
+            if (! $file instanceof UploadedFile) {
                 continue;
             }
 
@@ -324,7 +323,7 @@ class ExpenseController extends Controller
 
     private function deleteStoragePath(?string $path): void
     {
-        if (!filled($path)) {
+        if (! filled($path)) {
             return;
         }
 
@@ -346,8 +345,8 @@ class ExpenseController extends Controller
         }
 
         return collect($items)
-            ->map(fn($item) => trim((string) $item))
-            ->filter(fn($item) => $item !== '')
+            ->map(fn ($item) => trim((string) $item))
+            ->filter(fn ($item) => $item !== '')
             ->unique()
             ->values()
             ->all();
@@ -359,7 +358,7 @@ class ExpenseController extends Controller
 
         if ($propertyContext !== '' && Property::query()->where('uuid', $propertyContext)->exists()) {
             return redirect()
-                ->to(route('properties.show', ['property' => $propertyContext]) . '#tab-expenses')
+                ->to(route('properties.show', ['property' => $propertyContext]).'#tab-expenses')
                 ->with('success', $successMessage);
         }
 

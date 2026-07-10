@@ -56,6 +56,11 @@ class MaintenanceTicket extends Model
         'administracion' => 'Administración',
     ];
 
+    public const COST_PAYER_LABELS = [
+        'inquilino' => 'Inquilino',
+        'administracion' => 'Administración',
+    ];
+
     public const PAYMENT_RULE_LABELS = [
         'mal_uso' => 'Daños por mal uso',
         'preventivo' => 'Mantenimiento preventivo',

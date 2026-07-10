@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\MaintenanceTicket;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use App\Models\MaintenanceTicket;
 
 class StoreMaintenanceTicketRequest extends FormRequest
 {
@@ -39,7 +39,7 @@ class StoreMaintenanceTicketRequest extends FormRequest
             'additional_notes' => ['nullable', 'string', 'max:10000'],
             'reported_at' => ['required', 'date'],
             'scheduled_visit_at' => ['nullable', 'date', 'after_or_equal:reported_at'],
-            'payer' => ['nullable', Rule::in(array_keys(MaintenanceTicket::PAYER_LABELS))],
+            'payer' => ['nullable', Rule::in(array_keys(MaintenanceTicket::COST_PAYER_LABELS))],
             'payment_rule' => ['nullable', Rule::in(array_keys(MaintenanceTicket::PAYMENT_RULE_LABELS))],
             'payment_rule_notes' => ['nullable', 'string', 'max:3000'],
             'provider_id' => ['nullable', 'integer', 'exists:maintenance_providers,id'],

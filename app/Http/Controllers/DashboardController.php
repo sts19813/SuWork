@@ -259,7 +259,7 @@ class DashboardController extends Controller
                     'tone' => 'warning',
                     'icon' => 'bi-file-earmark-text',
                     'title' => $property->internal_name,
-                    'subtitle' => 'Contrato vence ' . optional($property->contract_expires_at)->translatedFormat('d M Y'),
+                    'subtitle' => 'Contrato vence '.optional($property->contract_expires_at)->translatedFormat('d M Y'),
                     'detail' => $property->tenant?->full_name ?: 'Sin inquilino asignado',
                     'route' => route('properties.show', $property),
                 ];
@@ -279,8 +279,8 @@ class DashboardController extends Controller
                     'tone' => 'danger',
                     'icon' => 'bi-exclamation-octagon',
                     'title' => $charge->property?->internal_name ?: 'Propiedad',
-                    'subtitle' => 'Atraso de cobranza por ' . $this->money($charge->outstanding_amount),
-                    'detail' => ($charge->tenant?->full_name ?: 'Sin inquilino') . ' · vence ' . optional($charge->due_date)->translatedFormat('d M Y'),
+                    'subtitle' => 'Atraso de cobranza por '.$this->money($charge->outstanding_amount),
+                    'detail' => ($charge->tenant?->full_name ?: 'Sin inquilino').' · vence '.optional($charge->due_date)->translatedFormat('d M Y'),
                     'route' => route('charges.show', $charge),
                 ];
             });
@@ -376,6 +376,7 @@ class DashboardController extends Controller
             $income = (float) $incomeQuery->sum('amount');
 
             $expensesQuery = Expense::query()
+                ->includedInTotals()
                 ->where(function ($query) use ($monthStart, $monthEnd): void {
                     $query->whereBetween('paid_at', [$monthStart->copy()->startOfDay(), $monthEnd->copy()->endOfDay()])
                         ->orWhere(function ($nested) use ($monthStart, $monthEnd): void {
@@ -423,14 +424,14 @@ class DashboardController extends Controller
             return $this->periodForPreset($preset);
         }
 
-        if ($preset === 'custom' || !empty($validated['start_date']) || !empty($validated['end_date'])) {
-            $start = !empty($validated['start_date'])
+        if ($preset === 'custom' || ! empty($validated['start_date']) || ! empty($validated['end_date'])) {
+            $start = ! empty($validated['start_date'])
                 ? Carbon::parse($validated['start_date'])->startOfDay()
-                : (!empty($validated['end_date'])
+                : (! empty($validated['end_date'])
                     ? Carbon::parse($validated['end_date'])->startOfMonth()
                     : now()->startOfMonth());
 
-            $end = !empty($validated['end_date'])
+            $end = ! empty($validated['end_date'])
                 ? Carbon::parse($validated['end_date'])->endOfDay()
                 : $start->copy()->endOfMonth();
 
@@ -445,7 +446,7 @@ class DashboardController extends Controller
             ];
         }
 
-        if (!empty($validated['month'])) {
+        if (! empty($validated['month'])) {
             $month = Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth();
 
             return [
@@ -495,7 +496,7 @@ class DashboardController extends Controller
 
     private function isChargeOverdueForReference(Charge $charge, Carbon $referenceDate): bool
     {
-        if (!in_array($charge->status, [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL], true)) {
+        if (! in_array($charge->status, [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL], true)) {
             return false;
         }
 
@@ -535,16 +536,16 @@ class DashboardController extends Controller
             }
 
             return ucfirst($periodStart->translatedFormat('F Y'))
-                . ' - '
-                . ucfirst($periodEnd->translatedFormat('F Y'));
+                .' - '
+                .ucfirst($periodEnd->translatedFormat('F Y'));
         }
 
-        return $periodStart->translatedFormat('d M Y') . ' - ' . $periodEnd->translatedFormat('d M Y');
+        return $periodStart->translatedFormat('d M Y').' - '.$periodEnd->translatedFormat('d M Y');
     }
 
     private function money(float $amount): string
     {
-        return '$' . number_format($amount, 2);
+        return '$'.number_format($amount, 2);
     }
 
     private function isAdvisorUser(Request $request): bool
@@ -552,8 +553,8 @@ class DashboardController extends Controller
         $user = $request->user();
 
         return (bool) $user
-            && !$user->hasRole('administrador')
-            && !$user->hasRole('admin')
+            && ! $user->hasRole('administrador')
+            && ! $user->hasRole('admin')
             && ($user->hasRole('asesores') || $user->can('propiedades.ver_propias'));
     }
 
@@ -561,7 +562,7 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return collect();
         }
 

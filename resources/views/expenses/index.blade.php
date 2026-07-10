@@ -278,6 +278,9 @@
                                     <div class="expenses-list-title">
                                         {{ $expense->concept }}
                                     </div>
+                                    @if ($expense->excluded_from_totals)
+                                        <span class="badge badge-light-secondary text-muted mt-1">Paga inquilino · No contabiliza</span>
+                                    @endif
 
                                     @if ($expense->description)
                                         <div class="expenses-list-meta">

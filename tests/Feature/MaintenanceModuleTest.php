@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Mail\MaintenanceTicketEventMail;
+use App\Models\Expense;
 use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\Owner;
@@ -141,7 +142,7 @@ class MaintenanceModuleTest extends TestCase
         $response->assertSee('Evidencias y archivos del incidente');
         $response->assertSee('Evidencias y archivos del trabajo finalizado');
         $response->assertSee('Chat');
-        $response->assertSee('Costos, evidencias de cierre y firma');
+        $response->assertSee('Costos y gastos del incidente ');
     }
 
     public function test_ticket_detail_uses_relative_file_urls_and_hides_chat_card(): void
@@ -223,6 +224,81 @@ class MaintenanceModuleTest extends TestCase
         $response->assertDontSee('http://localhost/storage/maintenance/', false);
         $response->assertDontSee('href="#ticket-chat-section"', false);
         $response->assertSee('<section class="ticket-panel d-none" id="ticket-chat-section" hidden>', false);
+    }
+
+    public function test_multiple_costs_create_expenses_and_tenant_costs_are_excluded_from_totals(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $property = $this->createPropertyFixture($user);
+        $ticket = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'alta',
+            'status' => 'pendiente',
+            'title' => 'Reparación de tubería',
+            'exact_location' => 'Cocina',
+            'description' => 'Cambio de tubería dañada',
+            'reported_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('maintenance.show', $ticket))
+            ->put(route('maintenance.costs', $ticket), [
+                'labor_cost' => 300,
+                'material_cost' => 200,
+                'final_cost' => 9999,
+                'currency' => 'MXN',
+                'payer' => 'inquilino',
+                'payment_rule' => 'mal_uso',
+                'is_paid' => '1',
+                'notes' => 'Daño atribuible al inquilino',
+                'invoice_files' => [UploadedFile::fake()->create('factura-inquilino.pdf', 100, 'application/pdf')],
+            ])
+            ->assertRedirect(route('maintenance.show', $ticket));
+
+        $this->actingAs($user)
+            ->from(route('maintenance.show', $ticket))
+            ->put(route('maintenance.costs', $ticket), [
+                'labor_cost' => 400,
+                'material_cost' => 200,
+                'currency' => 'MXN',
+                'payer' => 'administracion',
+                'payment_rule' => 'preventivo',
+            ])
+            ->assertRedirect(route('maintenance.show', $ticket));
+
+        $this->assertSame(2, $ticket->costs()->count());
+        $this->assertSame(2, Expense::query()->where('property_id', $property->id)->count());
+        $this->assertSame(600.0, (float) Expense::query()->includedInTotals()->sum('amount'));
+        $this->assertDatabaseHas('expenses', [
+            'property_id' => $property->id,
+            'amount' => 500,
+            'excluded_from_totals' => true,
+        ]);
+        $this->assertNotNull(Expense::query()->where('amount', 500)->value('paid_at'));
+        $this->assertDatabaseCount('expense_files', 1);
+
+        $this->actingAs($user)
+            ->get(route('maintenance.show', $ticket))
+            ->assertOk()
+            ->assertSee('No contabiliza')
+            ->assertSee('factura-inquilino.pdf');
+
+        $this->actingAs($user)
+            ->get(route('expenses.index', ['property' => $property->uuid]))
+            ->assertOk()
+            ->assertViewHas('expenses', fn($expenses): bool => $expenses->count() === 2)
+            ->assertViewHas('summary', fn(array $summary): bool => $summary['overdue_total'] + $summary['pending_total'] === 600.0);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertViewHas('profitabilitySummary', fn(array $summary): bool => $summary['expense_total'] === 600.0);
     }
 
     public function test_ticket_file_can_be_deleted_from_detail(): void
