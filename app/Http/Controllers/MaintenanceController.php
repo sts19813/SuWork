@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreMaintenanceTicketRequest;
 use App\Http\Requests\UpdateMaintenanceTicketRequest;
 use App\Mail\MaintenanceTicketEventMail;
+use App\Models\Expense;
+use App\Models\ExpenseFile;
 use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\MaintenanceTicketAssignment;
@@ -21,13 +23,13 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Spatie\Permission\Models\Role;
 
@@ -81,13 +83,13 @@ class MaintenanceController extends Controller
             ->withCount(['files', 'messages']);
 
         $ticketsQuery = (clone $baseQuery)
-            ->when($selectedPropertyId, fn(Builder $query) => $query->where('property_id', $selectedPropertyId))
+            ->when($selectedPropertyId, fn (Builder $query) => $query->where('property_id', $selectedPropertyId))
             ->whereIn('status', $tabStatuses)
-            ->when($status !== '', fn(Builder $query) => $query->where('status', $status))
-            ->when($priority !== '', fn(Builder $query) => $query->where('priority', $priority))
-            ->when($category !== '', fn(Builder $query) => $query->where('category', $category))
-            ->when($from, fn(Builder $query) => $query->whereDate('reported_at', '>=', $from))
-            ->when($to, fn(Builder $query) => $query->whereDate('reported_at', '<=', $to))
+            ->when($status !== '', fn (Builder $query) => $query->where('status', $status))
+            ->when($priority !== '', fn (Builder $query) => $query->where('priority', $priority))
+            ->when($category !== '', fn (Builder $query) => $query->where('category', $category))
+            ->when($from, fn (Builder $query) => $query->whereDate('reported_at', '>=', $from))
+            ->when($to, fn (Builder $query) => $query->whereDate('reported_at', '<=', $to))
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $inner) use ($search): void {
                     $inner->where('title', 'like', "%{$search}%")
@@ -108,7 +110,7 @@ class MaintenanceController extends Controller
             ->withQueryString();
 
         $metricsBase = (clone $baseQuery)
-            ->when($selectedPropertyId, fn(Builder $query) => $query->where('property_id', $selectedPropertyId));
+            ->when($selectedPropertyId, fn (Builder $query) => $query->where('property_id', $selectedPropertyId));
         $totalCount = (clone $metricsBase)->count();
         $openCount = (clone $metricsBase)->whereIn('status', $activeStatuses)->count();
         $pendingCount = (clone $metricsBase)->whereIn('status', $pendingStatuses)->count();
@@ -159,13 +161,13 @@ class MaintenanceController extends Controller
                 $hours = $rows
                     ->map(function (MaintenanceTicketAssignment $assignment): ?float {
                         $ticket = $assignment->ticket;
-                        if (!$ticket?->reported_at || !$ticket?->completed_at) {
+                        if (! $ticket?->reported_at || ! $ticket?->completed_at) {
                             return null;
                         }
 
                         return max(0, (float) $ticket->reported_at->diffInMinutes($ticket->completed_at) / 60);
                     })
-                    ->filter(fn($value) => $value !== null);
+                    ->filter(fn ($value) => $value !== null);
 
                 return (object) [
                     'name' => $provider?->name ?? '-',
@@ -257,7 +259,7 @@ class MaintenanceController extends Controller
     {
         $user = $request->user();
         $role = $this->resolveRole($user);
-        if (!in_array($role, ['administrador', 'inquilino', 'tecnico'], true)) {
+        if (! in_array($role, ['administrador', 'inquilino', 'tecnico'], true)) {
             abort(403);
         }
 
@@ -285,7 +287,7 @@ class MaintenanceController extends Controller
                         'conflicts' => $conflicts,
                     ], 422);
                 }
-                if (!$forceConflict) {
+                if (! $forceConflict) {
                     return redirect()->back()->withInput()->with('error', $message);
                 }
             }
@@ -360,7 +362,7 @@ class MaintenanceController extends Controller
             'assignments.provider:id,uuid,user_id,name,type,email,phone,specialty,average_cost,rating,availability',
             'assignments.assignedBy:id,name,email',
             'files.uploader:id,name,email',
-            'costs',
+            'costs.expense.files',
             'statusHistory.changedBy:id,name,email',
             'messages.sender:id,name,email',
             'messages.recipient:id,name,email',
@@ -400,7 +402,8 @@ class MaintenanceController extends Controller
             'statusOptions' => $statusOptions,
             'priorityOptions' => MaintenanceTicket::PRIORITY_LABELS,
             'categoryOptions' => MaintenanceTicket::CATEGORY_LABELS,
-            'payerOptions' => MaintenanceTicket::PAYER_LABELS,
+            'payerOptions' => MaintenanceTicket::COST_PAYER_LABELS,
+            'costPayerOptions' => MaintenanceTicket::COST_PAYER_LABELS,
             'paymentRuleOptions' => MaintenanceTicket::PAYMENT_RULE_LABELS,
             'messageChannels' => MaintenanceTicketMessage::CHANNEL_LABELS,
             'canManageAssignments' => in_array($role, ['administrador', 'tecnico'], true),
@@ -457,12 +460,12 @@ class MaintenanceController extends Controller
         $nextStatus = (string) $validated['status'];
         $fromStatus = (string) $maintenance->status;
 
-        if (!in_array($role, ['administrador', 'tecnico'], true)) {
+        if (! in_array($role, ['administrador', 'tecnico'], true)) {
             abort(403);
         }
         if ($role !== 'administrador') {
             $allowed = ['revisado', 'programado', 'en_proceso', 'esperando_material', 'completado', 'cancelado', 'reabierto'];
-            if (!in_array($nextStatus, $allowed, true)) {
+            if (! in_array($nextStatus, $allowed, true)) {
                 abort(403);
             }
         }
@@ -504,7 +507,7 @@ class MaintenanceController extends Controller
         $user = $request->user();
         $role = $this->resolveRole($user);
         $this->ensureTicketVisible($maintenance, $user, $role);
-        if (!in_array($role, ['administrador', 'tecnico'], true)) {
+        if (! in_array($role, ['administrador', 'tecnico'], true)) {
             abort(403);
         }
 
@@ -551,7 +554,7 @@ class MaintenanceController extends Controller
                 Carbon::parse((string) $scheduledAtForConflict),
                 $maintenance->id
             );
-            if ($conflicts !== [] && !$request->boolean('force_conflict')) {
+            if ($conflicts !== [] && ! $request->boolean('force_conflict')) {
                 $message = $this->buildTechnicianConflictMessage($conflicts);
                 if ($request->expectsJson()) {
                     return response()->json([
@@ -566,13 +569,14 @@ class MaintenanceController extends Controller
             }
         }
 
-        if ($updates === [] && !$providerChanged) {
+        if ($updates === [] && ! $providerChanged) {
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true,
                     'message' => 'Sin cambios por guardar.',
                 ]);
             }
+
             return redirect()->back();
         }
 
@@ -627,7 +631,7 @@ class MaintenanceController extends Controller
         $user = $request->user();
         $role = $this->resolveRole($user);
         $this->ensureTicketVisible($maintenance, $user, $role);
-        if (!in_array($role, ['administrador', 'tecnico'], true)) {
+        if (! in_array($role, ['administrador', 'tecnico'], true)) {
             abort(403);
         }
 
@@ -643,7 +647,7 @@ class MaintenanceController extends Controller
                 $scheduledVisitAt,
                 $maintenance->id
             );
-            if ($conflicts !== [] && !$request->boolean('force_conflict')) {
+            if ($conflicts !== [] && ! $request->boolean('force_conflict')) {
                 return redirect()->back()->with('error', $this->buildTechnicianConflictMessage($conflicts));
             }
         }
@@ -681,7 +685,7 @@ class MaintenanceController extends Controller
         $user = $request->user();
         $role = $this->resolveRole($user);
         $this->ensureTicketVisible($maintenance, $user, $role);
-        if (!in_array($role, ['administrador', 'tecnico'], true)) {
+        if (! in_array($role, ['administrador', 'tecnico'], true)) {
             abort(403);
         }
 
@@ -700,7 +704,7 @@ class MaintenanceController extends Controller
                 $scheduledVisitAt,
                 $maintenance->id
             );
-            if ($conflicts !== [] && !$request->boolean('force_conflict')) {
+            if ($conflicts !== [] && ! $request->boolean('force_conflict')) {
                 $message = $this->buildTechnicianConflictMessage($conflicts);
                 if ($request->expectsJson()) {
                     return response()->json([
@@ -744,7 +748,7 @@ class MaintenanceController extends Controller
     {
         $user = $request->user();
         $role = $this->resolveRole($user);
-        if (!in_array($role, ['administrador', 'tecnico'], true)) {
+        if (! in_array($role, ['administrador', 'tecnico'], true)) {
             abort(403);
         }
 
@@ -787,46 +791,68 @@ class MaintenanceController extends Controller
         $validated = $request->validate([
             'labor_cost' => ['required', 'numeric', 'min:0'],
             'material_cost' => ['required', 'numeric', 'min:0'],
-            'advance_cost' => ['required', 'numeric', 'min:0'],
-            'final_cost' => ['required', 'numeric', 'min:0'],
-            'currency' => ['nullable', 'string', 'max:10'],
             'notes' => ['nullable', 'string', 'max:5000'],
-            'payer' => ['nullable', Rule::in(array_keys(MaintenanceTicket::PAYER_LABELS))],
+            'payer' => ['required', Rule::in(array_keys(MaintenanceTicket::COST_PAYER_LABELS))],
             'payment_rule' => ['nullable', Rule::in(array_keys(MaintenanceTicket::PAYMENT_RULE_LABELS))],
-            'payment_rule_notes' => ['nullable', 'string', 'max:3000'],
+            'is_paid' => ['nullable', 'boolean'],
             'invoice_files' => ['nullable', 'array', 'max:20'],
             'invoice_files.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx,xls,xlsx,txt', 'max:51200'],
-            'evidence_files' => ['nullable', 'array', 'max:20'],
-            'evidence_files.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,mp4,mov,avi', 'max:51200'],
-            'signature_files' => ['nullable', 'array', 'max:5'],
-            'signature_files.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
         ]);
 
-        DB::transaction(function () use ($maintenance, $validated, $request, $user): void {
-            $maintenance->costs()->updateOrCreate(
-                ['ticket_id' => $maintenance->id],
-                [
-                    'labor_cost' => (float) $validated['labor_cost'],
-                    'material_cost' => (float) $validated['material_cost'],
-                    'advance_cost' => (float) $validated['advance_cost'],
-                    'final_cost' => (float) $validated['final_cost'],
-                    'currency' => (string) ($validated['currency'] ?? 'MXN'),
-                    'notes' => $validated['notes'] ?? null,
-                ],
-            );
+        $totalCost = round((float) $validated['labor_cost'] + (float) $validated['material_cost'], 2);
 
-            $maintenance->update([
-                'payer' => $validated['payer'] ?? $maintenance->payer,
-                'payment_rule' => $validated['payment_rule'] ?? $maintenance->payment_rule,
-                'payment_rule_notes' => $validated['payment_rule_notes'] ?? $maintenance->payment_rule_notes,
+        DB::transaction(function () use ($maintenance, $validated, $request, $user, $totalCost): void {
+            $payer = (string) $validated['payer'];
+            $paymentRule = $validated['payment_rule'] ?? null;
+            $cost = $maintenance->costs()->create([
+                'labor_cost' => (float) $validated['labor_cost'],
+                'material_cost' => (float) $validated['material_cost'],
+                'advance_cost' => 0,
+                'final_cost' => $totalCost,
+                'currency' => 'MXN',
+                'payer' => $payer,
+                'payment_rule' => $paymentRule,
+                'notes' => filled($validated['notes'] ?? null) ? trim((string) $validated['notes']) : null,
             ]);
 
-            $this->storeTicketFiles($maintenance, (array) $request->file('invoice_files', []), 'factura', $user?->id);
-            $this->storeTicketFiles($maintenance, (array) $request->file('evidence_files', []), 'evidencia', $user?->id);
-            $this->storeTicketFiles($maintenance, (array) $request->file('signature_files', []), 'firma', $user?->id);
+            $expense = Expense::create([
+                'property_id' => $maintenance->property_id,
+                'concept' => Str::limit('Mantenimiento '.$maintenance->display_reference.': '.$maintenance->title, 190, ''),
+                'amount' => $totalCost,
+                'excluded_from_totals' => $payer === 'inquilino',
+                'due_date' => now()->toDateString(),
+                'paid_at' => (bool) ($validated['is_paid'] ?? false) ? now() : null,
+                'description' => filled($validated['notes'] ?? null) ? trim((string) $validated['notes']) : null,
+                'created_by' => $user?->id,
+            ]);
+
+            $cost->update(['expense_id' => $expense->id]);
+            $this->storeMaintenanceExpenseFiles($expense, (array) $request->file('invoice_files', []));
         });
 
-        return redirect()->back()->with('success', 'Costos y evidencias actualizados correctamente.');
+        return redirect()->back()->with('success', 'Costo registrado y agregado a los gastos de la propiedad.');
+    }
+
+    /**
+     * @param  array<int, UploadedFile|null>  $files
+     */
+    private function storeMaintenanceExpenseFiles(Expense $expense, array $files): void
+    {
+        foreach ($files as $file) {
+            if (! $file instanceof UploadedFile) {
+                continue;
+            }
+
+            $mimeType = (string) ($file->getClientMimeType() ?: 'application/octet-stream');
+            $path = $file->store("expenses/{$expense->id}", 'public');
+            $expense->files()->create([
+                'path' => $path,
+                'type' => str_starts_with($mimeType, 'image/') ? ExpenseFile::TYPE_IMAGE : ExpenseFile::TYPE_PDF,
+                'mime_type' => $mimeType,
+                'original_name' => $file->getClientOriginalName(),
+                'size' => (int) ($file->getSize() ?: 0),
+            ]);
+        }
     }
 
     public function uploadFiles(Request $request, MaintenanceTicket $maintenance): RedirectResponse
@@ -878,10 +904,10 @@ class MaintenanceController extends Controller
         if ($validated['channel'] === 'interno' && $role !== 'administrador') {
             abort(403);
         }
-        if ($validated['channel'] === 'admin_tecnico' && !in_array($role, ['administrador', 'tecnico'], true)) {
+        if ($validated['channel'] === 'admin_tecnico' && ! in_array($role, ['administrador', 'tecnico'], true)) {
             abort(403);
         }
-        if ($validated['channel'] === 'inquilino_admin' && !in_array($role, ['administrador', 'inquilino'], true)) {
+        if ($validated['channel'] === 'inquilino_admin' && ! in_array($role, ['administrador', 'inquilino'], true)) {
             abort(403);
         }
 
@@ -893,15 +919,15 @@ class MaintenanceController extends Controller
         ]);
 
         $recipient = null;
-        if (!empty($validated['recipient_user_id'])) {
+        if (! empty($validated['recipient_user_id'])) {
             $recipient = User::query()->find((int) $validated['recipient_user_id']);
         }
         $recipientRole = NotificationSettings::roleForUser($recipient);
-        if (filled($recipient?->email) && (!$recipientRole || NotificationSettings::allows($recipientRole, NotificationSettings::EVENT_MAINTENANCE_MESSAGE))) {
+        if (filled($recipient?->email) && (! $recipientRole || NotificationSettings::allows($recipientRole, NotificationSettings::EVENT_MAINTENANCE_MESSAGE))) {
             try {
                 Mail::raw(
-                    "Nuevo mensaje en ticket {$maintenance->uuid}: " . $message->message,
-                    fn($mail) => $mail->to($recipient->email)->subject('Nuevo mensaje de mantenimiento')
+                    "Nuevo mensaje en ticket {$maintenance->uuid}: ".$message->message,
+                    fn ($mail) => $mail->to($recipient->email)->subject('Nuevo mensaje de mantenimiento')
                 );
             } catch (\Throwable) {
             }
@@ -936,7 +962,7 @@ class MaintenanceController extends Controller
         if ($wantsCreateAccount && $selectedUserId) {
             return redirect()->back()->with('error', 'Selecciona un usuario existente o crea una cuenta nueva, no ambos.');
         }
-        if (!$wantsCreateAccount && !$selectedUserId) {
+        if (! $wantsCreateAccount && ! $selectedUserId) {
             return redirect()->back()->with('error', 'Debes vincular un usuario o crear una cuenta para el técnico/proveedor.');
         }
 
@@ -972,13 +998,13 @@ class MaintenanceController extends Controller
         ) {
             try {
                 Mail::raw(
-                    "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: " . url('/login'),
-                    fn($mail) => $mail->to($linkedUser->email)->subject('Acceso al sistema de mantenimiento')
+                    "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: ".url('/login'),
+                    fn ($mail) => $mail->to($linkedUser->email)->subject('Acceso al sistema de mantenimiento')
                 );
             } catch (\Throwable) {
             }
         }
-        if ($provider->user_id && !$provider->email && $linkedUser?->email) {
+        if ($provider->user_id && ! $provider->email && $linkedUser?->email) {
             $provider->update(['email' => $linkedUser->email]);
         }
 
@@ -1011,7 +1037,7 @@ class MaintenanceController extends Controller
         if ($wantsCreateAccount && $selectedUserId) {
             return redirect()->back()->with('error', 'Selecciona un usuario existente o crea una cuenta nueva, no ambos.');
         }
-        if (!$wantsCreateAccount && !$selectedUserId && !$provider->user_id) {
+        if (! $wantsCreateAccount && ! $selectedUserId && ! $provider->user_id) {
             return redirect()->back()->with('error', 'Debes vincular un usuario o crear una cuenta para el técnico/proveedor.');
         }
 
@@ -1046,8 +1072,8 @@ class MaintenanceController extends Controller
         ) {
             try {
                 Mail::raw(
-                    "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: " . url('/login'),
-                    fn($mail) => $mail->to($linkedUser->email)->subject('Acceso al sistema de mantenimiento')
+                    "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: ".url('/login'),
+                    fn ($mail) => $mail->to($linkedUser->email)->subject('Acceso al sistema de mantenimiento')
                 );
             } catch (\Throwable) {
             }
@@ -1065,7 +1091,7 @@ class MaintenanceController extends Controller
     ): array {
         if ($userId) {
             $user = User::query()->find($userId);
-            if (!$user) {
+            if (! $user) {
                 throw ValidationException::withMessages([
                     'user_id' => 'El usuario seleccionado no existe.',
                 ]);
@@ -1075,7 +1101,7 @@ class MaintenanceController extends Controller
             return [$user, null];
         }
 
-        if (!$createAccount) {
+        if (! $createAccount) {
             return [null, null];
         }
 
@@ -1107,14 +1133,14 @@ class MaintenanceController extends Controller
             'name' => 'tecnico',
             'guard_name' => 'web',
         ]);
-        if (!$user->hasRole($role->name)) {
+        if (! $user->hasRole($role->name)) {
             $user->assignRole($role);
         }
     }
 
     private function ensureCanManageTechnicians(Request $request): void
     {
-        if (!$this->canManageTechnicians($request->user())) {
+        if (! $this->canManageTechnicians($request->user())) {
             abort(403);
         }
     }
@@ -1131,7 +1157,7 @@ class MaintenanceController extends Controller
 
     private function resolveRole(?User $user): string
     {
-        if (!$user) {
+        if (! $user) {
             return 'inquilino';
         }
         if ($user->hasRole('administrador') || $user->hasRole('admin')) {
@@ -1157,10 +1183,10 @@ class MaintenanceController extends Controller
             return $query;
         }
         if ($role === 'propietario') {
-            return $query->whereHas('owners', fn(Builder $ownerQuery) => $ownerQuery->where('email', $user->email));
+            return $query->whereHas('owners', fn (Builder $ownerQuery) => $ownerQuery->where('email', $user->email));
         }
         if ($role === 'inquilino') {
-            return $query->whereHas('tenant', fn(Builder $tenantQuery) => $tenantQuery->where('email', $user->email));
+            return $query->whereHas('tenant', fn (Builder $tenantQuery) => $tenantQuery->where('email', $user->email));
         }
 
         return $query->whereHas('maintenanceTickets.assignments.provider', function (Builder $providerQuery) use ($user): void {
@@ -1177,10 +1203,10 @@ class MaintenanceController extends Controller
             return $query;
         }
         if ($role === 'propietario') {
-            return $query->whereHas('property.owners', fn(Builder $ownerQuery) => $ownerQuery->where('email', $user->email));
+            return $query->whereHas('property.owners', fn (Builder $ownerQuery) => $ownerQuery->where('email', $user->email));
         }
         if ($role === 'inquilino') {
-            return $query->whereHas('property.tenant', fn(Builder $tenantQuery) => $tenantQuery->where('email', $user->email));
+            return $query->whereHas('property.tenant', fn (Builder $tenantQuery) => $tenantQuery->where('email', $user->email));
         }
 
         return $query->whereHas('assignments', function (Builder $assignmentQuery) use ($user): void {
@@ -1199,7 +1225,7 @@ class MaintenanceController extends Controller
         $exists = $this->visibleTicketsQuery($user, $role)
             ->where('maintenance_tickets.id', $ticket->id)
             ->exists();
-        if (!$exists) {
+        if (! $exists) {
             abort(403);
         }
     }
@@ -1295,10 +1321,10 @@ class MaintenanceController extends Controller
         ?string $fromStatus,
         ?string $notes,
     ): void {
-        if (in_array($status, ['asignado', 'programado'], true) && !$ticket->assigned_at) {
+        if (in_array($status, ['asignado', 'programado'], true) && ! $ticket->assigned_at) {
             $ticket->assigned_at = now();
         }
-        if ($status === 'en_proceso' && !$ticket->started_at) {
+        if ($status === 'en_proceso' && ! $ticket->started_at) {
             $ticket->started_at = now();
         }
         if ($status === 'completado') {
@@ -1323,7 +1349,7 @@ class MaintenanceController extends Controller
     private function storeTicketFiles(MaintenanceTicket $ticket, array $files, string $kind, ?int $userId): void
     {
         foreach ($files as $file) {
-            if (!$file instanceof UploadedFile) {
+            if (! $file instanceof UploadedFile) {
                 continue;
             }
             $stored = $this->storeCompressedFile($file, "maintenance/{$ticket->id}/{$kind}");
@@ -1342,7 +1368,7 @@ class MaintenanceController extends Controller
     private function storeCompressedFile(UploadedFile $file, string $directory): array
     {
         $mimeType = (string) ($file->getClientMimeType() ?: 'application/octet-stream');
-        if (!str_starts_with($mimeType, 'image/')) {
+        if (! str_starts_with($mimeType, 'image/')) {
             $path = $file->store($directory, 'public');
 
             return [
@@ -1365,7 +1391,7 @@ class MaintenanceController extends Controller
             ];
         }
 
-        $path = trim($directory, '/') . '/' . \Illuminate\Support\Str::uuid() . '.' . $encoded['extension'];
+        $path = trim($directory, '/').'/'.Str::uuid().'.'.$encoded['extension'];
         Storage::disk('public')->put($path, $encoded['binary']);
 
         return [
@@ -1378,12 +1404,12 @@ class MaintenanceController extends Controller
 
     private function encodeCompressedImage(UploadedFile $file): ?array
     {
-        if (!function_exists('imagecreatetruecolor')) {
+        if (! function_exists('imagecreatetruecolor')) {
             return null;
         }
 
         $sourcePath = $file->getRealPath();
-        if (!$sourcePath) {
+        if (! $sourcePath) {
             return null;
         }
 
@@ -1405,7 +1431,7 @@ class MaintenanceController extends Controller
             IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($sourcePath) : null,
             default => null,
         };
-        if (!$sourceImage) {
+        if (! $sourceImage) {
             return null;
         }
 
@@ -1422,7 +1448,7 @@ class MaintenanceController extends Controller
                 $targetWidth = max(1, (int) round($baseWidth * $scale));
                 $targetHeight = max(1, (int) round($baseHeight * $scale));
                 $resized = imagecreatetruecolor($targetWidth, $targetHeight);
-                if (!$resized) {
+                if (! $resized) {
                     continue;
                 }
                 imagealphablending($resized, false);
@@ -1540,10 +1566,10 @@ class MaintenanceController extends Controller
         ]);
 
         $recipients = ($isStatusEvent ? $statusRecipients : $statusRecipients->merge($eventRecipients))
-            ->when(!$isStatusEvent, fn ($recipients) => $recipients->merge($adminRecipients))
+            ->when(! $isStatusEvent, fn ($recipients) => $recipients->merge($adminRecipients))
             ->filter(fn (array $recipient): bool => filled($recipient['email']))
             ->filter(function (array $recipient) use ($notificationEvent): bool {
-                return !$recipient['role'] || NotificationSettings::allows($recipient['role'], $notificationEvent);
+                return ! $recipient['role'] || NotificationSettings::allows($recipient['role'], $notificationEvent);
             })
             ->map(fn (array $recipient): string => trim((string) $recipient['email']))
             ->unique()

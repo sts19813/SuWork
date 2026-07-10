@@ -52,10 +52,17 @@
                                     @if ($expense->recurring_expense_item_id)
                                         <span class="badge badge-light-primary text-primary mt-1">Generado automáticamente</span>
                                     @endif
+                                    @if ($expense->excluded_from_totals)
+                                        <span class="badge badge-light-secondary text-muted mt-1">Paga inquilino</span>
+                                    @endif
                                     @if ($expense->description)
                                         <div class="text-muted fs-7">{{ $expense->description }}</div>
                                     @endif
-                                    @include('expenses.partials.attachments', ['files' => $expense->files->take(4)])
+                                    @include('expenses.partials.attachments', [
+                                        'files' => $expense->files->take(4),
+                                        'previewInModal' => true,
+                                        'previewTriggerClass' => 'js-expense-file-preview',
+                                    ])
                                 </td>
                                 <td>${{ number_format((float) $expense->amount, 2) }}</td>
                                 <td>{{ $expense->due_date?->format('d/m/Y') ?? '-' }}</td>
@@ -332,7 +339,11 @@
                                                         <span class="badge badge-light-info text-info">
                                                             <i class="ki-outline ki-paper-clip fs-6 me-1"></i>{{ $item->files_count }}
                                                         </span>
-                                                        @include('expenses.partials.attachments', ['files' => $item->files->take(3)])
+                                                        @include('expenses.partials.attachments', [
+                                                            'files' => $item->files->take(3),
+                                                            'previewInModal' => true,
+                                                            'previewTriggerClass' => 'js-expense-file-preview',
+                                                        ])
                                                     @else
                                                         <span class="text-muted">-</span>
                                                     @endif
@@ -547,11 +558,81 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="expenseFilePreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable ticket-file-modal-dialog">
+            <div class="modal-content ticket-file-modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title" id="expenseFilePreviewTitle">Archivo</h3>
+                    <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button>
+                </div>
+                <div class="modal-body ticket-file-modal-body">
+                    <img src="" alt="" class="ticket-file-modal-media d-none" id="expenseFilePreviewImage">
+                    <iframe src="" class="ticket-file-modal-frame d-none" id="expenseFilePreviewPdf" title="Vista previa PDF"></iframe>
+                    <div class="ticket-file-modal-fallback d-none" id="expenseFilePreviewFallback">
+                        <i class="bi bi-file-earmark"></i>
+                        <div>Este archivo no tiene vista previa dentro del navegador.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a href="#" class="btn btn-light-primary" id="expenseFilePreviewDownload" download>
+                        <i class="bi bi-download"></i> Descargar
+                    </a>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @push('scripts')
     <script>
         (() => {
+            const filePreviewModalEl = document.getElementById('expenseFilePreviewModal');
+            const filePreviewModal = filePreviewModalEl && window.bootstrap?.Modal
+                ? new window.bootstrap.Modal(filePreviewModalEl)
+                : null;
+            const filePreviewTitle = document.getElementById('expenseFilePreviewTitle');
+            const filePreviewImage = document.getElementById('expenseFilePreviewImage');
+            const filePreviewPdf = document.getElementById('expenseFilePreviewPdf');
+            const filePreviewFallback = document.getElementById('expenseFilePreviewFallback');
+            const filePreviewDownload = document.getElementById('expenseFilePreviewDownload');
+            const resetFilePreview = () => {
+                [filePreviewImage, filePreviewPdf, filePreviewFallback].forEach((element) => element?.classList.add('d-none'));
+                if (filePreviewImage) filePreviewImage.removeAttribute('src');
+                if (filePreviewPdf) filePreviewPdf.removeAttribute('src');
+            };
+
+            document.querySelectorAll('.js-expense-file-preview').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const url = button.dataset.fileUrl || '';
+                    const name = button.dataset.fileName || 'Archivo';
+                    const mime = button.dataset.fileMime || '';
+                    if (!url || !filePreviewModal) return;
+
+                    resetFilePreview();
+                    if (filePreviewTitle) filePreviewTitle.textContent = name;
+                    if (filePreviewDownload) {
+                        filePreviewDownload.href = button.dataset.fileDownload || url;
+                        filePreviewDownload.setAttribute('download', name);
+                    }
+
+                    if (mime.startsWith('image/') && filePreviewImage) {
+                        filePreviewImage.src = url;
+                        filePreviewImage.alt = name;
+                        filePreviewImage.classList.remove('d-none');
+                    } else if (mime === 'application/pdf' && filePreviewPdf) {
+                        filePreviewPdf.src = url;
+                        filePreviewPdf.classList.remove('d-none');
+                    } else {
+                        filePreviewFallback?.classList.remove('d-none');
+                    }
+
+                    filePreviewModal.show();
+                });
+            });
+            filePreviewModalEl?.addEventListener('hidden.bs.modal', resetFilePreview);
+
             const modalEl = document.getElementById('markPaidExpenseModal');
             if (!modalEl) return;
 

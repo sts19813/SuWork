@@ -14,7 +14,9 @@ class Expense extends Model
     use HasFactory;
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_OVERDUE = 'overdue';
+
     public const STATUS_PAID = 'paid';
 
     public const STATUS_LABELS = [
@@ -35,6 +37,7 @@ class Expense extends Model
         'recurring_expense_item_id',
         'concept',
         'amount',
+        'excluded_from_totals',
         'due_date',
         'recurrence_date',
         'description',
@@ -48,6 +51,7 @@ class Expense extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'excluded_from_totals' => 'boolean',
             'due_date' => 'date',
             'recurrence_date' => 'date',
             'paid_at' => 'datetime',
@@ -88,6 +92,11 @@ class Expense extends Model
     public function scopePaid(Builder $query): Builder
     {
         return $query->whereNotNull('paid_at');
+    }
+
+    public function scopeIncludedInTotals(Builder $query): Builder
+    {
+        return $query->where('excluded_from_totals', false);
     }
 
     public function scopeUnpaid(Builder $query): Builder

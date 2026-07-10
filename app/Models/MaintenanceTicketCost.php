@@ -12,11 +12,14 @@ class MaintenanceTicketCost extends Model
 
     protected $fillable = [
         'ticket_id',
+        'expense_id',
         'labor_cost',
         'material_cost',
         'advance_cost',
         'final_cost',
         'currency',
+        'payer',
+        'payment_rule',
         'notes',
     ];
 
@@ -33,5 +36,10 @@ class MaintenanceTicketCost extends Model
     public function ticket(): BelongsTo
     {
         return $this->belongsTo(MaintenanceTicket::class, 'ticket_id');
+    }
+
+    public function expense(): BelongsTo
+    {
+        return $this->belongsTo(Expense::class);
     }
 }
