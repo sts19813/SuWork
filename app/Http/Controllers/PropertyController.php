@@ -188,8 +188,6 @@ class PropertyController extends Controller
 
     public function updateTenant(Request $request, Property $property): RedirectResponse
     {
-        $this->ensureAdvisorIsReadOnly($request);
-
         $request->validate([
             'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
             'force_assignment' => ['nullable', 'boolean'],
