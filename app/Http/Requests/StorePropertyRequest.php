@@ -204,7 +204,11 @@ class StorePropertyRequest extends FormRequest
                 $validator->errors()->add('zone_text', 'Debes seleccionar una zona del listado o capturar una zona personalizada.');
             }
 
-            if ($this->input('status') === Property::STATUS_OCCUPIED && blank($this->input('tenant_id'))) {
+            $tenantId = $this->exists('tenant_id')
+                ? $this->input('tenant_id')
+                : $this->route('property')?->tenant_id;
+
+            if ($this->input('status') === Property::STATUS_OCCUPIED && blank($tenantId)) {
                 $validator->errors()->add('tenant_id', 'Debes seleccionar un inquilino para marcar la propiedad como ocupada.');
             }
 
