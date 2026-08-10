@@ -78,6 +78,7 @@ class Property extends Model
         'onboarding_step',
         'created_by',
         'advisor_user_id',
+        'technician_provider_id',
     ];
 
     protected function casts(): array
@@ -143,6 +144,11 @@ class Property extends Model
     public function advisor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'advisor_user_id');
+    }
+
+    public function technicianProvider(): BelongsTo
+    {
+        return $this->belongsTo(MaintenanceProvider::class, 'technician_provider_id');
     }
 
     public function advisors(): BelongsToMany

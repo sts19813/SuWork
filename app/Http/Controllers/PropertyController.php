@@ -7,6 +7,7 @@ use App\Models\Charge;
 use App\Models\ChargePayment;
 use App\Models\Expense;
 use App\Models\ExpenseNotificationSetting;
+use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\Owner;
 use App\Models\Property;
@@ -29,6 +30,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PropertyController extends Controller
@@ -182,8 +184,27 @@ class PropertyController extends Controller
         }
 
         return redirect()
-            ->route('properties.index')
+            ->back()
             ->with('success', $message);
+    }
+
+    public function updateTechnician(Request $request, Property $property): RedirectResponse
+    {
+        $this->ensureCanManagePropertyTechnician($request);
+
+        $validated = $request->validate([
+            'technician_provider_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('maintenance_providers', 'id')->where('is_active', true),
+            ],
+        ]);
+
+        $property->update([
+            'technician_provider_id' => $validated['technician_provider_id'] ?? null,
+        ]);
+
+        return redirect()->back()->with('success', 'Técnico de la propiedad actualizado correctamente.');
     }
 
     public function updateTenant(Request $request, Property $property): RedirectResponse
@@ -257,6 +278,7 @@ class PropertyController extends Controller
             'recurringExpenseItems',
             'advisor',
             'advisors:id,name,email',
+            'technicianProvider:id,uuid,user_id,name,email,type,specialty,is_active',
         ]);
         $propertyChangeLogs = $property->changeLogs()
             ->with('user:id,name')
@@ -479,6 +501,13 @@ class PropertyController extends Controller
             'propertyChangeFieldLabels' => $this->propertyChangeFieldLabels(),
             'canManageCharges' => $canManageCharges,
             'canDeletePaidCharges' => $canManageCharges && (bool) auth()->user()?->can('cobranza.eliminar_pagados'),
+            'availablePropertyTechnicians' => MaintenanceProvider::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'uuid', 'name', 'email', 'type', 'specialty']),
+            'availableAdvisors' => $this->availableAdvisors(),
+            'canManagePropertyAdvisors' => $this->canManagePropertyAssignments(auth()->user()),
+            'canManagePropertyTechnician' => $this->canManagePropertyTechnician(auth()->user()),
         ]);
     }
 
@@ -516,6 +545,7 @@ class PropertyController extends Controller
             'contract_expires_at' => 'Contrato vence',
             'onboarding_step' => 'Paso onboarding',
             'advisor_user_id' => 'Asesor responsable',
+            'technician_provider_id' => 'Técnico de la propiedad',
             'property_advisors' => 'Asesores responsables',
         ];
     }
@@ -668,6 +698,21 @@ class PropertyController extends Controller
         return $this->isAdminUser($user)
             || $this->hasAdvisorRole($user)
             || (bool) $user?->can('propiedades.asignar_asesores');
+    }
+
+    private function ensureCanManagePropertyTechnician(Request $request): void
+    {
+        if (! $this->canManagePropertyTechnician($request->user())) {
+            abort(403);
+        }
+    }
+
+    private function canManagePropertyTechnician(?User $user): bool
+    {
+        return $this->isAdminUser($user)
+            || $this->hasAdvisorRole($user)
+            || (bool) $user?->can('propiedades.asignar_asesores')
+            || (bool) $user?->can('administracion de tecnicos');
     }
 
     private function ensureAdvisorIsReadOnly(Request $request): void

@@ -78,6 +78,102 @@ class MaintenanceModuleTest extends TestCase
         ]);
     }
 
+    public function test_responsible_technician_is_automatically_assigned_and_notified(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $property = $this->createPropertyFixture($admin);
+        $provider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico responsable',
+            'email' => 'responsable@example.com',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('maintenance.technicians.responsible'), [
+                'responsible_provider_id' => $provider->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($admin)
+            ->post(route('maintenance.store'), [
+                'property_id' => $property->id,
+                'category' => 'plomeria',
+                'priority' => 'media',
+                'title' => 'Ticket asignado al responsable',
+                'exact_location' => 'Baño',
+                'description' => 'Asignación automática',
+                'reported_at' => now()->format('Y-m-d H:i:s'),
+            ])
+            ->assertRedirect();
+
+        $ticket = MaintenanceTicket::query()->where('title', 'Ticket asignado al responsable')->firstOrFail();
+
+        $this->assertTrue($provider->fresh()->is_responsible);
+        $this->assertSame($provider->id, $ticket->current_provider_id);
+        $this->assertSame('asignado', $ticket->status);
+        $this->assertDatabaseHas('maintenance_ticket_assignments', [
+            'ticket_id' => $ticket->id,
+            'provider_id' => $provider->id,
+            'is_current' => true,
+        ]);
+        $this->assertDatabaseHas('maintenance_ticket_notifications', [
+            'ticket_id' => $ticket->id,
+            'event' => 'nuevo_reporte',
+            'recipient' => 'responsable@example.com',
+        ]);
+    }
+
+    public function test_property_technician_overrides_global_assignment_and_global_responsible_is_also_notified(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $propertyTechnician = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico de propiedad',
+            'email' => 'propiedad@example.com',
+            'is_active' => true,
+        ]);
+        $globalTechnician = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico global',
+            'email' => 'global@example.com',
+            'is_active' => true,
+            'is_responsible' => true,
+        ]);
+        $property = $this->createPropertyFixture($admin);
+        $property->update(['technician_provider_id' => $propertyTechnician->id]);
+
+        $this->actingAs($admin)
+            ->post(route('maintenance.store'), [
+                'property_id' => $property->id,
+                'category' => 'electricidad',
+                'priority' => 'alta',
+                'title' => 'Ticket con técnico de propiedad',
+                'exact_location' => 'Cocina',
+                'description' => 'Debe respetar al técnico de la propiedad',
+                'reported_at' => now()->format('Y-m-d H:i:s'),
+                'provider_id' => $globalTechnician->id,
+            ])
+            ->assertRedirect();
+
+        $ticket = MaintenanceTicket::query()->where('title', 'Ticket con técnico de propiedad')->firstOrFail();
+
+        $this->assertSame($propertyTechnician->id, $ticket->current_provider_id);
+        foreach (['propiedad@example.com', 'global@example.com'] as $recipient) {
+            $this->assertDatabaseHas('maintenance_ticket_notifications', [
+                'ticket_id' => $ticket->id,
+                'event' => 'nuevo_reporte',
+                'recipient' => $recipient,
+            ]);
+        }
+    }
+
     public function test_new_ticket_notifies_only_technician_advisor_and_tenant(): void
     {
         Mail::fake();
