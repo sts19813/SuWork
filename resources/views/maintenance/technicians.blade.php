@@ -40,7 +40,7 @@
                         @error('responsible_provider_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
-                        <div class="form-text">Recibirá automáticamente los tickets sin técnico de propiedad y será notificado de cada ticket nuevo.</div>
+                        
                     </div>
                     <div class="col-lg-4">
                         <button class="btn btn-primary w-100" type="submit">Guardar responsable</button>
