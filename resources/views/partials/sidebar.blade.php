@@ -56,6 +56,7 @@
                 ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
                 ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos', 'icon' => 'bi-receipt'],
                 ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
+                ...($isAdmin ? [['patterns' => ['maintenance-cuts.*'], 'route' => 'maintenance-cuts.index', 'label' => 'Corte de mantenimiento', 'icon' => 'bi-cash-coin']] : []),
                 ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
                 [
                     'patterns' => ['settings.dossiers.*', 'settings.notifications.*', 'access.*', 'profile.*'],
