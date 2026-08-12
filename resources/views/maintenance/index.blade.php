@@ -332,8 +332,12 @@
                                     <span class="maintenance-property-cell">
                                         <span class="maintenance-cell-icon"><i class="bi bi-house-door"></i></span>
                                         <span class="min-w-0">
-                                            <span class="maintenance-cell-title">{{ $ticket->property?->internal_name ?? '-' }}</span>
-                                            <span class="maintenance-cell-subtitle">{{ $ticket->property?->internal_reference ?: 'Sin referencia' }}</span>
+                                            <span class="maintenance-cell-title" title="{{ $ticket->property?->internal_name ?? '-' }}">
+                                                {{ \Illuminate\Support\Str::limit($ticket->property?->internal_name ?? '-', 28) }}
+                                            </span>
+                                            <span class="maintenance-cell-subtitle" title="{{ $ticket->property?->internal_reference ?: 'Sin referencia' }}">
+                                                {{ \Illuminate\Support\Str::limit($ticket->property?->internal_reference ?: 'Sin referencia', 25) }}
+                                            </span>
                                         </span>
                                     </span>
                                     <span class="maintenance-provider-cell">

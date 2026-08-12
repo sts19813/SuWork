@@ -1581,6 +1581,15 @@ td .btn {
     min-width: 0;
 }
 
+.maintenance-property-cell > .min-w-0,
+.maintenance-provider-cell > .min-w-0,
+.maintenance-provider-trigger > .min-w-0 {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
 .maintenance-cell-icon {
     width: 36px;
     height: 36px;
