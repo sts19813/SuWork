@@ -577,7 +577,11 @@ body.su-admin-layout {
     padding-inline: 0;
 }
 
-[data-kt-app-sidebar-minimize="on"].su-admin-layout .sidebar-brand-link,
+[data-kt-app-sidebar-minimize="on"].su-admin-layout .sidebar-brand-link {
+    justify-content: center;
+}
+
+[data-kt-app-sidebar-minimize="on"].su-admin-layout .sidebar-brand-wordmark,
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar-menu-primary .menu-heading,
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar-menu-primary .menu-title,
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar-menu-primary .menu-arrow,
@@ -593,6 +597,10 @@ body.su-admin-layout {
 
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar-menu-primary .menu-icon {
     margin-right: 0 !important;
+}
+
+[data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar-menu-primary > .menu-item > .menu-sub {
+    display: none !important;
 }
 
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .sidebar-user-card {
@@ -619,8 +627,8 @@ body.su-admin-layout {
     top: 50%;
     transform: translateY(-50%);
     z-index: 120;
-    min-width: 220px;
-    max-width: 280px;
+    min-width: 250px;
+    max-width: 310px;
     flex-direction: column;
     gap: 6px;
     padding: 10px;

@@ -53,6 +53,44 @@ class DashboardModulesTest extends TestCase
             ->assertSee('Resumen de cobranza');
     }
 
+    public function test_admin_sidebar_is_always_compact_and_groups_all_available_modules(): void
+    {
+        $adminRole = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        $admin = User::factory()->create();
+        $admin->assignRole($adminRole);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-kt-app-sidebar-minimize="on"', false)
+            ->assertDontSee('id="kt_app_sidebar_toggle"', false)
+            ->assertSeeInOrder([
+                'Inicio',
+                'Dashboard',
+                'Pendientes',
+                'Operación',
+                'Control de propiedades',
+                'Propiedades',
+                'Propietarios',
+                'Inquilinos',
+                'Documentos',
+                'Finanzas',
+                'Cobranza',
+                'Gastos',
+                'Mantenimiento',
+                'Tickets',
+                'Cortes',
+                'Proveedores y técnicos',
+                'Almacén',
+                'Configuración',
+                'Almacenamiento',
+                'Expedientes',
+                'Notificaciones',
+                'Usuarios y permisos',
+                'Perfil',
+            ]);
+    }
+
     public function test_advisor_dashboard_defaults_to_assigned_properties_and_can_view_all(): void
     {
         $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);

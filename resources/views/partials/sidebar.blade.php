@@ -19,66 +19,86 @@
     $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : ($isAdvisor ? 'Panel de asesor' : 'Panel SuWork'));
     $currentHour = now()->hour;
     $greeting = $currentHour < 12 ? 'Buenos días' : ($currentHour < 19 ? 'Buenas tardes' : 'Buenas noches');
-    $menuItems = $isTenant
-        ? [
-            ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
-            ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
-            [
-                'patterns' => ['profile.*'],
-                'label' => 'Configuración',
-                'icon' => 'bi-gear',
-                'children' => [
-                    ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'],
-                ],
-            ],
-        ]
-        : ($isTechnician
-            ? [
-                ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
-                ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
-                [
-                    'patterns' => ['profile.*'],
-                    'label' => 'Configuración',
-                    'icon' => 'bi-gear',
-                    'children' => [
-                        ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'],
-                    ],
-                ],
-            ]
-            : [
-                ...($isAdvisor ? [['patterns' => ['advisor.tasks.*'], 'route' => 'advisor.tasks.index', 'label' => 'Pendientes', 'icon' => 'bi-list-check']] : []),
-                ...($isAdmin ? [['patterns' => ['admin.tasks.*'], 'route' => 'admin.tasks.index', 'label' => 'Pendientes', 'icon' => 'bi-list-check']] : []),
+    $makeMenuSection = function (string $label, string $icon, array $children): array {
+        $children = array_values(array_filter($children));
+
+        return [
+            'patterns' => collect($children)->flatMap(fn ($child) => $child['patterns'])->unique()->values()->all(),
+            'label' => $label,
+            'icon' => $icon,
+            'children' => $children,
+        ];
+    };
+
+    $profileItem = ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'];
+    $ticketsItem = ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-ticket-perforated'];
+    $storageItem = ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'];
+
+    if ($isTenant) {
+        $menuItems = [
+            $makeMenuSection('Finanzas', 'bi-wallet2', [
+                ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
+            ]),
+            $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem]),
+            $makeMenuSection('Configuración', 'bi-gear', [$profileItem]),
+        ];
+    } elseif ($isTechnician) {
+        $menuItems = [
+            $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem, $storageItem]),
+            $makeMenuSection('Configuración', 'bi-gear', [$profileItem]),
+        ];
+    } else {
+        $pendingItem = $isAdvisor
+            ? ['patterns' => ['advisor.tasks.*'], 'route' => 'advisor.tasks.index', 'label' => 'Pendientes', 'icon' => 'bi-list-check']
+            : ($isAdmin
+                ? ['patterns' => ['admin.tasks.*'], 'route' => 'admin.tasks.index', 'label' => 'Pendientes', 'icon' => 'bi-list-check']
+                : null);
+
+        $menuItems = [
+            $makeMenuSection('Inicio', 'bi-grid-1x2', [
                 ['patterns' => ['dashboard'], 'route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'bi-speedometer2'],
-                ...($canViewPropertyControl ? [['patterns' => ['properties.control'], 'route' => 'properties.control', 'label' => 'Control propiedades', 'icon' => 'bi-clipboard-data']] : []),
+                $pendingItem,
+            ]),
+            $makeMenuSection('Operación', 'bi-buildings', [
+                $canViewPropertyControl
+                    ? ['patterns' => ['properties.control'], 'route' => 'properties.control', 'label' => 'Control de propiedades', 'icon' => 'bi-clipboard-data']
+                    : null,
                 ['patterns' => ['properties.index', 'properties.create', 'properties.show', 'properties.edit', 'properties.inventory.edit', 'inventory-checks.*'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
                 ['patterns' => ['owners.*', 'dossiers.owners.*'], 'route' => 'owners.index', 'label' => 'Propietarios', 'icon' => 'bi-person-vcard'],
                 ['patterns' => ['tenants.*', 'dossiers.tenants.*'], 'route' => 'tenants.index', 'label' => 'Inquilinos', 'icon' => 'bi-people'],
                 ['patterns' => ['documents.*', 'dossiers.properties.*'], 'route' => 'documents.index', 'label' => 'Documentos', 'icon' => 'bi-folder2-open'],
+            ]),
+            $makeMenuSection('Finanzas', 'bi-graph-up-arrow', [
                 ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
                 ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos', 'icon' => 'bi-receipt'],
-                ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
-                ...($isAdmin ? [['patterns' => ['maintenance-cuts.*'], 'route' => 'maintenance-cuts.index', 'label' => 'Corte de mantenimiento', 'icon' => 'bi-cash-coin']] : []),
-                ...($canManageMaintenanceProviders ? [['patterns' => ['maintenance.providers.index', 'maintenance.technicians.index'], 'route' => 'maintenance.providers.index', 'label' => 'Proveedores y técnicos', 'icon' => 'bi-person-vcard']] : []),
-                ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
-                [
-                    'patterns' => ['settings.dossiers.*', 'settings.notifications.*', 'access.*', 'profile.*'],
-                    'label' => 'Configuración',
-                    'icon' => 'bi-gear',
-                    'children' => [
-                        ...($canConfigureDossiers ? [
-                            ['patterns' => ['settings.dossiers.index', 'settings.dossiers.requirements.*'], 'route' => 'settings.dossiers.index', 'label' => 'Expedientes', 'icon' => 'bi-sliders'],
-                            ['patterns' => ['settings.dossiers.storage', 'settings.dossiers.storage.*'], 'route' => 'settings.dossiers.storage', 'label' => 'Almacenamiento', 'icon' => 'bi-hdd'],
-                        ] : []),
-                        ...($canConfigureNotifications ? [
-                            ['patterns' => ['settings.notifications.*'], 'route' => 'settings.notifications.index', 'label' => 'Notificaciones', 'icon' => 'bi-bell'],
-                        ] : []),
-                        ...($canManageAccess ? [
-                            ['patterns' => ['access.*'], 'route' => 'access.index', 'label' => 'Usuarios y permisos', 'icon' => 'bi-shield-lock'],
-                        ] : []),
-                        ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'],
-                    ],
-                ],
-            ]);
+            ]),
+            $makeMenuSection('Mantenimiento', 'bi-tools', [
+                $ticketsItem,
+                $isAdmin
+                    ? ['patterns' => ['maintenance-cuts.*'], 'route' => 'maintenance-cuts.index', 'label' => 'Cortes', 'icon' => 'bi-cash-coin']
+                    : null,
+                $canManageMaintenanceProviders
+                    ? ['patterns' => ['maintenance.providers.index', 'maintenance.technicians.index'], 'route' => 'maintenance.providers.index', 'label' => 'Proveedores y técnicos', 'icon' => 'bi-person-vcard']
+                    : null,
+                $storageItem,
+            ]),
+            $makeMenuSection('Configuración', 'bi-gear', [
+                $canConfigureDossiers
+                    ? ['patterns' => ['settings.dossiers.storage', 'settings.dossiers.storage.*'], 'route' => 'settings.dossiers.storage', 'label' => 'Almacenamiento', 'icon' => 'bi-hdd']
+                    : null,
+                $canConfigureDossiers
+                    ? ['patterns' => ['settings.dossiers.index', 'settings.dossiers.requirements.*'], 'route' => 'settings.dossiers.index', 'label' => 'Expedientes', 'icon' => 'bi-sliders']
+                    : null,
+                $canConfigureNotifications
+                    ? ['patterns' => ['settings.notifications.*'], 'route' => 'settings.notifications.index', 'label' => 'Notificaciones', 'icon' => 'bi-bell']
+                    : null,
+                $canManageAccess
+                    ? ['patterns' => ['access.*'], 'route' => 'access.index', 'label' => 'Usuarios y permisos', 'icon' => 'bi-shield-lock']
+                    : null,
+                $profileItem,
+            ]),
+        ];
+    }
 
     $flatMenuItems = collect($menuItems)
         ->flatMap(fn ($item) => $item['children'] ?? [$item])
@@ -173,32 +193,15 @@
     <div id="kt_app_sidebar_wrapper" class="app-sidebar-wrapper">
         <div class="sidebar-shell">
             <div class="sidebar-brand">
-                <button id="kt_app_sidebar_toggle"
-                    type="button"
-                    class="sidebar-brand-toggle app-sidebar-toggle d-none d-lg-inline-flex"
-                    data-kt-toggle="true"
-                    data-kt-toggle-state="active"
-                    data-kt-toggle-target="body"
-                    data-kt-toggle-name="app-sidebar-minimize"
-                    aria-label="Contraer menú">
-                    <i class="ki-outline ki-menu fs-3"></i>
-                </button>
-
-                <a href="{{ route($homeRoute) }}" class="sidebar-brand-link text-decoration-none">
-                    <span class="sidebar-brand-mark">SW</span>
-                    <span class="sidebar-brand-wordmark">SuWork</span>
+                <a href="{{ route($homeRoute) }}" class="sidebar-brand-link text-decoration-none" aria-label="Ir al inicio de SuHomes">
+                    <span class="sidebar-brand-mark">SH</span>
+                    <span class="sidebar-brand-wordmark">SuHomes</span>
                 </a>
             </div>
 
             <div class="sidebar-scroll">
                 <div id="kt_app_sidebar_menu" data-kt-menu="true" data-kt-menu-expand="false"
                     class="app-sidebar-menu-primary menu menu-column">
-                    <div class="menu-item pt-3">
-                        <div class="menu-content">
-                            <span class="menu-heading fw-bold text-uppercase fs-8">{{ $roleLabel }}</span>
-                        </div>
-                    </div>
-
                     @foreach ($menuItems as $item)
                         @php
                             $children = collect($item['children'] ?? []);
@@ -206,8 +209,9 @@
                         @endphp
 
                         @if ($children->isNotEmpty())
-                            <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isParentActive ? 'show' : '' }}">
-                                <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
+                            <div class="menu-item menu-accordion {{ $isParentActive ? 'show' : '' }}">
+                                <span class="menu-link {{ $isParentActive ? 'active' : '' }}" tabindex="0"
+                                    aria-label="{{ $item['label'] }}">
                                     <span class="menu-icon"><i class="bi {{ $item['icon'] }} fs-2"></i></span>
                                     <span class="menu-title">{{ $item['label'] }}</span>
                                     <span class="menu-arrow"></span>

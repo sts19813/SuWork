@@ -36,7 +36,6 @@
 </head>
 
 @php
-    $isSidebarMinimized = request()->cookie('sidebar_minimize_state', 'on') === 'on';
     $viewErrors = $errors ?? new \Illuminate\Support\ViewErrorBag;
 @endphp
 
@@ -44,9 +43,7 @@
     data-kt-app-sidebar-enabled="true"
     data-kt-app-sidebar-fixed="true"
     data-kt-app-sidebar-hoverable="false"
-    @if ($isSidebarMinimized)
-        data-kt-app-sidebar-minimize="on"
-    @endif
+    data-kt-app-sidebar-minimize="on"
     @include('partials.suwork-flash-attrs')
     class="app-default su-admin-layout">
     <!--begin::Theme mode setup on page load-->
@@ -138,15 +135,6 @@
                 });
             });
 
-            var sidebarToggle = document.getElementById('kt_app_sidebar_toggle');
-            if (sidebarToggle) {
-                sidebarToggle.addEventListener('click', function () {
-                    setTimeout(function () {
-                        var isMinimized = document.body.getAttribute('data-kt-app-sidebar-minimize') === 'on';
-                        document.cookie = 'sidebar_minimize_state=' + (isMinimized ? 'on' : 'off') + '; path=/; max-age=31536000; SameSite=Lax';
-                    }, 80);
-                });
-            }
         });
     </script>
 
