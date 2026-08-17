@@ -1078,6 +1078,7 @@ class MaintenanceModuleTest extends TestCase
             ->assertSee('<h1>Técnicos</h1>', false)
             ->assertSee('Nuevo técnico')
             ->assertDontSee('Nuevo proveedor')
+            ->assertDontSee('Ver proveedores')
             ->assertDontSee('data-bs-toggle="tab"', false);
 
         $this->actingAs($advisor)
@@ -1086,6 +1087,7 @@ class MaintenanceModuleTest extends TestCase
             ->assertSee('<h1>Proveedores</h1>', false)
             ->assertSee('Nuevo proveedor')
             ->assertDontSee('Nuevo técnico')
+            ->assertDontSee('Ver técnicos')
             ->assertDontSee('data-bs-toggle="tab"', false);
 
         $response = $this->actingAs($advisor)

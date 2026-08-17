@@ -28,10 +28,8 @@
             <div class="directory-actions">
                 <a class="btn btn-light" href="{{ route('maintenance.index') }}"><i class="bi bi-arrow-left"></i> Regresar</a>
                 @if ($isTechnicianDirectory)
-                    <a class="btn btn-light-primary" href="{{ route('maintenance.providers.index') }}"><i class="bi bi-building"></i> Ver proveedores</a>
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTechnicianModal"><i class="bi bi-person-plus"></i> Nuevo técnico</button>
                 @else
-                    <a class="btn btn-light-primary" href="{{ route('maintenance.technicians.index') }}"><i class="bi bi-person-gear"></i> Ver técnicos</a>
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createSupplierModal"><i class="bi bi-building-add"></i> Nuevo proveedor</button>
                 @endif
             </div>
