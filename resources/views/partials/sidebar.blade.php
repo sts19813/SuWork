@@ -200,6 +200,16 @@
                     <span class="sidebar-brand-mark">SH</span>
                     <span class="sidebar-brand-wordmark">SuHomes</span>
                 </a>
+                <button type="button"
+                    id="kt_app_sidebar_toggle"
+                    class="sidebar-brand-toggle"
+                    data-su-sidebar-toggle
+                    aria-controls="kt_app_sidebar"
+                    aria-expanded="false"
+                    aria-label="Expandir menú lateral"
+                    title="Expandir menú lateral">
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </button>
             </div>
 
             <div class="sidebar-scroll">

@@ -68,6 +68,14 @@
 
             document.documentElement.setAttribute("data-bs-theme", themeMode);
         }
+
+        try {
+            if (window.matchMedia('(min-width: 992px)').matches && localStorage.getItem('suwork-sidebar-expanded') === 'true') {
+                document.body.setAttribute('data-kt-app-sidebar-minimize', 'off');
+            }
+        } catch (error) {
+            // El menú conserva su estado compacto si el navegador bloquea el almacenamiento local.
+        }
     </script>
 
     <div class="d-flex flex-column flex-root app-root" id="kt_app_root">
@@ -134,6 +142,71 @@
                     setThemeMode(currentMode === 'dark' ? 'light' : 'dark');
                 });
             });
+
+            var sidebarToggle = document.querySelector('[data-su-sidebar-toggle]');
+            var desktopSidebar = window.matchMedia('(min-width: 992px)');
+            var sidebarStorageKey = 'suwork-sidebar-expanded';
+
+            function storedSidebarState() {
+                try {
+                    return localStorage.getItem(sidebarStorageKey) === 'true';
+                } catch (error) {
+                    return false;
+                }
+            }
+
+            function updateSidebarToggle(expanded) {
+                if (!sidebarToggle) {
+                    return;
+                }
+
+                var label = expanded ? 'Compactar menú lateral' : 'Expandir menú lateral';
+                var icon = sidebarToggle.querySelector('i');
+
+                sidebarToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                sidebarToggle.setAttribute('aria-label', label);
+                sidebarToggle.setAttribute('title', label);
+
+                if (icon) {
+                    icon.classList.toggle('bi-chevron-left', expanded);
+                    icon.classList.toggle('bi-chevron-right', !expanded);
+                }
+            }
+
+            function setSidebarExpanded(expanded, persist) {
+                var canExpand = desktopSidebar.matches;
+                var nextState = canExpand && expanded;
+
+                document.body.setAttribute('data-kt-app-sidebar-minimize', nextState ? 'off' : 'on');
+                updateSidebarToggle(nextState);
+
+                if (persist) {
+                    try {
+                        localStorage.setItem(sidebarStorageKey, nextState ? 'true' : 'false');
+                    } catch (error) {
+                        // La interacción sigue funcionando durante la página actual.
+                    }
+                }
+            }
+
+            setSidebarExpanded(storedSidebarState(), false);
+
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function () {
+                    var isExpanded = document.body.getAttribute('data-kt-app-sidebar-minimize') === 'off';
+                    setSidebarExpanded(!isExpanded, true);
+                });
+            }
+
+            var handleSidebarViewportChange = function () {
+                setSidebarExpanded(storedSidebarState(), false);
+            };
+
+            if (typeof desktopSidebar.addEventListener === 'function') {
+                desktopSidebar.addEventListener('change', handleSidebarViewportChange);
+            } else if (typeof desktopSidebar.addListener === 'function') {
+                desktopSidebar.addListener(handleSidebarViewportChange);
+            }
 
         });
     </script>

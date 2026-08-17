@@ -53,7 +53,7 @@ class DashboardModulesTest extends TestCase
             ->assertSee('Resumen de cobranza');
     }
 
-    public function test_admin_sidebar_is_always_compact_and_groups_all_available_modules(): void
+    public function test_admin_sidebar_can_expand_on_desktop_and_groups_all_available_modules(): void
     {
         $adminRole = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
         $admin = User::factory()->create();
@@ -63,7 +63,10 @@ class DashboardModulesTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('data-kt-app-sidebar-minimize="on"', false)
-            ->assertDontSee('id="kt_app_sidebar_toggle"', false)
+            ->assertSee('id="kt_app_sidebar_toggle"', false)
+            ->assertSee('data-su-sidebar-toggle', false)
+            ->assertSee('aria-expanded="false"', false)
+            ->assertSee("localStorage.getItem('suwork-sidebar-expanded')", false)
             ->assertSeeInOrder([
                 'Inicio',
                 'Dashboard',
@@ -90,6 +93,14 @@ class DashboardModulesTest extends TestCase
                 'Usuarios y permisos',
                 'Perfil',
             ]);
+
+        $sidebarCss = file_get_contents(public_path('assets/css/app.css'));
+
+        $this->assertStringContainsString('@media (max-width: 991px)', $sidebarCss);
+        $this->assertStringContainsString('.su-admin-layout .sidebar-brand-toggle', $sidebarCss);
+        $this->assertStringContainsString('[data-kt-app-sidebar-minimize="off"].su-admin-layout .app-sidebar-menu-primary', $sidebarCss);
+        $this->assertStringContainsString('.menu-link:not(.active) .menu-title', $sidebarCss);
+        $this->assertStringContainsString('background-color: #fff !important', $sidebarCss);
     }
 
     public function test_advisor_dashboard_defaults_to_assigned_properties_and_can_view_all(): void

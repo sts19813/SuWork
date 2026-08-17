@@ -262,6 +262,7 @@ body.su-admin-layout {
 }
 
 .su-admin-layout .sidebar-brand {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -281,6 +282,9 @@ body.su-admin-layout {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    margin-left: auto;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease, transform 0.24s ease;
 }
 
 .su-admin-layout .sidebar-brand-toggle:hover {
@@ -378,8 +382,14 @@ body.su-admin-layout {
     color: currentColor;
 }
 
+.su-admin-layout .app-sidebar-menu-primary .menu-link:not(.active) .menu-title,
+.su-admin-layout .app-sidebar-menu-primary .menu-link:not(.active) .menu-icon i,
+.su-admin-layout .app-sidebar-menu-primary .menu-link:not(.active) .menu-bullet {
+    color: #fff !important;
+}
+
 .su-admin-layout .app-sidebar-menu-primary .menu-link:not(.active) .menu-bullet .bullet {
-    background-color: currentColor;
+    background-color: #fff !important;
 }
 
 .su-admin-layout .sidebar-hover-card,
@@ -577,6 +587,17 @@ body.su-admin-layout {
     padding-inline: 0;
 }
 
+[data-kt-app-sidebar-minimize="on"].su-admin-layout .sidebar-brand-toggle {
+    position: absolute;
+    top: 50%;
+    right: -30px;
+    z-index: 3;
+    transform: translateY(-50%);
+    background: var(--admin-sidebar-bg);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 8px 0 18px rgba(17, 24, 39, 0.12);
+}
+
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .sidebar-brand-link {
     justify-content: center;
 }
@@ -617,6 +638,16 @@ body.su-admin-layout {
 
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .sidebar-user-card > .dropdown-menu {
     display: none !important;
+}
+
+[data-kt-app-sidebar-minimize="off"].su-admin-layout .app-sidebar-menu-primary > .menu-item.menu-accordion > .menu-sub {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+[data-kt-app-sidebar-minimize="off"].su-admin-layout .app-sidebar-menu-primary > .menu-item.menu-accordion > .menu-link .menu-arrow {
+    display: none;
 }
 
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar-menu-primary > .menu-item:hover > .sidebar-hover-card,
@@ -730,6 +761,12 @@ body.su-admin-layout {
     [data-kt-app-sidebar-minimize="on"].su-admin-layout .sidebar-shell,
     [data-kt-app-sidebar-minimize="on"].su-admin-layout .sidebar-scroll {
         overflow: visible !important;
+    }
+}
+
+@media (max-width: 991px) {
+    .su-admin-layout .sidebar-brand-toggle {
+        display: none !important;
     }
 }
 
