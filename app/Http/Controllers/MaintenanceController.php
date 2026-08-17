@@ -84,13 +84,13 @@ class MaintenanceController extends Controller
             ->withCount(['files', 'messages']);
 
         $ticketsQuery = (clone $baseQuery)
-            ->when($selectedPropertyId, fn(Builder $query) => $query->where('property_id', $selectedPropertyId))
+            ->when($selectedPropertyId, fn (Builder $query) => $query->where('property_id', $selectedPropertyId))
             ->whereIn('status', $tabStatuses)
-            ->when($status !== '', fn(Builder $query) => $query->where('status', $status))
-            ->when($priority !== '', fn(Builder $query) => $query->where('priority', $priority))
-            ->when($category !== '', fn(Builder $query) => $query->where('category', $category))
-            ->when($from, fn(Builder $query) => $query->whereDate('reported_at', '>=', $from))
-            ->when($to, fn(Builder $query) => $query->whereDate('reported_at', '<=', $to))
+            ->when($status !== '', fn (Builder $query) => $query->where('status', $status))
+            ->when($priority !== '', fn (Builder $query) => $query->where('priority', $priority))
+            ->when($category !== '', fn (Builder $query) => $query->where('category', $category))
+            ->when($from, fn (Builder $query) => $query->whereDate('reported_at', '>=', $from))
+            ->when($to, fn (Builder $query) => $query->whereDate('reported_at', '<=', $to))
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $inner) use ($search): void {
                     $inner->where('title', 'like', "%{$search}%")
@@ -111,7 +111,7 @@ class MaintenanceController extends Controller
             ->withQueryString();
 
         $metricsBase = (clone $baseQuery)
-            ->when($selectedPropertyId, fn(Builder $query) => $query->where('property_id', $selectedPropertyId));
+            ->when($selectedPropertyId, fn (Builder $query) => $query->where('property_id', $selectedPropertyId));
         $totalCount = (clone $metricsBase)->count();
         $openCount = (clone $metricsBase)->whereIn('status', $activeStatuses)->count();
         $pendingCount = (clone $metricsBase)->whereIn('status', $pendingStatuses)->count();
@@ -124,10 +124,10 @@ class MaintenanceController extends Controller
         $avgResolutionHours = $resolvedTickets->isEmpty()
             ? null
             : $resolvedTickets
-            ->map(function (MaintenanceTicket $ticket): float {
-                return max(0, (float) $ticket->reported_at?->diffInMinutes($ticket->completed_at) / 60);
-            })
-            ->avg();
+                ->map(function (MaintenanceTicket $ticket): float {
+                    return max(0, (float) $ticket->reported_at?->diffInMinutes($ticket->completed_at) / 60);
+                })
+                ->avg();
         $monthlyCost = (float) MaintenanceTicketCost::query()
             ->whereHas('ticket', function (Builder $query) use ($metricsBase): void {
                 $query->whereIn('maintenance_tickets.id', (clone $metricsBase)->select('maintenance_tickets.id'));
@@ -168,7 +168,7 @@ class MaintenanceController extends Controller
 
                         return max(0, (float) $ticket->reported_at->diffInMinutes($ticket->completed_at) / 60);
                     })
-                    ->filter(fn($value) => $value !== null);
+                    ->filter(fn ($value) => $value !== null);
 
                 return (object) [
                     'name' => $provider?->name ?? '-',
@@ -194,14 +194,9 @@ class MaintenanceController extends Controller
             ->with('user:id,name,email')
             ->orderBy('name')
             ->get();
-        $users = User::query()
-            ->orderBy('name')
-            ->get(['id', 'name', 'email']);
-
         return view('maintenance.index', [
             'tickets' => $tickets,
             'providers' => $providers,
-            'users' => $users,
             'properties' => $properties,
             'selectedProperty' => $selectedProperty,
             'status' => $status,
@@ -613,6 +608,10 @@ class MaintenanceController extends Controller
             }
         });
 
+        if ($providerChanged && $nextProviderId) {
+            $this->notifyTicketEvent($maintenance, 'asignacion', 'Ticket de mantenimiento asignado');
+        }
+
         $maintenance->refresh()->load('currentProvider:id,name');
 
         if ($request->expectsJson()) {
@@ -832,7 +831,7 @@ class MaintenanceController extends Controller
 
             $expense = Expense::create([
                 'property_id' => $lockedTicket->property_id,
-                'concept' => Str::limit('Mantenimiento ' . $lockedTicket->display_reference . ': ' . $lockedTicket->title, 190, ''),
+                'concept' => Str::limit('Mantenimiento '.$lockedTicket->display_reference.': '.$lockedTicket->title, 190, ''),
                 'amount' => $totalCost,
                 'excluded_from_totals' => $payer === 'inquilino',
                 'due_date' => now()->toDateString(),
@@ -941,8 +940,8 @@ class MaintenanceController extends Controller
         if (filled($recipient?->email) && (! $recipientRole || NotificationSettings::allows($recipientRole, NotificationSettings::EVENT_MAINTENANCE_MESSAGE))) {
             try {
                 Mail::raw(
-                    "Nuevo mensaje en ticket {$maintenance->uuid}: " . $message->message,
-                    fn($mail) => $mail->to($recipient->email)->subject('Nuevo mensaje de mantenimiento')
+                    "Nuevo mensaje en ticket {$maintenance->uuid}: ".$message->message,
+                    fn ($mail) => $mail->to($recipient->email)->subject('Nuevo mensaje de mantenimiento')
                 );
             } catch (\Throwable) {
             }
@@ -961,6 +960,7 @@ class MaintenanceController extends Controller
             'email' => ['nullable', 'email', 'max:190'],
             'phone' => ['nullable', 'string', 'max:40'],
             'specialty' => ['nullable', 'string', 'max:190'],
+            'category' => ['nullable', 'string', 'max:190'],
             'average_cost' => ['nullable', 'numeric', 'min:0'],
             'rating' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'availability' => ['nullable', 'string', 'max:255'],
@@ -972,22 +972,25 @@ class MaintenanceController extends Controller
             'account_password' => ['nullable', 'string', 'min:8', 'max:120'],
             'send_credentials_email' => ['nullable', 'boolean'],
         ]);
-        $wantsCreateAccount = (bool) ($validated['create_user_account'] ?? false);
-        $selectedUserId = $validated['user_id'] ?? null;
-        if ($wantsCreateAccount && $selectedUserId) {
+        $isTechnician = $validated['type'] === 'tecnico_interno';
+        $wantsCreateAccount = $isTechnician && (bool) ($validated['create_user_account'] ?? false);
+        $selectedUserId = $isTechnician ? ($validated['user_id'] ?? null) : null;
+        if ($isTechnician && $wantsCreateAccount && $selectedUserId) {
             return redirect()->back()->with('error', 'Selecciona un usuario existente o crea una cuenta nueva, no ambos.');
         }
-        if (! $wantsCreateAccount && ! $selectedUserId) {
-            return redirect()->back()->with('error', 'Debes vincular un usuario o crear una cuenta para el técnico/proveedor.');
+        if ($isTechnician && ! $wantsCreateAccount && ! $selectedUserId) {
+            return redirect()->back()->with('error', 'Debes vincular un usuario o crear una cuenta para el técnico.');
         }
 
-        [$linkedUser, $generatedPassword] = $this->resolveOrCreateTechnicianUser(
-            $selectedUserId ? (int) $selectedUserId : null,
-            $wantsCreateAccount,
-            $validated['account_name'] ?? null,
-            $validated['account_email'] ?? null,
-            $validated['account_password'] ?? null,
-        );
+        [$linkedUser, $generatedPassword] = $isTechnician
+            ? $this->resolveOrCreateTechnicianUser(
+                $selectedUserId ? (int) $selectedUserId : null,
+                $wantsCreateAccount,
+                $validated['account_name'] ?? null,
+                $validated['account_email'] ?? null,
+                $validated['account_password'] ?? null,
+            )
+            : [null, null];
 
         $provider = MaintenanceProvider::create([
             'type' => (string) $validated['type'],
@@ -996,10 +999,11 @@ class MaintenanceController extends Controller
                 ? trim((string) $validated['email'])
                 : (filled($linkedUser?->email) ? trim((string) $linkedUser->email) : null),
             'phone' => filled($validated['phone'] ?? null) ? trim((string) $validated['phone']) : null,
-            'specialty' => filled($validated['specialty'] ?? null) ? trim((string) $validated['specialty']) : null,
+            'specialty' => $isTechnician && filled($validated['specialty'] ?? null) ? trim((string) $validated['specialty']) : null,
+            'category' => ! $isTechnician && filled($validated['category'] ?? null) ? trim((string) $validated['category']) : null,
             'average_cost' => $validated['average_cost'] ?? null,
             'rating' => $validated['rating'] ?? null,
-            'availability' => filled($validated['availability'] ?? null) ? trim((string) $validated['availability']) : null,
+            'availability' => ! $isTechnician && filled($validated['availability'] ?? null) ? trim((string) $validated['availability']) : null,
             'is_active' => (bool) ($validated['is_active'] ?? true),
             'user_id' => $linkedUser?->id,
         ]);
@@ -1013,8 +1017,8 @@ class MaintenanceController extends Controller
         ) {
             try {
                 Mail::raw(
-                    "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: " . url('/login'),
-                    fn($mail) => $mail->to($linkedUser->email)->subject('Acceso al sistema de mantenimiento')
+                    "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: ".url('/login'),
+                    fn ($mail) => $mail->to($linkedUser->email)->subject('Acceso al sistema de mantenimiento')
                 );
             } catch (\Throwable) {
             }
@@ -1023,7 +1027,7 @@ class MaintenanceController extends Controller
             $provider->update(['email' => $linkedUser->email]);
         }
 
-        return redirect()->back()->with('success', 'Técnico/proveedor creado correctamente.');
+        return redirect()->back()->with('success', $isTechnician ? 'Técnico creado correctamente.' : 'Proveedor creado correctamente.');
     }
 
     public function updateProvider(Request $request, MaintenanceProvider $provider): RedirectResponse
@@ -1036,6 +1040,7 @@ class MaintenanceController extends Controller
             'email' => ['nullable', 'email', 'max:190'],
             'phone' => ['nullable', 'string', 'max:40'],
             'specialty' => ['nullable', 'string', 'max:190'],
+            'category' => ['nullable', 'string', 'max:190'],
             'average_cost' => ['nullable', 'numeric', 'min:0'],
             'rating' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'availability' => ['nullable', 'string', 'max:255'],
@@ -1047,22 +1052,25 @@ class MaintenanceController extends Controller
             'account_password' => ['nullable', 'string', 'min:8', 'max:120'],
             'send_credentials_email' => ['nullable', 'boolean'],
         ]);
-        $wantsCreateAccount = (bool) ($validated['create_user_account'] ?? false);
-        $selectedUserId = $validated['user_id'] ?? null;
-        if ($wantsCreateAccount && $selectedUserId) {
+        $isTechnician = $validated['type'] === 'tecnico_interno';
+        $wantsCreateAccount = $isTechnician && (bool) ($validated['create_user_account'] ?? false);
+        $selectedUserId = $isTechnician ? ($validated['user_id'] ?? null) : null;
+        if ($isTechnician && $wantsCreateAccount && $selectedUserId) {
             return redirect()->back()->with('error', 'Selecciona un usuario existente o crea una cuenta nueva, no ambos.');
         }
-        if (! $wantsCreateAccount && ! $selectedUserId && ! $provider->user_id) {
-            return redirect()->back()->with('error', 'Debes vincular un usuario o crear una cuenta para el técnico/proveedor.');
+        if ($isTechnician && ! $wantsCreateAccount && ! $selectedUserId && ! $provider->user_id) {
+            return redirect()->back()->with('error', 'Debes vincular un usuario o crear una cuenta para el técnico.');
         }
 
-        [$linkedUser, $generatedPassword] = $this->resolveOrCreateTechnicianUser(
-            $selectedUserId ? (int) $selectedUserId : ($provider->user_id ? (int) $provider->user_id : null),
-            $wantsCreateAccount,
-            $validated['account_name'] ?? null,
-            $validated['account_email'] ?? null,
-            $validated['account_password'] ?? null,
-        );
+        [$linkedUser, $generatedPassword] = $isTechnician
+            ? $this->resolveOrCreateTechnicianUser(
+                $selectedUserId ? (int) $selectedUserId : ($provider->user_id ? (int) $provider->user_id : null),
+                $wantsCreateAccount,
+                $validated['account_name'] ?? null,
+                $validated['account_email'] ?? null,
+                $validated['account_password'] ?? null,
+            )
+            : [null, null];
 
         $provider->update([
             'type' => (string) $validated['type'],
@@ -1071,10 +1079,11 @@ class MaintenanceController extends Controller
                 ? trim((string) $validated['email'])
                 : (filled($linkedUser?->email) ? trim((string) $linkedUser->email) : null),
             'phone' => filled($validated['phone'] ?? null) ? trim((string) $validated['phone']) : null,
-            'specialty' => filled($validated['specialty'] ?? null) ? trim((string) $validated['specialty']) : null,
+            'specialty' => $isTechnician && filled($validated['specialty'] ?? null) ? trim((string) $validated['specialty']) : null,
+            'category' => ! $isTechnician && filled($validated['category'] ?? null) ? trim((string) $validated['category']) : null,
             'average_cost' => $validated['average_cost'] ?? null,
             'rating' => $validated['rating'] ?? null,
-            'availability' => filled($validated['availability'] ?? null) ? trim((string) $validated['availability']) : null,
+            'availability' => ! $isTechnician && filled($validated['availability'] ?? null) ? trim((string) $validated['availability']) : null,
             'is_active' => (bool) ($validated['is_active'] ?? false),
             'user_id' => $linkedUser?->id,
         ]);
@@ -1087,14 +1096,14 @@ class MaintenanceController extends Controller
         ) {
             try {
                 Mail::raw(
-                    "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: " . url('/login'),
-                    fn($mail) => $mail->to($linkedUser->email)->subject('Acceso al sistema de mantenimiento')
+                    "Tu cuenta de técnico fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: ".url('/login'),
+                    fn ($mail) => $mail->to($linkedUser->email)->subject('Acceso al sistema de mantenimiento')
                 );
             } catch (\Throwable) {
             }
         }
 
-        return redirect()->back()->with('success', 'Técnico/proveedor actualizado correctamente.');
+        return redirect()->back()->with('success', $isTechnician ? 'Técnico actualizado correctamente.' : 'Proveedor actualizado correctamente.');
     }
 
     private function resolveOrCreateTechnicianUser(
@@ -1198,10 +1207,10 @@ class MaintenanceController extends Controller
             return $query;
         }
         if ($role === 'propietario') {
-            return $query->whereHas('owners', fn(Builder $ownerQuery) => $ownerQuery->where('email', $user->email));
+            return $query->whereHas('owners', fn (Builder $ownerQuery) => $ownerQuery->where('email', $user->email));
         }
         if ($role === 'inquilino') {
-            return $query->whereHas('tenant', fn(Builder $tenantQuery) => $tenantQuery->where('email', $user->email));
+            return $query->whereHas('tenant', fn (Builder $tenantQuery) => $tenantQuery->where('email', $user->email));
         }
 
         return $query->where(function (Builder $propertyQuery) use ($user): void {
@@ -1236,10 +1245,10 @@ class MaintenanceController extends Controller
             return $query;
         }
         if ($role === 'propietario') {
-            return $query->whereHas('property.owners', fn(Builder $ownerQuery) => $ownerQuery->where('email', $user->email));
+            return $query->whereHas('property.owners', fn (Builder $ownerQuery) => $ownerQuery->where('email', $user->email));
         }
         if ($role === 'inquilino') {
-            return $query->whereHas('property.tenant', fn(Builder $tenantQuery) => $tenantQuery->where('email', $user->email));
+            return $query->whereHas('property.tenant', fn (Builder $tenantQuery) => $tenantQuery->where('email', $user->email));
         }
 
         return $query->where(function (Builder $ticketQuery) use ($user): void {
@@ -1255,13 +1264,14 @@ class MaintenanceController extends Controller
 
     private function constrainProviderToUser(Builder $query, User $user): void
     {
-        $query->where(function (Builder $identityQuery) use ($user): void {
-            $identityQuery->where('maintenance_providers.user_id', $user->id);
+        $query->where('maintenance_providers.type', 'tecnico_interno')
+            ->where(function (Builder $identityQuery) use ($user): void {
+                $identityQuery->where('maintenance_providers.user_id', $user->id);
 
-            if (filled($user->email)) {
-                $identityQuery->orWhere('maintenance_providers.email', $user->email);
-            }
-        });
+                if (filled($user->email)) {
+                    $identityQuery->orWhere('maintenance_providers.email', $user->email);
+                }
+            });
     }
 
     private function isPropertyTechnician(MaintenanceTicket $ticket, User $user): bool
@@ -1445,7 +1455,7 @@ class MaintenanceController extends Controller
             ];
         }
 
-        $path = trim($directory, '/') . '/' . Str::uuid() . '.' . $encoded['extension'];
+        $path = trim($directory, '/').'/'.Str::uuid().'.'.$encoded['extension'];
         Storage::disk('public')->put($path, $encoded['binary']);
 
         return [
@@ -1568,26 +1578,33 @@ class MaintenanceController extends Controller
     private function notifyTicketEvent(MaintenanceTicket $ticket, string $event, string $subject): void
     {
         $ticket->loadMissing([
-            'currentProvider:id,user_id,email,name',
+            'currentProvider:id,user_id,email,name,type',
             'currentProvider.user:id,email,name',
             'property.tenant:id,email,full_name',
-            'property.technicianProvider:id,user_id,email,name',
+            'property.technicianProvider:id,user_id,email,name,type',
             'property.technicianProvider.user:id,email,name',
             'property.advisor:id,email,name',
             'property.advisors:id,email,name',
         ]);
 
-        $propertyTechnician = $event === 'nuevo_reporte'
+        $assignedToSupplier = $ticket->currentProvider?->isSupplier() ?? false;
+        $propertyTechnician = $event === 'nuevo_reporte' && ! $assignedToSupplier
             ? $ticket->property?->technicianProvider
             : null;
         $isTenantCreatedTicket = $event === 'nuevo_reporte'
             && $ticket->reported_by_role === 'inquilino';
         $advisorRecipients = collect();
-        if (! $isTenantCreatedTicket || ! $propertyTechnician) {
+        if ($assignedToSupplier) {
+            $responsibleAdvisor = $ticket->property?->advisor;
+            if (! $responsibleAdvisor || blank($responsibleAdvisor->email)) {
+                $responsibleAdvisor = $ticket->property?->advisors?->first(fn (User $advisor): bool => filled($advisor->email));
+            }
+            $advisorRecipients = collect([$responsibleAdvisor]);
+        } elseif (! $isTenantCreatedTicket || ! $propertyTechnician) {
             if ($isTenantCreatedTicket) {
                 $responsibleAdvisor = $ticket->property?->advisor;
                 if (! $responsibleAdvisor || blank($responsibleAdvisor->email)) {
-                    $responsibleAdvisor = $ticket->property?->advisors?->first(fn(User $advisor): bool => filled($advisor->email));
+                    $responsibleAdvisor = $ticket->property?->advisors?->first(fn (User $advisor): bool => filled($advisor->email));
                 }
                 $advisorRecipients = collect([$responsibleAdvisor]);
             } else {
@@ -1602,11 +1619,11 @@ class MaintenanceController extends Controller
 
         $recipients = collect([
             [
-                'email' => $ticket->currentProvider?->email,
+                'email' => $assignedToSupplier ? null : $ticket->currentProvider?->email,
                 'role' => NotificationSettings::ROLE_TECHNICIAN,
             ],
             [
-                'email' => $ticket->currentProvider?->user?->email,
+                'email' => $assignedToSupplier ? null : $ticket->currentProvider?->user?->email,
                 'role' => NotificationSettings::ROLE_TECHNICIAN,
             ],
             [
@@ -1621,16 +1638,16 @@ class MaintenanceController extends Controller
                 'email' => $ticket->property?->tenant?->email,
                 'role' => NotificationSettings::ROLE_TENANT,
             ],
-            ...$advisorRecipients->filter()->map(fn(User $advisor): array => [
+            ...$advisorRecipients->filter()->map(fn (User $advisor): array => [
                 'email' => $advisor->email,
                 'role' => NotificationSettings::ROLE_ADVISOR,
             ])->all(),
         ])
-            ->filter(fn(array $recipient): bool => filled($recipient['email']))
+            ->filter(fn (array $recipient): bool => filled($recipient['email']))
             ->filter(function (array $recipient) use ($notificationEvent): bool {
                 return NotificationSettings::allows($recipient['role'], $notificationEvent);
             })
-            ->map(fn(array $recipient): string => trim((string) $recipient['email']))
+            ->map(fn (array $recipient): string => trim((string) $recipient['email']))
             ->unique()
             ->values();
 

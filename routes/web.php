@@ -176,6 +176,7 @@ Route::middleware(['auth', 'system.access'])
         Route::get('/mantenimiento/cortes', [MaintenanceCutController::class, 'index'])->name('maintenance-cuts.index');
         Route::post('/mantenimiento/cortes', [MaintenanceCutController::class, 'store'])->name('maintenance-cuts.store');
         Route::post('/mantenimiento', [MaintenanceController::class, 'store'])->name('maintenance.store');
+        Route::get('/mantenimiento/proveedores-tecnicos', [MaintenanceController::class, 'technicians'])->name('maintenance.providers.index');
         Route::get('/mantenimiento/tecnicos', [MaintenanceController::class, 'technicians'])->name('maintenance.technicians.index');
         Route::get('/mantenimiento/{maintenance}', [MaintenanceController::class, 'show'])->name('maintenance.show');
         Route::put('/mantenimiento/{maintenance}', [MaintenanceController::class, 'update'])->name('maintenance.update');
