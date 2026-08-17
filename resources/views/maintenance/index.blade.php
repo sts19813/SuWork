@@ -114,8 +114,11 @@
                             <i class="bi bi-sliders"></i> Filtros
                         </button>
                         @if ($canManageProviders)
+                            <a class="maintenance-soft-btn" href="{{ route('maintenance.technicians.index') }}">
+                                <i class="bi bi-person-gear"></i> Técnicos
+                            </a>
                             <a class="maintenance-soft-btn" href="{{ route('maintenance.providers.index') }}">
-                                <i class="bi bi-person-vcard"></i> Proveedores y técnicos
+                                <i class="bi bi-building"></i> Proveedores
                             </a>
                         @endif
                     @endif
@@ -469,7 +472,10 @@
                             <div class="maintenance-side-panel">
                                 <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
                                     <h3 class="maintenance-panel-title mb-0">Equipo</h3>
-                                    <a class="maintenance-soft-btn py-2" href="{{ route('maintenance.providers.index') }}">Administrar</a>
+                                    <div class="d-flex gap-2">
+                                        <a class="maintenance-soft-btn py-2" href="{{ route('maintenance.technicians.index') }}">Técnicos</a>
+                                        <a class="maintenance-soft-btn py-2" href="{{ route('maintenance.providers.index') }}">Proveedores</a>
+                                    </div>
                                 </div>
                                 @forelse ($providers->take(5) as $provider)
                                     <div class="maintenance-mini-row">

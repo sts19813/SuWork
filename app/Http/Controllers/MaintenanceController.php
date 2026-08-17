@@ -235,19 +235,31 @@ class MaintenanceController extends Controller
 
     public function technicians(Request $request): View
     {
+        return $this->maintenanceDirectory($request, 'tecnico_interno', 'technicians');
+    }
+
+    public function providers(Request $request): View
+    {
+        return $this->maintenanceDirectory($request, 'proveedor', 'providers');
+    }
+
+    private function maintenanceDirectory(Request $request, string $providerType, string $directoryType): View
+    {
         $this->ensureCanManageTechnicians($request);
 
         $providers = MaintenanceProvider::query()
             ->with('user:id,name,email')
+            ->where('type', $providerType)
             ->orderBy('name')
             ->get();
-        $users = User::query()
-            ->orderBy('name')
-            ->get(['id', 'name', 'email']);
+        $users = $providerType === 'tecnico_interno'
+            ? User::query()->orderBy('name')->get(['id', 'name', 'email'])
+            : collect();
 
         return view('maintenance.technicians', [
             'providers' => $providers,
             'users' => $users,
+            'directoryType' => $directoryType,
         ]);
     }
 

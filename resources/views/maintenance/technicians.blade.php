@@ -1,11 +1,14 @@
 @extends('layouts.app')
 
-@section('title', 'Proveedores y técnicos | '.config('app.name'))
+@section('title', (($directoryType ?? 'technicians') === 'technicians' ? 'Técnicos' : 'Proveedores').' | '.config('app.name'))
 
 @section('content')
     @php
-        $technicians = $providers->where('type', 'tecnico_interno')->values();
-        $suppliers = $providers->where('type', 'proveedor')->values();
+        $isTechnicianDirectory = ($directoryType ?? 'technicians') === 'technicians';
+        $directoryTitle = $isTechnicianDirectory ? 'Técnicos' : 'Proveedores';
+        $directoryDescription = $isTechnicianDirectory
+            ? 'Administra el equipo técnico interno y sus cuentas de acceso al sistema.'
+            : 'Administra los contactos externos disponibles para atender tickets de mantenimiento.';
     @endphp
 
     <div class="maintenance-directory py-8">
@@ -19,28 +22,29 @@
         <div class="directory-heading">
             <div>
                 <div class="directory-eyebrow">Mantenimiento</div>
-                <h1>Proveedores y técnicos</h1>
-                <p>Administra el equipo interno y los contactos externos disponibles para atender tickets.</p>
+                <h1>{{ $directoryTitle }}</h1>
+                <p>{{ $directoryDescription }}</p>
             </div>
             <div class="directory-actions">
                 <a class="btn btn-light" href="{{ route('maintenance.index') }}"><i class="bi bi-arrow-left"></i> Regresar</a>
-                <button class="btn btn-light-primary" data-bs-toggle="modal" data-bs-target="#createSupplierModal"><i class="bi bi-building-add"></i> Nuevo proveedor</button>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTechnicianModal"><i class="bi bi-person-plus"></i> Nuevo técnico</button>
+                @if ($isTechnicianDirectory)
+                    <a class="btn btn-light-primary" href="{{ route('maintenance.providers.index') }}"><i class="bi bi-building"></i> Ver proveedores</a>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTechnicianModal"><i class="bi bi-person-plus"></i> Nuevo técnico</button>
+                @else
+                    <a class="btn btn-light-primary" href="{{ route('maintenance.technicians.index') }}"><i class="bi bi-person-gear"></i> Ver técnicos</a>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createSupplierModal"><i class="bi bi-building-add"></i> Nuevo proveedor</button>
+                @endif
             </div>
         </div>
 
-        <ul class="nav directory-tabs" role="tablist">
-            <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#technicians-pane" type="button" role="tab"><i class="bi bi-tools"></i> Técnicos <span>{{ $technicians->count() }}</span></button></li>
-            <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#suppliers-pane" type="button" role="tab"><i class="bi bi-building"></i> Proveedores <span>{{ $suppliers->count() }}</span></button></li>
-        </ul>
-
-        <div class="tab-content directory-card">
-            <div class="tab-pane fade show active" id="technicians-pane" role="tabpanel">
+        <div class="directory-card">
+            @if ($isTechnicianDirectory)
+            <div>
                 <div class="directory-card-heading"><h2>Técnicos</h2><p>Los técnicos tienen una cuenta para entrar al sistema y gestionar los tickets que les corresponden.</p></div>
                 <div class="table-responsive"><table class="table align-middle mb-0">
                     <thead><tr><th>Nombre</th><th>Contacto</th><th>Especialidad</th><th>Cuenta del sistema</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
                     <tbody>
-                        @forelse ($technicians as $technician)
+                        @forelse ($providers as $technician)
                             <tr>
                                 <td class="fw-bold text-dark">{{ $technician->name }}</td>
                                 <td><div>{{ $technician->email ?: 'Sin correo' }}</div><small>{{ $technician->phone ?: 'Sin teléfono' }}</small></td>
@@ -56,12 +60,13 @@
                 </table></div>
             </div>
 
-            <div class="tab-pane fade" id="suppliers-pane" role="tabpanel">
+            @else
+            <div>
                 <div class="directory-card-heading"><h2>Proveedores</h2><p>Son contactos externos sin acceso al sistema. El asesor responsable administra sus tickets.</p></div>
                 <div class="table-responsive"><table class="table align-middle mb-0">
                     <thead><tr><th>Nombre</th><th>Contacto</th><th>Categoría</th><th>Disponibilidad</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
                     <tbody>
-                        @forelse ($suppliers as $supplier)
+                        @forelse ($providers as $supplier)
                             <tr>
                                 <td class="fw-bold text-dark">{{ $supplier->name }}</td>
                                 <td><div>{{ $supplier->email ?: 'Sin correo' }}</div><small>{{ $supplier->phone ?: 'Sin teléfono' }}</small></td>
@@ -76,8 +81,10 @@
                     </tbody>
                 </table></div>
             </div>
+            @endif
         </div>
 
+        @if ($isTechnicianDirectory)
         <div class="modal fade" id="createTechnicianModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
                 <form method="POST" action="{{ route('maintenance.providers.store') }}">@csrf
@@ -102,13 +109,14 @@
             </div></div>
         </div>
 
+        @else
         <div class="modal fade" id="createSupplierModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
                 <form method="POST" action="{{ route('maintenance.providers.store') }}">@csrf
                     <input type="hidden" name="type" value="proveedor">
                     <div class="modal-header"><div><h3 class="modal-title">Nuevo proveedor</h3><p class="text-muted mb-0">El proveedor será un contacto externo sin cuenta de acceso.</p></div><button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button></div>
                     <div class="modal-body"><div class="row g-4">
-                        <div class="col-md-6"><label class="form-label required">Nombre</label><input class="form-control" name="name" maxlength="190" required></div>
+                        <div class="col-md-6"><label class="form-label required">Nombre o empresa</label><input class="form-control" name="name" maxlength="190" required></div>
                         <div class="col-md-6"><label class="form-label">Categoría</label><input class="form-control" name="category" maxlength="190" placeholder="Ej. Plomería, electricidad"></div>
                         <div class="col-md-6"><label class="form-label">Correo</label><input class="form-control" type="email" name="email" maxlength="190"></div>
                         <div class="col-md-6"><label class="form-label">Teléfono</label><input class="form-control" name="phone" maxlength="40"></div>
@@ -119,6 +127,7 @@
                 </form>
             </div></div>
         </div>
+        @endif
 
         @foreach ($providers as $provider)
             <div class="modal fade" id="editProviderModal-{{ $provider->id }}" tabindex="-1" aria-hidden="true">

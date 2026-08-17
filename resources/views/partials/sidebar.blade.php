@@ -78,7 +78,10 @@
                     ? ['patterns' => ['maintenance-cuts.*'], 'route' => 'maintenance-cuts.index', 'label' => 'Cortes', 'icon' => 'bi-cash-coin']
                     : null,
                 $canManageMaintenanceProviders
-                    ? ['patterns' => ['maintenance.providers.index', 'maintenance.technicians.index'], 'route' => 'maintenance.providers.index', 'label' => 'Proveedores y técnicos', 'icon' => 'bi-person-vcard']
+                    ? ['patterns' => ['maintenance.technicians.index'], 'route' => 'maintenance.technicians.index', 'label' => 'Técnicos', 'icon' => 'bi-person-gear']
+                    : null,
+                $canManageMaintenanceProviders
+                    ? ['patterns' => ['maintenance.providers.index'], 'route' => 'maintenance.providers.index', 'label' => 'Proveedores', 'icon' => 'bi-building']
                     : null,
                 $storageItem,
             ]),

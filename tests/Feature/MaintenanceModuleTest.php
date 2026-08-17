@@ -1044,10 +1044,15 @@ class MaintenanceModuleTest extends TestCase
         $this->actingAs($advisor)
             ->get(route('maintenance.index'))
             ->assertOk()
-            ->assertDontSee('Proveedores y técnicos');
+            ->assertDontSee(route('maintenance.technicians.index'), false)
+            ->assertDontSee(route('maintenance.providers.index'), false);
 
         $this->actingAs($advisor)
             ->get(route('maintenance.technicians.index'))
+            ->assertForbidden();
+
+        $this->actingAs($advisor)
+            ->get(route('maintenance.providers.index'))
             ->assertForbidden();
     }
 
@@ -1064,12 +1069,24 @@ class MaintenanceModuleTest extends TestCase
         $this->actingAs($advisor)
             ->get(route('maintenance.index'))
             ->assertOk()
-            ->assertSee('Proveedores y técnicos');
+            ->assertSee(route('maintenance.technicians.index'), false)
+            ->assertSee(route('maintenance.providers.index'), false);
 
         $this->actingAs($advisor)
             ->get(route('maintenance.technicians.index'))
             ->assertOk()
-            ->assertSee('Proveedores y técnicos');
+            ->assertSee('<h1>Técnicos</h1>', false)
+            ->assertSee('Nuevo técnico')
+            ->assertDontSee('Nuevo proveedor')
+            ->assertDontSee('data-bs-toggle="tab"', false);
+
+        $this->actingAs($advisor)
+            ->get(route('maintenance.providers.index'))
+            ->assertOk()
+            ->assertSee('<h1>Proveedores</h1>', false)
+            ->assertSee('Nuevo proveedor')
+            ->assertDontSee('Nuevo técnico')
+            ->assertDontSee('data-bs-toggle="tab"', false);
 
         $response = $this->actingAs($advisor)
             ->post(route('maintenance.providers.store'), [
@@ -1107,9 +1124,9 @@ class MaintenanceModuleTest extends TestCase
         $this->actingAs($admin)
             ->get(route('maintenance.providers.index'))
             ->assertOk()
-            ->assertSee('Proveedores y técnicos')
+            ->assertSee('<h1>Proveedores</h1>', false)
             ->assertSee('Nuevo proveedor')
-            ->assertSee('Nuevo técnico')
+            ->assertDontSee('Nuevo técnico')
             ->assertDontSee('Empresa externa');
 
         $this->actingAs($admin)
@@ -1136,6 +1153,35 @@ class MaintenanceModuleTest extends TestCase
             'user_id' => null,
         ]);
         $this->assertSame($usersBefore, User::query()->count());
+    }
+
+    public function test_technicians_and_suppliers_are_listed_in_separate_modules(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+
+        MaintenanceProvider::query()->create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico exclusivo del catálogo',
+            'is_active' => true,
+        ]);
+        MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor exclusivo del catálogo',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('maintenance.technicians.index'))
+            ->assertOk()
+            ->assertSee('Técnico exclusivo del catálogo')
+            ->assertDontSee('Proveedor exclusivo del catálogo');
+
+        $this->actingAs($admin)
+            ->get(route('maintenance.providers.index'))
+            ->assertOk()
+            ->assertSee('Proveedor exclusivo del catálogo')
+            ->assertDontSee('Técnico exclusivo del catálogo');
     }
 
     public function test_supplier_assignment_notifies_responsible_advisor_who_can_manage_ticket_content(): void
