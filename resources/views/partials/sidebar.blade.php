@@ -222,8 +222,10 @@
                         @endphp
 
                         @if ($children->isNotEmpty())
-                            <div class="menu-item menu-accordion {{ $isParentActive ? 'show' : '' }}">
+                            <div class="menu-item menu-accordion {{ $isParentActive ? 'show' : '' }}"
+                                data-kt-menu-trigger="click">
                                 <span class="menu-link {{ $isParentActive ? 'active' : '' }}" tabindex="0"
+                                    aria-expanded="{{ $isParentActive ? 'true' : 'false' }}"
                                     aria-label="{{ $item['label'] }}">
                                     <span class="menu-icon"><i class="bi {{ $item['icon'] }} fs-2"></i></span>
                                     <span class="menu-title">{{ $item['label'] }}</span>

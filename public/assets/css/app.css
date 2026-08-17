@@ -640,16 +640,6 @@ body.su-admin-layout {
     display: none !important;
 }
 
-[data-kt-app-sidebar-minimize="off"].su-admin-layout .app-sidebar-menu-primary > .menu-item.menu-accordion > .menu-sub {
-    display: block !important;
-    height: auto !important;
-    overflow: visible !important;
-}
-
-[data-kt-app-sidebar-minimize="off"].su-admin-layout .app-sidebar-menu-primary > .menu-item.menu-accordion > .menu-link .menu-arrow {
-    display: none;
-}
-
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar-menu-primary > .menu-item:hover > .sidebar-hover-card,
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar-menu-primary > .menu-item:focus-within > .sidebar-hover-card {
     display: flex;
