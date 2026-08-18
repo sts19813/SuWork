@@ -8,13 +8,14 @@
         ->join('');
     $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
     $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
+    $isProvider = $user->hasRole('proveedor') || $user->hasRole('provider');
     $isAdmin = $user->hasRole('administrador') || $user->hasRole('admin');
     $canManageAccess = $user->can('usuarios.gestionar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canViewPropertyControl = $user->can('propiedades.control_ver') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canConfigureDossiers = $user->can('expedientes.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canConfigureNotifications = $user->can('notificaciones.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
-    $homeRoute = ($isTenant || $isTechnician) ? 'maintenance.index' : 'dashboard';
-    $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : 'Panel SuWork');
+    $homeRoute = ($isTenant || $isTechnician || $isProvider) ? 'maintenance.index' : 'dashboard';
+    $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : ($isProvider ? 'Panel de proveedor' : 'Panel SuWork'));
     $currentHour = now()->hour;
     $greeting = $currentHour < 12 ? 'Buenos días' : ($currentHour < 19 ? 'Buenas tardes' : 'Buenas noches');
     $menuItems = $isTenant
@@ -43,6 +44,18 @@
                     ],
                 ],
             ]
+            : ($isProvider
+                ? [
+                    ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
+                    [
+                        'patterns' => ['profile.*'],
+                        'label' => 'Configuración',
+                        'icon' => 'bi-gear',
+                        'children' => [
+                            ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'],
+                        ],
+                    ],
+                ]
             : [
             ['patterns' => ['dashboard'], 'route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'bi-speedometer2'],
             ...($canViewPropertyControl ? [['patterns' => ['properties.control'], 'route' => 'properties.control', 'label' => 'Control propiedades', 'icon' => 'bi-clipboard-data']] : []),
@@ -73,7 +86,7 @@
                     ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'],
                 ],
             ],
-        ]);
+        ]));
 
     $flatMenuItems = collect($menuItems)
         ->flatMap(fn ($item) => $item['children'] ?? [$item])
@@ -89,11 +102,15 @@
                 ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
                 ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
             ]
+            : ($isProvider
+                ? [
+                    ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
+                ]
             : [
                 ['patterns' => ['properties.index', 'properties.create', 'properties.show', 'properties.edit', 'properties.inventory.edit', 'dashboard'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
                 ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
                 ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
-            ]);
+            ]));
 
     $mobileSecondaryItems = $flatMenuItems
         ->reject(function ($item) use ($mobilePrimaryItems) {

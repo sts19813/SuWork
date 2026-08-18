@@ -48,6 +48,10 @@ class AccessControlSeeder extends Seeder
             'name' => 'tecnico',
             'guard_name' => 'web',
         ]);
+        Role::query()->firstOrCreate([
+            'name' => 'proveedor',
+            'guard_name' => 'web',
+        ]);
 
         $advisorRole = Role::query()->firstOrCreate([
             'name' => 'asesores',

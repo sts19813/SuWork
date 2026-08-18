@@ -60,21 +60,22 @@
 
             @else
             <div>
-                <div class="directory-card-heading"><h2>Proveedores</h2><p>Son contactos externos sin acceso al sistema. El asesor responsable administra sus tickets.</p></div>
+                <div class="directory-card-heading"><h2>Proveedores</h2><p>Gestionan los tickets que tienen asignados, incluidos sus estados, costos y evidencias.</p></div>
                 <div class="table-responsive"><table class="table align-middle mb-0">
-                    <thead><tr><th>Nombre</th><th>Contacto</th><th>Categoría</th><th>Disponibilidad</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
+                    <thead><tr><th>Nombre</th><th>Contacto</th><th>Categoría</th><th>Cuenta del sistema</th><th>Disponibilidad</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
                     <tbody>
                         @forelse ($providers as $supplier)
                             <tr>
                                 <td class="fw-bold text-dark">{{ $supplier->name }}</td>
                                 <td><div>{{ $supplier->email ?: 'Sin correo' }}</div><small>{{ $supplier->phone ?: 'Sin teléfono' }}</small></td>
                                 <td>{{ $supplier->category ?: 'Sin categoría' }}</td>
+                                <td>@if ($supplier->user)<div class="fw-semibold">{{ $supplier->user->name }}</div><small>{{ $supplier->user->email }}</small>@else<span class="badge badge-light-warning">Sin cuenta vinculada</span>@endif</td>
                                 <td>{{ $supplier->availability ?: 'Sin especificar' }}</td>
                                 <td><span class="directory-status {{ $supplier->is_active ? 'is-active' : '' }}">{{ $supplier->is_active ? 'Activo' : 'Inactivo' }}</span></td>
                                 <td class="text-end"><button class="btn btn-sm btn-light-primary" data-bs-toggle="modal" data-bs-target="#editProviderModal-{{ $supplier->id }}">Editar</button></td>
                             </tr>
                         @empty
-                            <tr><td colspan="6"><div class="directory-empty"><i class="bi bi-building"></i><strong>Aún no hay proveedores</strong><span>Agrega contactos externos para asignarlos a tickets.</span></div></td></tr>
+                            <tr><td colspan="7"><div class="directory-empty"><i class="bi bi-building"></i><strong>Aún no hay proveedores</strong><span>Agrega el primer proveedor y configura su acceso a tickets.</span></div></td></tr>
                         @endforelse
                     </tbody>
                 </table></div>
@@ -112,13 +113,20 @@
             <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
                 <form method="POST" action="{{ route('maintenance.providers.store') }}">@csrf
                     <input type="hidden" name="type" value="proveedor">
-                    <div class="modal-header"><div><h3 class="modal-title">Nuevo proveedor</h3><p class="text-muted mb-0">El proveedor será un contacto externo sin cuenta de acceso.</p></div><button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button></div>
+                    <div class="modal-header"><div><h3 class="modal-title">Nuevo proveedor</h3><p class="text-muted mb-0">Registra sus datos y configura su acceso a los tickets asignados.</p></div><button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button></div>
                     <div class="modal-body"><div class="row g-4">
                         <div class="col-md-6"><label class="form-label required">Nombre o empresa</label><input class="form-control" name="name" maxlength="190" required></div>
                         <div class="col-md-6"><label class="form-label">Categoría</label><input class="form-control" name="category" maxlength="190" placeholder="Ej. Plomería, electricidad"></div>
                         <div class="col-md-6"><label class="form-label">Correo</label><input class="form-control" type="email" name="email" maxlength="190"></div>
                         <div class="col-md-6"><label class="form-label">Teléfono</label><input class="form-control" name="phone" maxlength="40"></div>
                         <div class="col-12"><label class="form-label">Disponibilidad</label><input class="form-control" name="availability" maxlength="255" placeholder="Ej. Lunes a viernes de 9:00 a 18:00"></div>
+                        <div class="col-12"><div class="directory-account-title"><i class="bi bi-shield-lock"></i><div><strong>Acceso al sistema</strong><span>Vincula un usuario existente o crea uno nuevo para este proveedor.</span></div></div></div>
+                        <div class="col-md-6"><label class="form-label">Vincular usuario existente</label><select class="form-select" name="user_id"><option value="">Seleccionar usuario</option>@foreach ($users as $userRow)<option value="{{ $userRow->id }}">{{ $userRow->name }} · {{ $userRow->email }}</option>@endforeach</select></div>
+                        <div class="col-md-6 d-flex align-items-end"><div class="form-check form-check-custom form-check-solid"><input class="form-check-input" type="checkbox" value="1" id="create_supplier_account_new" name="create_user_account"><label class="form-check-label" for="create_supplier_account_new">Crear usuario nuevo</label></div></div>
+                        <div class="col-md-6"><label class="form-label">Nombre del usuario</label><input class="form-control" name="account_name" maxlength="255"></div>
+                        <div class="col-md-6"><label class="form-label">Correo de acceso</label><input class="form-control" type="email" name="account_email" maxlength="190"></div>
+                        <div class="col-md-6"><label class="form-label">Contraseña</label><input class="form-control" type="text" name="account_password" maxlength="120"></div>
+                        <div class="col-md-6 d-flex align-items-end"><div class="form-check form-check-custom form-check-solid"><input class="form-check-input" type="checkbox" value="1" id="send_supplier_credentials_email_new" name="send_credentials_email"><label class="form-check-label" for="send_supplier_credentials_email_new">Enviar acceso por correo</label></div></div>
                         <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" value="1" name="is_active" id="supplier_active_new" checked><label class="form-check-label" for="supplier_active_new">Proveedor activo</label></div></div>
                     </div></div>
                     <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary">Guardar proveedor</button></div>
@@ -140,15 +148,14 @@
                             <div class="col-md-6"><label class="form-label">Teléfono</label><input class="form-control" name="phone" maxlength="40" value="{{ $provider->phone }}"></div>
                             @if ($provider->isSupplier())
                                 <div class="col-12"><label class="form-label">Disponibilidad</label><input class="form-control" name="availability" maxlength="255" value="{{ $provider->availability }}"></div>
-                            @else
-                                <div class="col-12"><div class="directory-account-title"><i class="bi bi-shield-lock"></i><div><strong>Acceso al sistema</strong><span>Conserva la cuenta vinculada o crea una nueva.</span></div></div></div>
-                                <div class="col-md-6"><label class="form-label">Vincular usuario existente</label><select class="form-select" name="user_id"><option value="">Conservar cuenta actual</option>@foreach ($users as $userRow)<option value="{{ $userRow->id }}" {{ (int) $provider->user_id === (int) $userRow->id ? 'selected' : '' }}>{{ $userRow->name }} · {{ $userRow->email }}</option>@endforeach</select></div>
-                                <div class="col-md-6 d-flex align-items-end"><div class="form-check form-check-custom form-check-solid"><input class="form-check-input" type="checkbox" value="1" id="create_user_account_{{ $provider->id }}" name="create_user_account"><label class="form-check-label" for="create_user_account_{{ $provider->id }}">Crear usuario nuevo</label></div></div>
-                                <div class="col-md-6"><label class="form-label">Nombre del usuario</label><input class="form-control" name="account_name" maxlength="255" value="{{ $provider->name }}"></div>
-                                <div class="col-md-6"><label class="form-label">Correo de acceso</label><input class="form-control" type="email" name="account_email" maxlength="190"></div>
-                                <div class="col-md-6"><label class="form-label">Contraseña</label><input class="form-control" type="text" name="account_password" maxlength="120"></div>
-                                <div class="col-md-6 d-flex align-items-end"><div class="form-check form-check-custom form-check-solid"><input class="form-check-input" type="checkbox" value="1" id="send_credentials_email_{{ $provider->id }}" name="send_credentials_email"><label class="form-check-label" for="send_credentials_email_{{ $provider->id }}">Enviar acceso por correo</label></div></div>
                             @endif
+                            <div class="col-12"><div class="directory-account-title"><i class="bi bi-shield-lock"></i><div><strong>Acceso al sistema</strong><span>Conserva la cuenta vinculada o crea una nueva.</span></div></div></div>
+                            <div class="col-md-6"><label class="form-label">Vincular usuario existente</label><select class="form-select" name="user_id"><option value="">Conservar cuenta actual</option>@foreach ($users as $userRow)<option value="{{ $userRow->id }}" {{ (int) $provider->user_id === (int) $userRow->id ? 'selected' : '' }}>{{ $userRow->name }} · {{ $userRow->email }}</option>@endforeach</select></div>
+                            <div class="col-md-6 d-flex align-items-end"><div class="form-check form-check-custom form-check-solid"><input class="form-check-input" type="checkbox" value="1" id="create_user_account_{{ $provider->id }}" name="create_user_account"><label class="form-check-label" for="create_user_account_{{ $provider->id }}">Crear usuario nuevo</label></div></div>
+                            <div class="col-md-6"><label class="form-label">Nombre del usuario</label><input class="form-control" name="account_name" maxlength="255" value="{{ $provider->name }}"></div>
+                            <div class="col-md-6"><label class="form-label">Correo de acceso</label><input class="form-control" type="email" name="account_email" maxlength="190"></div>
+                            <div class="col-md-6"><label class="form-label">Contraseña</label><input class="form-control" type="text" name="account_password" maxlength="120"></div>
+                            <div class="col-md-6 d-flex align-items-end"><div class="form-check form-check-custom form-check-solid"><input class="form-check-input" type="checkbox" value="1" id="send_credentials_email_{{ $provider->id }}" name="send_credentials_email"><label class="form-check-label" for="send_credentials_email_{{ $provider->id }}">Enviar acceso por correo</label></div></div>
                             <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" value="1" name="is_active" id="provider_active_{{ $provider->id }}" {{ $provider->is_active ? 'checked' : '' }}><label class="form-check-label" for="provider_active_{{ $provider->id }}">Registro activo</label></div></div>
                         </div></div>
                         <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary">Guardar cambios</button></div>

@@ -49,6 +49,7 @@ class MaintenanceTicket extends Model
         'propietario' => 'Propietario',
         'inquilino' => 'Inquilino',
         'tecnico' => 'Técnico',
+        'proveedor' => 'Proveedor',
     ];
 
     public const PAYER_LABELS = [

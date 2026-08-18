@@ -8,15 +8,16 @@
         ->join('');
     $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
     $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
+    $isProvider = $user->hasRole('proveedor') || $user->hasRole('provider');
     $isAdmin = $user->hasRole('administrador') || $user->hasRole('admin');
-    $isAdvisor = !$isAdmin && !$isTenant && !$isTechnician && ($user->hasRole('asesores') || $user->hasRole('asesor') || $user->can('propiedades.ver_propias'));
+    $isAdvisor = !$isAdmin && !$isTenant && !$isTechnician && !$isProvider && ($user->hasRole('asesores') || $user->hasRole('asesor') || $user->can('propiedades.ver_propias'));
     $canManageAccess = $user->can('usuarios.gestionar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canViewPropertyControl = $user->can('propiedades.control_ver') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canConfigureDossiers = $user->can('expedientes.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canConfigureNotifications = $user->can('notificaciones.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canManageMaintenanceProviders = $user->can('administracion de tecnicos') || $user->hasRole('administrador') || $user->hasRole('admin');
-    $homeRoute = $isAdvisor ? 'advisor.tasks.index' : (($isTenant || $isTechnician) ? 'maintenance.index' : 'dashboard');
-    $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : ($isAdvisor ? 'Panel de asesor' : 'Panel SuWork'));
+    $homeRoute = $isAdvisor ? 'advisor.tasks.index' : (($isTenant || $isTechnician || $isProvider) ? 'maintenance.index' : 'dashboard');
+    $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : ($isProvider ? 'Panel de proveedor' : ($isAdvisor ? 'Panel de asesor' : 'Panel SuWork')));
     $currentHour = now()->hour;
     $greeting = $currentHour < 12 ? 'Buenos días' : ($currentHour < 19 ? 'Buenas tardes' : 'Buenas noches');
     $makeMenuSection = function (string $label, string $icon, array $children): array {
@@ -45,6 +46,11 @@
     } elseif ($isTechnician) {
         $menuItems = [
             $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem, $storageItem]),
+            $makeMenuSection('Configuración', 'bi-gear', [$profileItem]),
+        ];
+    } elseif ($isProvider) {
+        $menuItems = [
+            $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem]),
             $makeMenuSection('Configuración', 'bi-gear', [$profileItem]),
         ];
     } else {
@@ -117,13 +123,17 @@
                 ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
                 ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
             ]
+            : ($isProvider
+                ? [
+                    ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
+                ]
             : [
                 ...($isAdvisor ? [['patterns' => ['advisor.tasks.*'], 'route' => 'advisor.tasks.index', 'label' => 'Pendientes', 'icon' => 'bi-list-check']] : []),
                 ...($isAdmin ? [['patterns' => ['admin.tasks.*'], 'route' => 'admin.tasks.index', 'label' => 'Pendientes', 'icon' => 'bi-list-check']] : []),
                 ['patterns' => ['properties.index', 'properties.create', 'properties.show', 'properties.edit', 'properties.inventory.edit', 'inventory-checks.*'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
                 ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
                 ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
-            ]);
+            ]));
 
     $mobileSecondaryItems = $flatMenuItems
         ->reject(function ($item) use ($mobilePrimaryItems) {

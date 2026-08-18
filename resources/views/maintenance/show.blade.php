@@ -51,6 +51,9 @@
                     if ($role === 'tecnico') {
                         return in_array($message->channel, ['inquilino_admin', 'admin_tecnico'], true);
                     }
+                    if ($role === 'proveedor') {
+                        return $message->channel === 'admin_tecnico';
+                    }
                     return true;
                 })
                 ->sortBy('created_at')
@@ -62,6 +65,9 @@
                     'interno' => $messageChannels['interno'] ?? 'Interno',
                 ],
                 'tecnico' => [
+                    'admin_tecnico' => $messageChannels['admin_tecnico'] ?? 'Administración - Técnico',
+                ],
+                'proveedor' => [
                     'admin_tecnico' => $messageChannels['admin_tecnico'] ?? 'Administración - Técnico',
                 ],
                 'inquilino' => [

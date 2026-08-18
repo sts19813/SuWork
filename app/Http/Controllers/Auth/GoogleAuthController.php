@@ -132,14 +132,19 @@ class GoogleAuthController extends Controller
 
         $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
         $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
+        $isProvider = $user->hasRole('proveedor') || $user->hasRole('provider');
         $isAdmin = $user->hasRole('administrador') || $user->hasRole('admin');
         $isAdvisor = ! $isAdmin && ($user->hasRole('asesores') || $user->hasRole('asesor') || $user->can('propiedades.ver_propias'));
 
         $defaultRoute = match (true) {
-            $isTenant || $isTechnician => 'maintenance.index',
+            $isTenant || $isTechnician || $isProvider => 'maintenance.index',
             $isAdvisor => 'advisor.tasks.index',
             default => 'dashboard',
         };
+
+        if ($isProvider) {
+            return redirect()->route('maintenance.index');
+        }
 
         return redirect()->intended(route($defaultRoute, absolute: false));
     }

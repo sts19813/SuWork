@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -28,6 +29,19 @@ class AuthenticationTest extends TestCase
 
         $this->assertAuthenticated();
         $response->assertRedirect(route('dashboard', absolute: false));
+    }
+
+    public function test_provider_is_redirected_to_tickets_after_login_even_when_dashboard_was_requested(): void
+    {
+        $provider = User::factory()->create();
+        $provider->assignRole(Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']));
+
+        $this->get('/dashboard')->assertRedirect('/login');
+
+        $this->post('/login', [
+            'email' => $provider->email,
+            'password' => 'password',
+        ])->assertRedirect(route('maintenance.index', absolute: false));
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void

@@ -27,11 +27,12 @@ Route::get('/', function () {
         $user = auth()->user();
         $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
         $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
+        $isProvider = $user->hasRole('proveedor') || $user->hasRole('provider');
         $isAdmin = $user->hasRole('administrador') || $user->hasRole('admin');
         $isAdvisor = ! $isAdmin && ($user->hasRole('asesores') || $user->hasRole('asesor') || $user->can('propiedades.ver_propias'));
 
         return redirect()->route(match (true) {
-            $isTenant || $isTechnician => 'maintenance.index',
+            $isTenant || $isTechnician || $isProvider => 'maintenance.index',
             $isAdvisor => 'advisor.tasks.index',
             default => 'dashboard',
         });
@@ -49,7 +50,7 @@ Route::post('/stripe/webhook', [ChargePaymentController::class, 'webhook'])
     ->name('stripe.webhook')
     ->withoutMiddleware([ValidateCsrfToken::class]);
 
-Route::middleware(['auth', 'system.access'])
+Route::middleware(['auth', 'system.access', 'provider.operational'])
     ->group(function () {
         Route::get('/perfil', [ProfileController::class, 'index'])->name('profile.index');
         Route::post('/perfil/actualizar', [ProfileController::class, 'update'])->name('profile.update');
@@ -193,24 +194,26 @@ Route::middleware(['auth', 'system.access'])
         Route::post('/mantenimiento/proveedores', [MaintenanceController::class, 'storeProvider'])->name('maintenance.providers.store');
         Route::put('/mantenimiento/proveedores/{provider}', [MaintenanceController::class, 'updateProvider'])->name('maintenance.providers.update');
 
-        // Almacén (storage items)
-        Route::resource('storage_items', StorageItemController::class);
-        Route::post('storage_items/catalog/warehouse', [StorageItemController::class, 'storeWarehouse'])->name('storage_items.warehouses.store');
-        Route::put('storage_items/catalog/warehouse/{warehouse}', [StorageItemController::class, 'updateWarehouse'])->name('storage_items.warehouses.update');
-        Route::post('storage_items/catalog/zone', [StorageItemController::class, 'storeZone'])->name('storage_items.zones.store');
-        Route::put('storage_items/catalog/zone/{zone}', [StorageItemController::class, 'updateZone'])->name('storage_items.zones.update');
-        Route::delete('storage_items/catalog/zone/{zone}', [StorageItemController::class, 'destroyZone'])->name('storage_items.zones.destroy');
-        Route::post('storage_items/{storage_item}/note', [StorageItemController::class, 'addNote'])->name('storage_items.addNote');
-        Route::get('storage_items/trash/view', [StorageItemController::class, 'trashed'])->name('storage_items.trashed');
-        Route::post('storage_items/{storage_item}/restore', [StorageItemController::class, 'restore'])->name('storage_items.restore');
-        Route::post('storage_items/{storage_item}/delete-with-note', [StorageItemController::class, 'deleteWithNote'])->name('storage_items.deleteWithNote');
+        // Almacén (solo técnicos y administradores)
+        Route::middleware('storage.access')->group(function (): void {
+            Route::resource('storage_items', StorageItemController::class);
+            Route::post('storage_items/catalog/warehouse', [StorageItemController::class, 'storeWarehouse'])->name('storage_items.warehouses.store');
+            Route::put('storage_items/catalog/warehouse/{warehouse}', [StorageItemController::class, 'updateWarehouse'])->name('storage_items.warehouses.update');
+            Route::post('storage_items/catalog/zone', [StorageItemController::class, 'storeZone'])->name('storage_items.zones.store');
+            Route::put('storage_items/catalog/zone/{zone}', [StorageItemController::class, 'updateZone'])->name('storage_items.zones.update');
+            Route::delete('storage_items/catalog/zone/{zone}', [StorageItemController::class, 'destroyZone'])->name('storage_items.zones.destroy');
+            Route::post('storage_items/{storage_item}/note', [StorageItemController::class, 'addNote'])->name('storage_items.addNote');
+            Route::get('storage_items/trash/view', [StorageItemController::class, 'trashed'])->name('storage_items.trashed');
+            Route::post('storage_items/{storage_item}/restore', [StorageItemController::class, 'restore'])->name('storage_items.restore');
+            Route::post('storage_items/{storage_item}/delete-with-note', [StorageItemController::class, 'deleteWithNote'])->name('storage_items.deleteWithNote');
+        });
     });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'system.access'])
+    ->middleware(['auth', 'system.access', 'provider.operational'])
     ->name('dashboard');
 
-Route::middleware(['auth', 'system.access'])->group(function () {
+Route::middleware(['auth', 'system.access', 'provider.operational'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

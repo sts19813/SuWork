@@ -30,6 +30,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'system.access' => \App\Http\Middleware\EnsureUserHasSystemAccess::class,
+            'storage.access' => \App\Http\Middleware\EnsureStorageAccess::class,
+            'provider.operational' => \App\Http\Middleware\RestrictProviderToOperations::class,
         ]);
 
         //
