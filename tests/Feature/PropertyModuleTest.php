@@ -244,7 +244,7 @@ class PropertyModuleTest extends TestCase
         ]);
     }
 
-    public function test_advisor_can_manage_inventory_for_assigned_properties_only(): void
+    public function test_advisor_can_manage_inventory_for_any_property(): void
     {
         $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
         $advisor = User::factory()->create();
@@ -252,41 +252,49 @@ class PropertyModuleTest extends TestCase
         $creator = User::factory()->create();
         $type = PropertyType::query()->create(['name' => 'Casa inventario', 'slug' => 'casa-inventario', 'is_active' => true]);
         $zone = Zone::query()->create(['name' => 'Zona inventario', 'slug' => 'zona-inventario', 'is_active' => true]);
-        $assignedProperty = Property::query()->create([
-            'internal_name' => 'Casa asignada para inventario',
+        $property = Property::query()->create([
+            'internal_name' => 'Casa para inventario',
             'property_type_id' => $type->id,
             'zone_id' => $zone->id,
             'full_address' => 'Calle 10',
             'status' => Property::STATUS_AVAILABLE,
             'created_by' => $creator->id,
-            'advisor_user_id' => $advisor->id,
-        ]);
-        $assignedProperty->advisors()->attach($advisor->id);
-        $otherProperty = Property::query()->create([
-            'internal_name' => 'Casa no asignada para inventario',
-            'property_type_id' => $type->id,
-            'zone_id' => $zone->id,
-            'full_address' => 'Calle 11',
-            'status' => Property::STATUS_AVAILABLE,
-            'created_by' => $creator->id,
         ]);
 
         $this->actingAs($advisor)
-            ->get(route('properties.inventory.edit', $assignedProperty))
+            ->get(route('properties.inventory.edit', $property))
             ->assertOk();
 
         $this->actingAs($advisor)
-            ->postJson(route('inventory.areas.store', $assignedProperty), ['name' => 'Cocina'])
+            ->postJson(route('inventory.areas.store', $property), ['name' => 'Cocina'])
             ->assertOk()
             ->assertJsonPath('success', true);
 
         $this->assertDatabaseHas('property_inventory_areas', [
-            'property_id' => $assignedProperty->id,
+            'property_id' => $property->id,
             'name' => 'Cocina',
         ]);
+    }
 
-        $this->actingAs($advisor)
-            ->get(route('properties.inventory.edit', $otherProperty))
+    public function test_provider_cannot_access_property_inventory(): void
+    {
+        $providerRole = Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']);
+        $provider = User::factory()->create();
+        $provider->assignRole($providerRole);
+        $creator = User::factory()->create();
+        $type = PropertyType::query()->create(['name' => 'Casa proveedor', 'slug' => 'casa-proveedor', 'is_active' => true]);
+        $zone = Zone::query()->create(['name' => 'Zona proveedor', 'slug' => 'zona-proveedor', 'is_active' => true]);
+        $property = Property::query()->create([
+            'internal_name' => 'Casa sin acceso de proveedor',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 12',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $creator->id,
+        ]);
+
+        $this->actingAs($provider)
+            ->get(route('properties.inventory.edit', $property))
             ->assertForbidden();
     }
 
