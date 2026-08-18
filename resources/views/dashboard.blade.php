@@ -26,6 +26,42 @@
             }
         }
 
+        .executive-dashboard .dashboard-kpi-col .card-body {
+            overflow: hidden;
+        }
+
+        .executive-dashboard .dashboard-kpi-value {
+            display: block;
+            font-size: clamp(1.5rem, 1.65vw, 2.25rem);
+            line-height: 1.2;
+            letter-spacing: -0.025em;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .executive-dashboard .collection-chart-column,
+        .executive-dashboard .collection-summary-column {
+            min-width: 0;
+        }
+
+        .executive-dashboard .collection-chart-column {
+            display: flex;
+            align-items: center;
+        }
+
+        .executive-dashboard .collection-chart-shell {
+            display: grid;
+            width: 100%;
+            min-height: 280px;
+            place-items: center;
+        }
+
+        .executive-dashboard #dashboard_collection_pie {
+            width: min(100%, 280px);
+            height: 280px;
+            margin: 0 auto;
+        }
+
         @media (max-width: 767.98px) {
             .executive-dashboard {
                 padding-top: 0 !important;
@@ -114,10 +150,9 @@
                 line-height: 1.35;
             }
 
-            .executive-dashboard .dashboard-kpi-col .fs-2x {
-                font-size: 1.08rem !important;
+            .executive-dashboard .dashboard-kpi-value {
+                font-size: clamp(0.82rem, 4.3vw, 1.08rem) !important;
                 line-height: 1.2;
-                word-break: break-word;
             }
 
             .executive-dashboard .executive-kpi-icon {
@@ -149,9 +184,13 @@
                 padding: 1rem !important;
             }
 
+            .executive-dashboard .collection-chart-shell {
+                min-height: 220px;
+            }
+
             .executive-dashboard #dashboard_collection_pie {
-                min-height: 210px !important;
-                margin-top: -0.75rem;
+                width: min(100%, 220px);
+                height: 220px;
             }
 
             .executive-dashboard .executive-alert {
@@ -294,7 +333,7 @@
                                     <i class="bi {{ $kpi['icon'] }}"></i>
                                 </span>
                             </div>
-                            <div class="fw-bold text-dark fs-2x">{{ $kpi['value'] }}</div>
+                            <div class="fw-bold text-dark dashboard-kpi-value">{{ $kpi['value'] }}</div>
                         </div>
                     </div>
                 </div>
@@ -311,11 +350,13 @@
                         </div>
                     </div>
                     <div class="card-body pt-2">
-                        <div class="row align-items-center">
-                            <div class="col-lg-5">
-                                <div id="dashboard_collection_pie" class="min-h-250px"></div>
+                        <div class="row align-items-stretch collection-summary-row">
+                            <div class="col-lg-5 collection-chart-column">
+                                <div class="collection-chart-shell">
+                                    <div id="dashboard_collection_pie"></div>
+                                </div>
                             </div>
-                            <div class="col-lg-7">
+                            <div class="col-lg-7 collection-summary-column">
                                 @foreach ($collectionSummary['segments'] as $segment)
                                     <div class="mb-5">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
@@ -614,10 +655,14 @@
             };
 
             if (collectionElement && window.ApexCharts) {
+                const collectionChartSize = Math.floor(collectionElement.getBoundingClientRect().width);
+
                 new ApexCharts(collectionElement, {
                     chart: {
                         type: 'donut',
-                        height: 280,
+                        height: collectionChartSize,
+                        width: collectionChartSize,
+                        parentHeightOffset: 0,
                         toolbar: {
                             show: false,
                         },
@@ -638,7 +683,7 @@
                     plotOptions: {
                         pie: {
                             donut: {
-                                size: '72%',
+                                size: '68%',
                             },
                         },
                     },
