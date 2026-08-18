@@ -32,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'system.access' => \App\Http\Middleware\EnsureUserHasSystemAccess::class,
             'storage.access' => \App\Http\Middleware\EnsureStorageAccess::class,
             'provider.operational' => \App\Http\Middleware\RestrictProviderToOperations::class,
+            'inventory.advisor' => \App\Http\Middleware\EnsureAdvisorCanAccessPropertyInventory::class,
         ]);
 
         //

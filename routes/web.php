@@ -77,30 +77,32 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::delete('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'destroyPropertyDocument'])->name('dossiers.properties.documents.destroy');
         Route::delete('/propiedades/{property}/expediente/documentos/{documentType}/versiones/{version}', [DocumentController::class, 'destroyPropertyDocumentVersion'])->name('dossiers.properties.documents.versions.destroy');
 
-        Route::get('/propiedades/{property}/inventario', [InventoryCheckController::class, 'index'])->name('inventory-checks.index');
-        Route::get('/propiedades/{property}/inventario/historial', [InventoryCheckController::class, 'history'])->name('inventory-checks.history');
-        Route::get('/propiedades/{property}/inventario/nuevo/{type}', [InventoryCheckController::class, 'create'])->name('inventory-checks.create');
-        Route::post('/propiedades/{property}/inventario', [InventoryCheckController::class, 'store'])->name('inventory-checks.store');
-        Route::get('/propiedades/{property}/inventario/exportar/pdf', [InventoryCheckController::class, 'exportPdf'])->name('inventory-checks.export-pdf');
-        Route::get('/propiedades/{property}/inventario/editar', [PropertyController::class, 'editInventory'])->name('properties.inventory.edit');
-        Route::get('/propiedades/{property}/inventario/{check}', [InventoryCheckController::class, 'show'])->name('inventory-checks.show');
-        Route::patch('/propiedades/{property}/inventario/{check}/items', [InventoryCheckController::class, 'bulkUpdateItems'])->name('inventory-checks.update-items');
-        Route::patch('/propiedades/{property}/inventario/{check}/items/{item}', [InventoryCheckController::class, 'updateItem'])->name('inventory-checks.update-item');
-        Route::post('/propiedades/{property}/inventario/{check}/items', [InventoryCheckController::class, 'addItem'])->name('inventory-checks.add-item');
-        Route::delete('/propiedades/{property}/inventario/{check}/items/{item}', [InventoryCheckController::class, 'removeItem'])->name('inventory-checks.remove-item');
-        Route::patch('/propiedades/{property}/inventario/{check}/completar', [InventoryCheckController::class, 'complete'])->name('inventory-checks.complete');
-        Route::get('/propiedades/{property}/inventario/items/{itemId}/historial', [InventoryCheckController::class, 'getItemHistory'])->name('inventory-checks.item-history');
-        Route::post('/propiedades/{property}/inventario/{check}/nuevo-elemento', [InventoryCheckController::class, 'addNewItem'])->name('inventory-checks.add-new-item');
+        Route::middleware('inventory.advisor')->group(function (): void {
+            Route::get('/propiedades/{property}/inventario', [InventoryCheckController::class, 'index'])->name('inventory-checks.index');
+            Route::get('/propiedades/{property}/inventario/historial', [InventoryCheckController::class, 'history'])->name('inventory-checks.history');
+            Route::get('/propiedades/{property}/inventario/nuevo/{type}', [InventoryCheckController::class, 'create'])->name('inventory-checks.create');
+            Route::post('/propiedades/{property}/inventario', [InventoryCheckController::class, 'store'])->name('inventory-checks.store');
+            Route::get('/propiedades/{property}/inventario/exportar/pdf', [InventoryCheckController::class, 'exportPdf'])->name('inventory-checks.export-pdf');
+            Route::get('/propiedades/{property}/inventario/editar', [PropertyController::class, 'editInventory'])->name('properties.inventory.edit');
+            Route::get('/propiedades/{property}/inventario/{check}', [InventoryCheckController::class, 'show'])->name('inventory-checks.show');
+            Route::patch('/propiedades/{property}/inventario/{check}/items', [InventoryCheckController::class, 'bulkUpdateItems'])->name('inventory-checks.update-items');
+            Route::patch('/propiedades/{property}/inventario/{check}/items/{item}', [InventoryCheckController::class, 'updateItem'])->name('inventory-checks.update-item');
+            Route::post('/propiedades/{property}/inventario/{check}/items', [InventoryCheckController::class, 'addItem'])->name('inventory-checks.add-item');
+            Route::delete('/propiedades/{property}/inventario/{check}/items/{item}', [InventoryCheckController::class, 'removeItem'])->name('inventory-checks.remove-item');
+            Route::patch('/propiedades/{property}/inventario/{check}/completar', [InventoryCheckController::class, 'complete'])->name('inventory-checks.complete');
+            Route::get('/propiedades/{property}/inventario/items/{itemId}/historial', [InventoryCheckController::class, 'getItemHistory'])->name('inventory-checks.item-history');
+            Route::post('/propiedades/{property}/inventario/{check}/nuevo-elemento', [InventoryCheckController::class, 'addNewItem'])->name('inventory-checks.add-new-item');
 
-        // Inventory management routes
-        Route::post('/propiedades/{property}/inventario/areas', [InventoryCheckController::class, 'storeArea'])->name('inventory.areas.store');
-        Route::patch('/propiedades/{property}/inventario/areas/{area}', [InventoryCheckController::class, 'updateArea'])->name('inventory.areas.update');
-        Route::delete('/propiedades/{property}/inventario/areas/{area}', [InventoryCheckController::class, 'destroyArea'])->name('inventory.areas.destroy');
-        Route::delete('/propiedades/{property}/inventario/areas/{area}/fotos/{photo}', [InventoryCheckController::class, 'destroyAreaPhoto'])->name('inventory.areas.photos.destroy');
-        Route::post('/propiedades/{property}/inventario/areas/{area}/items', [InventoryCheckController::class, 'storeItem'])->name('inventory.items.store');
-        Route::patch('/propiedades/{property}/inventario/areas/{area}/items/{item}', [InventoryCheckController::class, 'updateInventoryItem'])->name('inventory.items.update');
-        Route::delete('/propiedades/{property}/inventario/areas/{area}/items/{item}', [InventoryCheckController::class, 'destroyInventoryItem'])->name('inventory.items.destroy');
-        Route::delete('/propiedades/{property}/inventario/areas/{area}/items/{item}/fotos/{photo}', [InventoryCheckController::class, 'destroyItemPhoto'])->name('inventory.items.photos.destroy');
+            // Inventory management routes
+            Route::post('/propiedades/{property}/inventario/areas', [InventoryCheckController::class, 'storeArea'])->name('inventory.areas.store');
+            Route::patch('/propiedades/{property}/inventario/areas/{area}', [InventoryCheckController::class, 'updateArea'])->name('inventory.areas.update');
+            Route::delete('/propiedades/{property}/inventario/areas/{area}', [InventoryCheckController::class, 'destroyArea'])->name('inventory.areas.destroy');
+            Route::delete('/propiedades/{property}/inventario/areas/{area}/fotos/{photo}', [InventoryCheckController::class, 'destroyAreaPhoto'])->name('inventory.areas.photos.destroy');
+            Route::post('/propiedades/{property}/inventario/areas/{area}/items', [InventoryCheckController::class, 'storeItem'])->name('inventory.items.store');
+            Route::patch('/propiedades/{property}/inventario/areas/{area}/items/{item}', [InventoryCheckController::class, 'updateInventoryItem'])->name('inventory.items.update');
+            Route::delete('/propiedades/{property}/inventario/areas/{area}/items/{item}', [InventoryCheckController::class, 'destroyInventoryItem'])->name('inventory.items.destroy');
+            Route::delete('/propiedades/{property}/inventario/areas/{area}/items/{item}/fotos/{photo}', [InventoryCheckController::class, 'destroyItemPhoto'])->name('inventory.items.photos.destroy');
+        });
 
         Route::get('/propietarios', [OwnerController::class, 'index'])->name('owners.index');
         Route::post('/propietarios', [OwnerController::class, 'store'])->name('owners.store');

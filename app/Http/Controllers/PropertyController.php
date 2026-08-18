@@ -128,8 +128,6 @@ class PropertyController extends Controller
 
     public function editInventory(Request $request, Property $property): View
     {
-        $this->ensureAdvisorIsReadOnly($request);
-
         $property->load([
             'inventoryAreas.photos',
             'inventoryAreas.items.photos.latestVersion',
@@ -795,13 +793,6 @@ class PropertyController extends Controller
             || $this->hasAdvisorRole($user)
             || (bool) $user?->can('propiedades.asignar_asesores')
             || (bool) $user?->can('administracion de tecnicos');
-    }
-
-    private function ensureAdvisorIsReadOnly(Request $request): void
-    {
-        if ($this->isAdvisorUser($request->user())) {
-            abort(403);
-        }
     }
 
     private function getTenantAssignmentMissingRequirements(Tenant $tenant): array
