@@ -39,6 +39,15 @@
             font-variant-numeric: tabular-nums;
         }
 
+        .executive-dashboard .profitability-summary-value {
+            display: block;
+            font-size: clamp(1.1rem, 1.4vw, 1.75rem);
+            line-height: 1.2;
+            letter-spacing: -0.035em;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
         .executive-dashboard .collection-chart-column,
         .executive-dashboard .collection-summary-column {
             min-width: 0;
@@ -258,10 +267,9 @@
                 border-radius: 8px;
             }
 
-            .executive-dashboard .executive-summary-box .fs-2 {
-                font-size: 1rem !important;
+            .executive-dashboard .profitability-summary-value {
+                font-size: clamp(1rem, 4.5vw, 1.2rem) !important;
                 line-height: 1.25;
-                word-break: break-word;
             }
 
             .executive-dashboard #dashboard_profitability_chart {
@@ -480,22 +488,22 @@
                     </div>
                     <div class="card-body pt-2">
                         <div class="row g-3 mb-6">
-                            <div class="col-4">
+                            <div class="col-12 col-md-4">
                                 <div class="executive-summary-box">
                                     <div class="text-muted fs-8 fw-bold text-uppercase">Ingresos</div>
-                                    <div class="fs-2 fw-bold text-dark">{{ '$' . number_format($profitabilitySummary['income_total'], 2) }}</div>
+                                    <div class="fw-bold text-dark profitability-summary-value">{{ '$' . number_format($profitabilitySummary['income_total'], 2) }}</div>
                                 </div>
                             </div>
-                            <div class="col-4">
+                            <div class="col-12 col-md-4">
                                 <div class="executive-summary-box">
                                     <div class="text-muted fs-8 fw-bold text-uppercase">Gastos</div>
-                                    <div class="fs-2 fw-bold text-danger">{{ '$' . number_format($profitabilitySummary['expense_total'], 2) }}</div>
+                                    <div class="fw-bold text-danger profitability-summary-value">{{ '$' . number_format($profitabilitySummary['expense_total'], 2) }}</div>
                                 </div>
                             </div>
-                            <div class="col-4">
+                            <div class="col-12 col-md-4">
                                 <div class="executive-summary-box">
                                     <div class="text-muted fs-8 fw-bold text-uppercase">Utilidad</div>
-                                    <div class="fs-2 fw-bold {{ $profitabilitySummary['profit_total'] >= 0 ? 'text-success' : 'text-danger' }}">
+                                    <div class="fw-bold profitability-summary-value {{ $profitabilitySummary['profit_total'] >= 0 ? 'text-success' : 'text-danger' }}">
                                         {{ '$' . number_format($profitabilitySummary['profit_total'], 2) }}
                                     </div>
                                 </div>
