@@ -216,7 +216,13 @@
                 return null;
             }
 
-            $absolutePath = storage_path('app/public/' . ltrim($relativePath, '/'));
+            $relativePath = ltrim($relativePath, '/');
+            $previewPath = $pdfImagePaths[$relativePath] ?? null;
+            if ($previewPath && file_exists($previewPath)) {
+                return $previewPath;
+            }
+
+            $absolutePath = storage_path('app/public/' . $relativePath);
             if (!file_exists($absolutePath)) {
                 return null;
             }
