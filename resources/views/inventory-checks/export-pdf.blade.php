@@ -82,7 +82,9 @@
             border-radius: 6px;
             padding: 10px;
             margin-bottom: 14px;
-            page-break-inside: avoid;
+            /* Algunas áreas contienen más filas que una hoja A4. Permitir que
+               continúen en la página siguiente evita el reflujo costoso de Dompdf. */
+            page-break-inside: auto;
         }
 
         .area-title {
@@ -141,6 +143,10 @@
             border: 1px solid #e6e8ef;
             padding: 6px;
             vertical-align: top;
+        }
+
+        .items-table tr {
+            page-break-inside: avoid;
         }
 
         .status-pill {
