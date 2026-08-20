@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\InventoryCheck;
 use App\Models\InventoryCheckItem;
 use App\Models\Property;
@@ -14,6 +13,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\View\View;
 use App\Models\PropertyInventoryItem;
 use App\Models\PropertyInventoryItemPhoto;
+use App\Services\InventoryPdfExporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -362,24 +362,25 @@ class InventoryCheckController extends Controller
                 ->map(fn($rows) => $rows->first());
         }
 
-        $pdf = Pdf::loadView('inventory-checks.export-pdf', [
-            'property' => $property,
-            'latestStatuses' => $latestStatuses,
-            'pdfImagePaths' => $this->createPdfImagePreviews(
-                $property->inventoryAreas->flatMap(function (PropertyInventoryArea $area) {
-                    return $area->photos->pluck('file_path')->concat(
-                        $area->items
-                            ->map(fn (PropertyInventoryItem $item) => $item->photos->first()?->latestVersion?->file_path)
-                            ->filter()
-                    );
-                })
-            ),
-            'generatedAt' => now(),
-        ])->setPaper('a4', 'portrait');
+        $generatedAt = now();
+        $imagePreviews = $this->createPdfImagePreviews(
+            $property->inventoryAreas->flatMap(function (PropertyInventoryArea $area) {
+                return $area->photos->pluck('file_path')->concat(
+                    $area->items
+                        ->map(fn (PropertyInventoryItem $item) => $item->photos->first()?->latestVersion?->file_path)
+                        ->filter()
+                );
+            })
+        );
+
+        $pdf = app(InventoryPdfExporter::class)->generate($property, $latestStatuses, $imagePreviews, $generatedAt);
 
         $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $property->internal_name ?: 'propiedad');
 
-        return $pdf->download('inventario_' . $safeName . '_' . now()->format('Ymd_His') . '.pdf');
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="inventario_' . $safeName . '_' . $generatedAt->format('Ymd_His') . '.pdf"',
+        ]);
     }
 
     /**
