@@ -33,6 +33,7 @@
 
     $profileItem = ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'];
     $ticketsItem = ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-ticket-perforated'];
+    $suggestionsItem = ['patterns' => ['tenant-suggestions.*'], 'route' => 'tenant-suggestions.create', 'label' => 'Sugerencias', 'icon' => 'bi-chat-square-text'];
     $storageItem = ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'];
 
     if ($isTenant) {
@@ -40,6 +41,7 @@
             $makeMenuSection('Finanzas', 'bi-wallet2', [
                 ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
             ]),
+            $makeMenuSection('Comunicación', 'bi-chat-square-text', [$suggestionsItem]),
             $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem]),
             $makeMenuSection('Configuración', 'bi-gear', [$profileItem]),
         ];
@@ -64,6 +66,9 @@
             $makeMenuSection('Inicio', 'bi-grid-1x2', [
                 ['patterns' => ['dashboard'], 'route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'bi-speedometer2'],
                 $pendingItem,
+                $isAdmin
+                    ? ['patterns' => ['mailbox.*'], 'route' => 'mailbox.index', 'label' => 'Buzón', 'icon' => 'bi-inbox']
+                    : null,
             ]),
             $makeMenuSection('Operación', 'bi-buildings', [
                 $canViewPropertyControl
@@ -117,6 +122,7 @@
         ? [
             ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
             ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
+            ['patterns' => ['tenant-suggestions.*'], 'route' => 'tenant-suggestions.create', 'label' => 'Sugerencias', 'icon' => 'bi-chat-square-text'],
         ]
         : ($isTechnician
             ? [
