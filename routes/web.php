@@ -68,6 +68,7 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::get('/buzon', [TenantSuggestionController::class, 'index'])->name('mailbox.index');
 
         Route::get('/mapa', [PropertyMapController::class, 'index'])->name('properties.map');
+        Route::post('/mapa/sincronizar-ubicaciones', [PropertyMapController::class, 'syncPending'])->name('properties.map.sync-pending');
         Route::get('/propiedades', [PropertyController::class, 'index'])->name('properties.index');
         Route::get('/propiedades/control', [PropertyControlController::class, 'index'])->name('properties.control');
         Route::get('/propiedades/nueva', [PropertyController::class, 'create'])->name('properties.create');

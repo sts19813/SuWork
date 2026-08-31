@@ -3,6 +3,7 @@
 @section('title', 'Mapa | SuWork')
 
 @push('styles')
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
     <style>
         .property-map-module {
             --map-border: #e5e7eb;
@@ -81,7 +82,7 @@
 
         .property-map-toolbar {
             position: absolute;
-            z-index: 500;
+            z-index: 1100;
             top: 16px;
             left: 16px;
             right: 16px;
@@ -175,6 +176,11 @@
             box-shadow: 0 10px 22px rgba(15, 23, 42, .28);
         }
 
+        .su-map-marker-shell {
+            background: transparent;
+            border: 0;
+        }
+
         .su-map-marker::after {
             position: absolute;
             inset: -9px;
@@ -224,7 +230,7 @@
 
         .property-map-drawer {
             position: absolute;
-            z-index: 600;
+            z-index: 1200;
             top: 0;
             right: 0;
             width: min(430px, 100%);
@@ -368,13 +374,35 @@
 
         .property-map-empty {
             position: absolute;
-            z-index: 500;
+            z-index: 1250;
             inset: 0;
             display: grid;
             place-items: center;
             background: #f8fafc;
             text-align: center;
             padding: 24px;
+        }
+
+        .property-map-empty[hidden] {
+            display: none;
+        }
+
+        .property-map-spinner {
+            width: 38px;
+            height: 38px;
+            margin: 0 auto 14px;
+            border: 4px solid #dbeafe;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: property-map-spin .8s linear infinite;
+        }
+
+        @keyframes property-map-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .leaflet-container {
+            font: inherit;
         }
 
         .property-map-empty i {
@@ -442,11 +470,11 @@
 
             <div class="property-map-stats">
                 <div class="property-map-stat">
-                    <strong>{{ $markers->count() }}</strong>
+                    <strong data-map-pin-count>{{ $markers->count() }}</strong>
                     <span>Con pin</span>
                 </div>
                 <div class="property-map-stat">
-                    <strong>{{ max(0, $totalWithMapUrl - $markers->count()) }}</strong>
+                    <strong data-map-pending-count>{{ $pendingCoordinatesCount }}</strong>
                     <span>Por resolver</span>
                 </div>
                 <div class="property-map-stat">
@@ -477,15 +505,21 @@
 
             <div id="properties-map"></div>
 
-            @if ($markers->isEmpty())
-                <div class="property-map-empty">
-                    <div>
-                        <i class="bi bi-map"></i>
-                        <h2>No hay coordenadas listas</h2>
-                        <p class="text-muted fw-semibold mb-0">Ejecuta la sincronizacion de ubicaciones para convertir links en pines.</p>
-                    </div>
+            <div class="property-map-empty" data-map-empty hidden>
+                <div>
+                    <i class="bi bi-map"></i>
+                    <h2 data-map-empty-title>No hay coordenadas disponibles</h2>
+                    <p class="text-muted fw-semibold mb-0" data-map-empty-message>Agrega o corrige los links de ubicación de las propiedades.</p>
                 </div>
-            @endif
+            </div>
+
+            <div class="property-map-empty" data-map-sync hidden>
+                <div>
+                    <div class="property-map-spinner"></div>
+                    <h2 data-map-sync-title>Preparando ubicaciones</h2>
+                    <p class="text-muted fw-semibold mb-0" data-map-sync-message>Buscando coordenadas para las propiedades nuevas.</p>
+                </div>
+            </div>
 
             <aside class="property-map-drawer" data-map-drawer aria-live="polite">
                 <div class="property-map-drawer__image">
@@ -596,19 +630,17 @@
 @endsection
 
 @push('scripts')
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script>
-        window.propertyMapGoogleKey = @json($googleMapsApiKey);
-    </script>
-    @if ($googleMapsApiKey)
-        <script src="https://maps.googleapis.com/maps/api/js?key={{ urlencode($googleMapsApiKey) }}&callback=initPropertyGoogleMap" async defer></script>
-    @endif
-    <script>
-        window.initPropertyGoogleMap = function () {
+        (() => {
             const properties = @json($markers);
-            const defaultCenter = { lat: 20.9674, lng: -89.5926 };
+            const initialPendingCount = Number(@json($pendingCoordinatesCount));
+            const syncUrl = @json(route('properties.map.sync-pending'));
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const defaultCenter = [20.9674, -89.5926];
             const mapElement = document.getElementById('properties-map');
 
-            if (!mapElement || typeof google === 'undefined') {
+            if (!mapElement || typeof L === 'undefined') {
                 return;
             }
 
@@ -621,23 +653,24 @@
                 rented: { label: 'Rentada' },
             };
 
-            const map = new google.maps.Map(mapElement, {
-                center: defaultCenter,
-                zoom: 12,
-                mapTypeControl: true,
-                streetViewControl: true,
-                fullscreenControl: true,
+            const map = L.map(mapElement, {
                 zoomControl: true,
-            });
+            }).setView(defaultCenter, 12);
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            }).addTo(map);
 
-            const markerLayer = [];
-            const bounds = new google.maps.LatLngBounds();
-            const infoWindow = new google.maps.InfoWindow();
+            const markerLayer = L.layerGroup().addTo(map);
             const markerById = new Map();
             const searchInput = document.getElementById('propertyMapSearch');
             const resultCount = document.querySelector('[data-map-result-count]');
+            const pinCount = document.querySelector('[data-map-pin-count]');
+            const pendingCount = document.querySelector('[data-map-pending-count]');
             const filterButtons = Array.from(document.querySelectorAll('[data-status-filter]'));
             const drawer = document.querySelector('[data-map-drawer]');
+            const emptyState = document.querySelector('[data-map-empty]');
+            const syncState = document.querySelector('[data-map-sync]');
             let activeStatus = 'all';
 
             function text(value) {
@@ -717,39 +750,28 @@
                 });
             }
 
-            function renderMarkers() {
+            function renderMarkers(fitBounds = false) {
                 const visible = withDuplicateOffset(filteredProperties());
-                markerLayer.forEach((marker) => marker.setMap(null));
-                markerLayer.length = 0;
+                markerLayer.clearLayers();
                 markerById.clear();
-                const visibleBounds = new google.maps.LatLngBounds();
+                const bounds = L.latLngBounds();
 
                 visible.forEach(function (property) {
-                    const statusColors = {
-                        available: '#16a34a', blocked: '#dc2626', in_process: '#f59e0b',
-                        occupied: '#2563eb', rented: '#7c3aed', draft: '#64748b'
-                    };
-                    const marker = new google.maps.Marker({
-                        map,
-                        position: { lat: Number(property.displayLatitude), lng: Number(property.displayLongitude) },
+                    const marker = L.marker([Number(property.displayLatitude), Number(property.displayLongitude)], {
                         title: property.name,
-                        icon: {
-                            path: google.maps.SymbolPath.CIRCLE,
-                            scale: 9,
-                            fillColor: statusColors[property.status] || '#64748b',
-                            fillOpacity: 1,
-                            strokeColor: '#ffffff',
-                            strokeWeight: 3,
-                        },
-                    });
-                    marker.addListener('click', function () {
-                            infoWindow.setContent(popupFor(property));
-                            infoWindow.open({ map, anchor: marker });
-                            openDrawer(property);
-                    });
-                    markerLayer.push(marker);
-                    visibleBounds.extend(marker.getPosition());
+                        icon: L.divIcon({
+                            className: 'su-map-marker-shell',
+                            html: `<div class="su-map-marker ${escapeHtml(property.status)}"></div>`,
+                            iconSize: [22, 22],
+                            iconAnchor: [11, 11],
+                        }),
+                    }).bindPopup(popupFor(property));
 
+                    marker.on('click', function () {
+                        openDrawer(property);
+                    });
+                    marker.addTo(markerLayer);
+                    bounds.extend(marker.getLatLng());
                     markerById.set(property.id, marker);
                 });
 
@@ -757,14 +779,9 @@
                     resultCount.textContent = `${visible.length} ${visible.length === 1 ? 'propiedad' : 'propiedades'}`;
                 }
 
-                if (visible.length > 0) {
-                    map.fitBounds(visibleBounds);
-                    google.maps.event.addListenerOnce(map, 'bounds_changed', function () {
-                        if (map.getZoom() > 15) map.setZoom(15);
-                    });
-                } else {
-                    map.setCenter(defaultCenter);
-                    map.setZoom(12);
+                if (fitBounds && visible.length > 0) {
+                    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15 });
+                } else if (visible.length === 0) {
                     closeDrawer();
                 }
             }
@@ -841,53 +858,109 @@
                 }
             }
 
+            function showSync(visible, title, message) {
+                if (!syncState) {
+                    return;
+                }
+
+                syncState.hidden = !visible;
+                syncState.querySelector('[data-map-sync-title]').textContent = title;
+                syncState.querySelector('[data-map-sync-message]').textContent = message;
+            }
+
+            function showEmpty(visible, title, message) {
+                if (!emptyState) {
+                    return;
+                }
+
+                emptyState.hidden = !visible;
+                emptyState.querySelector('[data-map-empty-title]').textContent = title;
+                emptyState.querySelector('[data-map-empty-message]').textContent = message;
+            }
+
+            function updateCounts(remaining) {
+                if (pinCount) pinCount.textContent = properties.length;
+                if (pendingCount) pendingCount.textContent = remaining;
+            }
+
+            async function syncPendingLocations() {
+                let remaining = initialPendingCount;
+                if (remaining === 0) {
+                    showEmpty(properties.length === 0, 'No hay coordenadas disponibles', 'Agrega un link de ubicación a una propiedad para verla aquí.');
+                    return;
+                }
+
+                showSync(true, 'Preparando ubicaciones', `Buscando coordenadas para ${remaining} ${remaining === 1 ? 'propiedad nueva' : 'propiedades nuevas'}.`);
+
+                try {
+                    while (remaining > 0) {
+                        const response = await fetch(syncUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                            },
+                        });
+                        if (!response.ok) {
+                            throw new Error('No se pudieron actualizar las ubicaciones.');
+                        }
+
+                        const result = await response.json();
+                        properties.push(...(result.markers || []));
+                        remaining = Number(result.remaining || 0);
+                        updateCounts(remaining);
+                        renderMarkers(properties.length === (result.markers || []).length);
+
+                        if (remaining > 0) {
+                            showSync(true, 'Preparando ubicaciones', `Aún faltan ${remaining} ${remaining === 1 ? 'ubicación' : 'ubicaciones'}.`);
+                        }
+                        if (Number(result.processed || 0) === 0) {
+                            break;
+                        }
+                    }
+
+                    showSync(false, '', '');
+                    showEmpty(properties.length === 0, 'No hay coordenadas disponibles', 'No fue posible obtener coordenadas de los links registrados.');
+                } catch (error) {
+                    showSync(false, '', '');
+                    showEmpty(properties.length === 0, 'No se pudieron cargar las ubicaciones', 'Intenta recargar la página en unos momentos.');
+                }
+            }
+
             filterButtons.forEach(function (button) {
                 button.addEventListener('click', function () {
                     activeStatus = button.dataset.statusFilter || 'all';
                     filterButtons.forEach((item) => item.classList.toggle('active', item === button));
-                    renderMarkers();
+                    renderMarkers(false);
                 });
             });
 
             if (searchInput) {
-                searchInput.addEventListener('input', renderMarkers);
+                searchInput.addEventListener('input', () => renderMarkers(false));
             }
 
             document.addEventListener('click', function (event) {
                 const popupButton = event.target.closest('[data-popup-open]');
-
                 if (popupButton) {
                     const property = properties.find((item) => Number(item.id) === Number(popupButton.dataset.popupOpen));
-                    if (property) {
-                        openDrawer(property);
-                    }
+                    if (property) openDrawer(property);
                 }
 
-                if (event.target.closest('[data-drawer-close]')) {
-                    closeDrawer();
-                }
+                if (event.target.closest('[data-drawer-close]')) closeDrawer();
 
                 const stepButton = event.target.closest('[data-detail-step]');
                 if (stepButton) {
                     const step = stepButton.dataset.detailStep;
-
-                    document.querySelectorAll('[data-detail-step]').forEach(function (button) {
-                        button.classList.toggle('active', button === stepButton);
-                    });
-
-                    document.querySelectorAll('[data-detail-section]').forEach(function (section) {
-                        section.classList.toggle('active', section.dataset.detailSection === step);
-                    });
+                    document.querySelectorAll('[data-detail-step]').forEach((button) => button.classList.toggle('active', button === stepButton));
+                    document.querySelectorAll('[data-detail-section]').forEach((section) => section.classList.toggle('active', section.dataset.detailSection === step));
                 }
             });
-
             document.addEventListener('keydown', function (event) {
-                if (event.key === 'Escape') {
-                    closeDrawer();
-                }
+                if (event.key === 'Escape') closeDrawer();
             });
 
-            renderMarkers();
-        };
+            renderMarkers(properties.length > 0);
+            syncPendingLocations();
+        })();
     </script>
 @endpush

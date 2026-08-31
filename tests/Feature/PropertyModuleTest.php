@@ -13,6 +13,7 @@ use App\Models\MaintenanceTicket;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Zone;
+use App\Services\PropertyMapLocationResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
@@ -24,6 +25,79 @@ use Tests\TestCase;
 class PropertyModuleTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_map_uses_leaflet_and_synchronizes_only_pending_locations(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        $property = Property::create([
+            'internal_name' => 'Casa Mapa',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 1',
+            'map_url' => 'https://maps.example.test/ubicacion',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $user->id,
+        ]);
+
+        $this->mock(PropertyMapLocationResolver::class, function ($mock): void {
+            $mock->shouldReceive('resolve')
+                ->once()
+                ->with('https://maps.example.test/ubicacion')
+                ->andReturn([
+                    'latitude' => 21.0212345,
+                    'longitude' => -89.6012345,
+                    'resolved_url' => 'https://maps.example.test/ubicacion',
+                ]);
+        });
+
+        $this->actingAs($user)
+            ->get(route('properties.map'))
+            ->assertOk()
+            ->assertSee('leaflet@1.9.4')
+            ->assertDontSee('maps.googleapis.com');
+
+        $this->actingAs($user)
+            ->postJson(route('properties.map.sync-pending'))
+            ->assertOk()
+            ->assertJsonPath('resolved', 1)
+            ->assertJsonPath('remaining', 0)
+            ->assertJsonCount(1, 'markers');
+
+        $this->assertDatabaseHas('properties', [
+            'id' => $property->id,
+            'map_latitude' => 21.0212345,
+            'map_longitude' => -89.6012345,
+        ]);
+        $this->assertNotNull($property->fresh()->map_coordinates_checked_at);
+    }
+
+    public function test_changing_a_map_url_marks_the_property_for_a_new_location_check(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        $property = Property::create([
+            'internal_name' => 'Casa Mapa',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 1',
+            'map_url' => 'https://maps.example.test/anterior',
+            'map_latitude' => 21.0212345,
+            'map_longitude' => -89.6012345,
+            'map_coordinates_checked_at' => now(),
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $user->id,
+        ]);
+
+        $property->update(['map_url' => 'https://maps.example.test/nueva']);
+        $property->refresh();
+
+        $this->assertNull($property->map_latitude);
+        $this->assertNull($property->map_longitude);
+        $this->assertNull($property->map_coordinates_checked_at);
+    }
 
     public function test_user_can_add_a_logbook_note_with_attachments(): void
     {
