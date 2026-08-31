@@ -710,7 +710,7 @@
                         <div class="property-map-popup-meta">${escapeHtml(property.zone || property.address || '-')}</div>
                         <div class="d-flex align-items-center justify-content-between gap-2 mt-3">
                             <span class="badge ${escapeHtml(property.status_badge_class || 'badge-light-secondary')}">${escapeHtml(statusLabel)}</span>
-                            <button type="button" class="btn btn-sm btn-primary" data-popup-open="${property.id}">Detalle</button>
+                            <a href="${escapeHtml(property.show_url)}" class="btn btn-sm btn-primary">Ir</a>
                         </div>
                     </div>
                 `;
@@ -940,12 +940,6 @@
             }
 
             document.addEventListener('click', function (event) {
-                const popupButton = event.target.closest('[data-popup-open]');
-                if (popupButton) {
-                    const property = properties.find((item) => Number(item.id) === Number(popupButton.dataset.popupOpen));
-                    if (property) openDrawer(property);
-                }
-
                 if (event.target.closest('[data-drawer-close]')) closeDrawer();
 
                 const stepButton = event.target.closest('[data-detail-step]');
