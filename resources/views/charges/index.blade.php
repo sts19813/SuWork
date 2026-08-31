@@ -681,22 +681,22 @@
                     autocomplete="off">
             </form>
 
-            <div id="chargesResultCount" class="charges-list-results">{{ $charges->count() }} resultados</div>
+            <div id="chargesResultCount" class="charges-list-results">{{ $thisMonthCharges->count() }} resultados</div>
         </div>
 
         <ul class="nav charges-list-tabs" id="chargesTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="charges-tab" data-bs-toggle="tab" data-bs-target="#charges-pane"
-                    type="button" role="tab" aria-controls="charges-pane" aria-selected="true" data-charges-tab="charges">
-                    <span>Pagos pendientes</span>
-                    <span class="charges-list-tabs__count">{{ $stats['charges_count'] }}</span>
+                <button class="nav-link active" id="month-charges-tab" data-bs-toggle="tab" data-bs-target="#month-charges-pane"
+                    type="button" role="tab" aria-controls="month-charges-pane" aria-selected="true" data-charges-tab="month">
+                    <span>Este mes</span>
+                    <span class="charges-list-tabs__count">{{ $thisMonthCharges->count() }}</span>
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="month-charges-tab" data-bs-toggle="tab" data-bs-target="#month-charges-pane"
-                    type="button" role="tab" aria-controls="month-charges-pane" aria-selected="false" data-charges-tab="month">
-                    <span>Este mes</span>
-                    <span class="charges-list-tabs__count">{{ $thisMonthCharges->count() }}</span>
+                <button class="nav-link" id="charges-tab" data-bs-toggle="tab" data-bs-target="#charges-pane"
+                    type="button" role="tab" aria-controls="charges-pane" aria-selected="false" data-charges-tab="charges">
+                    <span>Pagos pendientes</span>
+                    <span class="charges-list-tabs__count">{{ $stats['charges_count'] }}</span>
                 </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -709,12 +709,12 @@
         </ul>
 
         <div class="tab-content" id="chargesTabsContent">
-            <div class="tab-pane fade show active" id="charges-pane" role="tabpanel" aria-labelledby="charges-tab" tabindex="0">
-                @include('charges.partials.charges-table', ['tableId' => 'chargesTable', 'charges' => $charges, 'showActions' => true])
+            <div class="tab-pane fade show active" id="month-charges-pane" role="tabpanel" aria-labelledby="month-charges-tab" tabindex="0">
+                @include('charges.partials.charges-table', ['tableId' => 'monthChargesTable', 'charges' => $thisMonthCharges, 'showActions' => true])
             </div>
 
-            <div class="tab-pane fade" id="month-charges-pane" role="tabpanel" aria-labelledby="month-charges-tab" tabindex="0">
-                @include('charges.partials.charges-table', ['tableId' => 'monthChargesTable', 'charges' => $thisMonthCharges, 'showActions' => true])
+            <div class="tab-pane fade" id="charges-pane" role="tabpanel" aria-labelledby="charges-tab" tabindex="0">
+                @include('charges.partials.charges-table', ['tableId' => 'chargesTable', 'charges' => $charges, 'showActions' => true])
             </div>
 
             <div class="tab-pane fade" id="payments-pane" role="tabpanel" aria-labelledby="payments-tab" tabindex="0">
@@ -1284,7 +1284,7 @@
                 },
             };
             const dataTables = {};
-            let activeTableKey = 'charges';
+            let activeTableKey = 'month';
 
             const initDataTable = (tableId, key, extraOptions = {}) => {
                 const table = document.getElementById(tableId);

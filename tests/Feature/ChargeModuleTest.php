@@ -108,6 +108,7 @@ class ChargeModuleTest extends TestCase
         $this->assertSame([$earlierCharge->id, $firstCharge->id], $response->viewData('thisMonthCharges')->pluck('id')->all());
         $this->assertSame([$paidCharge->id], $response->viewData('paidCharges')->pluck('id')->all());
         $response->assertSee('Este mes');
+        $response->assertSee('class="nav-link active" id="month-charges-tab"', false);
         $response->assertSee('Departamento 12');
         $response->assertSee('REF-123');
         $response->assertSee('Asesora Responsable');
