@@ -33,6 +33,7 @@ class CopilotVisibilityTest extends TestCase
             ->assertOk()
             ->assertSee('data-copilot', false)
             ->assertSee('AI Copilot')
+            ->assertSee('SuHomes Copilot')
             ->assertSee('<span class="naboo-copilot__usage-label">Hoy</span>', false)
             ->assertSee('<span class="naboo-copilot__usage-label">Mes</span>', false)
             ->assertSee('Costo est.');

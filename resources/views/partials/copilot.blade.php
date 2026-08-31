@@ -7,7 +7,7 @@
     data-reset-url="{{ route('copilot.reset') }}"
     data-chat-url="{{ route('copilot.chat') }}"
 >
-    <button type="button" class="naboo-copilot__launcher" data-copilot-toggle aria-label="Abrir Naboo Copilot">
+    <button type="button" class="naboo-copilot__launcher" data-copilot-toggle aria-label="Abrir SuHomes Copilot">
         <span class="naboo-copilot__pulse"></span>
         <i class="bi bi-stars"></i>
         <span class="naboo-copilot__launcher-text">AI Copilot</span>
@@ -20,7 +20,7 @@
                     <i class="bi bi-stars"></i>
                 </div>
                 <div>
-                    <div class="naboo-copilot__title">Naboo Copilot</div>
+                    <div class="naboo-copilot__title">SuHomes Copilot</div>
                     <div class="naboo-copilot__subtitle">
                         <span class="naboo-copilot__status-dot"></span>
                         Datos vivos del sistema
@@ -71,7 +71,7 @@
                 data-copilot-input
                 rows="1"
                 maxlength="2000"
-                placeholder="Preguntale a Naboo Copilot..."
+                placeholder="Pregúntale a SuHomes Copilot..."
             ></textarea>
             <button type="submit" class="naboo-copilot__send" data-copilot-send aria-label="Enviar">
                 <i class="bi bi-send-fill"></i>
@@ -587,7 +587,7 @@
         const usageMonth = root.querySelector('[data-copilot-usage-month]');
         const usageCost = root.querySelector('[data-copilot-usage-cost]');
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        const storageKey = 'naboo_copilot_conversation_id';
+        const storageKey = 'suhomes_copilot_conversation_id';
         let conversationId = localStorage.getItem(storageKey) || null;
         let isLoading = false;
         const minTypingMs = 500;

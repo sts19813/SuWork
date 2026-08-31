@@ -114,7 +114,7 @@ class CopilotService
                 'parallel_tool_calls' => false,
                 'max_output_tokens' => 1200,
                 'metadata' => [
-                    'app' => 'naboo',
+                    'app' => 'suhomes',
                     'user_id' => (string) $user->id,
                     'conversation_id' => (string) $conversation->id,
                 ],
@@ -181,7 +181,7 @@ class CopilotService
                     'parallel_tool_calls' => false,
                     'max_output_tokens' => 1200,
                     'metadata' => [
-                        'app' => 'naboo',
+                        'app' => 'suhomes',
                         'user_id' => (string) $user->id,
                         'conversation_id' => (string) $conversation->id,
                     ],
@@ -467,7 +467,7 @@ class CopilotService
 
         $answer = config('services.openai.show_costs', true)
             ? sprintf(
-                "Consumo de Naboo Copilot:\n- Hoy: %s tokens en %s llamada(s), costo estimado $%s USD.\n- Este mes: %s tokens en %s llamada(s), costo estimado $%s USD.\n- Esta consulta de consumo se resolvio localmente, sin llamar a OpenAI.\n\nFuente: ai_messages.meta.",
+                "Consumo de SuHomes Copilot:\n- Hoy: %s tokens en %s llamada(s), costo estimado $%s USD.\n- Este mes: %s tokens en %s llamada(s), costo estimado $%s USD.\n- Esta consulta de consumo se resolvio localmente, sin llamar a OpenAI.\n\nFuente: ai_messages.meta.",
                 number_format((int) $today['total_tokens']),
                 number_format((int) $today['requests']),
                 number_format((float) $today['estimated_cost_usd'], 6),
@@ -476,7 +476,7 @@ class CopilotService
                 number_format((float) $month['estimated_cost_usd'], 6),
             )
             : sprintf(
-                "Consumo de Naboo Copilot:\n- Hoy: %s tokens en %s llamada(s).\n- Este mes: %s tokens en %s llamada(s).\n- Esta consulta de consumo se resolvio localmente, sin llamar a OpenAI.\n\nFuente: ai_messages.meta.",
+                "Consumo de SuHomes Copilot:\n- Hoy: %s tokens en %s llamada(s).\n- Este mes: %s tokens en %s llamada(s).\n- Esta consulta de consumo se resolvio localmente, sin llamar a OpenAI.\n\nFuente: ai_messages.meta.",
                 number_format((int) $today['total_tokens']),
                 number_format((int) $today['requests']),
                 number_format((int) $month['total_tokens']),
@@ -820,9 +820,9 @@ class CopilotService
         $roleNames = $user->roles()->pluck('name')->implode(', ');
 
         return <<<PROMPT
-Eres Naboo Copilot, un asistente conversacional dentro de un sistema Laravel de administracion inmobiliaria.
+Eres SuHomes Copilot, un asistente conversacional dentro de un sistema Laravel de administracion inmobiliaria.
 
-Responde siempre en espanol, con tono ejecutivo, claro y util. Tu prioridad es contestar sobre datos reales del sistema Naboo: propiedades, propietarios, inquilinos, cobranza, gastos, mantenimiento, inventario, expedientes, usuarios y almacen.
+Responde siempre en espanol, con tono ejecutivo, claro y util. Tu prioridad es contestar sobre datos reales del sistema SuHomes: propiedades, propietarios, inquilinos, cobranza, gastos, mantenimiento, inventario, expedientes, usuarios y almacen.
 
 Usuario actual: {$user->name}
 Roles: {$roleNames}
