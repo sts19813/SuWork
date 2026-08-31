@@ -54,6 +54,10 @@ class Property extends Model
         'zone_text',
         'full_address',
         'map_url',
+        'map_latitude',
+        'map_longitude',
+        'map_resolved_url',
+        'map_coordinates_resolved_at',
         'complex_name',
         'official_number',
         'unit_number',
@@ -95,6 +99,9 @@ class Property extends Model
             'expense_notification_emails' => 'array',
             'expense_notification_phones' => 'array',
             'rent_charge_plan' => 'array',
+            'map_latitude' => 'decimal:7',
+            'map_longitude' => 'decimal:7',
+            'map_coordinates_resolved_at' => 'datetime',
         ];
     }
 

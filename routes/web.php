@@ -16,6 +16,7 @@ use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyControlController;
 use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\PropertyMapController;
 use App\Http\Controllers\PropertyLogbookController;
 use App\Http\Controllers\StorageItemController;
 use App\Http\Controllers\TenantController;
@@ -66,6 +67,7 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::post('/sugerencias', [TenantSuggestionController::class, 'store'])->name('tenant-suggestions.store');
         Route::get('/buzon', [TenantSuggestionController::class, 'index'])->name('mailbox.index');
 
+        Route::get('/mapa', [PropertyMapController::class, 'index'])->name('properties.map');
         Route::get('/propiedades', [PropertyController::class, 'index'])->name('properties.index');
         Route::get('/propiedades/control', [PropertyControlController::class, 'index'])->name('properties.control');
         Route::get('/propiedades/nueva', [PropertyController::class, 'create'])->name('properties.create');
