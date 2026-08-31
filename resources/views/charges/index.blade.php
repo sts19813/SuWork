@@ -695,7 +695,7 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="charges-tab" data-bs-toggle="tab" data-bs-target="#charges-pane"
                     type="button" role="tab" aria-controls="charges-pane" aria-selected="false" data-charges-tab="charges">
-                    <span>Pagos pendientes</span>
+                    <span>Todos</span>
                     <span class="charges-list-tabs__count">{{ $stats['charges_count'] }}</span>
                 </button>
             </li>

@@ -32,7 +32,7 @@ class ChargeModuleTest extends TestCase
         $response->assertSee('Cobranza');
     }
 
-    public function test_pending_tab_excludes_paid_charges_and_keeps_other_statuses(): void
+    public function test_all_tab_includes_active_charges_and_excludes_canceled_and_paid_charges(): void
     {
         $user = User::factory()->create();
         $pendingCharge = $this->createChargeFixture();
@@ -52,7 +52,7 @@ class ChargeModuleTest extends TestCase
             return [$status => $charge];
         });
 
-        $paidPayment = ChargePayment::create([
+        ChargePayment::create([
             'charge_id' => $chargesByStatus[Charge::STATUS_PAID]->id,
             'amount' => $chargesByStatus[Charge::STATUS_PAID]->amount,
             'currency' => 'mxn',
@@ -64,13 +64,13 @@ class ChargeModuleTest extends TestCase
 
         $response->assertOk();
 
-        $pendingTabCharges = $response->viewData('charges');
-        $this->assertTrue($pendingTabCharges->contains($pendingCharge));
-        $this->assertTrue($pendingTabCharges->contains($chargesByStatus[Charge::STATUS_PARTIAL]));
-        $this->assertTrue($pendingTabCharges->contains($chargesByStatus[Charge::STATUS_IN_VALIDATION]));
-        $this->assertTrue($pendingTabCharges->contains($chargesByStatus[Charge::STATUS_CANCELED]));
-        $this->assertFalse($pendingTabCharges->contains($chargesByStatus[Charge::STATUS_PAID]));
-        $this->assertSame(4, $response->viewData('stats')['charges_count']);
+        $allTabCharges = $response->viewData('charges');
+        $this->assertTrue($allTabCharges->contains($pendingCharge));
+        $this->assertTrue($allTabCharges->contains($chargesByStatus[Charge::STATUS_PARTIAL]));
+        $this->assertTrue($allTabCharges->contains($chargesByStatus[Charge::STATUS_IN_VALIDATION]));
+        $this->assertFalse($allTabCharges->contains($chargesByStatus[Charge::STATUS_CANCELED]));
+        $this->assertFalse($allTabCharges->contains($chargesByStatus[Charge::STATUS_PAID]));
+        $this->assertSame(3, $response->viewData('stats')['charges_count']);
         $this->assertTrue($response->viewData('paidCharges')->contains($chargesByStatus[Charge::STATUS_PAID]));
     }
 
@@ -90,6 +90,16 @@ class ChargeModuleTest extends TestCase
         $earlierCharge->due_date = now()->startOfMonth()->addDay()->toDateString();
         $earlierCharge->save();
 
+        $overdueCharge = $firstCharge->replicate(['uuid', 'payment_token', 'paid_at']);
+        $overdueCharge->concept = 'Cargo vencido';
+        $overdueCharge->due_date = now()->startOfMonth()->subDay()->toDateString();
+        $overdueCharge->save();
+
+        $futureCharge = $firstCharge->replicate(['uuid', 'payment_token', 'paid_at']);
+        $futureCharge->concept = 'Cargo futuro';
+        $futureCharge->due_date = now()->endOfMonth()->addDay()->toDateString();
+        $futureCharge->save();
+
         $paidCharge = $firstCharge->replicate(['uuid', 'payment_token']);
         $paidCharge->concept = 'Cargo pagado';
         $paidCharge->due_date = now()->startOfMonth()->addDays(2)->toDateString();
@@ -102,12 +112,17 @@ class ChargeModuleTest extends TestCase
 
         $response->assertOk();
         $this->assertSame(
-            [$earlierCharge->id, $firstCharge->id],
+            [$overdueCharge->id, $earlierCharge->id, $firstCharge->id, $futureCharge->id],
             $response->viewData('charges')->pluck('id')->all(),
         );
-        $this->assertSame([$earlierCharge->id, $firstCharge->id], $response->viewData('thisMonthCharges')->pluck('id')->all());
+        $this->assertSame(
+            [$overdueCharge->id, $earlierCharge->id, $firstCharge->id],
+            $response->viewData('thisMonthCharges')->pluck('id')->all(),
+        );
         $this->assertSame([$paidCharge->id], $response->viewData('paidCharges')->pluck('id')->all());
         $response->assertSee('Este mes');
+        $response->assertSee('Todos');
+        $response->assertSee('Cobrados');
         $response->assertSee('class="nav-link active" id="month-charges-tab"', false);
         $response->assertSee('Departamento 12');
         $response->assertSee('REF-123');

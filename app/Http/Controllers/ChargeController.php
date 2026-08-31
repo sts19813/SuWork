@@ -69,10 +69,15 @@ class ChargeController extends Controller
                 ->exists()
             : false;
         $showPropertySetupCard = ! $isTenant && (bool) ($selectedPropertyId && ! $selectedPropertyHasRentCharges);
+        $currentMonthEnd = now()->endOfMonth();
 
         $charges = Charge::query()
             ->with(['tenant:id,full_name', 'property:id,internal_name,internal_reference,advisor_user_id', 'property.advisor:id,name'])
-            ->where('status', '!=', Charge::STATUS_PAID)
+            ->whereIn('status', [
+                Charge::STATUS_PENDING,
+                Charge::STATUS_PARTIAL,
+                Charge::STATUS_IN_VALIDATION,
+            ])
             ->when($isTenant, fn ($query) => $query->whereIn('property_id', $tenantPropertyIds))
             ->when($selectedPropertyId, fn ($query) => $query->where('property_id', $selectedPropertyId))
             ->orderBy('due_date')
@@ -103,12 +108,7 @@ class ChargeController extends Controller
             ->get();
 
         $thisMonthCharges = $charges
-            ->filter(fn (Charge $charge) => in_array($charge->status, [
-                Charge::STATUS_PENDING,
-                Charge::STATUS_PARTIAL,
-                Charge::STATUS_IN_VALIDATION,
-            ], true))
-            ->filter(fn (Charge $charge) => $charge->due_date?->isSameMonth(now()))
+            ->filter(fn (Charge $charge) => $charge->due_date?->lessThanOrEqualTo($currentMonthEnd))
             ->values();
 
         $now = now();
@@ -147,7 +147,11 @@ class ChargeController extends Controller
                 ->where('status', ChargePayment::STATUS_PENDING_VALIDATION)
                 ->count(),
             'charges_count' => $chargeBaseQuery()
-                ->where('status', '!=', Charge::STATUS_PAID)
+                ->whereIn('status', [
+                    Charge::STATUS_PENDING,
+                    Charge::STATUS_PARTIAL,
+                    Charge::STATUS_IN_VALIDATION,
+                ])
                 ->count(),
             'payments_count' => $paidCharges->count(),
         ];
