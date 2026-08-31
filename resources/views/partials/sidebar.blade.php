@@ -65,6 +65,7 @@
         $menuItems = [
             $makeMenuSection('Inicio', 'bi-grid-1x2', [
                 ['patterns' => ['dashboard'], 'route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'bi-speedometer2'],
+                ['patterns' => ['properties.map'], 'route' => 'properties.map', 'label' => 'Mapa', 'icon' => 'bi-map'],
                 $pendingItem,
                 $isAdmin
                     ? ['patterns' => ['mailbox.*'], 'route' => 'mailbox.index', 'label' => 'Buzón', 'icon' => 'bi-inbox']
@@ -136,6 +137,7 @@
             : [
                 ...($isAdvisor ? [['patterns' => ['advisor.tasks.*'], 'route' => 'advisor.tasks.index', 'label' => 'Pendientes', 'icon' => 'bi-list-check']] : []),
                 ...($isAdmin ? [['patterns' => ['admin.tasks.*'], 'route' => 'admin.tasks.index', 'label' => 'Pendientes', 'icon' => 'bi-list-check']] : []),
+                ['patterns' => ['properties.map'], 'route' => 'properties.map', 'label' => 'Mapa', 'icon' => 'bi-map'],
                 ['patterns' => ['properties.index', 'properties.create', 'properties.show', 'properties.edit', 'properties.inventory.edit', 'inventory-checks.*'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
                 ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
                 ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],

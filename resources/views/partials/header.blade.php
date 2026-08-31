@@ -58,6 +58,7 @@
                 ]
             : [
             ['patterns' => ['dashboard'], 'route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'bi-speedometer2'],
+            ['patterns' => ['properties.map'], 'route' => 'properties.map', 'label' => 'Mapa', 'icon' => 'bi-map'],
             ...($canViewPropertyControl ? [['patterns' => ['properties.control'], 'route' => 'properties.control', 'label' => 'Control propiedades', 'icon' => 'bi-clipboard-data']] : []),
             ['patterns' => ['properties.index', 'properties.create', 'properties.show', 'properties.edit', 'properties.inventory.edit'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
             ['patterns' => ['owners.*'], 'route' => 'owners.index', 'label' => 'Propietarios', 'icon' => 'bi-person-vcard'],
@@ -107,6 +108,7 @@
                     ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
                 ]
             : [
+                ['patterns' => ['properties.map'], 'route' => 'properties.map', 'label' => 'Mapa', 'icon' => 'bi-map'],
                 ['patterns' => ['properties.index', 'properties.create', 'properties.show', 'properties.edit', 'properties.inventory.edit', 'dashboard'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
                 ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
                 ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
