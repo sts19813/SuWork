@@ -43,7 +43,7 @@ class ChargeModuleTest extends TestCase
             Charge::STATUS_PAID,
         ])->mapWithKeys(function (string $status) use ($pendingCharge): array {
             $charge = $pendingCharge->replicate(['uuid', 'payment_token', 'paid_at']);
-            $charge->concept = 'Cargo ' . $status;
+            $charge->concept = 'Cargo '.$status;
             $charge->status = $status;
             $charge->paid_amount = $status === Charge::STATUS_PAID ? $charge->amount : 0;
             $charge->paid_at = $status === Charge::STATUS_PAID ? now() : null;
@@ -71,7 +71,102 @@ class ChargeModuleTest extends TestCase
         $this->assertTrue($pendingTabCharges->contains($chargesByStatus[Charge::STATUS_CANCELED]));
         $this->assertFalse($pendingTabCharges->contains($chargesByStatus[Charge::STATUS_PAID]));
         $this->assertSame(4, $response->viewData('stats')['charges_count']);
-        $this->assertTrue($response->viewData('payments')->contains($paidPayment));
+        $this->assertTrue($response->viewData('paidCharges')->contains($chargesByStatus[Charge::STATUS_PAID]));
+    }
+
+    public function test_charge_lists_keep_due_date_order_and_show_property_and_advisor_details(): void
+    {
+        $user = User::factory()->create();
+        $advisor = User::factory()->create(['name' => 'Asesora Responsable']);
+        $firstCharge = $this->createChargeFixture();
+        $firstCharge->property->update([
+            'internal_reference' => 'REF-123',
+            'advisor_user_id' => $advisor->id,
+        ]);
+        $firstCharge->update(['due_date' => now()->startOfMonth()->addDays(3)->toDateString()]);
+
+        $earlierCharge = $firstCharge->replicate(['uuid', 'payment_token', 'paid_at']);
+        $earlierCharge->concept = 'Cargo próximo';
+        $earlierCharge->due_date = now()->startOfMonth()->addDay()->toDateString();
+        $earlierCharge->save();
+
+        $paidCharge = $firstCharge->replicate(['uuid', 'payment_token']);
+        $paidCharge->concept = 'Cargo pagado';
+        $paidCharge->due_date = now()->startOfMonth()->addDays(2)->toDateString();
+        $paidCharge->status = Charge::STATUS_PAID;
+        $paidCharge->paid_amount = $paidCharge->amount;
+        $paidCharge->paid_at = now();
+        $paidCharge->save();
+
+        $response = $this->actingAs($user)->get(route('charges.index'));
+
+        $response->assertOk();
+        $this->assertSame(
+            [$earlierCharge->id, $firstCharge->id],
+            $response->viewData('charges')->pluck('id')->all(),
+        );
+        $this->assertSame([$earlierCharge->id, $firstCharge->id], $response->viewData('thisMonthCharges')->pluck('id')->all());
+        $this->assertSame([$paidCharge->id], $response->viewData('paidCharges')->pluck('id')->all());
+        $response->assertSee('Este mes');
+        $response->assertSee('Departamento 12');
+        $response->assertSee('REF-123');
+        $response->assertSee('Asesora Responsable');
+        $response->assertSee('Acciones');
+        $response->assertDontSee('Abrir link');
+    }
+
+    public function test_paid_charge_receipts_can_be_downloaded_individually_and_together(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $charge = $this->createChargeFixture();
+        $charge->forceFill([
+            'status' => Charge::STATUS_PAID,
+            'paid_amount' => $charge->amount,
+            'paid_at' => now(),
+        ])->save();
+
+        $firstPath = "charges/{$charge->id}/payments/receipt-one.png";
+        $secondPath = "charges/{$charge->id}/payments/receipt-two.png";
+        Storage::disk('public')->put($firstPath, 'receipt one');
+        Storage::disk('public')->put($secondPath, 'receipt two');
+        ChargePayment::create([
+            'charge_id' => $charge->id,
+            'amount' => 9000,
+            'currency' => 'mxn',
+            'status' => ChargePayment::STATUS_SUCCEEDED,
+            'receipt_path' => $firstPath,
+            'paid_at' => now()->subDay(),
+        ]);
+        ChargePayment::create([
+            'charge_id' => $charge->id,
+            'amount' => 9000,
+            'currency' => 'mxn',
+            'status' => ChargePayment::STATUS_SUCCEEDED,
+            'receipt_path' => $secondPath,
+            'paid_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('charges.index'))
+            ->assertOk()
+            ->assertSee('Descargar todos')
+            ->assertSee('Ver 1')
+            ->assertSee('Ver 2');
+
+        $user->givePermissionTo(Permission::findOrCreate('cobranza.eliminar_pagados', 'web'));
+        $this->actingAs($user)
+            ->get(route('charges.index'))
+            ->assertOk()
+            ->assertSee(route('charges.destroy', $charge), false)
+            ->assertSee('Eliminar cargo');
+
+        if (class_exists(\ZipArchive::class)) {
+            $this->actingAs($user)
+                ->get(route('charges.receipts.download', $charge))
+                ->assertOk()
+                ->assertDownload('comprobantes-cargo-'.$charge->uuid.'.zip');
+        }
     }
 
     public function test_charge_can_be_created(): void
@@ -291,7 +386,7 @@ class ChargeModuleTest extends TestCase
             'paid_amount' => $charge->amount,
             'paid_at' => now(),
         ])->save();
-        $returnUrl = route('properties.show', $charge->property) . '#tab-charges';
+        $returnUrl = route('properties.show', $charge->property).'#tab-charges';
 
         $this->actingAs($user)
             ->delete(route('charges.destroy', $charge), [
@@ -318,7 +413,7 @@ class ChargeModuleTest extends TestCase
             'paid_amount' => $charge->amount,
             'paid_at' => now(),
         ])->save();
-        $returnUrl = route('properties.show', $charge->property) . '#tab-charges';
+        $returnUrl = route('properties.show', $charge->property).'#tab-charges';
 
         $response = $this->actingAs($user)->get(route('charges.show', [
             'charge' => $charge,

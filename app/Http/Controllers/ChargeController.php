@@ -25,8 +25,12 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use ZipArchive;
 
 class ChargeController extends Controller
 {
@@ -38,8 +42,8 @@ class ChargeController extends Controller
         $isTenant = $this->isTenantUser($user);
         $tenantPropertyIds = $isTenant
             ? Property::query()
-            ->whereHas('tenant', fn($query) => $query->where('email', $user->email))
-            ->pluck('id')
+                ->whereHas('tenant', fn ($query) => $query->where('email', $user->email))
+                ->pluck('id')
             : collect();
         $filters = $request->validate([
             'property' => ['nullable', 'string', 'exists:properties,uuid'],
@@ -48,58 +52,77 @@ class ChargeController extends Controller
         $selectedPropertyUuid = (string) ($filters['property'] ?? '');
         $selectedProperty = filled($selectedPropertyUuid)
             ? Property::query()
-            ->with('tenant:id,full_name')
-            ->when($isTenant, fn($query) => $query->whereIn('id', $tenantPropertyIds))
-            ->where('uuid', $selectedPropertyUuid)
-            ->first()
+                ->with('tenant:id,full_name')
+                ->when($isTenant, fn ($query) => $query->whereIn('id', $tenantPropertyIds))
+                ->where('uuid', $selectedPropertyUuid)
+                ->first()
             : null;
-        if ($isTenant && filled($selectedPropertyUuid) && !$selectedProperty) {
+        if ($isTenant && filled($selectedPropertyUuid) && ! $selectedProperty) {
             abort(403);
         }
         $selectedPropertyId = $selectedProperty?->id;
         $selectedPropertyHasRentCharges = $selectedPropertyId
             ? Charge::query()
-            ->where('property_id', $selectedPropertyId)
-            ->where('type', Charge::TYPE_RENT)
-            ->where('status', '!=', Charge::STATUS_CANCELED)
-            ->exists()
+                ->where('property_id', $selectedPropertyId)
+                ->where('type', Charge::TYPE_RENT)
+                ->where('status', '!=', Charge::STATUS_CANCELED)
+                ->exists()
             : false;
-        $showPropertySetupCard = !$isTenant && (bool) ($selectedPropertyId && !$selectedPropertyHasRentCharges);
+        $showPropertySetupCard = ! $isTenant && (bool) ($selectedPropertyId && ! $selectedPropertyHasRentCharges);
 
         $charges = Charge::query()
-            ->with(['tenant:id,full_name', 'property:id,internal_name,internal_reference'])
+            ->with(['tenant:id,full_name', 'property:id,internal_name,internal_reference,advisor_user_id', 'property.advisor:id,name'])
             ->where('status', '!=', Charge::STATUS_PAID)
-            ->when($isTenant, fn($query) => $query->whereIn('property_id', $tenantPropertyIds))
-            ->when($selectedPropertyId, fn($query) => $query->where('property_id', $selectedPropertyId))
-            ->latest('id')
+            ->when($isTenant, fn ($query) => $query->whereIn('property_id', $tenantPropertyIds))
+            ->when($selectedPropertyId, fn ($query) => $query->where('property_id', $selectedPropertyId))
+            ->orderBy('due_date')
+            ->orderBy('id')
             ->get();
 
-        $payments = ChargePayment::query()
-            ->with(['charge.tenant:id,full_name', 'charge.property:id,internal_name,internal_reference'])
-            ->where('status', ChargePayment::STATUS_SUCCEEDED)
+        $paidCharges = Charge::query()
+            ->with([
+                'tenant:id,full_name',
+                'property:id,internal_name,internal_reference,advisor_user_id',
+                'property.advisor:id,name',
+                'payments' => fn ($query) => $query
+                    ->where('status', ChargePayment::STATUS_SUCCEEDED)
+                    ->orderBy('paid_at')
+                    ->orderBy('id'),
+            ])
+            ->where('status', Charge::STATUS_PAID)
             ->when(
                 $isTenant,
-                fn($query) => $query->whereHas('charge', fn($chargeQuery) => $chargeQuery->whereIn('property_id', $tenantPropertyIds)),
+                fn ($query) => $query->whereIn('property_id', $tenantPropertyIds),
             )
             ->when(
                 $selectedPropertyId,
-                fn($query) => $query->whereHas('charge', fn($chargeQuery) => $chargeQuery->where('property_id', $selectedPropertyId)),
+                fn ($query) => $query->where('property_id', $selectedPropertyId),
             )
-            ->latest('id')
+            ->orderBy('due_date')
+            ->orderBy('id')
             ->get();
+
+        $thisMonthCharges = $charges
+            ->filter(fn (Charge $charge) => in_array($charge->status, [
+                Charge::STATUS_PENDING,
+                Charge::STATUS_PARTIAL,
+                Charge::STATUS_IN_VALIDATION,
+            ], true))
+            ->filter(fn (Charge $charge) => $charge->due_date?->isSameMonth(now()))
+            ->values();
 
         $now = now();
-        $chargeBaseQuery = fn() => Charge::query()
-            ->when($isTenant, fn($query) => $query->whereIn('property_id', $tenantPropertyIds))
-            ->when($selectedPropertyId, fn($query) => $query->where('property_id', $selectedPropertyId));
-        $paymentBaseQuery = fn() => ChargePayment::query()
+        $chargeBaseQuery = fn () => Charge::query()
+            ->when($isTenant, fn ($query) => $query->whereIn('property_id', $tenantPropertyIds))
+            ->when($selectedPropertyId, fn ($query) => $query->where('property_id', $selectedPropertyId));
+        $paymentBaseQuery = fn () => ChargePayment::query()
             ->when(
                 $isTenant,
-                fn($query) => $query->whereHas('charge', fn($chargeQuery) => $chargeQuery->whereIn('property_id', $tenantPropertyIds)),
+                fn ($query) => $query->whereHas('charge', fn ($chargeQuery) => $chargeQuery->whereIn('property_id', $tenantPropertyIds)),
             )
             ->when(
                 $selectedPropertyId,
-                fn($query) => $query->whereHas('charge', fn($chargeQuery) => $chargeQuery->where('property_id', $selectedPropertyId)),
+                fn ($query) => $query->whereHas('charge', fn ($chargeQuery) => $chargeQuery->where('property_id', $selectedPropertyId)),
             );
 
         $stats = [
@@ -126,14 +149,12 @@ class ChargeController extends Controller
             'charges_count' => $chargeBaseQuery()
                 ->where('status', '!=', Charge::STATUS_PAID)
                 ->count(),
-            'payments_count' => $paymentBaseQuery()
-                ->where('status', ChargePayment::STATUS_SUCCEEDED)
-                ->count(),
+            'payments_count' => $paidCharges->count(),
         ];
 
         $propertiesQuery = Property::query()
             ->with('tenant:id,full_name')
-            ->when($isTenant, fn($query) => $query->whereIn('id', $tenantPropertyIds))
+            ->when($isTenant, fn ($query) => $query->whereIn('id', $tenantPropertyIds))
             ->orderBy('internal_name');
         if ($selectedPropertyId) {
             $propertiesQuery->where('id', $selectedPropertyId);
@@ -142,7 +163,7 @@ class ChargeController extends Controller
         $chargeablePropertiesQuery = Property::query()
             ->with('tenant:id,full_name')
             ->whereNotNull('tenant_id')
-            ->when($isTenant, fn($query) => $query->whereIn('id', $tenantPropertyIds))
+            ->when($isTenant, fn ($query) => $query->whereIn('id', $tenantPropertyIds))
             ->orderBy('internal_name');
         if ($selectedPropertyId) {
             $chargeablePropertiesQuery->where('id', $selectedPropertyId);
@@ -153,7 +174,7 @@ class ChargeController extends Controller
         if ($showPropertySetupCard) {
             $tenantRequiredDocumentTypes = array_keys($this->requirements->labelsForEntity('tenant'));
             $propertySetupTenants = Tenant::query()
-                ->with(['documents' => fn($query) => $query->whereIn('document_type', $tenantRequiredDocumentTypes)])
+                ->with(['documents' => fn ($query) => $query->whereIn('document_type', $tenantRequiredDocumentTypes)])
                 ->orderBy('full_name')
                 ->get([
                     'id',
@@ -180,7 +201,8 @@ class ChargeController extends Controller
 
         return view('charges.index', [
             'charges' => $charges,
-            'payments' => $payments,
+            'paidCharges' => $paidCharges,
+            'thisMonthCharges' => $thisMonthCharges,
             'properties' => $propertiesQuery->get(['id', 'internal_name', 'internal_reference', 'tenant_id']),
             'chargeableProperties' => $chargeablePropertiesQuery->get([
                 'id',
@@ -196,8 +218,8 @@ class ChargeController extends Controller
             'tenants' => $isTenant
                 ? collect()
                 : Tenant::query()
-                ->orderBy('full_name')
-                ->get(['id', 'full_name', 'email']),
+                    ->orderBy('full_name')
+                    ->get(['id', 'full_name', 'email']),
             'propertySetupTenants' => $propertySetupTenants,
             'tenantAssignmentChecks' => $tenantAssignmentChecks,
             'typeOptions' => Charge::TYPE_LABELS,
@@ -206,8 +228,8 @@ class ChargeController extends Controller
             'currentMonthLabel' => Carbon::create($now->year, $now->month, 1)->translatedFormat('M Y'),
             'selectedProperty' => $selectedProperty,
             'showPropertySetupCard' => $showPropertySetupCard,
-            'canManageCharges' => !$isTenant,
-            'canDeletePaidCharges' => !$isTenant && (bool) $user?->can('cobranza.eliminar_pagados'),
+            'canManageCharges' => ! $isTenant,
+            'canDeletePaidCharges' => ! $isTenant && (bool) $user?->can('cobranza.eliminar_pagados'),
         ]);
     }
 
@@ -250,10 +272,10 @@ class ChargeController extends Controller
             }
 
             $chargePlanRows = collect((array) $request->input('rent_charge_plan', []))
-                ->filter(fn($row) => is_array($row));
+                ->filter(fn ($row) => is_array($row));
             $duplicatePeriods = $chargePlanRows
-                ->map(fn($row) => sprintf('%s-%s', (string) ($row['period_year'] ?? ''), (string) ($row['period_month'] ?? '')))
-                ->filter(fn($period) => $period !== '-')
+                ->map(fn ($row) => sprintf('%s-%s', (string) ($row['period_year'] ?? ''), (string) ($row['period_month'] ?? '')))
+                ->filter(fn ($period) => $period !== '-')
                 ->duplicates();
             if ($duplicatePeriods->isNotEmpty()) {
                 $validator->errors()->add(
@@ -272,7 +294,7 @@ class ChargeController extends Controller
                     );
                 }
 
-                if (!filled($contractStartsAt) || !filled($contractExpiresAt)) {
+                if (! filled($contractStartsAt) || ! filled($contractExpiresAt)) {
                     $validator->errors()->add(
                         'contract_starts_at',
                         'Debes capturar el inicio y vencimiento del contrato para generar pagos.',
@@ -285,13 +307,13 @@ class ChargeController extends Controller
         $tenant = null;
         if (filled($validated['tenant_id'] ?? null)) {
             $tenant = Tenant::query()
-                ->with(['documents' => fn($query) => $query->whereIn('document_type', array_keys($this->requirements->labelsForEntity('tenant')))])
+                ->with(['documents' => fn ($query) => $query->whereIn('document_type', array_keys($this->requirements->labelsForEntity('tenant')))])
                 ->find((int) $validated['tenant_id']);
         }
 
-        if ($tenant && !$request->boolean('force_assignment')) {
+        if ($tenant && ! $request->boolean('force_assignment')) {
             $missingRequirements = $this->getTenantAssignmentMissingRequirements($tenant);
-            if (!empty($missingRequirements)) {
+            if (! empty($missingRequirements)) {
                 return redirect()
                     ->back()
                     ->withInput()
@@ -327,7 +349,7 @@ class ChargeController extends Controller
                 'rent_charge_plan' => $planRows,
             ])->save();
 
-            if (!$tenant) {
+            if (! $tenant) {
                 return;
             }
 
@@ -438,10 +460,10 @@ class ChargeController extends Controller
         $charge->load([
             'tenant:id,full_name,email,phone_primary',
             'property.owners:id,name,phone,email,bank_name,clabe,account_holder',
-            'payments' => fn($query) => $query->latest('id'),
+            'payments' => fn ($query) => $query->latest('id'),
         ]);
 
-        $canManageCharges = !$this->isTenantUser($request->user());
+        $canManageCharges = ! $this->isTenantUser($request->user());
         $fallbackUrl = route('charges.index', $request->filled('property')
             ? ['property' => $request->string('property')->toString()]
             : []);
@@ -461,6 +483,47 @@ class ChargeController extends Controller
         ]);
     }
 
+    public function downloadReceipts(Request $request, Charge $charge): BinaryFileResponse|StreamedResponse
+    {
+        $this->ensureChargeVisible($charge, $request->user());
+
+        $receipts = $charge->payments()
+            ->where('status', ChargePayment::STATUS_SUCCEEDED)
+            ->whereNotNull('receipt_path')
+            ->get()
+            ->filter(fn (ChargePayment $payment) => Storage::disk('public')->exists($payment->receipt_path))
+            ->values();
+
+        abort_if($receipts->isEmpty(), 404);
+
+        if ($receipts->count() === 1) {
+            $payment = $receipts->first();
+
+            return Storage::disk('public')->download(
+                $payment->receipt_path,
+                $this->receiptFileName($charge, $payment),
+            );
+        }
+
+        abort_unless(class_exists(ZipArchive::class), 503, 'La descarga agrupada no está disponible en este servidor.');
+
+        $temporaryPath = tempnam(sys_get_temp_dir(), 'suwork-charge-receipts-');
+        $zip = new ZipArchive;
+        abort_unless($temporaryPath && $zip->open($temporaryPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true, 500);
+
+        foreach ($receipts as $index => $payment) {
+            $zip->addFromString(
+                sprintf('%02d-%s', $index + 1, $this->receiptFileName($charge, $payment)),
+                Storage::disk('public')->get($payment->receipt_path),
+            );
+        }
+        $zip->close();
+
+        return response()
+            ->download($temporaryPath, 'comprobantes-cargo-'.$charge->uuid.'.zip', ['Content-Type' => 'application/zip'])
+            ->deleteFileAfterSend(true);
+    }
+
     public function destroy(Request $request, Charge $charge): RedirectResponse
     {
         if ($this->isTenantUser($request->user())) {
@@ -471,7 +534,7 @@ class ChargeController extends Controller
             return redirect()->back()->with('error', 'Este cargo no se puede eliminar por su estado actual.');
         }
 
-        if ($charge->status === Charge::STATUS_PAID && !$request->user()?->can('cobranza.eliminar_pagados')) {
+        if ($charge->status === Charge::STATUS_PAID && ! $request->user()?->can('cobranza.eliminar_pagados')) {
             abort(403, 'No tienes permiso para eliminar cargos pagados.');
         }
 
@@ -497,7 +560,7 @@ class ChargeController extends Controller
         if ($this->isTenantUser($request->user())) {
             abort(403);
         }
-        if (!in_array($charge->status, [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION], true)) {
+        if (! in_array($charge->status, [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION], true)) {
             return redirect()->back()->with('error', 'Este cargo ya no admite pagos.');
         }
 
@@ -589,10 +652,10 @@ class ChargeController extends Controller
         }
 
         $charge->loadMissing(['tenant:id,full_name,email']);
-        if (!filled($charge->tenant?->email)) {
+        if (! filled($charge->tenant?->email)) {
             return redirect()->back()->with('error', 'El inquilino no tiene correo configurado.');
         }
-        if (!NotificationSettings::allows(NotificationSettings::ROLE_TENANT, NotificationSettings::EVENT_PAYMENT_REMINDER)) {
+        if (! NotificationSettings::allows(NotificationSettings::ROLE_TENANT, NotificationSettings::EVENT_PAYMENT_REMINDER)) {
             return redirect()->back()->with('warning', 'Las notificaciones de recordatorio de pago para inquilinos están desactivadas.');
         }
 
@@ -637,7 +700,7 @@ class ChargeController extends Controller
             ->with('tenant:id,full_name')
             ->findOrFail((int) $validated['property_id']);
 
-        if (!$property->tenant_id) {
+        if (! $property->tenant_id) {
             return redirect()->route('charges.index', $this->chargesIndexRouteParamsFromRequest($request))->with(
                 'warning',
                 'La propiedad no tiene inquilino activo. Asigna un inquilino antes de generar cargos.',
@@ -702,7 +765,7 @@ class ChargeController extends Controller
 
     private function buildBulkPreview(Property $property, ?array $requestRows = null): array
     {
-        if (!$property->tenant_id) {
+        if (! $property->tenant_id) {
             return [
                 'rows' => [],
                 'summary' => [
@@ -773,13 +836,13 @@ class ChargeController extends Controller
     private function resolveBulkRowsSource(Property $property, array $validated): ?array
     {
         $providedRows = $this->normalizeBulkRows($validated['rows'] ?? null)->all();
-        if (!empty($providedRows)) {
+        if (! empty($providedRows)) {
             return $providedRows;
         }
 
         $contractStartsAt = $validated['contract_starts_at'] ?? null;
         $contractExpiresAt = $validated['contract_expires_at'] ?? null;
-        if (!filled($contractStartsAt) || !filled($contractExpiresAt)) {
+        if (! filled($contractStartsAt) || ! filled($contractExpiresAt)) {
             return null;
         }
 
@@ -812,7 +875,7 @@ class ChargeController extends Controller
     private function normalizeBulkRows(?array $rows): Collection
     {
         return collect($rows ?? [])
-            ->filter(fn($row) => is_array($row))
+            ->filter(fn ($row) => is_array($row))
             ->map(function (array $row): ?array {
                 $periodMonth = (int) ($row['period_month'] ?? 0);
                 $periodYear = (int) ($row['period_year'] ?? 0);
@@ -829,7 +892,7 @@ class ChargeController extends Controller
                 $amount = (float) ($row['amount'] ?? 0);
                 $concept = trim((string) ($row['concept'] ?? ''));
                 $type = (string) ($row['type'] ?? Charge::TYPE_RENT);
-                if (!array_key_exists($type, Charge::TYPE_LABELS)) {
+                if (! array_key_exists($type, Charge::TYPE_LABELS)) {
                     $type = Charge::TYPE_RENT;
                 }
 
@@ -855,8 +918,8 @@ class ChargeController extends Controller
     private function generateFallbackRowsFromContract(Property $property): Collection
     {
         if (
-            !$property->contract_starts_at ||
-            !$property->contract_expires_at ||
+            ! $property->contract_starts_at ||
+            ! $property->contract_expires_at ||
             (float) $property->monthly_rent_price <= 0
         ) {
             return collect();
@@ -898,7 +961,7 @@ class ChargeController extends Controller
         float $monthlyRentPrice,
         ?int $chargeDay = null,
     ): array {
-        if (!filled($contractStartsAt) || !filled($contractExpiresAt) || $monthlyRentPrice <= 0) {
+        if (! filled($contractStartsAt) || ! filled($contractExpiresAt) || $monthlyRentPrice <= 0) {
             return [];
         }
 
@@ -945,7 +1008,7 @@ class ChargeController extends Controller
             return $normalizedRequestedDay;
         }
 
-        if (!filled($contractStartsAt)) {
+        if (! filled($contractStartsAt)) {
             return null;
         }
 
@@ -998,7 +1061,7 @@ class ChargeController extends Controller
             $payload['charge_tolerance_days'] = max(0, (int) ($validated['charge_tolerance_days'] ?? 0));
         }
 
-        if (!empty($payload)) {
+        if (! empty($payload)) {
             $property->forceFill($payload);
             if ($persist) {
                 $property->save();
@@ -1011,7 +1074,7 @@ class ChargeController extends Controller
     private function syncPropertyPlanFromBulk(Property $property, array $rows): void
     {
         $planRows = $this->normalizeBulkRows($property->rent_charge_plan)
-            ->keyBy(fn(array $row) => $this->periodKey((int) $row['period_year'], (int) $row['period_month']));
+            ->keyBy(fn (array $row) => $this->periodKey((int) $row['period_year'], (int) $row['period_month']));
 
         foreach ($rows as $row) {
             if (($row['type'] ?? Charge::TYPE_RENT) !== Charge::TYPE_RENT) {
@@ -1039,7 +1102,7 @@ class ChargeController extends Controller
         $property->forceFill([
             'rent_charge_plan' => $planRows
                 ->values()
-                ->sortBy(fn(array $row) => ((int) $row['period_year'] * 100) + (int) $row['period_month'])
+                ->sortBy(fn (array $row) => ((int) $row['period_year'] * 100) + (int) $row['period_month'])
                 ->values()
                 ->all(),
         ])->save();
@@ -1047,17 +1110,17 @@ class ChargeController extends Controller
 
     private function syncPropertyPlanWithCharge(Charge $charge): void
     {
-        if ($charge->type !== Charge::TYPE_RENT || !$charge->property_id) {
+        if ($charge->type !== Charge::TYPE_RENT || ! $charge->property_id) {
             return;
         }
 
         $property = Property::query()->find($charge->property_id);
-        if (!$property) {
+        if (! $property) {
             return;
         }
 
         $planRows = $this->normalizeBulkRows($property->rent_charge_plan)
-            ->keyBy(fn(array $row) => $this->periodKey((int) $row['period_year'], (int) $row['period_month']));
+            ->keyBy(fn (array $row) => $this->periodKey((int) $row['period_year'], (int) $row['period_month']));
         $periodKey = $this->periodKey((int) $charge->period_year, (int) $charge->period_month);
 
         $planRows->put($periodKey, [
@@ -1074,7 +1137,7 @@ class ChargeController extends Controller
         $property->forceFill([
             'rent_charge_plan' => $planRows
                 ->values()
-                ->sortBy(fn(array $row) => ((int) $row['period_year'] * 100) + (int) $row['period_month'])
+                ->sortBy(fn (array $row) => ((int) $row['period_year'] * 100) + (int) $row['period_month'])
                 ->values()
                 ->all(),
         ])->save();
@@ -1082,20 +1145,20 @@ class ChargeController extends Controller
 
     private function removeChargeFromPropertyPlan(Charge $charge): void
     {
-        if ($charge->type !== Charge::TYPE_RENT || !$charge->property_id) {
+        if ($charge->type !== Charge::TYPE_RENT || ! $charge->property_id) {
             return;
         }
 
         $property = Property::query()->find($charge->property_id);
-        if (!$property) {
+        if (! $property) {
             return;
         }
 
         $periodKey = $this->periodKey((int) $charge->period_year, (int) $charge->period_month);
         $planRows = $this->normalizeBulkRows($property->rent_charge_plan)
-            ->keyBy(fn(array $row) => $this->periodKey((int) $row['period_year'], (int) $row['period_month']));
+            ->keyBy(fn (array $row) => $this->periodKey((int) $row['period_year'], (int) $row['period_month']));
 
-        if (!$planRows->has($periodKey)) {
+        if (! $planRows->has($periodKey)) {
             return;
         }
 
@@ -1104,7 +1167,7 @@ class ChargeController extends Controller
         $property->forceFill([
             'rent_charge_plan' => $planRows
                 ->values()
-                ->sortBy(fn(array $row) => ((int) $row['period_year'] * 100) + (int) $row['period_month'])
+                ->sortBy(fn (array $row) => ((int) $row['period_year'] * 100) + (int) $row['period_month'])
                 ->values()
                 ->all(),
         ])->save();
@@ -1112,7 +1175,7 @@ class ChargeController extends Controller
 
     private function logChargeDeletion(Charge $charge, string $note, ?int $userId): void
     {
-        if (!$charge->property_id) {
+        if (! $charge->property_id) {
             return;
         }
 
@@ -1166,7 +1229,7 @@ class ChargeController extends Controller
             12 => 'Diciembre',
         ];
 
-        return 'Renta ' . ($monthNames[$periodMonth] ?? (string) $periodMonth) . ' ' . $periodYear;
+        return 'Renta '.($monthNames[$periodMonth] ?? (string) $periodMonth).' '.$periodYear;
     }
 
     private function chargesIndexRouteParamsFromRequest(Request $request): array
@@ -1177,7 +1240,7 @@ class ChargeController extends Controller
         }
 
         $exists = Property::query()->where('uuid', $propertyContext)->exists();
-        if (!$exists) {
+        if (! $exists) {
             return [];
         }
 
@@ -1191,13 +1254,13 @@ class ChargeController extends Controller
             return $fallback;
         }
 
-        if (str_starts_with($candidate, '/') && !str_starts_with($candidate, '//')) {
+        if (str_starts_with($candidate, '/') && ! str_starts_with($candidate, '//')) {
             return url($candidate);
         }
 
         $candidateParts = parse_url($candidate);
         $applicationParts = parse_url(url('/'));
-        if (!is_array($candidateParts) || !is_array($applicationParts)) {
+        if (! is_array($candidateParts) || ! is_array($applicationParts)) {
             return $fallback;
         }
 
@@ -1211,10 +1274,10 @@ class ChargeController extends Controller
     private function sendCompletedMail(Charge $charge): void
     {
         $charge->loadMissing(['tenant:id,email,full_name']);
-        if (!filled($charge->tenant?->email)) {
+        if (! filled($charge->tenant?->email)) {
             return;
         }
-        if (!NotificationSettings::allows(NotificationSettings::ROLE_TENANT, NotificationSettings::EVENT_PAYMENT_CONFIRMED)) {
+        if (! NotificationSettings::allows(NotificationSettings::ROLE_TENANT, NotificationSettings::EVENT_PAYMENT_CONFIRMED)) {
             return;
         }
 
@@ -1228,18 +1291,25 @@ class ChargeController extends Controller
 
     private function ensureChargeVisible(Charge $charge, ?User $user): void
     {
-        if (!$this->isTenantUser($user)) {
+        if (! $this->isTenantUser($user)) {
             return;
         }
 
         $visible = Charge::query()
             ->where('id', $charge->id)
-            ->whereHas('property.tenant', fn($query) => $query->where('email', $user->email))
+            ->whereHas('property.tenant', fn ($query) => $query->where('email', $user->email))
             ->exists();
 
-        if (!$visible) {
+        if (! $visible) {
             abort(403);
         }
+    }
+
+    private function receiptFileName(Charge $charge, ChargePayment $payment): string
+    {
+        $extension = pathinfo((string) $payment->receipt_path, PATHINFO_EXTENSION) ?: 'archivo';
+
+        return 'comprobante-'.$charge->uuid.'-'.$payment->id.'.'.$extension;
     }
 
     private function getTenantAssignmentMissingRequirements(Tenant $tenant): array
@@ -1262,9 +1332,9 @@ class ChargeController extends Controller
         $documentsByType = $tenant->relationLoaded('documents')
             ? $tenant->documents->keyBy('document_type')
             : $tenant->documents()
-            ->whereIn('document_type', array_keys($this->requirements->labelsForEntity('tenant')))
-            ->get()
-            ->keyBy('document_type');
+                ->whereIn('document_type', array_keys($this->requirements->labelsForEntity('tenant')))
+                ->get()
+                ->keyBy('document_type');
 
         foreach ($this->requirements->labelsForEntity('tenant') as $documentType => $label) {
             $document = $documentsByType->get($documentType);
@@ -1275,8 +1345,8 @@ class ChargeController extends Controller
                 true,
             );
 
-            if (!$hasUploadedFile || $isRejectedOrExpired) {
-                $missing[] = 'Documento: ' . $label;
+            if (! $hasUploadedFile || $isRejectedOrExpired) {
+                $missing[] = 'Documento: '.$label;
             }
         }
 

@@ -16,8 +16,8 @@ use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyControlController;
 use App\Http\Controllers\PropertyController;
-use App\Http\Controllers\PropertyMapController;
 use App\Http\Controllers\PropertyLogbookController;
+use App\Http\Controllers\PropertyMapController;
 use App\Http\Controllers\StorageItemController;
 use App\Http\Controllers\TenantController;
 use App\Http\Controllers\TenantSuggestionController;
@@ -166,6 +166,7 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::get('/cobranza', [ChargeController::class, 'index'])->name('charges.index');
         Route::put('/cobranza/propiedades/{property}/configuracion', [ChargeController::class, 'updatePropertySetup'])->name('charges.properties.setup');
         Route::post('/cobranza', [ChargeController::class, 'store'])->name('charges.store');
+        Route::get('/cobranza/{charge}/comprobantes/descargar', [ChargeController::class, 'downloadReceipts'])->name('charges.receipts.download');
         Route::put('/cobranza/{charge}', [ChargeController::class, 'update'])->name('charges.update');
         Route::delete('/cobranza/{charge}', [ChargeController::class, 'destroy'])->name('charges.destroy');
         Route::get('/cobranza/{charge}', [ChargeController::class, 'show'])->name('charges.show');
