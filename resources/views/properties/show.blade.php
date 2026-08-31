@@ -5,6 +5,11 @@
 @section('content')
 
     <link rel="stylesheet" href="/assets/css/propiedades.css">
+    <style>
+        .property-logbook { width: 100%; max-width: none; }
+        .logbook-entry { border-left: 3px solid var(--bs-primary); }
+        .logbook-entry__note { white-space: pre-wrap; line-height: 1.65; }
+    </style>
 
     @php
         $photoUrl = $property->facade_photo_path
@@ -476,6 +481,12 @@
                         <button class="nav-link" id="tab-inventory-tab" data-bs-toggle="tab" data-bs-target="#tab-inventory"
                             type="button" role="tab" aria-controls="tab-inventory" aria-selected="false">
                             Inventario
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-logbook-tab" data-bs-toggle="tab" data-bs-target="#tab-logbook"
+                            type="button" role="tab" aria-controls="tab-logbook" aria-selected="false">
+                            Bitácora
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
@@ -1414,6 +1425,11 @@
                         </div>
                     </div>
 
+                    <div class="tab-pane fade property-tab-pane" id="tab-logbook" role="tabpanel"
+                        aria-labelledby="tab-logbook-tab">
+                        @include('properties.partials.logbook-tab')
+                    </div>
+
                     <div class="tab-pane fade property-tab-pane" id="tab-history" role="tabpanel"
                         aria-labelledby="tab-history-tab">
                         <div class="card property-block-card">
@@ -1740,4 +1756,29 @@
             })();
         </script>
     @endif
+
+    <script>
+        document.querySelectorAll('.js-delete-logbook-entry').forEach((form) => {
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const confirmed = window.Swal?.fire
+                    ? (await window.Swal.fire({
+                        title: '¿Eliminar nota?',
+                        text: 'Esta acción eliminará la nota de la bitácora y no se puede deshacer.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, eliminar',
+                        cancelButtonText: 'Cancelar',
+                        confirmButtonColor: '#d9214e',
+                        reverseButtons: true,
+                    })).isConfirmed
+                    : window.confirm('¿Eliminar esta nota de la bitácora? Esta acción no se puede deshacer.');
+
+                if (confirmed) {
+                    form.submit();
+                }
+            });
+        });
+    </script>
 @endpush

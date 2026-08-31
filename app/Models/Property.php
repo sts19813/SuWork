@@ -214,6 +214,11 @@ class Property extends Model
         return $this->hasMany(PropertyChangeLog::class)->latest('changed_at')->latest('id');
     }
 
+    public function logbookEntries(): HasMany
+    {
+        return $this->hasMany(PropertyLogbookEntry::class)->latest();
+    }
+
     public function getStatusLabelAttribute(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucfirst(str_replace('_', ' ', $this->status));

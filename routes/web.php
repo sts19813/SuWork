@@ -16,6 +16,7 @@ use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyControlController;
 use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\PropertyLogbookController;
 use App\Http\Controllers\StorageItemController;
 use App\Http\Controllers\TenantController;
 use App\Http\Controllers\TenantSuggestionController;
@@ -75,6 +76,10 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::put('/propiedades/{property}/asesores', [PropertyController::class, 'updateAdvisors'])->name('properties.update.advisors');
         Route::put('/propiedades/{property}/tecnico', [PropertyController::class, 'updateTechnician'])->name('properties.update.technician');
         Route::get('/propiedades/{property}', [PropertyController::class, 'show'])->name('properties.show');
+        Route::post('/propiedades/{property}/bitacora', [PropertyLogbookController::class, 'store'])->name('properties.logbook.store');
+        Route::delete('/propiedades/{property}/bitacora/{entry}', [PropertyLogbookController::class, 'destroy'])->name('properties.logbook.destroy');
+        Route::get('/propiedades/{property}/bitacora/adjuntos/{attachment}/vista', [PropertyLogbookController::class, 'preview'])->name('properties.logbook.attachments.preview');
+        Route::get('/propiedades/{property}/bitacora/adjuntos/{attachment}/descargar', [PropertyLogbookController::class, 'download'])->name('properties.logbook.attachments.download');
         Route::get('/propiedades/{property}/expediente', [DocumentController::class, 'propertyDossier'])->name('dossiers.properties.show');
         Route::post('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'uploadPropertyDocument'])->name('dossiers.properties.documents.upload');
         Route::patch('/propiedades/{property}/expediente/documentos/{documentType}', [DocumentController::class, 'updatePropertyDocumentMetadata'])->name('dossiers.properties.documents.update');
