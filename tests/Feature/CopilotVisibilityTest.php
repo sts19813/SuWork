@@ -10,7 +10,7 @@ class CopilotVisibilityTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_copilot_is_hidden_when_openai_api_key_is_not_configured(): void
+    public function test_copilot_is_not_rendered_as_a_floating_widget(): void
     {
         config(['services.openai.key' => null]);
 
@@ -18,10 +18,10 @@ class CopilotVisibilityTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertDontSee('data-copilot', false)
-            ->assertDontSee('AI Copilot');
+            ->assertDontSee('Abrir SuHomes Copilot');
     }
 
-    public function test_copilot_is_shown_when_openai_api_key_is_configured(): void
+    public function test_copilot_chat_module_is_shown_when_openai_api_key_is_configured(): void
     {
         config([
             'services.openai.key' => 'test-openai-api-key',
@@ -29,14 +29,13 @@ class CopilotVisibilityTest extends TestCase
         ]);
 
         $this->actingAs(User::factory()->create())
-            ->get(route('dashboard'))
+            ->get(route('copilot.index'))
             ->assertOk()
             ->assertSee('data-copilot', false)
-            ->assertSee('AI Copilot')
+            ->assertSee('¿En qué te podemos ayudar?')
             ->assertSee('SuHomes Copilot')
-            ->assertSee('<span class="naboo-copilot__usage-label">Hoy</span>', false)
-            ->assertSee('<span class="naboo-copilot__usage-label">Mes</span>', false)
-            ->assertSee('Costo est.');
+            ->assertSee('Chats recientes')
+            ->assertSee('Uso mensual');
     }
 
     public function test_copilot_usage_summary_is_hidden_when_costs_are_disabled(): void
@@ -47,13 +46,10 @@ class CopilotVisibilityTest extends TestCase
         ]);
 
         $this->actingAs(User::factory()->create())
-            ->get(route('dashboard'))
+            ->get(route('copilot.index'))
             ->assertOk()
             ->assertSee('data-copilot', false)
-            ->assertDontSee('<div class="naboo-copilot__usage"', false)
-            ->assertDontSee('<span class="naboo-copilot__usage-label">Hoy</span>', false)
-            ->assertDontSee('<span class="naboo-copilot__usage-label">Mes</span>', false)
-            ->assertDontSee('Costo est.')
+            ->assertDontSee('Uso mensual')
             ->assertDontSee('<strong data-copilot-usage-cost', false);
     }
 
@@ -73,14 +69,46 @@ class CopilotVisibilityTest extends TestCase
             );
     }
 
-    public function test_copilot_is_hidden_when_openai_api_key_contains_only_whitespace(): void
+    public function test_copilot_module_route_is_available_even_without_an_openai_key(): void
     {
         config(['services.openai.key' => '   ']);
 
         $this->actingAs(User::factory()->create())
-            ->get(route('dashboard'))
+            ->get(route('copilot.index'))
             ->assertOk()
-            ->assertDontSee('data-copilot', false)
-            ->assertDontSee('AI Copilot');
+            ->assertSee('data-copilot', false)
+            ->assertSee('¿En qué te podemos ayudar?');
+    }
+
+    public function test_saved_chats_can_be_reopened_and_deleted_individually(): void
+    {
+        config(['services.openai.key' => null]);
+        $user = User::factory()->create();
+
+        $firstConversation = $this->actingAs($user)
+            ->postJson(route('copilot.chat'), ['message' => 'Dame un resumen ejecutivo'])
+            ->assertOk()
+            ->json('conversation_id');
+
+        $secondConversation = $this->actingAs($user)
+            ->postJson(route('copilot.chat'), ['message' => 'Que cobranza esta pendiente?'])
+            ->assertOk()
+            ->json('conversation_id');
+
+        $this->assertNotSame($firstConversation, $secondConversation);
+
+        $this->actingAs($user)
+            ->getJson(route('copilot.history', ['conversation_id' => $firstConversation]))
+            ->assertOk()
+            ->assertJsonPath('conversation_id', $firstConversation)
+            ->assertJsonCount(2, 'conversations');
+
+        $this->actingAs($user)
+            ->deleteJson(route('copilot.reset'), ['conversation_id' => $firstConversation])
+            ->assertOk()
+            ->assertJsonCount(1, 'conversations');
+
+        $this->assertDatabaseMissing('ai_conversations', ['uuid' => $firstConversation]);
+        $this->assertDatabaseHas('ai_conversations', ['uuid' => $secondConversation]);
     }
 }

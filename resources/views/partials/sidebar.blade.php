@@ -35,20 +35,21 @@
     $ticketsItem = ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-ticket-perforated'];
     $suggestionsItem = ['patterns' => ['tenant-suggestions.*'], 'route' => 'tenant-suggestions.create', 'label' => 'Sugerencias', 'icon' => 'bi-chat-square-text'];
     $storageItem = ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'];
+    $copilotItem = ['patterns' => ['copilot.*'], 'route' => 'copilot.index', 'label' => 'Asistente IA', 'icon' => 'bi-stars'];
 
     if ($isTenant) {
         $menuItems = [
             $makeMenuSection('Finanzas', 'bi-wallet2', [
                 ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
             ]),
-            $makeMenuSection('Comunicación', 'bi-chat-square-text', [$suggestionsItem]),
+            $makeMenuSection('Comunicación', 'bi-chat-square-text', [$suggestionsItem, $copilotItem]),
             $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem]),
-            $makeMenuSection('Configuración', 'bi-gear', [$profileItem]),
+            $makeMenuSection('Configuración', 'bi-gear', [$copilotItem, $profileItem]),
         ];
     } elseif ($isTechnician) {
         $menuItems = [
             $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem, $storageItem]),
-            $makeMenuSection('Configuración', 'bi-gear', [$profileItem]),
+            $makeMenuSection('Configuración', 'bi-gear', [$copilotItem, $profileItem]),
         ];
     } elseif ($isProvider) {
         $menuItems = [
@@ -70,6 +71,7 @@
                 $isAdmin
                     ? ['patterns' => ['mailbox.*'], 'route' => 'mailbox.index', 'label' => 'Buzón', 'icon' => 'bi-inbox']
                     : null,
+                $copilotItem,
             ]),
             $makeMenuSection('Operación', 'bi-buildings', [
                 $canViewPropertyControl

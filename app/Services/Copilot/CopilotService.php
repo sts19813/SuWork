@@ -20,14 +20,22 @@ class CopilotService
     ) {
     }
 
-    public function history(User $user): array
+    public function history(User $user, ?string $conversationUuid = null): array
     {
-        $conversation = $this->latestConversation($user);
+        $conversations = $this->conversations($user);
+        $conversation = $conversationUuid
+            ? AiConversation::query()
+                ->where('user_id', $user->id)
+                ->where('uuid', $conversationUuid)
+                ->first()
+            : $conversations->first();
 
         if (! $conversation) {
             return [
                 'conversation_id' => null,
                 'messages' => [],
+                'conversations' => $conversations,
+                'usage_summary' => $this->usageSummary($user),
             ];
         }
 
@@ -46,19 +54,24 @@ class CopilotService
                     'meta' => $message->meta ?? [],
                 ])
                 ->all(),
+            'conversations' => $conversations,
             'usage_summary' => $this->usageSummary($user),
         ];
     }
 
-    public function reset(User $user): array
+    public function reset(User $user, ?string $conversationUuid = null): array
     {
-        AiConversation::query()
-            ->where('user_id', $user->id)
-            ->delete();
+        if ($conversationUuid) {
+            AiConversation::query()
+                ->where('user_id', $user->id)
+                ->where('uuid', $conversationUuid)
+                ->delete();
+        }
 
         return [
             'conversation_id' => null,
             'messages' => [],
+            'conversations' => $this->conversations($user),
             'usage_summary' => $this->usageSummary($user),
         ];
     }
@@ -77,7 +90,7 @@ class CopilotService
                 'user_id' => $user->id,
                 'title' => Str::limit($message, 60, ''),
                 'last_activity_at' => now(),
-                'meta' => ['surface' => 'floating_widget'],
+                'meta' => ['surface' => 'chat_module'],
             ]);
 
             $conversation->messages()->create([
@@ -254,6 +267,7 @@ class CopilotService
 
         return [
             'conversation_id' => $conversation->uuid,
+            'conversations' => $this->conversations($user),
             'message' => [
                 'role' => $assistantMessage->role,
                 'content' => $assistantMessage->content,
@@ -451,12 +465,24 @@ class CopilotService
         return preg_replace('/sk-(proj-)?[A-Za-z0-9_-]+/', '[REDACTED]', $value) ?? $value;
     }
 
-    private function latestConversation(User $user): ?AiConversation
+    /**
+     * @return Collection<int, array{uuid: string, title: string, last_activity_at: string|null}>
+     */
+    private function conversations(User $user): Collection
     {
         return AiConversation::query()
             ->where('user_id', $user->id)
             ->latest('last_activity_at')
-            ->first();
+            ->latest('id')
+            ->limit(40)
+            ->get(['uuid', 'title', 'last_activity_at', 'created_at'])
+            ->map(fn (AiConversation $conversation): array => [
+                'uuid' => $conversation->uuid,
+                'title' => filled($conversation->title) ? $conversation->title : 'Nuevo chat',
+                'last_activity_at' => $conversation->last_activity_at?->toIso8601String()
+                    ?? $conversation->created_at?->toIso8601String(),
+            ])
+            ->values();
     }
 
     private function localUsageReply(AiConversation $conversation, User $user): array

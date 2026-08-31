@@ -61,6 +61,7 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::post('/perfil/foto', [ProfileController::class, 'updatePhoto'])->name('profile.update.photo');
         Route::post('/perfil/password', [ProfileController::class, 'updatePassword'])->name('profile.update.password');
 
+        Route::get('/copilot', [CopilotController::class, 'index'])->name('copilot.index');
         Route::get('/copilot/history', [CopilotController::class, 'history'])->name('copilot.history');
         Route::delete('/copilot/history', [CopilotController::class, 'reset'])->name('copilot.reset');
         Route::post('/copilot/chat', [CopilotController::class, 'chat'])->name('copilot.chat');

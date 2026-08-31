@@ -12,14 +12,33 @@ class CopilotController extends Controller
     {
     }
 
+    public function index()
+    {
+        return view('copilot.index');
+    }
+
     public function history(Request $request): JsonResponse
     {
-        return response()->json($this->copilot->history($request->user()));
+        $validated = $request->validate([
+            'conversation_id' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        return response()->json($this->copilot->history(
+            $request->user(),
+            $validated['conversation_id'] ?? null,
+        ));
     }
 
     public function reset(Request $request): JsonResponse
     {
-        return response()->json($this->copilot->reset($request->user()));
+        $validated = $request->validate([
+            'conversation_id' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        return response()->json($this->copilot->reset(
+            $request->user(),
+            $validated['conversation_id'] ?? null,
+        ));
     }
 
     public function chat(Request $request): JsonResponse
