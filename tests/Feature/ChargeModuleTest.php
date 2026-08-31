@@ -108,6 +108,13 @@ class ChargeModuleTest extends TestCase
         $paidCharge->paid_at = now();
         $paidCharge->save();
 
+        $olderPaidCharge = $firstCharge->replicate(['uuid', 'payment_token']);
+        $olderPaidCharge->concept = 'Cargo pagado anterior';
+        $olderPaidCharge->status = Charge::STATUS_PAID;
+        $olderPaidCharge->paid_amount = $olderPaidCharge->amount;
+        $olderPaidCharge->paid_at = now()->subDay();
+        $olderPaidCharge->save();
+
         $response = $this->actingAs($user)->get(route('charges.index'));
 
         $response->assertOk();
@@ -119,7 +126,10 @@ class ChargeModuleTest extends TestCase
             [$overdueCharge->id, $earlierCharge->id, $firstCharge->id],
             $response->viewData('thisMonthCharges')->pluck('id')->all(),
         );
-        $this->assertSame([$paidCharge->id], $response->viewData('paidCharges')->pluck('id')->all());
+        $this->assertSame(
+            [$paidCharge->id, $olderPaidCharge->id],
+            $response->viewData('paidCharges')->pluck('id')->all(),
+        );
         $response->assertSee('Este mes');
         $response->assertSee('Todos');
         $response->assertSee('Cobrados');

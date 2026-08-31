@@ -104,8 +104,8 @@ class ChargeController extends Controller
                 $selectedPropertyId,
                 fn ($query) => $query->where('property_id', $selectedPropertyId),
             )
-            ->orderBy('due_date')
-            ->orderBy('id')
+            ->latest('paid_at')
+            ->latest('id')
             ->get();
 
         $thisMonthCharges = $charges
