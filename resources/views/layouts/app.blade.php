@@ -114,6 +114,10 @@
         </div>
     </div>
 
+    @if (trim((string) config('services.openai.key')) !== '')
+        @include('partials.copilot')
+    @endif
+
     <script>
         var hostUrl = "{{ asset('assets') }}/";
     </script>
