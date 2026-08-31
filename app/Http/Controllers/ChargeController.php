@@ -90,6 +90,7 @@ class ChargeController extends Controller
                 'property:id,internal_name,internal_reference,advisor_user_id',
                 'property.advisor:id,name',
                 'payments' => fn ($query) => $query
+                    ->with(['registeredBy:id,name', 'validatedBy:id,name'])
                     ->where('status', ChargePayment::STATUS_SUCCEEDED)
                     ->orderBy('paid_at')
                     ->orderBy('id'),
@@ -464,7 +465,9 @@ class ChargeController extends Controller
         $charge->load([
             'tenant:id,full_name,email,phone_primary',
             'property.owners:id,name,phone,email,bank_name,clabe,account_holder',
-            'payments' => fn ($query) => $query->latest('id'),
+            'payments' => fn ($query) => $query
+                ->with(['registeredBy:id,name', 'validatedBy:id,name'])
+                ->latest('id'),
         ]);
 
         $canManageCharges = ! $this->isTenantUser($request->user());

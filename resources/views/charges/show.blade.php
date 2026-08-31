@@ -134,6 +134,7 @@
                                 <th>Fecha</th>
                                 <th>Referencia</th>
                                 <th>Estado</th>
+                                <th>Marcado como pagado por</th>
                                 <th>Comprobante</th>
                                 <th class="text-end">Acciones</th>
                             </tr>
@@ -155,6 +156,9 @@
                                             };
                                         @endphp
                                         <span class="badge {{ $statusClass }}">{{ $payment->status_label }}</span>
+                                    </td>
+                                    <td>
+                                        {{ $payment->status === \App\Models\ChargePayment::STATUS_SUCCEEDED ? $payment->marked_paid_by_name : '-' }}
                                     </td>
                                     <td>
                                         @if ($payment->receipt_path)

@@ -728,6 +728,7 @@
                                     <th class="min-w-170px">Asesor responsable</th>
                                     <th class="min-w-130px">Vencimiento</th>
                                     <th class="min-w-170px">Pagado</th>
+                                    <th class="min-w-190px">Marcado como pagado por</th>
                                     <th class="min-w-140px">Monto</th>
                                     <th class="min-w-250px pe-7">Comprobantes</th>
                                     <th class="min-w-150px text-end pe-7">Acciones</th>
@@ -762,6 +763,9 @@
                                         </td>
                                         <td data-mobile-label="Pagado">
                                             <div class="charges-list-value">{{ $charge->paid_at?->format('d M Y') ?? $lastPayment?->paid_at?->format('d M Y') ?? $lastPayment?->payment_date?->format('d M Y') ?? '-' }}</div>
+                                        </td>
+                                        <td data-mobile-label="Marcado como pagado por">
+                                            <div class="charges-list-value">{{ $lastPayment?->marked_paid_by_name ?? '-' }}</div>
                                         </td>
                                         <td data-mobile-label="Monto">
                                             <div class="charges-list-value">${{ number_format((float) $charge->amount, 2) }}</div>
@@ -814,7 +818,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="8" class="text-center py-16 text-muted" data-empty-row="true">No hay cargos cobrados.</td>
+                                        <td colspan="9" class="text-center py-16 text-muted" data-empty-row="true">No hay cargos cobrados.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

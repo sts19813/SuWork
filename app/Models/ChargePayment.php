@@ -80,6 +80,16 @@ class ChargePayment extends Model
         return $this->belongsTo(Charge::class);
     }
 
+    public function registeredBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'registered_by');
+    }
+
+    public function validatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validated_by');
+    }
+
     public function getMethodLabelAttribute(): string
     {
         if (!filled($this->payment_method)) {
@@ -92,5 +102,16 @@ class ChargePayment extends Model
     public function getStatusLabelAttribute(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucfirst(str_replace('_', ' ', $this->status));
+    }
+
+    public function getMarkedPaidByNameAttribute(): string
+    {
+        $user = $this->validatedBy ?? $this->registeredBy;
+
+        if ($user) {
+            return $user->name;
+        }
+
+        return $this->source === self::SOURCE_STRIPE ? 'Pago en linea' : 'Sin registro';
     }
 }

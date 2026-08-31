@@ -185,6 +185,38 @@ class ChargeModuleTest extends TestCase
         }
     }
 
+    public function test_paid_charge_shows_the_user_who_marked_it_as_paid(): void
+    {
+        $user = User::factory()->create(['name' => 'Usuario que cobro']);
+        $charge = $this->createChargeFixture();
+        $charge->forceFill([
+            'status' => Charge::STATUS_PAID,
+            'paid_amount' => $charge->amount,
+            'paid_at' => now(),
+        ])->save();
+        ChargePayment::create([
+            'charge_id' => $charge->id,
+            'amount' => $charge->amount,
+            'currency' => 'mxn',
+            'status' => ChargePayment::STATUS_SUCCEEDED,
+            'source' => ChargePayment::SOURCE_ADMIN,
+            'registered_by' => $user->id,
+            'paid_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('charges.index'))
+            ->assertOk()
+            ->assertSee('Marcado como pagado por')
+            ->assertSee('Usuario que cobro');
+
+        $this->actingAs($user)
+            ->get(route('charges.show', $charge))
+            ->assertOk()
+            ->assertSee('Marcado como pagado por')
+            ->assertSee('Usuario que cobro');
+    }
+
     public function test_charge_can_be_created(): void
     {
         $user = User::factory()->create();
