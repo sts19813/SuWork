@@ -25,6 +25,7 @@ class DashboardController extends Controller
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'advisor_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'property_scope' => ['nullable', 'in:mine,all'],
+            'property_id' => ['nullable', 'integer', 'exists:properties,id'],
         ]);
 
         $isAdvisorUser = $this->isAdvisorUser($request);
@@ -41,6 +42,15 @@ class DashboardController extends Controller
             $visiblePropertyIds,
             $selectedAdvisorId ? $this->advisorFilterPropertyIds($selectedAdvisorId) : null,
         );
+        $availableProperties = $this->availableProperties($filteredPropertyIds);
+        $requestedPropertyId = isset($validated['property_id']) ? (int) $validated['property_id'] : null;
+        $selectedPropertyId = $requestedPropertyId && $availableProperties->contains('id', $requestedPropertyId)
+            ? $requestedPropertyId
+            : null;
+        $filteredPropertyIds = $this->intersectPropertyIds(
+            $filteredPropertyIds,
+            $selectedPropertyId ? collect([$selectedPropertyId]) : null,
+        );
 
         $dashboardPeriod = $this->resolveDashboardPeriod($validated);
         $periodStart = $dashboardPeriod['start'];
@@ -53,7 +63,7 @@ class DashboardController extends Controller
         $alerts = $this->buildImportantAlerts($periodStart, $periodEnd, $referenceDate, $filteredPropertyIds);
         $propertySummaries = $this->buildPropertySummaries($periodStart, $periodEnd, $referenceDate, $filteredPropertyIds);
         $profitability = $this->buildProfitabilitySummary($periodStart, $periodEnd, $filteredPropertyIds);
-        $advisorCommissions = $this->buildCurrentMonthAdvisorCommissions();
+        $advisorCommissions = $this->buildCurrentMonthAdvisorCommissions($filteredPropertyIds);
 
         return view('dashboard', [
             'selectedMonth' => $selectedMonth,
@@ -66,6 +76,8 @@ class DashboardController extends Controller
             'propertyScope' => $propertyScope,
             'selectedAdvisorId' => $selectedAdvisorId,
             'availableAdvisors' => $availableAdvisors,
+            'selectedPropertyId' => $selectedPropertyId,
+            'availableProperties' => $availableProperties,
             'dashboardKpis' => $kpis,
             'collectionSummary' => $collectionSummary,
             'importantAlerts' => $alerts,
@@ -76,7 +88,7 @@ class DashboardController extends Controller
         ]);
     }
 
-    private function buildCurrentMonthAdvisorCommissions(): Collection
+    private function buildCurrentMonthAdvisorCommissions(?Collection $visiblePropertyIds = null): Collection
     {
         $monthStart = now()->startOfMonth();
         $monthEnd = now()->endOfMonth();
@@ -94,14 +106,25 @@ class DashboardController extends Controller
                 $monthEnd->copy()->endOfDay(),
             ])
             ->groupBy('properties.advisor_user_id')
+            ->when($visiblePropertyIds !== null, fn ($query) => $query->whereIn('properties.id', $visiblePropertyIds->all()))
             ->get()
             ->keyBy(fn ($total) => (int) $total->advisor_id);
 
-        return User::query()
-            ->whereHas('assignedProperties')
-            ->withCount('assignedProperties')
+        $advisors = User::query()
+            ->whereHas('assignedProperties', function ($query) use ($visiblePropertyIds): void {
+                if ($visiblePropertyIds !== null) {
+                    $query->whereIn('properties.id', $visiblePropertyIds->all());
+                }
+            })
+            ->withCount(['assignedProperties' => function ($query) use ($visiblePropertyIds): void {
+                if ($visiblePropertyIds !== null) {
+                    $query->whereIn('properties.id', $visiblePropertyIds->all());
+                }
+            }])
             ->orderBy('name')
-            ->get(['id', 'name', 'email'])
+            ->get(['id', 'name', 'email']);
+
+        return $advisors
             ->map(function (User $advisor) use ($paymentTotals): array {
                 $totals = $paymentTotals->get($advisor->id);
                 $collectedAmount = round((float) ($totals?->collected_amount ?? 0), 2);
@@ -613,6 +636,14 @@ class DashboardController extends Controller
             ]))
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
+    }
+
+    private function availableProperties(?Collection $visiblePropertyIds): Collection
+    {
+        $query = Property::query()->orderBy('internal_name');
+        $this->applyPropertyPrimaryKeyFilter($query, $visiblePropertyIds);
+
+        return $query->get(['id', 'internal_name', 'internal_reference']);
     }
 
     private function applyPropertyIdFilter($query, ?Collection $visiblePropertyIds): void

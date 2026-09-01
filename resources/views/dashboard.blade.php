@@ -71,6 +71,44 @@
             margin: 0 auto;
         }
 
+        @media (min-width: 1200px) {
+            .executive-dashboard .dashboard-mobile-shell {
+                display: block !important;
+            }
+
+            .executive-dashboard .dashboard-filter-panel {
+                display: grid !important;
+                grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr) minmax(170px, 0.85fr) minmax(300px, 1.25fr) auto;
+                width: 100%;
+                gap: 0.9rem !important;
+            }
+
+            .executive-dashboard .dashboard-filter-panel--with-scope {
+                grid-template-columns: minmax(150px, 0.8fr) minmax(180px, 1fr) minmax(200px, 1.1fr) minmax(160px, 0.8fr) minmax(290px, 1.15fr) auto;
+            }
+
+            .executive-dashboard .dashboard-filter-panel .form-select,
+            .executive-dashboard .dashboard-filter-panel .form-control {
+                width: 100% !important;
+            }
+
+            .executive-dashboard .dashboard-filter-panel .select2-container {
+                width: 100% !important;
+            }
+
+            .executive-dashboard .dashboard-filter-dates {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.9rem;
+            }
+
+            .executive-dashboard .dashboard-filter-submit {
+                min-width: 150px;
+                min-height: 44px;
+                align-self: end;
+            }
+        }
+
         @media (max-width: 767.98px) {
             .executive-dashboard {
                 padding-top: 0 !important;
@@ -98,6 +136,16 @@
 
             .executive-dashboard .dashboard-filter-field--wide {
                 grid-column: 1 / -1;
+            }
+
+            .executive-dashboard .dashboard-filter-field--dates {
+                grid-column: 1 / -1;
+            }
+
+            .executive-dashboard .dashboard-filter-dates {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.75rem;
             }
 
             .executive-dashboard .dashboard-filter-panel .form-label {
@@ -287,7 +335,7 @@
                 <div class="text-muted fs-6">{{ $periodLabel }}</div>
             </div>
 
-            <form method="GET" action="{{ route('dashboard') }}" class="d-flex flex-wrap align-items-end gap-3 dashboard-filter-panel">
+            <form method="GET" action="{{ route('dashboard') }}" class="d-flex flex-wrap align-items-end gap-3 dashboard-filter-panel {{ $isAdvisorUser ? 'dashboard-filter-panel--with-scope' : '' }}">
                 @if ($isAdvisorUser)
                     <div class="dashboard-filter-field dashboard-filter-field--wide">
                         <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Propiedades</label>
@@ -308,6 +356,17 @@
                         @endforeach
                     </select>
                 </div>
+                <div class="dashboard-filter-field dashboard-filter-field--wide">
+                    <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Propiedad</label>
+                    <select name="property_id" id="dashboard_property_filter" class="form-select w-225px" data-control="select2" data-placeholder="Todas las propiedades" data-allow-clear="true">
+                        <option value="">Todas las propiedades</option>
+                        @foreach ($availableProperties as $property)
+                            <option value="{{ $property->id }}" {{ (string) $selectedPropertyId === (string) $property->id ? 'selected' : '' }}>
+                                {{ $property->internal_name }}{{ $property->internal_reference ? ' · ' . $property->internal_reference : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
                 <div class="dashboard-filter-field">
                     <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Periodo</label>
                     <select name="preset" id="dashboard_period_preset" class="form-select w-200px">
@@ -318,13 +377,17 @@
                         <option value="custom" {{ $selectedPreset === 'custom' ? 'selected' : '' }}>Rango personalizado</option>
                     </select>
                 </div>
-                <div class="dashboard-filter-field">
-                    <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Desde</label>
-                    <input type="date" name="start_date" id="dashboard_period_start" value="{{ $periodStart->toDateString() }}" class="form-control w-175px">
-                </div>
-                <div class="dashboard-filter-field">
-                    <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Hasta</label>
-                    <input type="date" name="end_date" id="dashboard_period_end" value="{{ $periodEnd->toDateString() }}" class="form-control w-175px">
+                <div class="dashboard-filter-field dashboard-filter-field--dates">
+                    <div class="dashboard-filter-dates">
+                        <div>
+                            <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Desde</label>
+                            <input type="date" name="start_date" id="dashboard_period_start" value="{{ $periodStart->toDateString() }}" class="form-control w-100">
+                        </div>
+                        <div>
+                            <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Hasta</label>
+                            <input type="date" name="end_date" id="dashboard_period_end" value="{{ $periodEnd->toDateString() }}" class="form-control w-100">
+                        </div>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary dashboard-filter-submit">Aplicar filtro</button>
             </form>
