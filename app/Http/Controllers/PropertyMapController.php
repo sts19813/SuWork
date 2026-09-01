@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Charge;
+use App\Models\ChargePayment;
 use App\Models\Property;
 use App\Services\PropertyMapLocationResolver;
 use Illuminate\Http\JsonResponse;
@@ -80,11 +82,56 @@ class PropertyMapController extends Controller
 
     private function mapPropertiesQuery()
     {
+        $monthStart = now()->startOfMonth();
+        $monthEnd = now()->endOfMonth();
+
         return Property::query()
-            ->with(['type', 'zone', 'tenant', 'owners:id,name', 'advisor:id,name'])
+            ->with([
+                'type',
+                'zone',
+                'tenant',
+                'owners:id,name',
+                'advisor:id,name',
+                'charges' => fn ($query) => $query
+                    ->where('status', '!=', Charge::STATUS_CANCELED)
+                    ->where(function ($chargeQuery) use ($monthStart, $monthEnd): void {
+                        $chargeQuery
+                            ->whereIn('status', [
+                                Charge::STATUS_PENDING,
+                                Charge::STATUS_PARTIAL,
+                                Charge::STATUS_IN_VALIDATION,
+                            ])
+                            ->orWhereHas('payments', fn ($paymentQuery) => $paymentQuery
+                                ->where(function ($statusQuery) use ($monthStart, $monthEnd): void {
+                                    $statusQuery
+                                        ->where('status', ChargePayment::STATUS_PENDING_VALIDATION)
+                                        ->orWhere(function ($paidQuery) use ($monthStart, $monthEnd): void {
+                                            $paidQuery
+                                                ->where('status', ChargePayment::STATUS_SUCCEEDED)
+                                                ->whereBetween('paid_at', [$monthStart, $monthEnd]);
+                                        });
+                                }));
+                    })
+                    ->with(['payments' => fn ($query) => $query
+                        ->where(function ($paymentQuery) use ($monthStart, $monthEnd): void {
+                            $paymentQuery
+                                ->where('status', ChargePayment::STATUS_PENDING_VALIDATION)
+                                ->orWhere(function ($paidQuery) use ($monthStart, $monthEnd): void {
+                                    $paidQuery
+                                        ->where('status', ChargePayment::STATUS_SUCCEEDED)
+                                        ->whereBetween('paid_at', [$monthStart, $monthEnd]);
+                                });
+                        })])
+                    ->orderByDesc('due_date')
+                    ->orderByDesc('id'),
+            ])
             ->withCount([
                 'maintenanceTickets as open_tickets_count' => fn ($query) => $query->whereNotIn('status', ['resolved', 'completed', 'cancelled']),
-                'charges as pending_charges_count' => fn ($query) => $query->whereIn('status', ['pending', 'overdue', 'partial', 'validating']),
+                'charges as pending_charges_count' => fn ($query) => $query->whereIn('status', [
+                    Charge::STATUS_PENDING,
+                    Charge::STATUS_PARTIAL,
+                    Charge::STATUS_IN_VALIDATION,
+                ]),
             ]);
     }
 
@@ -101,6 +148,23 @@ class PropertyMapController extends Controller
 
     private function markerFor(Property $property): array
     {
+        $openCharges = $property->charges->whereIn('status', [
+            Charge::STATUS_PENDING,
+            Charge::STATUS_PARTIAL,
+            Charge::STATUS_IN_VALIDATION,
+        ]);
+        $pendingAmount = $openCharges->sum(fn (Charge $charge): float => $charge->outstanding_amount);
+        $overdueAmount = $openCharges
+            ->filter(fn (Charge $charge): bool => $charge->is_overdue)
+            ->sum(fn (Charge $charge): float => $charge->outstanding_amount);
+        $payments = $property->charges->flatMap->payments;
+        $collectedThisMonth = $payments
+            ->where('status', ChargePayment::STATUS_SUCCEEDED)
+            ->sum(fn (ChargePayment $payment): float => (float) $payment->amount);
+        $pendingValidationCount = $payments
+            ->where('status', ChargePayment::STATUS_PENDING_VALIDATION)
+            ->count();
+
         return [
             'id' => $property->id,
             'uuid' => $property->uuid,
@@ -128,6 +192,26 @@ class PropertyMapController extends Controller
             'contract_expires_at' => $property->contract_expires_at?->format('d/m/Y'),
             'open_tickets_count' => (int) $property->open_tickets_count,
             'pending_charges_count' => (int) $property->pending_charges_count,
+            'charges_url' => route('charges.index', ['property' => $property->uuid]),
+            'charge_summary' => [
+                'pending_amount' => round((float) $pendingAmount, 2),
+                'overdue_amount' => round((float) $overdueAmount, 2),
+                'collected_month' => round((float) $collectedThisMonth, 2),
+                'pending_validation_count' => $pendingValidationCount,
+                'recent_charges' => $property->charges
+                    ->take(5)
+                    ->map(fn (Charge $charge): array => [
+                        'concept' => $charge->concept,
+                        'due_date' => $charge->due_date?->format('d/m/Y'),
+                        'amount' => round((float) $charge->amount, 2),
+                        'outstanding_amount' => round($charge->outstanding_amount, 2),
+                        'status_label' => $charge->display_status_label,
+                        'status_badge_class' => $charge->status_badge_class,
+                        'show_url' => route('charges.show', $charge),
+                    ])
+                    ->values()
+                    ->all(),
+            ],
         ];
     }
 }

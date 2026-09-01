@@ -228,6 +228,42 @@
             margin-top: 10px;
         }
 
+        .property-map-popup .btn {
+            min-width: 72px;
+        }
+
+        .property-map-workspace .leaflet-bottom.leaflet-left {
+            left: 8px;
+            bottom: 8px;
+        }
+
+        .property-map-workspace .leaflet-control-zoom {
+            overflow: hidden;
+            border: 1px solid rgba(226, 232, 240, .95);
+            border-radius: 8px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, .14);
+        }
+
+        .property-map-workspace .leaflet-popup-pane {
+            z-index: 1120;
+        }
+
+        .property-map-drawer-backdrop {
+            position: absolute;
+            z-index: 1150;
+            inset: 0;
+            border: 0;
+            background: rgba(15, 23, 42, .16);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .22s ease;
+        }
+
+        .property-map-drawer-backdrop.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
         .property-map-drawer {
             position: absolute;
             z-index: 1200;
@@ -298,7 +334,7 @@
 
         .property-map-steps {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 8px;
             margin: 20px 0;
         }
@@ -372,6 +408,89 @@
             padding: 7px 10px;
         }
 
+        .property-map-charge-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .property-map-charge-card {
+            min-width: 0;
+            border: 1px solid var(--map-border);
+            border-radius: 8px;
+            background: #f8fafc;
+            padding: 12px;
+        }
+
+        .property-map-charge-card span {
+            display: block;
+            color: #64748b;
+            font-size: .69rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .property-map-charge-card strong {
+            display: block;
+            margin-top: 5px;
+            color: var(--map-ink);
+            font-size: 1rem;
+            font-weight: 850;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .property-map-charge-card.is-danger strong { color: #dc2626; }
+        .property-map-charge-card.is-success strong { color: #15803d; }
+
+        .property-map-charge-list {
+            display: grid;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .property-map-charge-item {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 6px 12px;
+            align-items: center;
+            border-bottom: 1px solid #eef2f7;
+            padding: 10px 2px;
+        }
+
+        .property-map-charge-item__concept {
+            overflow: hidden;
+            color: var(--map-ink);
+            font-size: .82rem;
+            font-weight: 800;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .property-map-charge-item__meta {
+            color: var(--map-muted);
+            font-size: .72rem;
+            font-weight: 650;
+        }
+
+        .property-map-charge-item__amount {
+            color: var(--map-ink);
+            font-size: .82rem;
+            font-weight: 850;
+            text-align: right;
+        }
+
+        .property-map-charge-empty {
+            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
+            color: var(--map-muted);
+            font-size: .8rem;
+            font-weight: 650;
+            padding: 18px;
+            text-align: center;
+        }
+
         .property-map-empty {
             position: absolute;
             z-index: 1250;
@@ -435,6 +554,7 @@
 
             .property-map-toolbar {
                 position: static;
+                gap: 8px;
                 padding: 12px;
                 background: #ffffff;
                 border-bottom: 1px solid var(--map-border);
@@ -446,15 +566,168 @@
 
             .property-map-results {
                 margin-left: 0;
+                align-self: flex-start;
+                padding: 8px 10px;
+            }
+
+            .property-map-filters {
+                width: 100%;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                overscroll-behavior-x: contain;
+                scrollbar-width: thin;
             }
 
             #properties-map {
-                height: 640px;
-                min-height: 640px;
+                height: max(460px, calc(100dvh - 360px));
+                min-height: 460px;
             }
 
             .property-map-workspace {
                 min-height: auto;
+            }
+
+            .property-map-drawer-backdrop {
+                position: fixed;
+                z-index: 1290;
+                background: rgba(15, 23, 42, .42);
+            }
+
+            .property-map-drawer {
+                position: fixed;
+                z-index: 1300;
+                top: auto;
+                bottom: 0;
+                width: 100%;
+                height: min(82dvh, 760px);
+                border-top: 1px solid var(--map-border);
+                border-left: 0;
+                border-radius: 16px 16px 0 0;
+                box-shadow: 0 -18px 44px rgba(15, 23, 42, .22);
+                transform: translateY(104%);
+            }
+
+            .property-map-drawer.is-open {
+                transform: translateY(0);
+            }
+
+            .property-map-drawer__image {
+                height: 170px;
+            }
+
+            body.property-map-drawer-open {
+                overflow: hidden;
+            }
+        }
+
+        @media (max-width: 767.98px) {
+            .property-map-module {
+                padding-top: 10px;
+            }
+
+            .property-map-head {
+                gap: 12px;
+                margin-bottom: 12px;
+            }
+
+            .property-map-title {
+                font-size: 1.55rem;
+            }
+
+            .property-map-subtitle {
+                font-size: .82rem;
+                line-height: 1.35;
+            }
+
+            .property-map-stats {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 6px;
+            }
+
+            .property-map-stat {
+                min-width: 0;
+                padding: 9px 8px;
+            }
+
+            .property-map-stat strong {
+                font-size: 1rem;
+            }
+
+            .property-map-stat span {
+                font-size: .6rem;
+                line-height: 1.2;
+            }
+
+            .property-map-search input {
+                height: 42px;
+                font-size: .82rem;
+            }
+
+            .property-map-toolbar {
+                padding: 9px;
+            }
+
+            .property-map-filter {
+                min-height: 38px;
+                padding: 8px 11px;
+            }
+
+            .property-map-workspace .leaflet-control-zoom a {
+                width: 40px;
+                height: 40px;
+                font-size: 1.25rem;
+                line-height: 40px;
+            }
+
+            #properties-map {
+                height: max(440px, calc(100dvh - 345px));
+                min-height: 440px;
+            }
+
+            .property-map-popup {
+                width: 215px;
+            }
+
+            .property-map-popup img {
+                height: 96px;
+            }
+
+            .property-map-drawer {
+                height: min(86dvh, 720px);
+            }
+
+            .property-map-drawer__image {
+                height: 145px;
+            }
+
+            .property-map-drawer__body {
+                padding: 16px;
+            }
+
+            .property-map-drawer__title {
+                font-size: 1.1rem;
+            }
+
+            .property-map-steps {
+                gap: 5px;
+                margin: 14px 0;
+            }
+
+            .property-map-step {
+                min-height: 40px;
+                padding: 8px 4px;
+                font-size: .68rem;
+            }
+
+            .property-map-info-grid,
+            .property-map-charge-grid {
+                gap: 7px;
+            }
+
+            .property-map-info,
+            .property-map-charge-card {
+                padding: 10px;
             }
         }
     </style>
@@ -505,6 +778,8 @@
 
             <div id="properties-map"></div>
 
+            <button type="button" class="property-map-drawer-backdrop" data-drawer-backdrop aria-label="Cerrar detalle"></button>
+
             <div class="property-map-empty" data-map-empty hidden>
                 <div>
                     <i class="bi bi-map"></i>
@@ -521,7 +796,7 @@
                 </div>
             </div>
 
-            <aside class="property-map-drawer" data-map-drawer aria-live="polite">
+            <aside class="property-map-drawer" data-map-drawer aria-live="polite" aria-hidden="true">
                 <div class="property-map-drawer__image">
                     <img src="" alt="" data-drawer-photo>
                     <button type="button" class="property-map-drawer__close" data-drawer-close aria-label="Cerrar detalle">
@@ -541,6 +816,7 @@
                     <div class="property-map-steps">
                         <button type="button" class="property-map-step active" data-detail-step="summary">Resumen</button>
                         <button type="button" class="property-map-step" data-detail-step="operation">Operacion</button>
+                        <button type="button" class="property-map-step" data-detail-step="charges">Cobranza</button>
                         <button type="button" class="property-map-step" data-detail-step="location">Ubicacion</button>
                     </div>
 
@@ -582,7 +858,7 @@
                             </div>
                             <div class="property-map-info">
                                 <span>Cargos pendientes</span>
-                                <strong data-drawer-charges></strong>
+                                <strong data-drawer-pending-count></strong>
                             </div>
                             <div class="property-map-info">
                                 <span>Tickets abiertos</span>
@@ -597,6 +873,34 @@
                                 <strong data-drawer-contract-end></strong>
                             </div>
                         </div>
+                    </section>
+
+                    <section class="property-map-section" data-detail-section="charges">
+                        <div class="property-map-charge-grid">
+                            <div class="property-map-charge-card">
+                                <span>Pendiente</span>
+                                <strong data-drawer-charge-pending></strong>
+                            </div>
+                            <div class="property-map-charge-card is-danger">
+                                <span>Vencido</span>
+                                <strong data-drawer-charge-overdue></strong>
+                            </div>
+                            <div class="property-map-charge-card is-success">
+                                <span>Cobrado este mes</span>
+                                <strong data-drawer-charge-collected></strong>
+                            </div>
+                            <div class="property-map-charge-card">
+                                <span>En validacion</span>
+                                <strong data-drawer-charge-validation></strong>
+                            </div>
+                        </div>
+
+                        <div class="text-muted fw-bold fs-8 text-uppercase mt-5 mb-1">Cargos recientes</div>
+                        <div class="property-map-charge-list" data-drawer-charge-list></div>
+
+                        <a href="#" class="btn btn-light-primary fw-bold w-100 mt-4" data-drawer-charges-url>
+                            <i class="bi bi-wallet2 me-2"></i> Ver cobranza completa
+                        </a>
                     </section>
 
                     <section class="property-map-section" data-detail-section="location">
@@ -654,8 +958,9 @@
             };
 
             const map = L.map(mapElement, {
-                zoomControl: true,
+                zoomControl: false,
             }).setView(defaultCenter, 12);
+            L.control.zoom({ position: 'bottomleft' }).addTo(map);
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -669,12 +974,16 @@
             const pendingCount = document.querySelector('[data-map-pending-count]');
             const filterButtons = Array.from(document.querySelectorAll('[data-status-filter]'));
             const drawer = document.querySelector('[data-map-drawer]');
+            const drawerBackdrop = document.querySelector('[data-drawer-backdrop]');
             const emptyState = document.querySelector('[data-map-empty]');
             const syncState = document.querySelector('[data-map-sync]');
+            const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+            const moneyFormatter = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+            let popupCloseTimer = null;
             let activeStatus = 'all';
 
             function text(value) {
-                return String(value || '').trim();
+                return value === null || value === undefined ? '' : String(value).trim();
             }
 
             function escapeHtml(value) {
@@ -710,7 +1019,7 @@
                         <div class="property-map-popup-meta">${escapeHtml(property.zone || property.address || '-')}</div>
                         <div class="d-flex align-items-center justify-content-between gap-2 mt-3">
                             <span class="badge ${escapeHtml(property.status_badge_class || 'badge-light-secondary')}">${escapeHtml(statusLabel)}</span>
-                            <a href="${escapeHtml(property.show_url)}" class="btn btn-sm btn-primary">Ir</a>
+                            <button type="button" class="btn btn-sm btn-primary" data-map-property-view="${Number(property.id)}">Ver</button>
                         </div>
                     </div>
                 `;
@@ -765,11 +1074,40 @@
                             iconSize: [22, 22],
                             iconAnchor: [11, 11],
                         }),
-                    }).bindPopup(popupFor(property));
+                    }).bindPopup(popupFor(property), { maxWidth: 280, closeButton: true });
 
-                    marker.on('click', function () {
-                        openDrawer(property);
+                    marker.on('popupopen', function (event) {
+                        const popupElement = event.popup.getElement();
+                        if (!popupElement) return;
+
+                        const viewButton = popupElement.querySelector('[data-map-property-view]');
+                        if (viewButton && viewButton.dataset.viewBound !== 'true') {
+                            viewButton.dataset.viewBound = 'true';
+                            viewButton.addEventListener('click', function (clickEvent) {
+                                clickEvent.preventDefault();
+                                clickEvent.stopPropagation();
+                                openDrawer(property);
+                            });
+                        }
+
+                        if (!canHover || popupElement.dataset.hoverBound === 'true') return;
+
+                        popupElement.dataset.hoverBound = 'true';
+                        popupElement.addEventListener('mouseenter', () => window.clearTimeout(popupCloseTimer));
+                        popupElement.addEventListener('mouseleave', () => {
+                            popupCloseTimer = window.setTimeout(() => marker.closePopup(), 180);
+                        });
                     });
+
+                    if (canHover) {
+                        marker.on('mouseover', function () {
+                            window.clearTimeout(popupCloseTimer);
+                            marker.openPopup();
+                        });
+                        marker.on('mouseout', function () {
+                            popupCloseTimer = window.setTimeout(() => marker.closePopup(), 240);
+                        });
+                    }
                     marker.addTo(markerLayer);
                     bounds.extend(marker.getLatLng());
                     markerById.set(property.id, marker);
@@ -802,6 +1140,53 @@
                 }
             }
 
+            function money(value) {
+                return moneyFormatter.format(Number(value || 0));
+            }
+
+            function activateDetailStep(step) {
+                document.querySelectorAll('[data-detail-step]').forEach(function (button) {
+                    button.classList.toggle('active', button.dataset.detailStep === step);
+                });
+                document.querySelectorAll('[data-detail-section]').forEach(function (section) {
+                    section.classList.toggle('active', section.dataset.detailSection === step);
+                });
+            }
+
+            function renderChargeSummary(property) {
+                const summary = property.charge_summary || {};
+                const chargeList = drawer?.querySelector('[data-drawer-charge-list]');
+
+                setText('[data-drawer-charge-pending]', money(summary.pending_amount), money(0));
+                setText('[data-drawer-charge-overdue]', money(summary.overdue_amount), money(0));
+                setText('[data-drawer-charge-collected]', money(summary.collected_month), money(0));
+                setText('[data-drawer-charge-validation]', Number(summary.pending_validation_count || 0), '0');
+                setLink('[data-drawer-charges-url]', property.charges_url);
+
+                if (!chargeList) return;
+
+                const recentCharges = Array.isArray(summary.recent_charges) ? summary.recent_charges : [];
+                chargeList.innerHTML = '';
+
+                if (!recentCharges.length) {
+                    chargeList.innerHTML = '<div class="property-map-charge-empty">Esta propiedad no tiene cargos pendientes ni movimientos del mes.</div>';
+                    return;
+                }
+
+                recentCharges.forEach(function (charge) {
+                    const item = document.createElement('a');
+                    item.href = charge.show_url || '#';
+                    item.className = 'property-map-charge-item text-decoration-none';
+                    item.innerHTML = `
+                        <div class="property-map-charge-item__concept">${escapeHtml(charge.concept || 'Cargo')}</div>
+                        <div class="property-map-charge-item__amount">${escapeHtml(money(charge.outstanding_amount))}</div>
+                        <div class="property-map-charge-item__meta">Vence ${escapeHtml(charge.due_date || '-')}</div>
+                        <span class="badge ${escapeHtml(charge.status_badge_class || 'badge-light-secondary')}">${escapeHtml(charge.status_label || '-')}</span>
+                    `;
+                    chargeList.appendChild(item);
+                });
+            }
+
             function openDrawer(property) {
                 if (!drawer) {
                     return;
@@ -829,7 +1214,7 @@
                 setText('[data-drawer-reference]', property.reference);
                 setText('[data-drawer-tenant]', property.tenant);
                 setText('[data-drawer-advisor]', property.advisor);
-                setText('[data-drawer-charges]', property.pending_charges_count);
+                setText('[data-drawer-pending-count]', property.pending_charges_count, '0');
                 setText('[data-drawer-tickets]', property.open_tickets_count);
                 setText('[data-drawer-contract-start]', property.contract_starts_at);
                 setText('[data-drawer-contract-end]', property.contract_expires_at);
@@ -838,6 +1223,7 @@
                 setLink('[data-drawer-map-url]', property.map_url);
                 setLink('[data-drawer-show-url]', property.show_url);
                 setLink('[data-drawer-edit-url]', property.edit_url);
+                renderChargeSummary(property);
 
                 if (owners) {
                     owners.innerHTML = '';
@@ -849,13 +1235,21 @@
                     });
                 }
 
+                activateDetailStep('summary');
+                map.closePopup();
                 drawer.classList.add('is-open');
+                drawer.setAttribute('aria-hidden', 'false');
+                drawerBackdrop?.classList.add('is-open');
+                document.body.classList.add('property-map-drawer-open');
             }
 
             function closeDrawer() {
                 if (drawer) {
                     drawer.classList.remove('is-open');
+                    drawer.setAttribute('aria-hidden', 'true');
                 }
+                drawerBackdrop?.classList.remove('is-open');
+                document.body.classList.remove('property-map-drawer-open');
             }
 
             function showSync(visible, title, message) {
@@ -940,13 +1334,22 @@
             }
 
             document.addEventListener('click', function (event) {
-                if (event.target.closest('[data-drawer-close]')) closeDrawer();
+                if (event.target.closest('[data-drawer-close], [data-drawer-backdrop]')) {
+                    closeDrawer();
+                    return;
+                }
+
+                const viewButton = event.target.closest('[data-map-property-view]');
+                if (viewButton) {
+                    event.preventDefault();
+                    const property = properties.find((item) => Number(item.id) === Number(viewButton.dataset.mapPropertyView));
+                    if (property) openDrawer(property);
+                    return;
+                }
 
                 const stepButton = event.target.closest('[data-detail-step]');
                 if (stepButton) {
-                    const step = stepButton.dataset.detailStep;
-                    document.querySelectorAll('[data-detail-step]').forEach((button) => button.classList.toggle('active', button === stepButton));
-                    document.querySelectorAll('[data-detail-section]').forEach((section) => section.classList.toggle('active', section.dataset.detailSection === step));
+                    activateDetailStep(stepButton.dataset.detailStep);
                 }
             });
             document.addEventListener('keydown', function (event) {

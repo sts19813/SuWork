@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Mail\PropertyTechnicianAssignedMail;
 use App\Models\Charge;
+use App\Models\ChargePayment;
 use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyType;
@@ -31,6 +32,10 @@ class PropertyModuleTest extends TestCase
         $user = User::factory()->create();
         $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
         $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        $tenant = Tenant::query()->create([
+            'full_name' => 'Inquilino del mapa',
+            'phone_primary' => '5555555555',
+        ]);
         $property = Property::create([
             'internal_name' => 'Casa Mapa',
             'property_type_id' => $type->id,
@@ -38,7 +43,28 @@ class PropertyModuleTest extends TestCase
             'full_address' => 'Calle 1',
             'map_url' => 'https://maps.example.test/ubicacion',
             'status' => Property::STATUS_AVAILABLE,
+            'tenant_id' => $tenant->id,
             'created_by' => $user->id,
+        ]);
+        $charge = Charge::query()->create([
+            'property_id' => $property->id,
+            'tenant_id' => $tenant->id,
+            'type' => Charge::TYPE_RENT,
+            'due_date' => now()->subDay()->toDateString(),
+            'amount' => 1000,
+            'paid_amount' => 250,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+            'concept' => 'Renta de prueba del mapa',
+            'status' => Charge::STATUS_PARTIAL,
+            'created_by' => $user->id,
+        ]);
+        ChargePayment::query()->create([
+            'charge_id' => $charge->id,
+            'amount' => 250,
+            'status' => ChargePayment::STATUS_SUCCEEDED,
+            'paid_at' => now(),
+            'registered_by' => $user->id,
         ]);
 
         $this->mock(PropertyMapLocationResolver::class, function ($mock): void {
@@ -56,6 +82,9 @@ class PropertyModuleTest extends TestCase
             ->get(route('properties.map'))
             ->assertOk()
             ->assertSee('leaflet@1.9.4')
+            ->assertSee('data-detail-step="charges"', false)
+            ->assertSee('zoomControl: false', false)
+            ->assertSee('data-map-property-view', false)
             ->assertDontSee('maps.googleapis.com');
 
         $this->actingAs($user)
@@ -63,7 +92,11 @@ class PropertyModuleTest extends TestCase
             ->assertOk()
             ->assertJsonPath('resolved', 1)
             ->assertJsonPath('remaining', 0)
-            ->assertJsonCount(1, 'markers');
+            ->assertJsonCount(1, 'markers')
+            ->assertJsonPath('markers.0.charge_summary.pending_amount', fn ($amount): bool => (float) $amount === 750.0)
+            ->assertJsonPath('markers.0.charge_summary.overdue_amount', fn ($amount): bool => (float) $amount === 750.0)
+            ->assertJsonPath('markers.0.charge_summary.collected_month', fn ($amount): bool => (float) $amount === 250.0)
+            ->assertJsonCount(1, 'markers.0.charge_summary.recent_charges');
 
         $this->assertDatabaseHas('properties', [
             'id' => $property->id,
