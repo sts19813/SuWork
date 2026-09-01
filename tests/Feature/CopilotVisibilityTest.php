@@ -98,6 +98,13 @@ class CopilotVisibilityTest extends TestCase
         $this->assertNotSame($firstConversation, $secondConversation);
 
         $this->actingAs($user)
+            ->getJson(route('copilot.history'))
+            ->assertOk()
+            ->assertJsonPath('conversation_id', $secondConversation)
+            ->assertJsonCount(2, 'messages')
+            ->assertJsonCount(2, 'conversations');
+
+        $this->actingAs($user)
             ->getJson(route('copilot.history', ['conversation_id' => $firstConversation]))
             ->assertOk()
             ->assertJsonPath('conversation_id', $firstConversation)

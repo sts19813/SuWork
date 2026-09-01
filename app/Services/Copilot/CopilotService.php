@@ -23,12 +23,18 @@ class CopilotService
     public function history(User $user, ?string $conversationUuid = null): array
     {
         $conversations = $this->conversations($user);
-        $conversation = $conversationUuid
+        // conversations() returns display arrays, not AiConversation models. Resolve the
+        // selected UUID before querying the model so the initial history request can load
+        // the most recent conversation as reliably as an explicitly selected one.
+        $selectedConversationUuid = $conversationUuid
+            ?? data_get($conversations->first(), 'uuid');
+
+        $conversation = $selectedConversationUuid
             ? AiConversation::query()
                 ->where('user_id', $user->id)
-                ->where('uuid', $conversationUuid)
+                ->where('uuid', $selectedConversationUuid)
                 ->first()
-            : $conversations->first();
+            : null;
 
         if (! $conversation) {
             return [
