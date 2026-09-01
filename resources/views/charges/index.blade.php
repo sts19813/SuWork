@@ -17,18 +17,54 @@
         }
 
         .charges-list-toolbar {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-            gap: 18px;
+            display: grid;
+            grid-template-columns: minmax(280px, 360px) minmax(360px, 1fr) auto;
+            align-items: end;
+            gap: 12px;
             margin-bottom: 20px;
+        }
+
+        .charges-list-property-filter {
+            min-width: 0;
+        }
+
+        .charges-list-property-filter .select2-container {
+            width: 100% !important;
+        }
+
+        .charges-list-property-filter .select2-selection--single {
+            display: flex;
+            align-items: center;
+            height: 52px !important;
+            border: 1px solid var(--cl-line) !important;
+            border-radius: 16px !important;
+            background: #fbfcfe !important;
+            color: var(--cl-ink);
+            box-shadow: none !important;
+        }
+
+        .charges-list-property-filter .select2-container--open .select2-selection--single,
+        .charges-list-property-filter .select2-container--focus .select2-selection--single {
+            border-color: rgba(181, 71, 8, 0.35) !important;
+            box-shadow: 0 0 0 4px rgba(181, 71, 8, 0.08) !important;
+        }
+
+        .charges-list-property-filter .select2-selection__rendered {
+            padding-left: 16px !important;
+            color: var(--cl-ink) !important;
+            font-weight: 650;
+            line-height: normal !important;
+        }
+
+        .charges-list-property-filter .select2-selection__arrow {
+            height: 100% !important;
+            right: 12px !important;
         }
 
         .charges-list-search {
             position: relative;
-            min-width: min(100%, 360px);
-            flex: 1 1 300px;
+            min-width: 0;
+            width: 100%;
         }
 
         .charges-list-search i {
@@ -325,12 +361,17 @@
             }
 
             .charges-list-toolbar {
+                grid-template-columns: 1fr;
                 gap: 10px;
                 margin-bottom: 14px;
             }
 
+            .charges-list-property-filter .select2-selection--single {
+                height: 46px !important;
+                border-radius: 8px !important;
+            }
+
             .charges-list-search {
-                flex-basis: 100%;
                 min-width: 0;
             }
 
@@ -472,6 +513,7 @@
 
             #chargesTable .charges-list-row td[data-mobile-label='Acciones'],
             #monthChargesTable .charges-list-row td[data-mobile-label='Acciones'],
+            #pendingValidationTable .charges-list-row td[data-mobile-label='Acciones'],
             #paymentsTable .charges-list-row td[data-mobile-label='Acciones'] {
                 margin-top: 6px;
                 padding-top: 14px !important;
@@ -670,6 +712,22 @@
         @endif
 
         <div class="charges-list-toolbar">
+            <form method="GET" action="{{ route('charges.index') }}" id="chargesPropertyFilterForm" class="charges-list-property-filter mb-0">
+                <label for="chargesPropertyFilter" class="visually-hidden">Filtrar por propiedad</label>
+                <select name="property" id="chargesPropertyFilter" class="form-select"
+                    data-control="select2" data-placeholder="Todas las propiedades" data-allow-clear="true">
+                    <option value="">Todas las propiedades</option>
+                    @foreach ($filterProperties as $property)
+                        <option value="{{ $property->uuid }}" {{ (string) $selectedProperty?->uuid === (string) $property->uuid ? 'selected' : '' }}>
+                            {{ $property->internal_name }}{{ $property->internal_reference ? ' · ' . $property->internal_reference : '' }}
+                        </option>
+                    @endforeach
+                </select>
+                <noscript>
+                    <button type="submit" class="btn btn-primary mt-2">Aplicar propiedad</button>
+                </noscript>
+            </form>
+
             <form method="GET" action="{{ route('charges.index', $selectedProperty ? ['property' => $selectedProperty->uuid] : []) }}"
                 id="chargesSearchForm" class="charges-list-search mb-0">
                 <i class="bi bi-search"></i>
@@ -699,6 +757,16 @@
                     <span class="charges-list-tabs__count">{{ $stats['charges_count'] }}</span>
                 </button>
             </li>
+            @if ($pendingValidationPayments->isNotEmpty())
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pending-validation-tab" data-bs-toggle="tab"
+                        data-bs-target="#pending-validation-pane" type="button" role="tab"
+                        aria-controls="pending-validation-pane" aria-selected="false" data-charges-tab="validation">
+                        <span>Pendientes de validación</span>
+                        <span class="charges-list-tabs__count">{{ $pendingValidationPayments->count() }}</span>
+                    </button>
+                </li>
+            @endif
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments-pane"
                     type="button" role="tab" aria-controls="payments-pane" aria-selected="false" data-charges-tab="payments">
@@ -716,6 +784,13 @@
             <div class="tab-pane fade" id="charges-pane" role="tabpanel" aria-labelledby="charges-tab" tabindex="0">
                 @include('charges.partials.charges-table', ['tableId' => 'chargesTable', 'charges' => $charges, 'showActions' => true])
             </div>
+
+            @if ($pendingValidationPayments->isNotEmpty())
+                <div class="tab-pane fade" id="pending-validation-pane" role="tabpanel"
+                    aria-labelledby="pending-validation-tab" tabindex="0">
+                    @include('charges.partials.pending-validation-table')
+                </div>
+            @endif
 
             <div class="tab-pane fade" id="payments-pane" role="tabpanel" aria-labelledby="payments-tab" tabindex="0">
                 <div class="charges-list-table-card">
@@ -1263,6 +1338,8 @@
             const registerPaymentOutstanding = document.getElementById('registerPaymentOutstanding');
             const registerPaymentAmount = document.getElementById('registerPaymentAmount');
             const registerPaymentChargeUuid = document.getElementById('registerPaymentChargeUuid');
+            const propertyFilterForm = document.getElementById('chargesPropertyFilterForm');
+            const propertyFilterSelect = document.getElementById('chargesPropertyFilter');
             const searchForm = document.getElementById('chargesSearchForm');
             const searchInput = document.getElementById('chargesSearchInput');
             const resultCount = document.getElementById('chargesResultCount');
@@ -1322,8 +1399,19 @@
                 event.preventDefault();
             });
 
+            if (propertyFilterForm && propertyFilterSelect) {
+                const submitPropertyFilter = () => propertyFilterForm.submit();
+
+                if (typeof $ !== 'undefined') {
+                    $(propertyFilterSelect).on('change', submitPropertyFilter);
+                } else {
+                    propertyFilterSelect.addEventListener('change', submitPropertyFilter);
+                }
+            }
+
             initDataTable('chargesTable', 'charges');
             initDataTable('monthChargesTable', 'month');
+            initDataTable('pendingValidationTable', 'validation');
             initDataTable('paymentsTable', 'payments');
 
             Object.values(dataTables).forEach((dataTable) => {

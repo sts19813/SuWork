@@ -126,6 +126,18 @@ class ChargeController extends Controller
                 fn ($query) => $query->whereHas('charge', fn ($chargeQuery) => $chargeQuery->where('property_id', $selectedPropertyId)),
             );
 
+        $pendingValidationPayments = $paymentBaseQuery()
+            ->with([
+                'charge:id,uuid,property_id,tenant_id,type,concept,due_date,amount,status',
+                'charge.tenant:id,full_name',
+                'charge.property:id,internal_name,internal_reference,advisor_user_id',
+                'charge.property.advisor:id,name',
+            ])
+            ->where('status', ChargePayment::STATUS_PENDING_VALIDATION)
+            ->latest('created_at')
+            ->latest('id')
+            ->get();
+
         $stats = [
             'pending_amount' => (float) $chargeBaseQuery()
                 ->whereIn('status', [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION])
@@ -144,9 +156,7 @@ class ChargeController extends Controller
                 ->whereYear('paid_at', $now->year)
                 ->whereMonth('paid_at', $now->month)
                 ->sum('amount'),
-            'pending_validation' => $paymentBaseQuery()
-                ->where('status', ChargePayment::STATUS_PENDING_VALIDATION)
-                ->count(),
+            'pending_validation' => $pendingValidationPayments->count(),
             'charges_count' => $chargeBaseQuery()
                 ->whereIn('status', [
                     Charge::STATUS_PENDING,
@@ -156,6 +166,11 @@ class ChargeController extends Controller
                 ->count(),
             'payments_count' => $paidCharges->count(),
         ];
+
+        $filterProperties = Property::query()
+            ->when($isTenant, fn ($query) => $query->whereIn('id', $tenantPropertyIds))
+            ->orderBy('internal_name')
+            ->get(['id', 'uuid', 'internal_name', 'internal_reference']);
 
         $propertiesQuery = Property::query()
             ->with('tenant:id,full_name')
@@ -208,6 +223,8 @@ class ChargeController extends Controller
             'charges' => $charges,
             'paidCharges' => $paidCharges,
             'thisMonthCharges' => $thisMonthCharges,
+            'pendingValidationPayments' => $pendingValidationPayments,
+            'filterProperties' => $filterProperties,
             'properties' => $propertiesQuery->get(['id', 'internal_name', 'internal_reference', 'tenant_id']),
             'chargeableProperties' => $chargeablePropertiesQuery->get([
                 'id',

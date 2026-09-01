@@ -37,6 +37,13 @@ class ChargePaymentController extends Controller
             ->view('charges.public-pay', [
                 'charge' => $charge,
                 'bankOwner' => $charge->property?->owners->first(),
+                'stripeLivePaymentsEnabled' => str_starts_with(
+                    trim((string) config('services.stripe.secret')),
+                    'sk_live_',
+                ) || str_starts_with(
+                    trim((string) config('services.stripe.secret')),
+                    'rk_live_',
+                ),
             ]);
     }
 

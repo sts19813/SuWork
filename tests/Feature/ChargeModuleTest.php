@@ -32,6 +32,51 @@ class ChargeModuleTest extends TestCase
         $response->assertSee('Cobranza');
     }
 
+    public function test_charges_can_be_filtered_by_property_with_a_searchable_selector(): void
+    {
+        $user = User::factory()->create();
+        $selectedCharge = $this->createChargeFixture();
+        $selectedCharge->property->update(['internal_reference' => 'REF-SELECCIONADA']);
+
+        $otherProperty = Property::create([
+            'internal_name' => 'Casa Buscable Norte',
+            'internal_reference' => 'REF-BUSCADOR',
+            'property_type_id' => $selectedCharge->property->property_type_id,
+            'zone_id' => $selectedCharge->property->zone_id,
+            'full_address' => 'Calle 50 #20',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $selectedCharge->tenant_id,
+            'current_tenant_name' => $selectedCharge->tenant->full_name,
+            'onboarding_step' => 5,
+            'created_by' => $user->id,
+        ]);
+        $otherCharge = $selectedCharge->replicate(['uuid', 'payment_token', 'paid_at']);
+        $otherCharge->property_id = $otherProperty->id;
+        $otherCharge->concept = 'Cargo de otra propiedad';
+        $otherCharge->save();
+
+        $response = $this->actingAs($user)->get(route('charges.index', [
+            'property' => $selectedCharge->property->uuid,
+        ]));
+
+        $response->assertOk();
+        $response->assertSee('id="chargesPropertyFilter"', false);
+        $response->assertSee('data-control="select2"', false);
+        $response->assertSee('Todas las propiedades');
+        $response->assertSee('Departamento 12');
+        $response->assertSee('Casa Buscable Norte');
+        $response->assertSee('REF-BUSCADOR');
+        $response->assertSee('value="'.$selectedCharge->property->uuid.'" selected', false);
+        $response->assertSee('placeholder="Buscar concepto, inquilino, propiedad, estado..."', false);
+        $this->assertTrue($response->viewData('charges')->contains($selectedCharge));
+        $this->assertFalse($response->viewData('charges')->contains($otherCharge));
+        $this->assertSame(18000.0, $response->viewData('stats')['pending_amount']);
+        $this->assertEqualsCanonicalizing(
+            [$selectedCharge->property_id, $otherProperty->id],
+            $response->viewData('filterProperties')->pluck('id')->all(),
+        );
+    }
+
     public function test_all_tab_includes_active_charges_and_excludes_canceled_and_paid_charges(): void
     {
         $user = User::factory()->create();
@@ -278,10 +323,29 @@ class ChargeModuleTest extends TestCase
     public function test_public_charge_link_is_accessible(): void
     {
         $charge = $this->createChargeFixture();
+        config()->set('services.stripe.secret', 'sk_test_example');
 
         $response = $this->get(route('charges.public.show', ['token' => $charge->payment_token]));
 
         $response->assertOk();
+        $response->assertSee('Pagar por transferencia');
+        $response->assertSee('Pago de cargo');
+        $response->assertDontSee('Pago con tarjeta');
+        $response->assertDontSee('Pagar con Stripe');
+        $response->assertSee('col-md-9 col-lg-6 col-xl-5', false);
+        $response->assertSee('card-header justify-content-center', false);
+    }
+
+    public function test_public_charge_link_shows_stripe_only_with_live_credentials(): void
+    {
+        $charge = $this->createChargeFixture();
+        config()->set('services.stripe.secret', 'sk_live_example');
+
+        $response = $this->get(route('charges.public.show', ['token' => $charge->payment_token]));
+
+        $response->assertOk();
+        $response->assertSee('Pago con tarjeta');
+        $response->assertDontSee('Pago de cargo');
         $response->assertSee('Pagar con Stripe');
     }
 
@@ -401,6 +465,52 @@ class ChargeModuleTest extends TestCase
 
         $charge->refresh();
         $this->assertSame(Charge::STATUS_PAID, $charge->status);
+    }
+
+    public function test_pending_validation_tab_only_appears_when_there_are_proofs_to_review(): void
+    {
+        $user = User::factory()->create();
+        $charge = $this->createChargeFixture();
+
+        $this->actingAs($user)
+            ->get(route('charges.index', ['property' => $charge->property->uuid]))
+            ->assertOk()
+            ->assertDontSee('id="pending-validation-tab"', false);
+
+        $payment = ChargePayment::create([
+            'charge_id' => $charge->id,
+            'amount' => 18000,
+            'currency' => 'mxn',
+            'status' => ChargePayment::STATUS_PENDING_VALIDATION,
+            'source' => ChargePayment::SOURCE_PUBLIC_TRANSFER,
+            'payment_method' => ChargePayment::METHOD_TRANSFER,
+            'payment_date' => now()->toDateString(),
+            'reference' => 'TRX-PENDIENTE-01',
+            'receipt_path' => 'charges/proof-pending.png',
+        ]);
+        $charge->refreshPaymentStatus();
+
+        $response = $this->actingAs($user)->get(route('charges.index', [
+            'property' => $charge->property->uuid,
+        ]));
+
+        $response->assertOk();
+        $response->assertSee('id="pending-validation-tab"', false);
+        $response->assertSee('Pendientes de validación');
+        $response->assertSee('id="pendingValidationTable"', false);
+        $response->assertSee('TRX-PENDIENTE-01');
+        $response->assertSee('Ver comprobante');
+        $response->assertSee(route('charges.payments.validate', [$charge, $payment]), false);
+        $this->assertTrue($response->viewData('pendingValidationPayments')->contains($payment));
+
+        $this->actingAs($user)
+            ->post(route('charges.payments.validate', [$charge, $payment]))
+            ->assertRedirect();
+
+        $this->actingAs($user)
+            ->get(route('charges.index', ['property' => $charge->property->uuid]))
+            ->assertOk()
+            ->assertDontSee('id="pending-validation-tab"', false);
     }
 
     public function test_user_without_permission_cannot_delete_a_paid_charge(): void
@@ -595,6 +705,10 @@ class ChargeModuleTest extends TestCase
         $response->assertSee('Cargo Casa A');
         $response->assertSee('Cargo Casa B');
         $response->assertDontSee('Cargo Casa C');
+        $this->assertEqualsCanonicalizing(
+            [$propertyA->id, $propertyB->id],
+            $response->viewData('filterProperties')->pluck('id')->all(),
+        );
     }
 
     private function createChargeFixture(): Charge

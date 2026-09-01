@@ -11,11 +11,17 @@
         $bankNameOwner = $bankOwner?->name ?: 'Beneficiario';
     @endphp
 
-    <div class="row justify-content-center g-8">
-        <div class="col-lg-7">
-            <div class="card shadow-sm h-100">
-                <div class="card-header">
-                    <h3 class="card-title fw-bold">Pago de cargo</h3>
+    <div class="text-center mb-7">
+        <h1 class="fw-bold text-dark mb-0">
+            {{ $stripeLivePaymentsEnabled ? 'Pago con tarjeta' : 'Pago de cargo' }}
+        </h1>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-9 col-lg-6 col-xl-5">
+            <div class="card shadow-sm">
+                <div class="card-header justify-content-center">
+                    <h3 class="card-title fw-bold text-center">Pagar por transferencia</h3>
                 </div>
                 <div class="card-body">
                     @if (session('success'))
@@ -57,31 +63,13 @@
                         </div>
                     </div>
 
-                    <div class="separator separator-dashed my-6"></div>
-
-                    <div class="d-flex justify-content-between align-items-center mb-7">
+                    <div class="d-flex justify-content-between align-items-center border-top border-bottom py-5 mb-7">
                         <span class="fw-semibold fs-5">Total pendiente</span>
                         <span class="fw-bold fs-2 text-primary">${{ number_format($charge->outstanding_amount, 2) }}</span>
                     </div>
 
-                    <form method="POST" action="{{ route('charges.public.checkout', ['token' => $charge->payment_token]) }}">
-                        @csrf
-                        <button type="submit" class="btn btn-primary w-100 fw-bold">
-                            Pagar con Stripe
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-5">
-            <div class="card shadow-sm">
-                <div class="card-header">
-                    <h3 class="card-title fw-bold">Pagar por transferencia</h3>
-                </div>
-                <div class="card-body">
                     <div class="bg-light rounded p-4 mb-6">
-                        <div class="fw-semibold mb-1"> Nombre Beneficiario: {{ $bankNameOwner }} </div>
+                        <div class="fw-semibold mb-1">Nombre beneficiario: {{ $bankNameOwner }}</div>
                         <div class="text-muted">Banco: {{ $bankName }} | CLABE: {{ $bankClabe }}</div>
                     </div>
 
@@ -124,6 +112,17 @@
                             </div>
                         </div>
                     </form>
+
+                    @if ($stripeLivePaymentsEnabled)
+                        <div class="separator separator-dashed my-8"></div>
+                        <div class="text-center text-muted fw-semibold mb-4">O paga en línea</div>
+                        <form method="POST" action="{{ route('charges.public.checkout', ['token' => $charge->payment_token]) }}">
+                            @csrf
+                            <button type="submit" class="btn btn-primary w-100 fw-bold">
+                                Pagar con Stripe
+                            </button>
+                        </form>
+                    @endif
                 </div>
             </div>
         </div>
