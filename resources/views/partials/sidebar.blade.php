@@ -85,6 +85,9 @@
             $makeMenuSection('Finanzas', 'bi-graph-up-arrow', [
                 ['patterns' => ['charges.*'], 'route' => 'charges.index', 'label' => 'Cobranza', 'icon' => 'bi-wallet2'],
                 ['patterns' => ['expenses.*'], 'route' => 'expenses.index', 'label' => 'Gastos', 'icon' => 'bi-receipt'],
+                $isAdmin
+                    ? ['patterns' => ['cash-cuts.*'], 'route' => 'cash-cuts.index', 'label' => 'Corte de efectivo', 'icon' => 'bi-cash-stack']
+                    : null,
             ]),
             $makeMenuSection('Mantenimiento', 'bi-tools', [
                 $ticketsItem,
