@@ -39,9 +39,15 @@
                             <div class="charges-list-value">{{ $payment->reference ?: '-' }}</div>
                         </td>
                         <td data-mobile-label="Comprobante">
-                            @if ($payment->receipt_path)
-                                <a href="{{ \Illuminate\Support\Facades\Storage::url($payment->receipt_path) }}" target="_blank"
-                                    rel="noopener" class="btn btn-sm btn-light-primary">Ver comprobante</a>
+                            @if (count($payment->receipt_files) > 0)
+                                <div class="d-flex flex-wrap gap-2">
+                                    @foreach ($payment->receipt_files as $index => $receiptPath)
+                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($receiptPath) }}" target="_blank"
+                                            rel="noopener" class="btn btn-sm btn-light-primary">
+                                            Ver {{ count($payment->receipt_files) > 1 ? $index + 1 : 'comprobante' }}
+                                        </a>
+                                    @endforeach
+                                </div>
                             @else
                                 <span class="text-muted">Sin comprobante</span>
                             @endif

@@ -513,19 +513,24 @@ class ChargeController extends Controller
 
         $receipts = $charge->payments()
             ->where('status', ChargePayment::STATUS_SUCCEEDED)
-            ->whereNotNull('receipt_path')
             ->get()
-            ->filter(fn (ChargePayment $payment) => Storage::disk('public')->exists($payment->receipt_path))
+            ->flatMap(fn (ChargePayment $payment) => collect($payment->receipt_files)
+                ->map(fn (string $path, int $index) => [
+                    'payment' => $payment,
+                    'path' => $path,
+                    'receipt_index' => $index,
+                ]))
+            ->filter(fn (array $receipt) => Storage::disk('public')->exists($receipt['path']))
             ->values();
 
         abort_if($receipts->isEmpty(), 404);
 
         if ($receipts->count() === 1) {
-            $payment = $receipts->first();
+            $receipt = $receipts->first();
 
             return Storage::disk('public')->download(
-                $payment->receipt_path,
-                $this->receiptFileName($charge, $payment),
+                $receipt['path'],
+                $this->receiptFileName($charge, $receipt['payment'], $receipt['path'], $receipt['receipt_index']),
             );
         }
 
@@ -535,10 +540,15 @@ class ChargeController extends Controller
         $zip = new ZipArchive;
         abort_unless($temporaryPath && $zip->open($temporaryPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true, 500);
 
-        foreach ($receipts as $index => $payment) {
+        foreach ($receipts as $index => $receipt) {
             $zip->addFromString(
-                sprintf('%02d-%s', $index + 1, $this->receiptFileName($charge, $payment)),
-                Storage::disk('public')->get($payment->receipt_path),
+                sprintf('%02d-%s', $index + 1, $this->receiptFileName(
+                    $charge,
+                    $receipt['payment'],
+                    $receipt['path'],
+                    $receipt['receipt_index'],
+                )),
+                Storage::disk('public')->get($receipt['path']),
             );
         }
         $zip->close();
@@ -594,29 +604,48 @@ class ChargeController extends Controller
             return redirect()->back()->with('error', 'El monto no puede ser mayor al saldo pendiente.');
         }
 
-        $receiptPath = null;
+        $receiptFiles = $request->file('receipts', []);
+        $receiptFiles = is_array($receiptFiles) ? $receiptFiles : [];
         if ($request->hasFile('receipt')) {
-            $receiptPath = $request->file('receipt')->store("charges/{$charge->id}/payments", 'public');
+            $receiptFiles[] = $request->file('receipt');
+        }
+
+        $receiptPaths = [];
+        try {
+            foreach ($receiptFiles as $receiptFile) {
+                $receiptPaths[] = $receiptFile->store("charges/{$charge->id}/payments", 'public');
+            }
+        } catch (\Throwable $exception) {
+            Storage::disk('public')->delete($receiptPaths);
+
+            throw $exception;
         }
 
         $becamePaid = false;
-        DB::transaction(function () use ($charge, $validated, $amount, $receiptPath, $request, &$becamePaid): void {
-            $charge->payments()->create([
-                'amount' => $amount,
-                'currency' => strtolower((string) config('services.stripe.currency', 'mxn')),
-                'status' => ChargePayment::STATUS_SUCCEEDED,
-                'source' => ChargePayment::SOURCE_ADMIN,
-                'payment_method' => $validated['payment_method'],
-                'reference' => $validated['reference'] ?? null,
-                'receipt_path' => $receiptPath,
-                'notes' => $validated['notes'] ?? null,
-                'payment_date' => $validated['payment_date'],
-                'paid_at' => Carbon::parse($validated['payment_date'])->endOfDay(),
-                'registered_by' => $request->user()?->id,
-            ]);
+        try {
+            DB::transaction(function () use ($charge, $validated, $amount, $receiptPaths, $request, &$becamePaid): void {
+                $charge->payments()->create([
+                    'amount' => $amount,
+                    'currency' => strtolower((string) config('services.stripe.currency', 'mxn')),
+                    'status' => ChargePayment::STATUS_SUCCEEDED,
+                    'source' => ChargePayment::SOURCE_ADMIN,
+                    'payment_method' => $validated['payment_method'],
+                    'reference' => $validated['reference'] ?? null,
+                    'receipt_path' => $receiptPaths[0] ?? null,
+                    'receipt_paths' => $receiptPaths ?: null,
+                    'notes' => $validated['notes'] ?? null,
+                    'payment_date' => $validated['payment_date'],
+                    'paid_at' => Carbon::parse($validated['payment_date'])->endOfDay(),
+                    'registered_by' => $request->user()?->id,
+                ]);
 
-            $becamePaid = $charge->refreshPaymentStatus();
-        });
+                $becamePaid = $charge->refreshPaymentStatus();
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('public')->delete($receiptPaths);
+
+            throw $exception;
+        }
 
         if ($becamePaid) {
             $this->sendCompletedMail($charge);
@@ -1329,11 +1358,16 @@ class ChargeController extends Controller
         }
     }
 
-    private function receiptFileName(Charge $charge, ChargePayment $payment): string
-    {
-        $extension = pathinfo((string) $payment->receipt_path, PATHINFO_EXTENSION) ?: 'archivo';
+    private function receiptFileName(
+        Charge $charge,
+        ChargePayment $payment,
+        string $path,
+        int $receiptIndex = 0,
+    ): string {
+        $extension = pathinfo($path, PATHINFO_EXTENSION) ?: 'archivo';
+        $receiptSuffix = count($payment->receipt_files) > 1 ? '-'.($receiptIndex + 1) : '';
 
-        return 'comprobante-'.$charge->uuid.'-'.$payment->id.'.'.$extension;
+        return 'comprobante-'.$charge->uuid.'-'.$payment->id.$receiptSuffix.'.'.$extension;
     }
 
     private function getTenantAssignmentMissingRequirements(Tenant $tenant): array

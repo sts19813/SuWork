@@ -161,11 +161,15 @@
                                         {{ $payment->status === \App\Models\ChargePayment::STATUS_SUCCEEDED ? $payment->marked_paid_by_name : '-' }}
                                     </td>
                                     <td>
-                                        @if ($payment->receipt_path)
-                                            <a href="{{ \Illuminate\Support\Facades\Storage::url($payment->receipt_path) }}"
-                                                target="_blank" class="btn btn-sm btn-light-primary">
-                                                Ver
-                                            </a>
+                                        @if (count($payment->receipt_files) > 0)
+                                            <div class="d-flex flex-wrap gap-2">
+                                                @foreach ($payment->receipt_files as $index => $receiptPath)
+                                                    <a href="{{ \Illuminate\Support\Facades\Storage::url($receiptPath) }}"
+                                                        target="_blank" rel="noopener" class="btn btn-sm btn-light-primary">
+                                                        Ver {{ count($payment->receipt_files) > 1 ? $index + 1 : '' }}
+                                                    </a>
+                                                @endforeach
+                                            </div>
                                         @else
                                             -
                                         @endif
@@ -242,8 +246,10 @@
                                 <input type="text" name="reference" class="form-control" value="{{ old('reference') }}">
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Comprobante de pago</label>
-                                <input type="file" name="receipt" class="form-control" accept=".jpg,.jpeg,.png,.webp">
+                                <label class="form-label">Comprobantes de pago</label>
+                                <input type="file" name="receipts[]" class="form-control"
+                                    accept=".jpg,.jpeg,.png,.webp,.pdf" multiple>
+                                <div class="form-text">Puedes seleccionar hasta 10 imágenes o archivos PDF (máximo 10 MB por archivo).</div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Notas</label>

@@ -812,7 +812,10 @@
                             <tbody>
                                 @forelse ($paidCharges as $charge)
                                     @php
-                                        $receipts = $charge->payments->filter(fn ($payment) => filled($payment->receipt_path));
+                                        $receipts = $charge->payments
+                                            ->flatMap(fn ($payment) => collect($payment->receipt_files)
+                                                ->map(fn ($path) => ['payment' => $payment, 'path' => $path]))
+                                            ->values();
                                         $lastPayment = $charge->payments->last();
                                         $canDeleteCharge = $canManageCharges && $canDeletePaidCharges;
                                     @endphp
@@ -848,10 +851,10 @@
                                         <td data-mobile-label="Comprobantes" class="pe-7">
                                             @if ($receipts->isNotEmpty())
                                                 <div class="d-flex flex-wrap gap-2 justify-content-end">
-                                                    @foreach ($receipts as $index => $payment)
-                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($payment->receipt_path) }}" target="_blank"
-                                                            class="btn btn-sm btn-light-primary">Ver {{ $receipts->count() > 1 ? $index + 1 : '' }}</a>
-                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($payment->receipt_path) }}" download
+                                                    @foreach ($receipts as $index => $receipt)
+                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($receipt['path']) }}" target="_blank"
+                                                            rel="noopener" class="btn btn-sm btn-light-primary">Ver {{ $receipts->count() > 1 ? $index + 1 : '' }}</a>
+                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($receipt['path']) }}" download
                                                             class="btn btn-sm btn-light">Descargar {{ $receipts->count() > 1 ? $index + 1 : '' }}</a>
                                                     @endforeach
                                                     @if ($receipts->count() > 1)
@@ -1064,8 +1067,10 @@
                                     placeholder="Numero de referencia">
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Comprobante de pago (imagen)</label>
-                                <input type="file" name="receipt" class="form-control" accept=".jpg,.jpeg,.png,.webp">
+                                <label class="form-label">Comprobantes de pago</label>
+                                <input type="file" name="receipts[]" class="form-control"
+                                    accept=".jpg,.jpeg,.png,.webp,.pdf" multiple>
+                                <div class="form-text">Puedes seleccionar hasta 10 imágenes o archivos PDF (máximo 10 MB por archivo).</div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Notas</label>

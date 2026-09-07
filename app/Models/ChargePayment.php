@@ -65,6 +65,7 @@ class ChargePayment extends Model
         'payment_method',
         'reference',
         'receipt_path',
+        'receipt_paths',
         'stripe_checkout_session_id',
         'stripe_payment_intent_id',
         'stripe_event_id',
@@ -83,6 +84,7 @@ class ChargePayment extends Model
             'amount' => 'decimal:2',
             'paid_at' => 'datetime',
             'payment_date' => 'date',
+            'receipt_paths' => 'array',
             'payload' => 'array',
         ];
     }
@@ -130,5 +132,22 @@ class ChargePayment extends Model
         }
 
         return $this->source === self::SOURCE_STRIPE ? 'Pago en linea' : 'Sin registro';
+    }
+
+    /**
+     * Return every receipt attached to the payment, including legacy records that
+     * only have receipt_path populated.
+     *
+     * @return array<int, string>
+     */
+    public function getReceiptFilesAttribute(): array
+    {
+        return collect($this->receipt_paths ?? [])
+            ->prepend($this->receipt_path)
+            ->filter(fn ($path) => filled($path))
+            ->map(fn ($path) => (string) $path)
+            ->unique()
+            ->values()
+            ->all();
     }
 }
