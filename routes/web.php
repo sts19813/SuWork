@@ -85,6 +85,9 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::put('/propiedades/{property}/inquilino', [PropertyController::class, 'updateTenant'])->name('properties.update.tenant');
         Route::put('/propiedades/{property}/asesores', [PropertyController::class, 'updateAdvisors'])->name('properties.update.advisors');
         Route::put('/propiedades/{property}/tecnico', [PropertyController::class, 'updateTechnician'])->name('properties.update.technician');
+        Route::patch('/propiedades/{property}/archivar', [PropertyController::class, 'archive'])->name('properties.archive');
+        Route::patch('/propiedades/{property}/restaurar', [PropertyController::class, 'restore'])->name('properties.restore');
+        Route::delete('/propiedades/{property}', [PropertyController::class, 'destroy'])->name('properties.destroy');
         Route::get('/propiedades/{property}', [PropertyController::class, 'show'])->name('properties.show');
         Route::post('/propiedades/{property}/bitacora', [PropertyLogbookController::class, 'store'])->name('properties.logbook.store');
         Route::delete('/propiedades/{property}/bitacora/{entry}', [PropertyLogbookController::class, 'destroy'])->name('properties.logbook.destroy');

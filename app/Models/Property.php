@@ -5,8 +5,8 @@ namespace App\Models;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 class Property extends Model
 {
     use HasFactory;
+
     private const CHANGE_LOG_IGNORED_ATTRIBUTES = [
         'updated_at',
         'created_at',
@@ -23,13 +24,19 @@ class Property extends Model
         'map_coordinates_resolved_at',
         'map_coordinates_checked_at',
     ];
+
     private array $pendingPropertyChangeSet = [];
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_AVAILABLE = 'available';
+
     public const STATUS_IN_PROCESS = 'in_process';
+
     public const STATUS_BLOCKED = 'blocked';
+
     public const STATUS_OCCUPIED = 'occupied';
+
     public const STATUS_RENTED = 'rented';
 
     public const STATUS_LABELS = [
@@ -81,6 +88,7 @@ class Property extends Model
         'rental_requirements',
         'amenities',
         'status',
+        'archived_at',
         'tenant_id',
         'current_tenant_name',
         'contract_starts_at',
@@ -109,6 +117,7 @@ class Property extends Model
             'map_longitude' => 'decimal:7',
             'map_coordinates_resolved_at' => 'datetime',
             'map_coordinates_checked_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 
