@@ -636,6 +636,11 @@
                                         </a>
                                     </div>
                                     <div class="card-body pt-0">
+                                        @if ($documents->isEmpty() && $customDocuments->isEmpty())
+                                            <div class="text-muted fw-semibold">
+                                                Aún no se ha cargado ningún documento del expediente.
+                                            </div>
+                                        @endif
                                         <div class="d-flex flex-column gap-4">
                                             @foreach ($documents as $document)
                                                 <div
@@ -844,6 +849,11 @@
 
                                             <!-- BODY -->
                                             <div class="card-body pt-0">
+                                                @if ($owner->documents->isEmpty())
+                                                    <div class="text-muted fw-semibold">
+                                                        Aún no se ha cargado ningún documento del expediente.
+                                                    </div>
+                                                @endif
                                                 <div class="d-flex flex-column gap-4">
 
                                                     @foreach ($owner->documents as $document)
@@ -1098,6 +1108,11 @@
 
                                         <!-- BODY -->
                                         <div class="card-body pt-0">
+                                            @if ($tenantDocuments->isEmpty() && $tenantCustomDocuments->isEmpty())
+                                                <div class="text-muted fw-semibold">
+                                                    Aún no se ha cargado ningún documento del expediente.
+                                                </div>
+                                            @endif
                                             <div class="d-flex flex-column gap-4">
 
                                                 @foreach ($tenantDocuments as $document)

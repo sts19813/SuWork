@@ -6,12 +6,15 @@ use App\Mail\PropertyTechnicianAssignedMail;
 use App\Models\Charge;
 use App\Models\ChargePayment;
 use App\Models\Owner;
+use App\Models\OwnerDocument;
 use App\Models\Property;
+use App\Models\PropertyDocument;
 use App\Models\PropertyType;
 use App\Models\DossierDocumentRequirement;
 use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\Tenant;
+use App\Models\TenantDocument;
 use App\Models\User;
 use App\Models\Zone;
 use App\Services\PropertyMapLocationResolver;
@@ -891,6 +894,171 @@ class PropertyModuleTest extends TestCase
         $response->assertSee('suwork:property-tab-restore:', false);
         $this->assertNotNull($property->uuid);
         $this->assertStringContainsString('/propiedades/' . $property->uuid, route('properties.show', $property));
+    }
+
+    public function test_property_detail_only_shows_uploaded_dossier_documents(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Playa', 'slug' => 'playa', 'is_active' => true]);
+        $tenant = Tenant::create([
+            'full_name' => 'Inquilino con expediente',
+            'phone_primary' => '9991112233',
+            'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
+            'is_active' => true,
+        ]);
+        $owner = Owner::create([
+            'name' => 'Propietario con expediente',
+            'phone' => '9993332211',
+            'owner_type' => Owner::OWNER_INDIVIDUAL,
+            'payment_method' => Owner::PAYMENT_METHOD_TRANSFER,
+            'is_active' => true,
+        ]);
+        $property = Property::create([
+            'internal_name' => 'Casa Documentos',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 40',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+            'created_by' => $user->id,
+        ]);
+        $property->owners()->attach($owner);
+
+        PropertyDocument::create([
+            'property_id' => $property->id,
+            'document_type' => 'contract',
+            'label' => 'Contrato cargado detalle',
+            'file_path' => 'properties/'.$property->id.'/documents/contrato.pdf',
+            'status' => PropertyDocument::STATUS_UPLOADED,
+            'uploaded_at' => now(),
+        ]);
+        PropertyDocument::create([
+            'property_id' => $property->id,
+            'document_type' => 'property_tax',
+            'label' => 'Predial pendiente detalle',
+            'status' => PropertyDocument::STATUS_PENDING,
+        ]);
+        PropertyDocument::create([
+            'property_id' => $property->id,
+            'document_type' => 'custom_pending_property',
+            'label' => 'Documento extra pendiente propiedad',
+            'status' => PropertyDocument::STATUS_PENDING,
+        ]);
+
+        OwnerDocument::create([
+            'owner_id' => $owner->id,
+            'document_type' => 'ine',
+            'label' => 'INE cargada detalle',
+            'file_path' => 'owners/'.$owner->id.'/documents/ine.pdf',
+            'status' => OwnerDocument::STATUS_UPLOADED,
+            'uploaded_at' => now(),
+        ]);
+        OwnerDocument::create([
+            'owner_id' => $owner->id,
+            'document_type' => 'rfc',
+            'label' => 'RFC pendiente detalle',
+            'status' => OwnerDocument::STATUS_PENDING,
+        ]);
+
+        TenantDocument::create([
+            'tenant_id' => $tenant->id,
+            'document_type' => 'official_id',
+            'label' => 'Identificacion cargada detalle',
+            'file_path' => 'tenants/'.$tenant->id.'/documents/ine.pdf',
+            'status' => TenantDocument::STATUS_UPLOADED,
+            'uploaded_at' => now(),
+        ]);
+        TenantDocument::create([
+            'tenant_id' => $tenant->id,
+            'document_type' => 'curp',
+            'label' => 'CURP pendiente detalle',
+            'status' => TenantDocument::STATUS_PENDING,
+        ]);
+        TenantDocument::create([
+            'tenant_id' => $tenant->id,
+            'document_type' => 'custom_pending_tenant',
+            'label' => 'Documento extra pendiente inquilino',
+            'status' => TenantDocument::STATUS_PENDING,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('properties.show', $property))
+            ->assertOk();
+
+        $response
+            ->assertSee('Contrato cargado detalle')
+            ->assertSee('INE cargada detalle')
+            ->assertSee('Identificacion cargada detalle')
+            ->assertSee('Ver archivo')
+            ->assertDontSee('Predial pendiente detalle')
+            ->assertDontSee('Documento extra pendiente propiedad')
+            ->assertDontSee('RFC pendiente detalle')
+            ->assertDontSee('CURP pendiente detalle')
+            ->assertDontSee('Documento extra pendiente inquilino');
+    }
+
+    public function test_property_detail_shows_empty_message_when_no_dossier_documents_are_uploaded(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Playa', 'slug' => 'playa', 'is_active' => true]);
+        $tenant = Tenant::create([
+            'full_name' => 'Inquilino sin expediente',
+            'phone_primary' => '9991112233',
+            'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
+            'is_active' => true,
+        ]);
+        $owner = Owner::create([
+            'name' => 'Propietario sin expediente',
+            'phone' => '9993332211',
+            'owner_type' => Owner::OWNER_INDIVIDUAL,
+            'payment_method' => Owner::PAYMENT_METHOD_TRANSFER,
+            'is_active' => true,
+        ]);
+        $property = Property::create([
+            'internal_name' => 'Casa Sin Expediente',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 41',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+            'created_by' => $user->id,
+        ]);
+        $property->owners()->attach($owner);
+
+        PropertyDocument::create([
+            'property_id' => $property->id,
+            'document_type' => 'contract',
+            'label' => 'Contrato pendiente vacio',
+            'status' => PropertyDocument::STATUS_PENDING,
+        ]);
+        OwnerDocument::create([
+            'owner_id' => $owner->id,
+            'document_type' => 'ine',
+            'label' => 'INE pendiente vacio',
+            'status' => OwnerDocument::STATUS_PENDING,
+        ]);
+        TenantDocument::create([
+            'tenant_id' => $tenant->id,
+            'document_type' => 'official_id',
+            'label' => 'Identificacion pendiente vacio',
+            'status' => TenantDocument::STATUS_PENDING,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertSee('Aún no se ha cargado ningún documento del expediente.');
+
+        $this->assertGreaterThanOrEqual(
+            3,
+            substr_count($response->getContent(), 'Aún no se ha cargado ningún documento del expediente.')
+        );
     }
 
     public function test_property_can_be_updated_from_edit_flow(): void

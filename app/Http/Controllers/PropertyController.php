@@ -406,14 +406,20 @@ class PropertyController extends Controller
                         'label' => $label,
                         'status' => PropertyDocument::STATUS_PENDING,
                     ]);
-            });
+            })
+            ->pipe(fn (Collection $documents) => $this->uploadedDossierDocuments($documents));
 
         $customDocuments = $property->documents
             ->whereNotIn('document_type', array_keys($propertyRequiredDocuments))
+            ->pipe(fn (Collection $documents) => $this->uploadedDossierDocuments($documents))
             ->values();
 
         $tenantDocuments = collect();
         $tenantCustomDocuments = collect();
+
+        $property->owners->each(function (Owner $owner): void {
+            $owner->setRelation('documents', $this->uploadedDossierDocuments($owner->documents));
+        });
 
         if ($property->tenant) {
             $tenantDocuments = collect($tenantRequiredDocuments)
@@ -424,10 +430,12 @@ class PropertyController extends Controller
                             'label' => $label,
                             'status' => TenantDocument::STATUS_PENDING,
                         ]);
-                });
+                })
+                ->pipe(fn (Collection $documents) => $this->uploadedDossierDocuments($documents));
 
             $tenantCustomDocuments = $property->tenant->documents
                 ->whereNotIn('document_type', array_keys($tenantRequiredDocuments))
+                ->pipe(fn (Collection $documents) => $this->uploadedDossierDocuments($documents))
                 ->values();
         }
 
@@ -701,6 +709,13 @@ class PropertyController extends Controller
             'technician_provider_id' => 'Técnico de la propiedad',
             'property_advisors' => 'Asesores responsables',
         ];
+    }
+
+    private function uploadedDossierDocuments(Collection $documents): Collection
+    {
+        return $documents
+            ->filter(fn ($document): bool => filled($document->file_path))
+            ->values();
     }
 
     private function formViewData(?Property $property = null, bool $isEdit = false): array
