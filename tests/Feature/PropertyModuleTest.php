@@ -545,6 +545,225 @@ class PropertyModuleTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_provider_sees_only_assigned_properties_and_limited_property_view(): void
+    {
+        $providerRole = Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']);
+        $providerUser = User::factory()->create(['email' => 'proveedor.propiedades@example.test']);
+        $providerUser->assignRole($providerRole);
+        $creator = User::factory()->create();
+        $type = PropertyType::query()->create(['name' => 'Casa proveedor asignado', 'slug' => 'casa-proveedor-asignado', 'is_active' => true]);
+        $zone = Zone::query()->create(['name' => 'Zona proveedor asignado', 'slug' => 'zona-proveedor-asignado', 'is_active' => true]);
+        $assignedProperty = Property::query()->create([
+            'internal_name' => 'Casa visible para proveedor',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Visible 1',
+            'status' => Property::STATUS_AVAILABLE,
+            'monthly_rent_price' => 2555,
+            'contract_starts_at' => '2026-07-01',
+            'contract_expires_at' => '2027-04-30',
+            'created_by' => $creator->id,
+        ]);
+        $hiddenProperty = Property::query()->create([
+            'internal_name' => 'Casa no asignada',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Oculta 2',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $creator->id,
+        ]);
+        $supplier = MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor asignado a propiedad',
+            'email' => $providerUser->email,
+            'user_id' => $providerUser->id,
+            'is_active' => true,
+        ]);
+        $assignedProperty->supplierProviders()->attach($supplier->id, ['assigned_by_user_id' => $creator->id]);
+        MaintenanceTicket::query()->create([
+            'property_id' => $assignedProperty->id,
+            'current_provider_id' => $supplier->id,
+            'reported_by_user_id' => $creator->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $creator->name,
+            'category' => 'plomeria',
+            'priority' => 'media',
+            'status' => 'programado',
+            'title' => 'Ticket visible del proveedor',
+            'exact_location' => 'Baño',
+            'description' => 'Debe aparecer',
+            'reported_at' => now(),
+        ]);
+
+        $this->actingAs($providerUser)
+            ->get(route('properties.index'))
+            ->assertOk()
+            ->assertSee('Casa visible para proveedor')
+            ->assertDontSee('Casa no asignada')
+            ->assertDontSee('Nueva Propiedad')
+            ->assertDontSee('>Archivar</button>', false);
+
+        $this->actingAs($providerUser)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertSee(route('properties.index'), false)
+            ->assertSee('Propiedades');
+
+        $technicianUser = User::factory()->create();
+        $technicianUser->assignRole(Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']));
+
+        $this->actingAs($technicianUser)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertDontSee(route('properties.index'), false);
+
+        $this->actingAs($providerUser)
+            ->get(route('properties.show', $assignedProperty))
+            ->assertOk()
+            ->assertSee('Información general')
+            ->assertSee('Mantenimiento')
+            ->assertSee('Ticket visible del proveedor')
+            ->assertSee('Crear programados')
+            ->assertDontSee('Propietarios')
+            ->assertDontSee('Cobranza')
+            ->assertDontSee('Inventario')
+            ->assertDontSee('Bitácora')
+            ->assertDontSee('Expediente')
+            ->assertDontSee('Precio renta')
+            ->assertDontSee('$2,555.00')
+            ->assertDontSee('Contrato inicia')
+            ->assertDontSee('01/07/2026')
+            ->assertDontSee('Contrato vence')
+            ->assertDontSee('30/04/2027')
+            ->assertDontSee('Editar propiedad')
+            ->assertDontSee('createPropertyMaintenanceTicketModal');
+
+        $this->actingAs($providerUser)
+            ->get(route('properties.show', $hiddenProperty))
+            ->assertForbidden();
+    }
+
+    public function test_admin_can_assign_multiple_property_providers(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $creator = User::factory()->create();
+        $type = PropertyType::query()->create(['name' => 'Casa multi proveedor', 'slug' => 'casa-multi-proveedor', 'is_active' => true]);
+        $zone = Zone::query()->create(['name' => 'Zona multi proveedor', 'slug' => 'zona-multi-proveedor', 'is_active' => true]);
+        $property = Property::query()->create([
+            'internal_name' => 'Casa con varios proveedores',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Proveedores 10',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $creator->id,
+        ]);
+        $firstProvider = MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor uno',
+            'is_active' => true,
+        ]);
+        $secondProvider = MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor dos',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('properties.show', $property))
+            ->put(route('properties.update.providers', $property), [
+                'provider_ids' => [$firstProvider->id, $secondProvider->id],
+            ])
+            ->assertRedirect(route('properties.show', $property));
+
+        $this->assertDatabaseHas('maintenance_provider_property', [
+            'property_id' => $property->id,
+            'maintenance_provider_id' => $firstProvider->id,
+            'assigned_by_user_id' => $admin->id,
+        ]);
+        $this->assertDatabaseHas('maintenance_provider_property', [
+            'property_id' => $property->id,
+            'maintenance_provider_id' => $secondProvider->id,
+            'assigned_by_user_id' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertSee('Proveedores')
+            ->assertSee('Proveedor uno')
+            ->assertSee('Proveedor dos');
+    }
+
+    public function test_assigned_provider_can_create_monthly_scheduled_maintenance_tickets(): void
+    {
+        $providerRole = Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']);
+        $providerUser = User::factory()->create(['email' => 'programados@example.test']);
+        $providerUser->assignRole($providerRole);
+        $creator = User::factory()->create();
+        $type = PropertyType::query()->create(['name' => 'Casa programados', 'slug' => 'casa-programados', 'is_active' => true]);
+        $zone = Zone::query()->create(['name' => 'Zona programados', 'slug' => 'zona-programados', 'is_active' => true]);
+        $property = Property::query()->create([
+            'internal_name' => 'Casa con programados',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Programada 12',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $creator->id,
+        ]);
+        $supplier = MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor programador',
+            'email' => $providerUser->email,
+            'user_id' => $providerUser->id,
+            'is_active' => true,
+        ]);
+        $property->supplierProviders()->attach($supplier->id, ['assigned_by_user_id' => $creator->id]);
+
+        $response = $this->actingAs($providerUser)
+            ->post(route('properties.maintenance.schedule.store', $property), [
+                'frequency' => 'monthly',
+                'start_date' => '2026-01-01',
+                'end_date' => '2026-12-31',
+                'visit_time' => '10:30',
+                'category' => 'limpieza',
+                'priority' => 'media',
+                'title' => 'Limpieza mensual programada',
+                'exact_location' => 'Toda la propiedad',
+                'description' => 'Servicio mensual preventivo.',
+            ]);
+
+        $response
+            ->assertRedirect(route('properties.show', $property).'#tab-maintenance')
+            ->assertSessionHas('success', 'Se crearon 12 tickets programados para Proveedor programador.');
+
+        $firstTicket = MaintenanceTicket::query()
+            ->where('title', 'Limpieza mensual programada')
+            ->orderBy('scheduled_visit_at')
+            ->firstOrFail();
+
+        $this->assertSame(12, MaintenanceTicket::query()->where('title', 'Limpieza mensual programada')->count());
+        $this->assertDatabaseHas('maintenance_tickets', [
+            'property_id' => $property->id,
+            'current_provider_id' => $supplier->id,
+            'reported_by_user_id' => $providerUser->id,
+            'reported_by_role' => 'proveedor',
+            'status' => 'programado',
+            'title' => 'Limpieza mensual programada',
+        ]);
+        $this->assertDatabaseHas('maintenance_ticket_assignments', [
+            'ticket_id' => $firstTicket->id,
+            'provider_id' => $supplier->id,
+            'is_current' => true,
+        ]);
+
+        $this->actingAs($providerUser)
+            ->get(route('properties.show', $property).'#tab-maintenance')
+            ->assertOk()
+            ->assertSee('Fecha visita')
+            ->assertSee('01/01/2026 10:30');
+    }
+
     public function test_admin_can_assign_responsible_advisors_from_properties_index(): void
     {
         $adminRole = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);

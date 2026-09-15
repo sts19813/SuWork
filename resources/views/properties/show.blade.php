@@ -97,7 +97,7 @@
                         <!-- =========================
                              IZQUIERDA (IMAGEN GRANDE + INFO)
                         ========================== -->
-                        <div class="col-xl-8">
+                        <div class="{{ $isProviderPropertyViewer ? 'col-xl-12' : 'col-xl-9' }}">
 
                             <div class="row g-6">
 
@@ -142,7 +142,7 @@
                                             </span>
                                         </div>
 
-                                        @if ($property->tenant_id)
+                                        @if (!$isProviderPropertyViewer && $property->tenant_id)
                                             <div class="row g-4 mb-4 pt-5 align-items-center">
 
                                                 <!-- POR COBRAR -->
@@ -204,6 +204,7 @@
                                     </div>
 
                                     <!-- RESUMEN RÁPIDO -->
+                                    @unless ($isProviderPropertyViewer)
                                     <div class="row g-4">
 
                                         <div class="col-sm-4">
@@ -228,8 +229,10 @@
                                         </div>
 
                                     </div>
+                                    @endunless
 
                                     <!-- RESPONSABLES DE LA PROPIEDAD -->
+                                    @unless ($isProviderPropertyViewer)
                                     <div class="property-assignment-bar mt-4">
                                         <div class="dropdown property-assignment-dropdown">
                                             <button class="btn btn-sm btn-primary dropdown-toggle property-assignment-button" type="button"
@@ -343,6 +346,54 @@
                                         </div>
 
                                         <div class="dropdown property-assignment-dropdown">
+                                            @php
+                                                $supplierTitle = $assignedSupplierProviders->isNotEmpty()
+                                                    ? $assignedSupplierProviders->pluck('name')->implode(', ')
+                                                    : 'Sin proveedores asignados';
+                                                $primarySupplier = $assignedSupplierProviders->first();
+                                            @endphp
+                                            <button class="btn btn-sm btn-primary dropdown-toggle property-assignment-button" type="button"
+                                                data-bs-toggle="dropdown" title="{{ $supplierTitle }}"
+                                                @disabled(! $canManagePropertyTechnician)>
+                                                <span class="property-assignment-button__content">
+                                                    <span class="property-assignment-button__label">Proveedores</span>
+                                                    <span class="property-assignment-button__value">
+                                                        @if ($primarySupplier)
+                                                            {{ $primarySupplier->name }}{{ $assignedSupplierProviders->count() > 1 ? ' +' . ($assignedSupplierProviders->count() - 1) : '' }}
+                                                        @else
+                                                            Asignar proveedores
+                                                        @endif
+                                                    </span>
+                                                </span>
+                                            </button>
+
+                                            @if ($canManagePropertyTechnician)
+                                                <div class="dropdown-menu p-4" style="min-width: 280px;">
+                                                    <form method="POST" action="{{ route('properties.update.providers', $property) }}">
+                                                        @csrf
+                                                        @method('PUT')
+                                                        <div class="fw-bold mb-3">Proveedores de la propiedad</div>
+                                                        <div class="d-flex flex-column gap-2 mb-4" style="max-height: 260px; overflow:auto;">
+                                                            @foreach ($availablePropertyProviders as $supplier)
+                                                                <label class="form-check form-check-sm form-check-custom form-check-solid">
+                                                                    <input class="form-check-input" type="checkbox" name="provider_ids[]" value="{{ $supplier->id }}"
+                                                                        @checked($assignedSupplierProviders->contains('id', $supplier->id))>
+                                                                    <span class="form-check-label">
+                                                                        {{ $supplier->name }}
+                                                                        @if ($supplier->category)
+                                                                            <span class="text-muted">· {{ $supplier->category }}</span>
+                                                                        @endif
+                                                                    </span>
+                                                                </label>
+                                                            @endforeach
+                                                        </div>
+                                                        <button type="submit" class="btn btn-sm btn-primary w-100">Guardar proveedores</button>
+                                                    </form>
+                                                </div>
+                                            @endif
+                                        </div>
+
+                                        <div class="dropdown property-assignment-dropdown">
                                             <button class="btn btn-sm btn-primary dropdown-toggle property-assignment-button" type="button"
                                                 data-bs-toggle="dropdown" title="{{ $property->advisor?->name ?: 'Sin asesor responsable' }}"
                                                 @disabled(! $canManagePropertyAdvisors)>
@@ -388,6 +439,7 @@
                                             @endif
                                         </div>
                                     </div>
+                                    @endunless
 
                                 </div>
 
@@ -398,7 +450,8 @@
                         <!-- =========================
                              DERECHA (COBRANZA LIMPIA)
                         ========================== -->
-                        <div class="col-xl-4 d-flex flex-column justify-content-between">
+                        @unless ($isProviderPropertyViewer)
+                        <div class="col-xl-3 d-flex flex-column justify-content-between">
 
                             <div>
 
@@ -458,6 +511,7 @@
                             </div>
 
                         </div>
+                        @endunless
 
                     </div>
 
@@ -473,77 +527,85 @@
                             Información general
                         </button>
                     </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-owners-tab" data-bs-toggle="tab" data-bs-target="#tab-owners"
-                            type="button" role="tab" aria-controls="tab-owners" aria-selected="false">
-                            Propietarios
-                        </button>
-                    </li>
-                    @if ($property->tenant)
+                    @unless ($isProviderPropertyViewer)
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-owners-tab" data-bs-toggle="tab" data-bs-target="#tab-owners"
+                                type="button" role="tab" aria-controls="tab-owners" aria-selected="false">
+                                Propietarios
+                            </button>
+                        </li>
+                    @endunless
+                    @if (!$isProviderPropertyViewer && $property->tenant)
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="tab-tenant-tab" data-bs-toggle="tab" data-bs-target="#tab-tenant"
                                 type="button" role="tab" aria-controls="tab-tenant" aria-selected="false">
-                                Inquilino
+                            Inquilino
                             </button>
                         </li>
                     @endif
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-extra-tab" data-bs-toggle="tab" data-bs-target="#tab-extra"
-                            type="button" role="tab" aria-controls="tab-extra" aria-selected="false">
-                            Información adicional
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-charges-tab" data-bs-toggle="tab" data-bs-target="#tab-charges"
-                            type="button" role="tab" aria-controls="tab-charges" aria-selected="false">
-                            Cobranza
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-expenses-tab" data-bs-toggle="tab" data-bs-target="#tab-expenses"
-                            type="button" role="tab" aria-controls="tab-expenses" aria-selected="false">
-                            Gastos
-                        </button>
-                    </li>
+                    @unless ($isProviderPropertyViewer)
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-extra-tab" data-bs-toggle="tab" data-bs-target="#tab-extra"
+                                type="button" role="tab" aria-controls="tab-extra" aria-selected="false">
+                                Información adicional
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-charges-tab" data-bs-toggle="tab" data-bs-target="#tab-charges"
+                                type="button" role="tab" aria-controls="tab-charges" aria-selected="false">
+                                Cobranza
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-expenses-tab" data-bs-toggle="tab" data-bs-target="#tab-expenses"
+                                type="button" role="tab" aria-controls="tab-expenses" aria-selected="false">
+                                Gastos
+                            </button>
+                        </li>
+                    @endunless
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="tab-maintenance-tab" data-bs-toggle="tab" data-bs-target="#tab-maintenance"
                             type="button" role="tab" aria-controls="tab-maintenance" aria-selected="false">
                             Mantenimiento
                         </button>
                     </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-inventory-tab" data-bs-toggle="tab" data-bs-target="#tab-inventory"
-                            type="button" role="tab" aria-controls="tab-inventory" aria-selected="false">
-                            Inventario
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-logbook-tab" data-bs-toggle="tab" data-bs-target="#tab-logbook"
-                            type="button" role="tab" aria-controls="tab-logbook" aria-selected="false">
-                            Bitácora
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-history-tab" data-bs-toggle="tab" data-bs-target="#tab-history"
-                            type="button" role="tab" aria-controls="tab-history" aria-selected="false">
-                            Histórico de cambios
-                        </button>
-                    </li>
+                    @unless ($isProviderPropertyViewer)
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-inventory-tab" data-bs-toggle="tab" data-bs-target="#tab-inventory"
+                                type="button" role="tab" aria-controls="tab-inventory" aria-selected="false">
+                                Inventario
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-logbook-tab" data-bs-toggle="tab" data-bs-target="#tab-logbook"
+                                type="button" role="tab" aria-controls="tab-logbook" aria-selected="false">
+                                Bitácora
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-history-tab" data-bs-toggle="tab" data-bs-target="#tab-history"
+                                type="button" role="tab" aria-controls="tab-history" aria-selected="false">
+                                Histórico de cambios
+                            </button>
+                        </li>
+                    @endunless
                 </ul>
 
                 <div class="tab-content" id="propertyTabsContent">
                     <div class="tab-pane fade show active property-tab-pane" id="tab-general" role="tabpanel"
                         aria-labelledby="tab-general-tab">
                         <div class="row g-6">
-                            <div class="col-xl-7">
+                            <div class="{{ $isProviderPropertyViewer ? 'col-xl-12' : 'col-xl-7' }}">
                                 <div class="card property-block-card h-100">
                                     <div
                                         class="card-header border-0 pt-6 d-flex justify-content-between align-items-center flex-wrap gap-3">
                                         <h3 class="card-title fw-bold mb-0">Información general</h3>
-                                        <a href="{{ route('properties.edit', $property) }}"
-                                            class="btn btn-sm btn-light-primary">
-                                            Editar propiedad
-                                        </a>
+                                        @unless ($isProviderPropertyViewer)
+                                            <a href="{{ route('properties.edit', $property) }}"
+                                                class="btn btn-sm btn-light-primary">
+                                                Editar propiedad
+                                            </a>
+                                        @endunless
                                     </div>
                                     <div class="card-body pt-0">
                                         <div class="row g-6">
@@ -576,40 +638,44 @@
                                                 <div class="property-value-label">Estatus</div>
                                                 <div class="property-value-content">{{ $property->status_label }}</div>
                                             </div>
-                                            <div class="col-lg-3">
-                                                <div class="property-value-label">Precio renta mensual</div>
-                                                <div class="property-value-content">
-                                                    {{ $property->monthly_rent_price ? '$' . number_format((float) $property->monthly_rent_price, 2) : '-' }}
+                                            @unless ($isProviderPropertyViewer)
+                                                <div class="col-lg-3">
+                                                    <div class="property-value-label">Precio renta mensual</div>
+                                                    <div class="property-value-content">
+                                                        {{ $property->monthly_rent_price ? '$' . number_format((float) $property->monthly_rent_price, 2) : '-' }}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div class="col-lg-3">
-                                                <div class="property-value-label">Día de cobro</div>
-                                                <div class="property-value-content">{{ $property->charge_day ?: '-' }}</div>
-                                            </div>
-                                            <div class="col-lg-3">
-                                                <div class="property-value-label">Tolerancia (días)</div>
-                                                <div class="property-value-content">
-                                                    {{ is_null($property->charge_tolerance_days) ? '-' : (int) $property->charge_tolerance_days }}
+                                                <div class="col-lg-3">
+                                                    <div class="property-value-label">Día de cobro</div>
+                                                    <div class="property-value-content">{{ $property->charge_day ?: '-' }}</div>
                                                 </div>
-                                            </div>
+                                                <div class="col-lg-3">
+                                                    <div class="property-value-label">Tolerancia (días)</div>
+                                                    <div class="property-value-content">
+                                                        {{ is_null($property->charge_tolerance_days) ? '-' : (int) $property->charge_tolerance_days }}
+                                                    </div>
+                                                </div>
+                                            @endunless
                                             <div class="col-lg-6">
                                                 <div class="property-value-label">Inquilino actual</div>
                                                 <div class="property-value-content">
                                                     {{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}
                                                 </div>
                                             </div>
-                                            <div class="col-lg-3">
-                                                <div class="property-value-label">Contrato inicia</div>
-                                                <div class="property-value-content">
-                                                    {{ $property->contract_starts_at ? $property->contract_starts_at->format('d/m/Y') : '-' }}
+                                            @unless ($isProviderPropertyViewer)
+                                                <div class="col-lg-3">
+                                                    <div class="property-value-label">Contrato inicia</div>
+                                                    <div class="property-value-content">
+                                                        {{ $property->contract_starts_at ? $property->contract_starts_at->format('d/m/Y') : '-' }}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div class="col-lg-3">
-                                                <div class="property-value-label">Contrato vence</div>
-                                                <div class="property-value-content">
-                                                    {{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}
+                                                <div class="col-lg-3">
+                                                    <div class="property-value-label">Contrato vence</div>
+                                                    <div class="property-value-content">
+                                                        {{ $property->contract_expires_at ? $property->contract_expires_at->format('d/m/Y') : '-' }}
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            @endunless
                                             @if ($property->map_url)
                                                 <div class="col-12">
                                                     <div class="property-value-label">Ubicación en mapa</div>
@@ -625,6 +691,7 @@
                                     </div>
                                 </div>
                             </div>
+                            @unless ($isProviderPropertyViewer)
                             <div class="col-xl-5">
                                 <div class="card property-block-card h-100">
                                     <div
@@ -696,9 +763,11 @@
                                     </div>
                                 </div>
                             </div>
+                            @endunless
                         </div>
                     </div>
 
+                    @unless ($isProviderPropertyViewer)
                     @if ($property->owners && $property->owners->count())
                         <div class="tab-pane fade property-tab-pane" id="tab-owners" role="tabpanel"
                             aria-labelledby="tab-owners-tab">
@@ -1316,6 +1385,7 @@
                     </div>
 
                     @include('expenses.partials.property-tab')
+                    @endunless
 
                     <div class="tab-pane fade property-tab-pane" id="tab-maintenance" role="tabpanel"
                         aria-labelledby="tab-maintenance-tab">
@@ -1331,6 +1401,11 @@
                                     <a href="{{ route('maintenance.index', ['property' => $property->uuid]) }}" class="btn btn-sm btn-light-primary">
                                         Abrir módulo
                                     </a>
+                                    @if ($canCreateScheduledMaintenance)
+                                        <button class="btn btn-sm btn-light-success" data-bs-toggle="modal" data-bs-target="#createScheduledMaintenanceModal">
+                                            Crear programados
+                                        </button>
+                                    @endif
                                     @if ($canCreatePropertyMaintenanceTicket)
                                         <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createPropertyMaintenanceTicketModal">
                                             Crear ticket
@@ -1349,7 +1424,8 @@
                                                 <th>Prioridad</th>
                                                 <th>Estado</th>
                                                 <th>Técnico/Proveedor</th>
-                                                <th>Fecha</th>
+                                                <th>Fecha reporte</th>
+                                                <th>Fecha visita</th>
                                                 <th class="text-end">Acción</th>
                                             </tr>
                                         </thead>
@@ -1370,13 +1446,14 @@
                                                     </td>
                                                     <td>{{ $ticket->currentProvider?->name ?: 'Sin asignar' }}</td>
                                                     <td>{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                                    <td>{{ $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?: '-' }}</td>
                                                     <td class="text-end">
                                                         <a href="{{ route('maintenance.show', $ticket) }}" class="btn btn-sm btn-light">Ver</a>
                                                     </td>
                                                 </tr>
                                             @empty
                                                 <tr>
-                                                    <td colspan="8" class="text-center py-8 text-muted">No hay tickets de mantenimiento para esta propiedad.</td>
+                                                    <td colspan="9" class="text-center py-8 text-muted">No hay tickets de mantenimiento para esta propiedad.</td>
                                                 </tr>
                                             @endforelse
                                         </tbody>
@@ -1386,6 +1463,7 @@
                         </div>
                     </div>
 
+                    @unless ($isProviderPropertyViewer)
                     <div class="tab-pane fade property-tab-pane" id="tab-inventory" role="tabpanel"
                         aria-labelledby="tab-inventory-tab">
                         <div class="card property-block-card">
@@ -1537,6 +1615,7 @@
                             </div>
                         </div>
                     </div>
+                    @endunless
                 </div>
             </div>
         </div>
@@ -1603,6 +1682,109 @@
                         <div class="modal-footer">
                             <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
                             <button type="submit" class="btn btn-primary">Crear ticket</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($canCreateScheduledMaintenance)
+        <div class="modal fade" id="createScheduledMaintenanceModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <form method="POST" action="{{ route('properties.maintenance.schedule.store', $property) }}">
+                        @csrf
+                        <div class="modal-header">
+                            <div>
+                                <h3 class="modal-title">Crear mantenimientos programados</h3>
+                                <div class="text-muted fs-7">Genera tickets semanales, cada 15 días o mensuales en un solo paso.</div>
+                            </div>
+                            <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="row g-4">
+                                @unless ($isProviderPropertyViewer)
+                                    <div class="col-md-12">
+                                        <label class="form-label required">Proveedor</label>
+                                        <select class="form-select" name="provider_id" required>
+                                            <option value="">Selecciona proveedor</option>
+                                            @foreach ($assignedSupplierProviders as $supplier)
+                                                <option value="{{ $supplier->id }}" @selected(old('provider_id') == $supplier->id)>
+                                                    {{ $supplier->name }}{{ $supplier->category ? ' · ' . $supplier->category : '' }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                        @error('provider_id', 'scheduledMaintenance')
+                                            <div class="text-danger fs-8 mt-1">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                @endunless
+                                <div class="col-md-4">
+                                    <label class="form-label required">Frecuencia</label>
+                                    <select class="form-select" name="frequency" required>
+                                        <option value="weekly" @selected(old('frequency') === 'weekly')>Semanal</option>
+                                        <option value="biweekly" @selected(old('frequency') === 'biweekly')>Cada 15 días</option>
+                                        <option value="monthly" @selected(old('frequency', 'monthly') === 'monthly')>Mensual</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label required">Inicio</label>
+                                    <input class="form-control" type="date" name="start_date" value="{{ old('start_date', now()->startOfMonth()->toDateString()) }}" required>
+                                    @error('start_date', 'scheduledMaintenance')
+                                        <div class="text-danger fs-8 mt-1">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label required">Fin</label>
+                                    <input class="form-control" type="date" name="end_date" value="{{ old('end_date', now()->endOfYear()->toDateString()) }}" required>
+                                    @error('end_date', 'scheduledMaintenance')
+                                        <div class="text-danger fs-8 mt-1">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label required">Hora</label>
+                                    <input class="form-control" type="time" name="visit_time" value="{{ old('visit_time', '09:00') }}" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label required">Categoría</label>
+                                    <select class="form-select" name="category" required>
+                                        @foreach ($maintenanceCategoryOptions as $key => $label)
+                                            <option value="{{ $key }}" @selected(old('category', 'sin_categoria') === $key)>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label required">Prioridad</label>
+                                    <select class="form-select" name="priority" required>
+                                        @foreach ($maintenancePriorityOptions as $key => $label)
+                                            <option value="{{ $key }}" @selected(old('priority', 'media') === $key)>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label required">Título</label>
+                                    <input class="form-control" type="text" name="title" maxlength="190" value="{{ old('title', 'Mantenimiento programado') }}" required>
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label required">Ubicación exacta</label>
+                                    <input class="form-control" type="text" name="exact_location" maxlength="255" value="{{ old('exact_location', 'Propiedad') }}" required>
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label required">Descripción</label>
+                                    <textarea class="form-control" rows="4" name="description" maxlength="10000" required>{{ old('description', 'Mantenimiento preventivo programado.') }}</textarea>
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label">Notas internas</label>
+                                    <textarea class="form-control" rows="2" name="additional_notes" maxlength="10000">{{ old('additional_notes') }}</textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Crear tickets programados</button>
                         </div>
                     </form>
                 </div>
@@ -1802,6 +1984,23 @@
                     return;
                 }
                 new bootstrap.Modal(modalEl).show();
+            })();
+        </script>
+    @endif
+
+    @if ($errors->scheduledMaintenance->any())
+        <script>
+            (() => {
+                const tabButton = document.querySelector('#propertyTabs [data-bs-target="#tab-maintenance"]');
+                if (tabButton) {
+                    history.replaceState(null, '', '#tab-maintenance');
+                    new bootstrap.Tab(tabButton).show();
+                }
+
+                const modalEl = document.getElementById('createScheduledMaintenanceModal');
+                if (modalEl) {
+                    new bootstrap.Modal(modalEl).show();
+                }
             })();
         </script>
     @endif

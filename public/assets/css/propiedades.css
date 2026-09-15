@@ -271,6 +271,25 @@
     color: rgba(255, 255, 255, 0.82) !important;
 }
 
+@media (min-width: 1200px) {
+    .property-assignment-bar {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .property-assignment-button {
+        padding: 9px 12px;
+    }
+
+    .property-assignment-button__label {
+        font-size: 9px;
+    }
+
+    .property-assignment-button__value {
+        font-size: 13px;
+    }
+}
+
 @media (max-width: 767.98px) {
     .property-assignment-bar {
         grid-template-columns: 1fr;

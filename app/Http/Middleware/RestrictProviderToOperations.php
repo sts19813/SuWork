@@ -13,7 +13,7 @@ class RestrictProviderToOperations
         $user = $request->user();
         $isProvider = $user && ($user->hasRole('proveedor') || $user->hasRole('provider'));
 
-        if ($isProvider && ! $request->routeIs('maintenance.*', 'profile.*')) {
+        if ($isProvider && ! $request->routeIs('maintenance.*', 'properties.index', 'properties.show', 'properties.maintenance.schedule.store', 'profile.*')) {
             abort(403);
         }
 

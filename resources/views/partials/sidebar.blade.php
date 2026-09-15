@@ -33,6 +33,7 @@
 
     $profileItem = ['patterns' => ['profile.*'], 'route' => 'profile.index', 'label' => 'Perfil', 'icon' => 'bi-person-circle'];
     $ticketsItem = ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-ticket-perforated'];
+    $propertiesItem = ['patterns' => ['properties.index', 'properties.show'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'];
     $suggestionsItem = ['patterns' => ['tenant-suggestions.*'], 'route' => 'tenant-suggestions.create', 'label' => 'Sugerencias', 'icon' => 'bi-chat-square-text'];
     $storageItem = ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'];
     $copilotItem = ['patterns' => ['copilot.*'], 'route' => 'copilot.index', 'label' => 'Asistente IA', 'icon' => 'bi-stars'];
@@ -53,7 +54,7 @@
         ];
     } elseif ($isProvider) {
         $menuItems = [
-            $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem]),
+            $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem, $propertiesItem]),
             $makeMenuSection('Configuración', 'bi-gear', [$profileItem]),
         ];
     } else {
@@ -138,6 +139,7 @@
             : ($isProvider
                 ? [
                     ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
+                    ['patterns' => ['properties.index', 'properties.show'], 'route' => 'properties.index', 'label' => 'Propiedades', 'icon' => 'bi-house-door'],
                 ]
             : [
                 ...($isAdvisor ? [['patterns' => ['advisor.tasks.*'], 'route' => 'advisor.tasks.index', 'label' => 'Pendientes', 'icon' => 'bi-list-check']] : []),

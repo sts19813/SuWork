@@ -194,6 +194,7 @@ class MaintenanceController extends Controller
             ->with('user:id,name,email')
             ->orderBy('name')
             ->get();
+
         return view('maintenance.index', [
             'tickets' => $tickets,
             'providers' => $providers,
@@ -1154,7 +1155,7 @@ class MaintenanceController extends Controller
         $email = trim((string) $accountEmail);
         if ($email === '') {
             throw ValidationException::withMessages([
-                    'account_email' => "Debes proporcionar el correo para crear la cuenta del {$accountLabel}.",
+                'account_email' => "Debes proporcionar el correo para crear la cuenta del {$accountLabel}.",
             ]);
         }
         $password = filled($accountPassword) ? (string) $accountPassword : Str::random(12);
@@ -1238,7 +1239,7 @@ class MaintenanceController extends Controller
             return $query->whereHas('tenant', fn (Builder $tenantQuery) => $tenantQuery->where('email', $user->email));
         }
         if ($role === 'proveedor') {
-            return $query->whereHas('maintenanceTickets.currentProvider', function (Builder $providerQuery) use ($user): void {
+            return $query->whereHas('supplierProviders', function (Builder $providerQuery) use ($user): void {
                 $this->constrainProviderToUser($providerQuery, $user, 'proveedor');
             });
         }

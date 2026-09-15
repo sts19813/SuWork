@@ -419,9 +419,11 @@
                 <h1 class="mb-1 fw-bold text-dark">{{ $showArchived ? 'Propiedades archivadas' : 'Propiedades' }}</h1>
                 <div class="text-muted fs-6">{{ $properties->count() }} propiedades encontradas</div>
             </div>
-            <a href="{{ route('properties.create') }}" class="btn btn-primary fw-bold">
-                <i class="ki-outline ki-plus fs-4 me-1"></i> Nueva Propiedad
-            </a>
+            @unless ($isProviderPropertyViewer ?? false)
+                <a href="{{ route('properties.create') }}" class="btn btn-primary fw-bold">
+                    <i class="ki-outline ki-plus fs-4 me-1"></i> Nueva Propiedad
+                </a>
+            @endunless
         </div>
 
         @if ($canArchiveProperties)
@@ -528,7 +530,7 @@
                                     <div class="property-list-value">{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: '-') }}</div>
                                 </td>
                                     <td data-search="{{ $assignedAdvisorNames ?: 'Sin asesor' }}">
-                                        @if ($canManagePropertyAdvisors)
+                                        @if ($canManagePropertyAdvisors && !($isProviderPropertyViewer ?? false))
                                             <span class="dropup dropdown maintenance-inline-dropdown maintenance-provider-dropdown" data-property-advisor-action>
                                                 <button class="maintenance-provider-trigger dropdown-toggle" type="button"
                                                     data-bs-toggle="dropdown" aria-expanded="false"

@@ -58,7 +58,7 @@ Route::post('/stripe/webhook', [ChargePaymentController::class, 'webhook'])
 Route::middleware(['auth', 'system.access', 'provider.operational'])
     ->group(function () {
         Route::get('/perfil', [ProfileController::class, 'index'])->name('profile.index');
-        Route::post('/perfil/actualizar', [ProfileController::class, 'update'])->name('profile.update');
+        Route::post('/perfil/actualizar', [ProfileController::class, 'update'])->name('profile.index.update');
         Route::post('/perfil/foto', [ProfileController::class, 'updatePhoto'])->name('profile.update.photo');
         Route::post('/perfil/password', [ProfileController::class, 'updatePassword'])->name('profile.update.password');
 
@@ -85,6 +85,8 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::put('/propiedades/{property}/inquilino', [PropertyController::class, 'updateTenant'])->name('properties.update.tenant');
         Route::put('/propiedades/{property}/asesores', [PropertyController::class, 'updateAdvisors'])->name('properties.update.advisors');
         Route::put('/propiedades/{property}/tecnico', [PropertyController::class, 'updateTechnician'])->name('properties.update.technician');
+        Route::put('/propiedades/{property}/proveedores', [PropertyController::class, 'updateProviders'])->name('properties.update.providers');
+        Route::post('/propiedades/{property}/mantenimientos-programados', [PropertyController::class, 'storeScheduledMaintenance'])->name('properties.maintenance.schedule.store');
         Route::patch('/propiedades/{property}/archivar', [PropertyController::class, 'archive'])->name('properties.archive');
         Route::patch('/propiedades/{property}/restaurar', [PropertyController::class, 'restore'])->name('properties.restore');
         Route::delete('/propiedades/{property}', [PropertyController::class, 'destroy'])->name('properties.destroy');

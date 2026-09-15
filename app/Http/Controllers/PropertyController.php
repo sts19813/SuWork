@@ -23,6 +23,7 @@ use App\Models\User;
 use App\Models\Zone;
 use App\Services\DossierDocumentRequirementService;
 use App\Services\PropertyDeletionService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -67,12 +68,15 @@ class PropertyController extends Controller
         $canArchiveProperties = (bool) $request->user()?->can('propiedades.archivar');
         $canDeleteProperties = (bool) $request->user()?->can('propiedades.eliminar');
         $showArchived = $request->query('view') === 'archived';
+        $user = $request->user();
+        $isProvider = $this->isProviderUser($user);
 
         abort_if($showArchived && ! $canArchiveProperties, 403);
 
         $properties = Property::query()
             ->when($showArchived, fn ($query) => $query->whereNotNull('archived_at'))
             ->when(! $showArchived, fn ($query) => $query->whereNull('archived_at'))
+            ->when($isProvider, fn (Builder $query) => $this->constrainPropertiesToProvider($query, $user))
             ->with(['type', 'zone', 'tenant', 'advisor', 'advisors:id,name,email'])
             ->withCount([
                 'documents as incidents_count' => fn ($query) => $query->where('status', PropertyDocument::STATUS_PENDING),
@@ -97,6 +101,7 @@ class PropertyController extends Controller
             'canArchiveProperties' => $canArchiveProperties,
             'canDeleteProperties' => $canDeleteProperties,
             'showArchived' => $showArchived,
+            'isProviderPropertyViewer' => $isProvider,
         ]);
     }
 
@@ -314,6 +319,165 @@ class PropertyController extends Controller
         return redirect()->back()->with('success', $message);
     }
 
+    public function updateProviders(Request $request, Property $property): RedirectResponse|JsonResponse
+    {
+        $this->ensureCanManagePropertyTechnician($request);
+
+        $validated = $request->validate([
+            'provider_ids' => ['nullable', 'array'],
+            'provider_ids.*' => [
+                'integer',
+                Rule::exists('maintenance_providers', 'id')->where(fn ($query) => $query
+                    ->where('is_active', true)
+                    ->where('type', 'proveedor')),
+            ],
+        ]);
+
+        $providerIds = collect($validated['provider_ids'] ?? [])
+            ->map(fn ($providerId) => (int) $providerId)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $syncPayload = $providerIds
+            ->mapWithKeys(fn (int $providerId): array => [
+                $providerId => ['assigned_by_user_id' => $request->user()?->id],
+            ])
+            ->all();
+
+        $property->supplierProviders()->sync($syncPayload);
+
+        $message = 'Proveedores de la propiedad actualizados correctamente.';
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'reload' => true,
+            ]);
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    public function storeScheduledMaintenance(Request $request, Property $property): RedirectResponse
+    {
+        $user = $request->user();
+        $isProvider = $this->isProviderUser($user);
+
+        if ($isProvider) {
+            $this->ensureProviderCanViewProperty($property, $user);
+        } elseif (! $this->canManagePropertyTechnician($user)) {
+            abort(403);
+        }
+
+        $validated = $request->validateWithBag('scheduledMaintenance', [
+            'provider_id' => ['nullable', 'integer', 'exists:maintenance_providers,id'],
+            'frequency' => ['required', Rule::in(['weekly', 'biweekly', 'monthly'])],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'visit_time' => ['required', 'date_format:H:i'],
+            'category' => ['required', Rule::in(array_keys(MaintenanceTicket::CATEGORY_LABELS))],
+            'priority' => ['required', Rule::in(array_keys(MaintenanceTicket::PRIORITY_LABELS))],
+            'title' => ['required', 'string', 'max:190'],
+            'exact_location' => ['required', 'string', 'max:255'],
+            'description' => ['required', 'string', 'max:10000'],
+            'additional_notes' => ['nullable', 'string', 'max:10000'],
+            'payer' => ['nullable', Rule::in(array_keys(MaintenanceTicket::COST_PAYER_LABELS))],
+            'payment_rule' => ['nullable', Rule::in(array_keys(MaintenanceTicket::PAYMENT_RULE_LABELS))],
+        ]);
+
+        $provider = $isProvider
+            ? $this->providerForUser($user)
+            : MaintenanceProvider::query()
+                ->whereKey((int) ($validated['provider_id'] ?? 0))
+                ->where('type', 'proveedor')
+                ->where('is_active', true)
+                ->first();
+
+        if (! $provider) {
+            return redirect()->back()
+                ->withErrors(['provider_id' => 'Selecciona un proveedor activo asignado a esta propiedad.'], 'scheduledMaintenance')
+                ->withInput();
+        }
+
+        $isAssignedToProperty = $property->supplierProviders()
+            ->where('maintenance_providers.id', $provider->id)
+            ->exists();
+        if (! $isAssignedToProperty) {
+            return redirect()->back()
+                ->withErrors(['provider_id' => 'El proveedor debe estar asignado a esta propiedad.'], 'scheduledMaintenance')
+                ->withInput();
+        }
+
+        $occurrences = $this->buildScheduledMaintenanceOccurrences(
+            Carbon::parse((string) $validated['start_date']),
+            Carbon::parse((string) $validated['end_date']),
+            (string) $validated['visit_time'],
+            (string) $validated['frequency'],
+        );
+
+        if ($occurrences->isEmpty()) {
+            return redirect()->back()
+                ->withErrors(['start_date' => 'No se encontraron fechas para crear tickets.'], 'scheduledMaintenance')
+                ->withInput();
+        }
+
+        if ($occurrences->count() > 80) {
+            return redirect()->back()
+                ->withErrors(['end_date' => 'El rango genera demasiados tickets. Reduce el periodo a 80 tickets o menos.'], 'scheduledMaintenance')
+                ->withInput();
+        }
+
+        $tickets = DB::transaction(function () use ($occurrences, $validated, $property, $provider, $user, $isProvider): Collection {
+            return $occurrences->map(function (Carbon $scheduledAt) use ($validated, $property, $provider, $user, $isProvider): MaintenanceTicket {
+                $ticket = MaintenanceTicket::create([
+                    'property_id' => $property->id,
+                    'reported_by_user_id' => $user?->id,
+                    'current_provider_id' => $provider->id,
+                    'reported_by_role' => $isProvider ? 'proveedor' : 'administrador',
+                    'reported_by_name' => $user?->name,
+                    'category' => (string) $validated['category'],
+                    'priority' => (string) $validated['priority'],
+                    'status' => 'programado',
+                    'title' => trim((string) $validated['title']),
+                    'reference' => null,
+                    'exact_location' => trim((string) $validated['exact_location']),
+                    'description' => trim((string) $validated['description']),
+                    'additional_notes' => filled($validated['additional_notes'] ?? null) ? trim((string) $validated['additional_notes']) : null,
+                    'reported_at' => now(),
+                    'scheduled_visit_at' => $scheduledAt,
+                    'payer' => $validated['payer'] ?? null,
+                    'payment_rule' => $validated['payment_rule'] ?? null,
+                    'assigned_at' => now(),
+                ]);
+                $ticket->reference = str_pad((string) $ticket->id, 8, '0', STR_PAD_LEFT);
+                $ticket->save();
+                $ticket->assignments()->create([
+                    'provider_id' => $provider->id,
+                    'assigned_by_user_id' => $user?->id,
+                    'notes' => 'Mantenimiento programado desde la propiedad.',
+                    'assigned_at' => now(),
+                    'is_current' => true,
+                ]);
+                $ticket->statusHistory()->create([
+                    'changed_by_user_id' => $user?->id,
+                    'from_status' => null,
+                    'to_status' => 'programado',
+                    'notes' => 'Mantenimiento programado creado automáticamente.',
+                    'changed_at' => now(),
+                ]);
+
+                return $ticket;
+            });
+        });
+
+        $message = 'Se crearon '.$tickets->count().' tickets programados para '.$provider->name.'.';
+
+        return redirect()
+            ->to(route('properties.show', $property).'#tab-maintenance')
+            ->with('success', $message);
+    }
+
     public function updateTenant(Request $request, Property $property): RedirectResponse
     {
         $request->validate([
@@ -374,7 +538,14 @@ class PropertyController extends Controller
 
     public function show(Property $property): View
     {
-        $this->ensureCanViewArchivedProperty(request(), $property);
+        $request = request();
+        $user = $request->user();
+        $isProviderPropertyViewer = $this->isProviderUser($user);
+
+        $this->ensureCanViewArchivedProperty($request, $property);
+        if ($isProviderPropertyViewer) {
+            $this->ensureProviderCanViewProperty($property, $user);
+        }
 
         $property->load([
             'type',
@@ -388,6 +559,7 @@ class PropertyController extends Controller
             'advisor',
             'advisors:id,name,email',
             'technicianProvider:id,uuid,user_id,name,email,type,specialty,is_active',
+            'supplierProviders:id,uuid,user_id,name,email,type,category,is_active',
             'logbookEntries.user:id,name,profile_photo',
         ]);
         $propertyChangeLogs = $property->changeLogs()
@@ -481,6 +653,11 @@ class PropertyController extends Controller
             ])
             ->withCount(['files', 'messages'])
             ->where('property_id', $property->id)
+            ->when($isProviderPropertyViewer, function (Builder $query) use ($user): void {
+                $query->whereHas('currentProvider', function (Builder $providerQuery) use ($user): void {
+                    $this->constrainSupplierProviderToUser($providerQuery, $user);
+                });
+            })
             ->orderByDesc('reported_at')
             ->orderByDesc('id')
             ->limit(50)
@@ -569,10 +746,16 @@ class PropertyController extends Controller
         $globalExpenseNotificationSetup = ExpenseNotificationSetting::current();
         $resolvedPropertyExpenseNotificationSetup = $property->resolvedExpenseNotificationSetup($globalExpenseNotificationSetup);
         $isTenantMaintenanceReporter = (bool) (
-            auth()->user()?->hasRole('inquilino')
-            || auth()->user()?->hasRole('tenant')
+            $user?->hasRole('inquilino')
+            || $user?->hasRole('tenant')
         );
-        $canManageCharges = ! $isTenantMaintenanceReporter;
+        $canManageCharges = ! $isTenantMaintenanceReporter && ! $isProviderPropertyViewer;
+        $assignedSupplierProviders = $property->supplierProviders
+            ->where('type', 'proveedor')
+            ->where('is_active', true)
+            ->values();
+        $canManagePropertyTechnician = $this->canManagePropertyTechnician($user);
+        $canCreateScheduledMaintenance = $isProviderPropertyViewer || ($canManagePropertyTechnician && $assignedSupplierProviders->isNotEmpty());
 
         return view('properties.show', [
             'property' => $property,
@@ -606,29 +789,37 @@ class PropertyController extends Controller
             'propertyMaintenanceTickets' => $propertyMaintenanceTickets,
             'maintenanceCategoryOptions' => MaintenanceTicket::CATEGORY_LABELS,
             'maintenancePriorityOptions' => MaintenanceTicket::PRIORITY_LABELS,
-            'canCreatePropertyMaintenanceTicket' => (bool) (
-                auth()->user()?->hasRole('administrador')
-                || auth()->user()?->hasRole('admin')
-                || auth()->user()?->hasRole('inquilino')
-                || auth()->user()?->hasRole('tenant')
-                || auth()->user()?->hasRole('tecnico')
-                || auth()->user()?->hasRole('technician')
+            'canCreatePropertyMaintenanceTicket' => ! $isProviderPropertyViewer && (bool) (
+                $user?->hasRole('administrador')
+                || $user?->hasRole('admin')
+                || $user?->hasRole('inquilino')
+                || $user?->hasRole('tenant')
+                || $user?->hasRole('tecnico')
+                || $user?->hasRole('technician')
             ),
+            'canCreateScheduledMaintenance' => $canCreateScheduledMaintenance,
             'isTenantMaintenanceReporter' => $isTenantMaintenanceReporter,
+            'isProviderPropertyViewer' => $isProviderPropertyViewer,
             'propertyChangeLogs' => $propertyChangeLogs,
             'propertyChangeFieldLabels' => $this->propertyChangeFieldLabels(),
             'canManageCharges' => $canManageCharges,
-            'canDeletePaidCharges' => $canManageCharges && (bool) auth()->user()?->can('cobranza.eliminar_pagados'),
+            'canDeletePaidCharges' => $canManageCharges && (bool) $user?->can('cobranza.eliminar_pagados'),
             'availablePropertyTechnicians' => MaintenanceProvider::query()
                 ->where('is_active', true)
                 ->where('type', 'tecnico_interno')
                 ->orderBy('name')
                 ->get(['id', 'uuid', 'name', 'email', 'type', 'specialty']),
+            'availablePropertyProviders' => MaintenanceProvider::query()
+                ->where('is_active', true)
+                ->where('type', 'proveedor')
+                ->orderBy('name')
+                ->get(['id', 'uuid', 'name', 'email', 'type', 'category']),
+            'assignedSupplierProviders' => $assignedSupplierProviders,
             'availableAdvisors' => $this->availableAdvisors(),
-            'canManagePropertyAdvisors' => $this->canManagePropertyAssignments(auth()->user()),
-            'canManagePropertyTechnician' => $this->canManagePropertyTechnician(auth()->user()),
-            'canArchiveProperty' => (bool) auth()->user()?->can('propiedades.archivar'),
-            'canDeleteProperty' => (bool) auth()->user()?->can('propiedades.eliminar'),
+            'canManagePropertyAdvisors' => ! $isProviderPropertyViewer && $this->canManagePropertyAssignments($user),
+            'canManagePropertyTechnician' => ! $isProviderPropertyViewer && $canManagePropertyTechnician,
+            'canArchiveProperty' => ! $isProviderPropertyViewer && (bool) $user?->can('propiedades.archivar'),
+            'canDeleteProperty' => ! $isProviderPropertyViewer && (bool) $user?->can('propiedades.eliminar'),
             'propertyHasPendingPayments' => $this->propertyDeletion->hasPendingPayments($property),
             'propertyDeleteBlockedMessage' => PropertyDeletionService::PENDING_PAYMENT_MESSAGE,
         ]);
@@ -888,6 +1079,86 @@ class PropertyController extends Controller
             || $this->hasAdvisorRole($user)
             || (bool) $user?->can('propiedades.asignar_asesores')
             || (bool) $user?->can('administracion de tecnicos');
+    }
+
+    private function isProviderUser(?User $user): bool
+    {
+        return (bool) $user && $user->hasAnyRole(['proveedor', 'provider']);
+    }
+
+    private function providerForUser(?User $user): ?MaintenanceProvider
+    {
+        if (! $user) {
+            return null;
+        }
+
+        return MaintenanceProvider::query()
+            ->where('type', 'proveedor')
+            ->where(function (Builder $query) use ($user): void {
+                $query->where('user_id', $user->id);
+
+                if (filled($user->email)) {
+                    $query->orWhere('email', $user->email);
+                }
+            })
+            ->orderByDesc('is_active')
+            ->first();
+    }
+
+    private function constrainPropertiesToProvider(Builder $query, ?User $user): Builder
+    {
+        return $query->whereHas('supplierProviders', function (Builder $providerQuery) use ($user): void {
+            $this->constrainSupplierProviderToUser($providerQuery, $user);
+        });
+    }
+
+    private function constrainSupplierProviderToUser(Builder $query, ?User $user): void
+    {
+        if (! $user) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where('maintenance_providers.type', 'proveedor')
+            ->where(function (Builder $identityQuery) use ($user): void {
+                $identityQuery->where('maintenance_providers.user_id', $user->id);
+
+                if (filled($user->email)) {
+                    $identityQuery->orWhere('maintenance_providers.email', $user->email);
+                }
+            });
+    }
+
+    private function ensureProviderCanViewProperty(Property $property, ?User $user): void
+    {
+        $canView = Property::query()
+            ->whereKey($property->id)
+            ->where(fn (Builder $query) => $this->constrainPropertiesToProvider($query, $user))
+            ->exists();
+
+        abort_unless($canView, 403);
+    }
+
+    private function buildScheduledMaintenanceOccurrences(Carbon $startDate, Carbon $endDate, string $visitTime, string $frequency): Collection
+    {
+        [$hour, $minute] = array_map('intval', explode(':', $visitTime));
+        $cursor = $startDate->copy()->startOfDay()->setTime($hour, $minute);
+        $end = $endDate->copy()->endOfDay();
+        $occurrences = collect();
+
+        while ($cursor->lte($end) && $occurrences->count() <= 80) {
+            $occurrences->push($cursor->copy());
+
+            $cursor = match ($frequency) {
+                'weekly' => $cursor->copy()->addWeek(),
+                'biweekly' => $cursor->copy()->addDays(15),
+                'monthly' => $cursor->copy()->addMonthNoOverflow(),
+                default => $cursor->copy()->addMonthNoOverflow(),
+            };
+        }
+
+        return $occurrences;
     }
 
     private function getTenantAssignmentMissingRequirements(Tenant $tenant): array

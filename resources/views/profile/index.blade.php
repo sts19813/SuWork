@@ -292,7 +292,7 @@
             </div>
 
             <div class="col-xl-8">
-                <form action="{{ route('profile.update') }}" method="POST" data-no-ajax>
+                <form action="{{ route('profile.index.update') }}" method="POST" data-no-ajax>
                     @csrf
                     <div class="card card-flush profile-card mb-8">
                         <div class="card-header">
