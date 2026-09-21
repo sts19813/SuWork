@@ -1710,7 +1710,7 @@
                                         <label class="form-label required">Proveedor</label>
                                         <select class="form-select" name="provider_id" required>
                                             <option value="">Selecciona proveedor</option>
-                                            @foreach ($assignedSupplierProviders as $supplier)
+                                            @foreach ($availablePropertyProviders as $supplier)
                                                 <option value="{{ $supplier->id }}" @selected(old('provider_id') == $supplier->id)>
                                                     {{ $supplier->name }}{{ $supplier->category ? ' · ' . $supplier->category : '' }}
                                                 </option>

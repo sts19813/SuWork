@@ -399,14 +399,14 @@ class PropertyController extends Controller
 
         if (! $provider) {
             return redirect()->back()
-                ->withErrors(['provider_id' => 'Selecciona un proveedor activo asignado a esta propiedad.'], 'scheduledMaintenance')
+                ->withErrors(['provider_id' => 'Selecciona un proveedor activo.'], 'scheduledMaintenance')
                 ->withInput();
         }
 
         $isAssignedToProperty = $property->supplierProviders()
             ->where('maintenance_providers.id', $provider->id)
             ->exists();
-        if (! $isAssignedToProperty) {
+        if ($isProvider && ! $isAssignedToProperty) {
             return redirect()->back()
                 ->withErrors(['provider_id' => 'El proveedor debe estar asignado a esta propiedad.'], 'scheduledMaintenance')
                 ->withInput();

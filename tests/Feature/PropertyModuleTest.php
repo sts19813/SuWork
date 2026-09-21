@@ -742,12 +742,44 @@ class PropertyModuleTest extends TestCase
             'status' => Property::STATUS_AVAILABLE,
             'created_by' => $creator->id,
         ]);
+        $supplier = MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor para programar',
+            'category' => 'plomeria',
+            'is_active' => true,
+        ]);
+        MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor inactivo',
+            'is_active' => false,
+        ]);
 
         $this->actingAs($admin)
             ->get(route('properties.show', $property).'#tab-maintenance')
             ->assertOk()
             ->assertSee('Crear programados')
-            ->assertSee('createScheduledMaintenanceModal');
+            ->assertSee('createScheduledMaintenanceModal')
+            ->assertSee('Proveedor para programar')
+            ->assertSee('plomeria')
+            ->assertDontSee('Proveedor inactivo');
+
+        $this->actingAs($admin)
+            ->post(route('properties.maintenance.schedule.store', $property), [
+                'provider_id' => $supplier->id,
+                'frequency' => 'monthly',
+                'start_date' => '2026-01-01',
+                'end_date' => '2026-03-31',
+                'visit_time' => '10:30',
+                'category' => 'plomeria',
+                'priority' => 'media',
+                'title' => 'Plomeria programada',
+                'exact_location' => 'Local',
+                'description' => 'Servicio mensual preventivo.',
+            ])
+            ->assertRedirect(route('properties.show', $property).'#tab-maintenance')
+            ->assertSessionHas('success', 'Se crearon 3 tickets programados para Proveedor para programar.');
+
+        $this->assertSame(3, MaintenanceTicket::query()->where('current_provider_id', $supplier->id)->count());
     }
 
     public function test_assigned_provider_can_create_monthly_scheduled_maintenance_tickets(): void
