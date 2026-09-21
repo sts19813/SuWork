@@ -317,7 +317,7 @@ class PropertyModuleTest extends TestCase
         ]);
     }
 
-    public function test_advisor_role_sees_all_properties_by_default(): void
+    public function test_advisor_role_only_sees_own_properties(): void
     {
         $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
         $advisor = User::factory()->create();
@@ -337,6 +337,15 @@ class PropertyModuleTest extends TestCase
         $assignedProperty->advisors()->attach($advisor->id);
 
         Property::create([
+            'internal_name' => 'Casa Creada',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Creada',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $advisor->id,
+        ]);
+
+        Property::create([
             'internal_name' => 'Casa General',
             'property_type_id' => $type->id,
             'zone_id' => $zone->id,
@@ -349,14 +358,24 @@ class PropertyModuleTest extends TestCase
             ->get(route('properties.index'))
             ->assertOk()
             ->assertSee('Casa Asignada')
-            ->assertSee('Casa General')
+            ->assertSee('Casa Creada')
+            ->assertDontSee('Casa General')
             ->assertSee('Nueva Propiedad');
 
         $this->actingAs($advisor)
             ->get(route('properties.index', ['property_scope' => 'mine']))
             ->assertOk()
             ->assertSee('Casa Asignada')
-            ->assertSee('Casa General');
+            ->assertSee('Casa Creada')
+            ->assertDontSee('Casa General');
+
+        $this->actingAs($advisor)
+            ->get(route('properties.show', $assignedProperty))
+            ->assertOk();
+
+        $this->actingAs($advisor)
+            ->get(route('properties.show', Property::query()->where('internal_name', 'Casa General')->first()))
+            ->assertForbidden();
     }
 
     public function test_advisor_role_can_create_edit_and_assign_property_to_another_advisor(): void
@@ -491,7 +510,7 @@ class PropertyModuleTest extends TestCase
         ]);
     }
 
-    public function test_advisor_can_manage_inventory_for_any_property(): void
+    public function test_advisor_can_manage_inventory_only_for_own_property(): void
     {
         $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
         $advisor = User::factory()->create();
@@ -507,6 +526,19 @@ class PropertyModuleTest extends TestCase
             'status' => Property::STATUS_AVAILABLE,
             'created_by' => $creator->id,
         ]);
+        $property->advisors()->attach($advisor->id);
+        $otherProperty = Property::query()->create([
+            'internal_name' => 'Casa inventario ajena',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 11',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $creator->id,
+        ]);
+
+        $this->actingAs($advisor)
+            ->get(route('properties.inventory.edit', $otherProperty))
+            ->assertForbidden();
 
         $this->actingAs($advisor)
             ->get(route('properties.inventory.edit', $property))

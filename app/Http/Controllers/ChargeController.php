@@ -18,6 +18,7 @@ use App\Models\TenantDocument;
 use App\Models\User;
 use App\Services\DossierDocumentRequirementService;
 use App\Support\NotificationSettings;
+use App\Support\PropertyVisibility;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,7 +35,10 @@ use ZipArchive;
 
 class ChargeController extends Controller
 {
-    public function __construct(private readonly DossierDocumentRequirementService $requirements) {}
+    public function __construct(
+        private readonly DossierDocumentRequirementService $requirements,
+        private readonly PropertyVisibility $propertyVisibility,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -45,6 +49,9 @@ class ChargeController extends Controller
                 ->whereHas('tenant', fn ($query) => $query->where('email', $user->email))
                 ->pluck('id')
             : collect();
+        $visiblePropertyIds = $this->propertyVisibility->shouldLimitToOwnProperties($user)
+            ? $this->propertyVisibility->ownPropertyIds($user)
+            : null;
         $filters = $request->validate([
             'property' => ['nullable', 'string', 'exists:properties,uuid'],
         ]);
@@ -54,10 +61,11 @@ class ChargeController extends Controller
             ? Property::query()
                 ->with('tenant:id,full_name')
                 ->when($isTenant, fn ($query) => $query->whereIn('id', $tenantPropertyIds))
+                ->when($visiblePropertyIds !== null, fn ($query) => $query->whereIn('id', $visiblePropertyIds->all()))
                 ->where('uuid', $selectedPropertyUuid)
                 ->first()
             : null;
-        if ($isTenant && filled($selectedPropertyUuid) && ! $selectedProperty) {
+        if (($isTenant || $visiblePropertyIds !== null) && filled($selectedPropertyUuid) && ! $selectedProperty) {
             abort(403);
         }
         $selectedPropertyId = $selectedProperty?->id;
@@ -79,6 +87,7 @@ class ChargeController extends Controller
                 Charge::STATUS_IN_VALIDATION,
             ])
             ->when($isTenant, fn ($query) => $query->whereIn('property_id', $tenantPropertyIds))
+            ->when($visiblePropertyIds !== null, fn ($query) => $query->whereIn('property_id', $visiblePropertyIds->all()))
             ->when($selectedPropertyId, fn ($query) => $query->where('property_id', $selectedPropertyId))
             ->orderBy('due_date')
             ->orderBy('id')
@@ -101,6 +110,10 @@ class ChargeController extends Controller
                 fn ($query) => $query->whereIn('property_id', $tenantPropertyIds),
             )
             ->when(
+                $visiblePropertyIds !== null,
+                fn ($query) => $query->whereIn('property_id', $visiblePropertyIds->all()),
+            )
+            ->when(
                 $selectedPropertyId,
                 fn ($query) => $query->where('property_id', $selectedPropertyId),
             )
@@ -115,11 +128,16 @@ class ChargeController extends Controller
         $now = now();
         $chargeBaseQuery = fn () => Charge::query()
             ->when($isTenant, fn ($query) => $query->whereIn('property_id', $tenantPropertyIds))
+            ->when($visiblePropertyIds !== null, fn ($query) => $query->whereIn('property_id', $visiblePropertyIds->all()))
             ->when($selectedPropertyId, fn ($query) => $query->where('property_id', $selectedPropertyId));
         $paymentBaseQuery = fn () => ChargePayment::query()
             ->when(
                 $isTenant,
                 fn ($query) => $query->whereHas('charge', fn ($chargeQuery) => $chargeQuery->whereIn('property_id', $tenantPropertyIds)),
+            )
+            ->when(
+                $visiblePropertyIds !== null,
+                fn ($query) => $query->whereHas('charge', fn ($chargeQuery) => $chargeQuery->whereIn('property_id', $visiblePropertyIds->all())),
             )
             ->when(
                 $selectedPropertyId,
@@ -169,12 +187,14 @@ class ChargeController extends Controller
 
         $filterProperties = Property::query()
             ->when($isTenant, fn ($query) => $query->whereIn('id', $tenantPropertyIds))
+            ->when($visiblePropertyIds !== null, fn ($query) => $query->whereIn('id', $visiblePropertyIds->all()))
             ->orderBy('internal_name')
             ->get(['id', 'uuid', 'internal_name', 'internal_reference']);
 
         $propertiesQuery = Property::query()
             ->with('tenant:id,full_name')
             ->when($isTenant, fn ($query) => $query->whereIn('id', $tenantPropertyIds))
+            ->when($visiblePropertyIds !== null, fn ($query) => $query->whereIn('id', $visiblePropertyIds->all()))
             ->orderBy('internal_name');
         if ($selectedPropertyId) {
             $propertiesQuery->where('id', $selectedPropertyId);
@@ -184,6 +204,7 @@ class ChargeController extends Controller
             ->with('tenant:id,full_name')
             ->whereNotNull('tenant_id')
             ->when($isTenant, fn ($query) => $query->whereIn('id', $tenantPropertyIds))
+            ->when($visiblePropertyIds !== null, fn ($query) => $query->whereIn('id', $visiblePropertyIds->all()))
             ->orderBy('internal_name');
         if ($selectedPropertyId) {
             $chargeablePropertiesQuery->where('id', $selectedPropertyId);

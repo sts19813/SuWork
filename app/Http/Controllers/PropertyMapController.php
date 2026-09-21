@@ -6,6 +6,7 @@ use App\Models\Charge;
 use App\Models\ChargePayment;
 use App\Models\Property;
 use App\Services\PropertyMapLocationResolver;
+use App\Support\PropertyVisibility;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -13,9 +14,13 @@ use Illuminate\View\View;
 
 class PropertyMapController extends Controller
 {
+    public function __construct(private readonly PropertyVisibility $propertyVisibility)
+    {
+    }
+
     public function index(Request $request): View
     {
-        $properties = $this->mapPropertiesQuery()
+        $properties = $this->mapPropertiesQuery($request)
             ->whereNotNull('map_url')
             ->where('map_url', '<>', '')
             ->whereNotNull('map_latitude')
@@ -32,18 +37,18 @@ class PropertyMapController extends Controller
 
         return view('properties.map', [
             'markers' => $markers,
-            'totalWithMapUrl' => Property::query()
+            'totalWithMapUrl' => $this->propertyVisibility->scopeVisibleToUser(Property::query(), $request->user())
                 ->whereNotNull('map_url')
                 ->where('map_url', '<>', '')
                 ->count(),
-            'pendingCoordinatesCount' => $this->pendingCoordinatesQuery()->count(),
+            'pendingCoordinatesCount' => $this->pendingCoordinatesQuery($request)->count(),
             'statusCounts' => $statusCounts,
         ]);
     }
 
-    public function syncPending(PropertyMapLocationResolver $resolver): JsonResponse
+    public function syncPending(Request $request, PropertyMapLocationResolver $resolver): JsonResponse
     {
-        $pending = $this->pendingCoordinatesQuery()
+        $pending = $this->pendingCoordinatesQuery($request)
             ->orderBy('id')
             ->limit(3)
             ->get();
@@ -66,7 +71,7 @@ class PropertyMapController extends Controller
             }
         }
 
-        $markers = $this->mapPropertiesQuery()
+        $markers = $this->mapPropertiesQuery($request)
             ->whereKey($resolvedIds)
             ->get()
             ->map(fn (Property $property) => $this->markerFor($property))
@@ -76,16 +81,16 @@ class PropertyMapController extends Controller
             'markers' => $markers,
             'processed' => $pending->count(),
             'resolved' => count($resolvedIds),
-            'remaining' => $this->pendingCoordinatesQuery()->count(),
+            'remaining' => $this->pendingCoordinatesQuery($request)->count(),
         ]);
     }
 
-    private function mapPropertiesQuery()
+    private function mapPropertiesQuery(Request $request)
     {
         $monthStart = now()->startOfMonth();
         $monthEnd = now()->endOfMonth();
 
-        return Property::query()
+        return $this->propertyVisibility->scopeVisibleToUser(Property::query(), $request->user())
             ->with([
                 'type',
                 'zone',
@@ -135,9 +140,9 @@ class PropertyMapController extends Controller
             ]);
     }
 
-    private function pendingCoordinatesQuery()
+    private function pendingCoordinatesQuery(Request $request)
     {
-        return Property::query()
+        return $this->propertyVisibility->scopeVisibleToUser(Property::query(), $request->user())
             ->whereNotNull('map_url')
             ->where('map_url', '<>', '')
             ->where(function ($query): void {

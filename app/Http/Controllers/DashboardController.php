@@ -7,6 +7,7 @@ use App\Models\ChargePayment;
 use App\Models\Expense;
 use App\Models\Property;
 use App\Models\User;
+use App\Support\PropertyVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -15,6 +16,10 @@ use Illuminate\View\View;
 class DashboardController extends Controller
 {
     private const ADVISOR_COMMISSION_RATE = 0.10;
+
+    public function __construct(private readonly PropertyVisibility $propertyVisibility)
+    {
+    }
 
     public function index(Request $request): View
     {
@@ -29,8 +34,8 @@ class DashboardController extends Controller
         ]);
 
         $isAdvisorUser = $this->isAdvisorUser($request);
-        $propertyScope = $isAdvisorUser && (($validated['property_scope'] ?? 'mine') === 'all') ? 'all' : 'mine';
-        $visiblePropertyIds = $isAdvisorUser && $propertyScope === 'mine'
+        $propertyScope = 'mine';
+        $visiblePropertyIds = $isAdvisorUser
             ? $this->advisorPropertyIds($request)
             : null;
         $availableAdvisors = $this->availableAdvisors();
@@ -575,10 +580,7 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        return (bool) $user
-            && ! $user->hasRole('administrador')
-            && ! $user->hasRole('admin')
-            && ($user->hasRole('asesores') || $user->can('propiedades.ver_propias'));
+        return $this->propertyVisibility->shouldLimitToOwnProperties($user);
     }
 
     private function advisorPropertyIds(Request $request): Collection
@@ -589,19 +591,15 @@ class DashboardController extends Controller
             return collect();
         }
 
-        return $user->advisorProperties()
-            ->select('properties.id')
-            ->pluck('properties.id')
-            ->merge(Property::query()->where('advisor_user_id', $user->id)->pluck('id'))
-            ->unique()
-            ->values();
+        return $this->propertyVisibility->ownPropertyIds($user);
     }
 
     private function advisorFilterPropertyIds(int $advisorId): Collection
     {
         return Property::query()
             ->where(function ($query) use ($advisorId): void {
-                $query->where('advisor_user_id', $advisorId)
+                $query->where('created_by', $advisorId)
+                    ->orWhere('advisor_user_id', $advisorId)
                     ->orWhereHas('advisors', fn ($advisorQuery) => $advisorQuery->whereKey($advisorId));
             })
             ->pluck('id')

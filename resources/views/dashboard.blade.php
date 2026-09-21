@@ -340,8 +340,7 @@
                     <div class="dashboard-filter-field dashboard-filter-field--wide">
                         <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Propiedades</label>
                         <select name="property_scope" class="form-select w-200px">
-                            <option value="mine" {{ $propertyScope !== 'all' ? 'selected' : '' }}>Mis propiedades</option>
-                            <option value="all" {{ $propertyScope === 'all' ? 'selected' : '' }}>Todas las propiedades</option>
+                            <option value="mine" selected>Mis propiedades</option>
                         </select>
                     </div>
                 @endif

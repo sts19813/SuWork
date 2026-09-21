@@ -23,6 +23,7 @@ use App\Models\User;
 use App\Models\Zone;
 use App\Services\DossierDocumentRequirementService;
 use App\Services\PropertyDeletionService;
+use App\Support\PropertyVisibility;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -60,6 +61,7 @@ class PropertyController extends Controller
     public function __construct(
         private readonly DossierDocumentRequirementService $requirements,
         private readonly PropertyDeletionService $propertyDeletion,
+        private readonly PropertyVisibility $propertyVisibility,
     ) {}
 
     public function index(Request $request): View
@@ -77,6 +79,7 @@ class PropertyController extends Controller
             ->when($showArchived, fn ($query) => $query->whereNotNull('archived_at'))
             ->when(! $showArchived, fn ($query) => $query->whereNull('archived_at'))
             ->when($isProvider, fn (Builder $query) => $this->constrainPropertiesToProvider($query, $user))
+            ->when(! $isProvider, fn (Builder $query) => $this->propertyVisibility->scopeVisibleToUser($query, $user))
             ->with(['type', 'zone', 'tenant', 'advisor', 'advisors:id,name,email'])
             ->withCount([
                 'documents as incidents_count' => fn ($query) => $query->where('status', PropertyDocument::STATUS_PENDING),
@@ -1030,9 +1033,7 @@ class PropertyController extends Controller
 
     private function isAdvisorUser(?User $user): bool
     {
-        return (bool) $user
-            && ! $this->isAdminUser($user)
-            && ($this->hasAdvisorRole($user) || $user->can('propiedades.ver_propias'));
+        return $this->propertyVisibility->shouldLimitToOwnProperties($user);
     }
 
     private function hasAdvisorRole(?User $user): bool

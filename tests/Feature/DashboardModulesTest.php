@@ -105,7 +105,7 @@ class DashboardModulesTest extends TestCase
         $this->assertStringContainsString('background-color: #fff !important', $sidebarCss);
     }
 
-    public function test_advisor_dashboard_defaults_to_assigned_properties_and_can_view_all(): void
+    public function test_advisor_dashboard_only_shows_own_properties(): void
     {
         $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
         $advisor = User::factory()->create();
@@ -153,7 +153,7 @@ class DashboardModulesTest extends TestCase
             ->get(route('dashboard', ['property_scope' => 'all']))
             ->assertOk()
             ->assertSee('Casa Dashboard Asignada')
-            ->assertSee('Casa Dashboard General');
+            ->assertDontSee('Casa Dashboard General');
     }
 
     public function test_collection_kpis_match_donut_values_for_selected_range(): void

@@ -17,6 +17,7 @@ use App\Models\MaintenanceTicketNotification;
 use App\Models\Property;
 use App\Models\User;
 use App\Support\NotificationSettings;
+use App\Support\PropertyVisibility;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -36,6 +37,10 @@ use Spatie\Permission\Models\Role;
 class MaintenanceController extends Controller
 {
     private const MANAGE_TECHNICIANS_PERMISSION = 'administracion de tecnicos';
+
+    public function __construct(private readonly PropertyVisibility $propertyVisibility)
+    {
+    }
 
     public function index(Request $request): View
     {
@@ -1222,6 +1227,9 @@ class MaintenanceController extends Controller
         if ($user->hasRole('proveedor') || $user->hasRole('provider')) {
             return 'proveedor';
         }
+        if ($this->propertyVisibility->shouldLimitToOwnProperties($user)) {
+            return 'asesor';
+        }
 
         return 'administrador';
     }
@@ -1242,6 +1250,9 @@ class MaintenanceController extends Controller
             return $query->whereHas('supplierProviders', function (Builder $providerQuery) use ($user): void {
                 $this->constrainProviderToUser($providerQuery, $user, 'proveedor');
             });
+        }
+        if ($role === 'asesor') {
+            return $this->propertyVisibility->scopeVisibleToUser($query, $user);
         }
 
         return $query->where(function (Builder $propertyQuery) use ($user): void {
@@ -1285,6 +1296,9 @@ class MaintenanceController extends Controller
             return $query->whereHas('currentProvider', function (Builder $providerQuery) use ($user): void {
                 $this->constrainProviderToUser($providerQuery, $user, 'proveedor');
             });
+        }
+        if ($role === 'asesor') {
+            return $query->whereHas('property', fn (Builder $propertyQuery) => $this->propertyVisibility->scopeVisibleToUser($propertyQuery, $user));
         }
 
         return $query->where(function (Builder $ticketQuery) use ($user): void {
