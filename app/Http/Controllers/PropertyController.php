@@ -755,7 +755,7 @@ class PropertyController extends Controller
             ->where('is_active', true)
             ->values();
         $canManagePropertyTechnician = $this->canManagePropertyTechnician($user);
-        $canCreateScheduledMaintenance = $isProviderPropertyViewer || ($canManagePropertyTechnician && $assignedSupplierProviders->isNotEmpty());
+        $canCreateScheduledMaintenance = $isProviderPropertyViewer || $canManagePropertyTechnician;
 
         return view('properties.show', [
             'property' => $property,

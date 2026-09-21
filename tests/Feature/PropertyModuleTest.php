@@ -695,6 +695,29 @@ class PropertyModuleTest extends TestCase
             ->assertSee('Proveedor dos');
     }
 
+    public function test_admin_can_open_scheduled_maintenance_modal_without_assigned_providers(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $creator = User::factory()->create();
+        $type = PropertyType::query()->create(['name' => 'Casa programable', 'slug' => 'casa-programable', 'is_active' => true]);
+        $zone = Zone::query()->create(['name' => 'Zona programable', 'slug' => 'zona-programable', 'is_active' => true]);
+        $property = Property::query()->create([
+            'internal_name' => 'Casa sin proveedores asignados',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Programable 12',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $creator->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('properties.show', $property).'#tab-maintenance')
+            ->assertOk()
+            ->assertSee('Crear programados')
+            ->assertSee('createScheduledMaintenanceModal');
+    }
+
     public function test_assigned_provider_can_create_monthly_scheduled_maintenance_tickets(): void
     {
         $providerRole = Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']);
