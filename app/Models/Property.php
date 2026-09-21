@@ -259,6 +259,11 @@ class Property extends Model
         return $this->hasMany(PropertyLogbookEntry::class)->latest();
     }
 
+    public function controlOverrides(): HasMany
+    {
+        return $this->hasMany(PropertyControlOverride::class);
+    }
+
     public function getStatusLabelAttribute(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucfirst(str_replace('_', ' ', $this->status));

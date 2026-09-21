@@ -88,6 +88,7 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
             Route::put('/propiedades/{property}/tecnico', [PropertyController::class, 'updateTechnician'])->name('properties.update.technician');
             Route::put('/propiedades/{property}/proveedores', [PropertyController::class, 'updateProviders'])->name('properties.update.providers');
             Route::post('/propiedades/{property}/mantenimientos-programados', [PropertyController::class, 'storeScheduledMaintenance'])->name('properties.maintenance.schedule.store');
+            Route::patch('/propiedades/{property}/control/{checkKey}', [PropertyControlController::class, 'updateCheck'])->name('properties.control.checks.update');
             Route::patch('/propiedades/{property}/archivar', [PropertyController::class, 'archive'])->name('properties.archive');
             Route::patch('/propiedades/{property}/restaurar', [PropertyController::class, 'restore'])->name('properties.restore');
             Route::delete('/propiedades/{property}', [PropertyController::class, 'destroy'])->name('properties.destroy');

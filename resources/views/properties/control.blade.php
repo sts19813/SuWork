@@ -415,12 +415,27 @@
             padding: 12px 14px;
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 10px;
             background: #fff;
         }
 
-        .property-control-check i {
+        .property-control-check__label {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            font-weight: 700;
+        }
+
+        .property-control-check__label i {
             font-size: 1rem;
+            flex: 0 0 auto;
+        }
+
+        .property-control-check__label span {
+            min-width: 0;
+            overflow-wrap: anywhere;
         }
 
         .property-control-check.is-complete {
@@ -432,6 +447,42 @@
             border-color: rgba(148, 163, 184, 0.14);
             color: var(--pc-text);
             background: #fffaf5;
+        }
+
+        .property-control-check.is-manual {
+            border-color: rgba(14, 116, 144, 0.16);
+            background: #eefcff;
+        }
+
+        .property-control-check__form {
+            flex: 0 0 auto;
+        }
+
+        .property-control-check__toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 34px;
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            border-radius: 999px;
+            padding: 0 12px;
+            background: #fff;
+            color: var(--pc-text);
+            font-size: 0.78rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .property-control-check__toggle:hover {
+            border-color: rgba(181, 71, 8, 0.28);
+            color: var(--pc-accent);
+        }
+
+        .property-control-check__toggle.is-active {
+            border-color: rgba(14, 116, 144, 0.18);
+            background: #cffafe;
+            color: #0e7490;
         }
 
         .property-control-table-card .dataTables_info,
@@ -864,6 +915,13 @@
                 padding: 10px 12px;
                 font-size: 0.82rem;
                 line-height: 1.3;
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .property-control-check__form,
+            .property-control-check__toggle {
+                width: 100%;
             }
 
             .property-control-table-card .dataTables_info {
@@ -1070,9 +1128,31 @@
                                                         <div class="row g-3">
                                                             @foreach ($checkLabels as $key => $label)
                                                                 <div class="col-md-6">
-                                                                    <div class="property-control-check {{ ($row['checks'][$key] ?? false) ? 'is-complete' : 'is-missing' }}">
-                                                                        <i class="bi {{ ($row['checks'][$key] ?? false) ? 'bi-check-circle-fill' : 'bi-circle' }}"></i>
-                                                                        <span>{{ $label }}</span>
+                                                                    @php
+                                                                        $isComputedComplete = (bool) ($row['computed_checks'][$key] ?? false);
+                                                                        $isManualComplete = (bool) ($row['manual_checks'][$key] ?? false);
+                                                                        $isComplete = (bool) ($row['checks'][$key] ?? false);
+                                                                    @endphp
+                                                                    <div class="property-control-check {{ $isComplete ? 'is-complete' : 'is-missing' }} {{ $isManualComplete ? 'is-manual' : '' }}">
+                                                                        <span class="property-control-check__label">
+                                                                            <i class="bi {{ $isComplete ? ($isManualComplete ? 'bi-check2-square' : 'bi-check-circle-fill') : 'bi-circle' }}"></i>
+                                                                            <span>{{ $label }}</span>
+                                                                        </span>
+                                                                        @if (! $isComputedComplete || $isManualComplete)
+                                                                            <form method="POST"
+                                                                                action="{{ route('properties.control.checks.update', [$property, $key]) }}"
+                                                                                class="property-control-check__form js-property-control-action">
+                                                                                @csrf
+                                                                                @method('PATCH')
+                                                                                <input type="hidden" name="is_resolved" value="{{ $isManualComplete ? '0' : '1' }}">
+                                                                                <button type="submit"
+                                                                                    class="property-control-check__toggle {{ $isManualComplete ? 'is-active' : '' }}"
+                                                                                    title="{{ $isManualComplete ? 'Quitar marca manual' : 'Marcar como no aplica' }}">
+                                                                                    <i class="bi {{ $isManualComplete ? 'bi-arrow-counterclockwise' : 'bi-check2-square' }}"></i>
+                                                                                    <span>{{ $isManualComplete ? 'Desmarcar' : 'No aplica' }}</span>
+                                                                                </button>
+                                                                            </form>
+                                                                        @endif
                                                                     </div>
                                                                 </div>
                                                             @endforeach
