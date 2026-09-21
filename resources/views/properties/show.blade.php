@@ -1698,7 +1698,7 @@
                         <div class="modal-header">
                             <div>
                                 <h3 class="modal-title">Crear mantenimientos programados</h3>
-                                <div class="text-muted fs-7">Genera tickets semanales, cada 15 días o mensuales en un solo paso.</div>
+                                <div class="text-muted fs-7">Genera tickets semanales, cada 2 semanas, cada 3 semanas o mensuales en un solo paso.</div>
                             </div>
                             <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal">×</button>
                         </div>
@@ -1725,7 +1725,8 @@
                                     <label class="form-label required">Frecuencia</label>
                                     <select class="form-select" name="frequency" required>
                                         <option value="weekly" @selected(old('frequency') === 'weekly')>Semanal</option>
-                                        <option value="biweekly" @selected(old('frequency') === 'biweekly')>Cada 15 días</option>
+                                        <option value="biweekly" @selected(old('frequency') === 'biweekly')>Cada 2 semanas</option>
+                                        <option value="every_three_weeks" @selected(old('frequency') === 'every_three_weeks')>Cada 3 semanas</option>
                                         <option value="monthly" @selected(old('frequency', 'monthly') === 'monthly')>Mensual</option>
                                     </select>
                                 </div>

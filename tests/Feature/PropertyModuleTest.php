@@ -764,6 +764,71 @@ class PropertyModuleTest extends TestCase
             ->assertSee('01/01/2026 10:30');
     }
 
+    public function test_scheduled_maintenance_two_and_three_week_frequencies_keep_start_weekday(): void
+    {
+        $providerRole = Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']);
+        $providerUser = User::factory()->create(['email' => 'programados-semanas@example.test']);
+        $providerUser->assignRole($providerRole);
+        $creator = User::factory()->create();
+        $type = PropertyType::query()->create(['name' => 'Casa semanas', 'slug' => 'casa-semanas', 'is_active' => true]);
+        $zone = Zone::query()->create(['name' => 'Zona semanas', 'slug' => 'zona-semanas', 'is_active' => true]);
+        $property = Property::query()->create([
+            'internal_name' => 'Casa con semanas',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Semanas 12',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $creator->id,
+        ]);
+        $supplier = MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor semanal',
+            'email' => $providerUser->email,
+            'user_id' => $providerUser->id,
+            'is_active' => true,
+        ]);
+        $property->supplierProviders()->attach($supplier->id, ['assigned_by_user_id' => $creator->id]);
+
+        $basePayload = [
+            'start_date' => '2026-01-05',
+            'end_date' => '2026-02-28',
+            'visit_time' => '10:30',
+            'category' => 'jardineria',
+            'priority' => 'media',
+            'exact_location' => 'Jardín',
+            'description' => 'Servicio preventivo.',
+        ];
+
+        $this->actingAs($providerUser)
+            ->post(route('properties.maintenance.schedule.store', $property), $basePayload + [
+                'frequency' => 'biweekly',
+                'title' => 'Jardinería cada 2 semanas',
+            ])
+            ->assertRedirect(route('properties.show', $property).'#tab-maintenance');
+
+        $this->actingAs($providerUser)
+            ->post(route('properties.maintenance.schedule.store', $property), $basePayload + [
+                'frequency' => 'every_three_weeks',
+                'title' => 'Jardinería cada 3 semanas',
+            ])
+            ->assertRedirect(route('properties.show', $property).'#tab-maintenance');
+
+        $twoWeekDates = MaintenanceTicket::query()
+            ->where('title', 'Jardinería cada 2 semanas')
+            ->orderBy('scheduled_visit_at')
+            ->get()
+            ->pluck('scheduled_visit_at');
+        $threeWeekDates = MaintenanceTicket::query()
+            ->where('title', 'Jardinería cada 3 semanas')
+            ->orderBy('scheduled_visit_at')
+            ->get()
+            ->pluck('scheduled_visit_at');
+
+        $this->assertSame(['2026-01-05', '2026-01-19', '2026-02-02', '2026-02-16'], $twoWeekDates->map->toDateString()->all());
+        $this->assertSame(['2026-01-05', '2026-01-26', '2026-02-16'], $threeWeekDates->map->toDateString()->all());
+        $this->assertTrue($twoWeekDates->merge($threeWeekDates)->every(fn ($date): bool => $date->isoWeekday() === 1));
+    }
+
     public function test_admin_can_assign_responsible_advisors_from_properties_index(): void
     {
         $adminRole = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);

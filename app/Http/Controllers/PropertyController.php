@@ -372,7 +372,7 @@ class PropertyController extends Controller
 
         $validated = $request->validateWithBag('scheduledMaintenance', [
             'provider_id' => ['nullable', 'integer', 'exists:maintenance_providers,id'],
-            'frequency' => ['required', Rule::in(['weekly', 'biweekly', 'monthly'])],
+            'frequency' => ['required', Rule::in(['weekly', 'biweekly', 'every_three_weeks', 'monthly'])],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'visit_time' => ['required', 'date_format:H:i'],
@@ -1152,7 +1152,8 @@ class PropertyController extends Controller
 
             $cursor = match ($frequency) {
                 'weekly' => $cursor->copy()->addWeek(),
-                'biweekly' => $cursor->copy()->addDays(15),
+                'biweekly' => $cursor->copy()->addWeeks(2),
+                'every_three_weeks' => $cursor->copy()->addWeeks(3),
                 'monthly' => $cursor->copy()->addMonthNoOverflow(),
                 default => $cursor->copy()->addMonthNoOverflow(),
             };

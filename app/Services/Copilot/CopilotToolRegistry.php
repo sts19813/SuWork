@@ -51,7 +51,7 @@ class CopilotToolRegistry
             $this->tool('list_maintenance_tickets', 'Lista tickets de mantenimiento por estado, prioridad, categoria o propiedad.', [
                 'status' => ['type' => 'string', 'description' => 'pendiente, revisado, asignado, programado, en_proceso, esperando_material, completado, cancelado o reabierto.'],
                 'priority' => ['type' => 'string', 'description' => 'sin_asignar, baja, media, alta o urgente.'],
-                'category' => ['type' => 'string', 'description' => 'plomeria, electricidad, aire_acondicionado, limpieza, seguridad, electrodomesticos o estructural.'],
+                'category' => ['type' => 'string', 'description' => 'plomeria, electricidad, aire_acondicionado, limpieza, jardineria, carpinteria, servicio_piscinas, seguridad, electrodomesticos o estructural.'],
                 'property' => ['type' => 'string', 'description' => 'Nombre o referencia de propiedad.'],
                 'limit' => ['type' => 'integer', 'description' => 'Maximo de resultados, de 1 a 30.'],
             ]),
