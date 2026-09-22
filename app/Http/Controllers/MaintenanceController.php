@@ -1089,6 +1089,9 @@ class MaintenanceController extends Controller
         $isTechnician = $validated['type'] === 'tecnico_interno';
         $accountRole = $isTechnician ? 'tecnico' : 'proveedor';
         $accountLabel = $isTechnician ? 'técnico' : 'proveedor';
+        $previousUser = $provider->user;
+        $previousUserId = $provider->user_id ? (int) $provider->user_id : null;
+        $previousAccountRole = $provider->isTechnician() ? 'tecnico' : 'proveedor';
         $wantsCreateAccount = (bool) ($validated['create_user_account'] ?? false);
         $selectedUserId = $validated['user_id'] ?? null;
         if ($wantsCreateAccount && $selectedUserId) {
@@ -1107,10 +1110,20 @@ class MaintenanceController extends Controller
             $accountRole,
             $accountLabel,
         );
+        $accountNameForSync = $validated['account_name'] ?? null;
+        $accountEmailForSync = $validated['account_email'] ?? null;
+        if ($previousUser && $linkedUser && $previousUserId !== (int) $linkedUser->id && ! $wantsCreateAccount) {
+            if (trim((string) $accountNameForSync) === (string) $previousUser->name) {
+                $accountNameForSync = null;
+            }
+            if (trim((string) $accountEmailForSync) === (string) $previousUser->email) {
+                $accountEmailForSync = null;
+            }
+        }
         $updatedPassword = $this->syncOperationalUserAccess(
             $linkedUser,
-            $validated['account_name'] ?? null,
-            $validated['account_email'] ?? null,
+            $accountNameForSync,
+            $accountEmailForSync,
             $validated['account_password'] ?? null,
             $accountRole,
         );
@@ -1133,6 +1146,9 @@ class MaintenanceController extends Controller
             'is_active' => (bool) ($validated['is_active'] ?? false),
             'user_id' => $linkedUser?->id,
         ]);
+        if ($previousUser && (! $linkedUser || (int) $previousUser->id !== (int) $linkedUser->id)) {
+            $this->removeOperationalAccessIfUnused($previousUser, $previousAccountRole);
+        }
         if (
             (bool) ($validated['send_credentials_email'] ?? false)
             && $linkedUser

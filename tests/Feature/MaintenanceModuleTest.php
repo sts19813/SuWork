@@ -1311,6 +1311,53 @@ class MaintenanceModuleTest extends TestCase
         $this->assertAuthenticatedAs($linkedUser);
     }
 
+    public function test_supplier_assigned_user_can_be_changed_without_overwriting_new_user_access(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']);
+
+        $oldUser = User::factory()->create([
+            'name' => 'Usuario anterior',
+            'email' => 'usuario.anterior@example.test',
+        ]);
+        $oldUser->assignRole('proveedor');
+        $newUser = User::factory()->create([
+            'name' => 'Usuario nuevo',
+            'email' => 'usuario.nuevo@example.test',
+        ]);
+        $supplier = MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor con usuario',
+            'email' => 'contacto.proveedor@example.test',
+            'category' => 'Plomería',
+            'is_active' => true,
+            'user_id' => $oldUser->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('maintenance.providers.update', $supplier), [
+                'type' => 'proveedor',
+                'name' => 'Proveedor con usuario',
+                'email' => 'contacto.proveedor@example.test',
+                'category' => 'Plomería',
+                'is_active' => '1',
+                'user_id' => $newUser->id,
+                'account_name' => 'Usuario anterior',
+                'account_email' => 'usuario.anterior@example.test',
+            ])
+            ->assertRedirect();
+
+        $supplier->refresh();
+        $oldUser->refresh();
+        $newUser->refresh();
+        $this->assertSame($newUser->id, $supplier->user_id);
+        $this->assertSame('Usuario nuevo', $newUser->name);
+        $this->assertSame('usuario.nuevo@example.test', $newUser->email);
+        $this->assertTrue($newUser->hasRole('proveedor'));
+        $this->assertFalse($oldUser->hasRole('proveedor'));
+    }
+
     public function test_only_admin_can_archive_unassigned_supplier_and_remove_access(): void
     {
         $admin = User::factory()->create();
