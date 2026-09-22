@@ -15,6 +15,7 @@ use App\Models\MaintenanceTicketFile;
 use App\Models\MaintenanceTicketMessage;
 use App\Models\MaintenanceTicketNotification;
 use App\Models\Property;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Support\NotificationSettings;
 use App\Support\PropertyVisibility;
@@ -1375,7 +1376,11 @@ class MaintenanceController extends Controller
             return $query->whereHas('owners', fn (Builder $ownerQuery) => $ownerQuery->where('email', $user->email));
         }
         if ($role === 'inquilino') {
-            return $query->whereHas('tenant', fn (Builder $tenantQuery) => $tenantQuery->where('email', $user->email));
+            $tenantIds = $this->tenantIdsForUser($user);
+
+            return $tenantIds === []
+                ? $query->whereRaw('1 = 0')
+                : $query->whereIn('tenant_id', $tenantIds);
         }
         if ($role === 'proveedor') {
             return $query->whereHas('supplierProviders', function (Builder $providerQuery) use ($user): void {
@@ -1421,7 +1426,11 @@ class MaintenanceController extends Controller
             return $query->whereHas('property.owners', fn (Builder $ownerQuery) => $ownerQuery->where('email', $user->email));
         }
         if ($role === 'inquilino') {
-            return $query->whereHas('property.tenant', fn (Builder $tenantQuery) => $tenantQuery->where('email', $user->email));
+            $tenantIds = $this->tenantIdsForUser($user);
+
+            return $tenantIds === []
+                ? $query->whereRaw('1 = 0')
+                : $query->whereHas('property', fn (Builder $propertyQuery) => $propertyQuery->whereIn('tenant_id', $tenantIds));
         }
         if ($role === 'proveedor') {
             return $query->whereHas('currentProvider', function (Builder $providerQuery) use ($user): void {
@@ -1441,6 +1450,36 @@ class MaintenanceController extends Controller
                     $this->constrainProviderToUser($providerQuery, $user);
                 });
         });
+    }
+
+    private function tenantIdsForUser(User $user): array
+    {
+        $email = trim((string) $user->email);
+        if ($email !== '') {
+            $tenantIds = Tenant::query()
+                ->where('email', $email)
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all();
+            if ($tenantIds !== []) {
+                return $tenantIds;
+            }
+        }
+
+        $name = trim((string) $user->name);
+        if ($name === '') {
+            return [];
+        }
+
+        $matchingTenants = Tenant::query()
+            ->where('is_active', true)
+            ->where('full_name', $name)
+            ->pluck('id');
+        if ($matchingTenants->count() !== 1) {
+            return [];
+        }
+
+        return [(int) $matchingTenants->first()];
     }
 
     private function constrainProviderToUser(Builder $query, User $user, string $providerType = 'tecnico_interno'): void

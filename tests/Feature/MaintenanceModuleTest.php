@@ -348,6 +348,121 @@ class MaintenanceModuleTest extends TestCase
         $this->assertDatabaseCount('maintenance_ticket_files', 1);
     }
 
+    public function test_tenant_create_ticket_modal_lists_all_assigned_properties(): void
+    {
+        Role::query()->firstOrCreate(['name' => 'inquilino', 'guard_name' => 'web']);
+        $tenantUser = User::factory()->create(['email' => 'cliente.multiple@example.test']);
+        $tenantUser->assignRole('inquilino');
+        $admin = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa multiple', 'slug' => 'casa-multiple', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Zona multiple', 'slug' => 'zona-multiple', 'is_active' => true]);
+        $tenant = Tenant::create([
+            'full_name' => 'Cliente Multiple',
+            'phone_primary' => '9991112233',
+            'email' => $tenantUser->email,
+            'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
+            'is_active' => true,
+        ]);
+        $otherTenant = Tenant::create([
+            'full_name' => 'Cliente Ajeno',
+            'phone_primary' => '9991112244',
+            'email' => 'cliente.ajeno@example.test',
+            'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
+            'is_active' => true,
+        ]);
+        $propertyA = Property::create([
+            'internal_name' => 'Casa A del inquilino',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle A',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+            'onboarding_step' => 5,
+            'created_by' => $admin->id,
+        ]);
+        $propertyB = Property::create([
+            'internal_name' => 'Casa B del inquilino',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle B',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+            'onboarding_step' => 5,
+            'created_by' => $admin->id,
+        ]);
+        Property::create([
+            'internal_name' => 'Casa ajena',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle C',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $otherTenant->id,
+            'current_tenant_name' => $otherTenant->full_name,
+            'onboarding_step' => 5,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($tenantUser)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertSee('Nuevo ticket de mantenimiento')
+            ->assertSee('Casa A del inquilino')
+            ->assertSee('Casa B del inquilino')
+            ->assertSee('value="'.$propertyA->id.'"', false)
+            ->assertSee('value="'.$propertyB->id.'"', false)
+            ->assertDontSee('Casa ajena');
+    }
+
+    public function test_tenant_properties_fall_back_to_unique_tenant_name_when_email_differs(): void
+    {
+        Storage::fake('public');
+        Mail::fake();
+
+        Role::query()->firstOrCreate(['name' => 'inquilino', 'guard_name' => 'web']);
+        $tenantUser = User::factory()->create([
+            'name' => 'JOSEFINA AVILA',
+            'email' => 'javilavazquez@example.test',
+        ]);
+        $tenantUser->assignRole('inquilino');
+        $tenant = Tenant::create([
+            'full_name' => 'JOSEFINA AVILA',
+            'phone_primary' => '9991112233',
+            'email' => 'otro.correo@example.test',
+            'dossier_status' => Tenant::DOSSIER_INCOMPLETE,
+            'is_active' => true,
+        ]);
+        $property = $this->createPropertyFixture($tenantUser);
+        $property->update([
+            'internal_name' => 'Casa visible por nombre',
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+        ]);
+
+        $this->actingAs($tenantUser)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertSee('Casa visible por nombre')
+            ->assertSee('value="'.$property->id.'"', false);
+
+        $this->actingAs($tenantUser)
+            ->post(route('maintenance.store'), [
+                'property_id' => $property->id,
+                'title' => 'Fuga en lavabo',
+                'files' => [
+                    UploadedFile::fake()->image('lavabo.jpg'),
+                ],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('maintenance_tickets', [
+            'property_id' => $property->id,
+            'reported_by_user_id' => $tenantUser->id,
+            'title' => 'Fuga en lavabo',
+        ]);
+    }
+
     public function test_tenant_ticket_without_property_technician_notifies_responsible_advisor(): void
     {
         Storage::fake('public');
