@@ -1082,7 +1082,7 @@ class MaintenanceController extends Controller
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
             'create_user_account' => ['nullable', 'boolean'],
             'account_name' => ['nullable', 'string', 'max:255'],
-            'account_email' => ['nullable', 'email', 'max:190', 'unique:users,email'],
+            'account_email' => ['nullable', 'email', 'max:190'],
             'account_password' => ['nullable', 'string', 'min:8', 'max:120'],
             'send_credentials_email' => ['nullable', 'boolean'],
         ]);
@@ -1107,6 +1107,16 @@ class MaintenanceController extends Controller
             $accountRole,
             $accountLabel,
         );
+        $updatedPassword = $this->syncOperationalUserAccess(
+            $linkedUser,
+            $validated['account_name'] ?? null,
+            $validated['account_email'] ?? null,
+            $validated['account_password'] ?? null,
+            $accountRole,
+        );
+        if (filled($updatedPassword)) {
+            $generatedPassword = $updatedPassword;
+        }
 
         $provider->update([
             'type' => (string) $validated['type'],
@@ -1131,7 +1141,7 @@ class MaintenanceController extends Controller
         ) {
             try {
                 Mail::raw(
-                    "Tu cuenta de {$accountLabel} fue creada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: ".url('/login'),
+                    "Tu cuenta de {$accountLabel} fue actualizada.\n\nAcceso:\nCorreo: {$linkedUser->email}\nContraseña: {$generatedPassword}\n\nPortal: ".url('/login'),
                     fn ($mail) => $mail->to($linkedUser->email)->subject('Acceso al sistema de mantenimiento')
                 );
             } catch (\Throwable) {
@@ -1139,6 +1149,35 @@ class MaintenanceController extends Controller
         }
 
         return redirect()->back()->with('success', $isTechnician ? 'Técnico actualizado correctamente.' : 'Proveedor actualizado correctamente.');
+    }
+
+    public function destroyProvider(Request $request, MaintenanceProvider $provider): RedirectResponse
+    {
+        $user = $request->user();
+        if (! $this->isAdminUser($user)) {
+            abort(403);
+        }
+        if (! $provider->isSupplier()) {
+            return redirect()->back()->with('error', 'Sólo se pueden eliminar proveedores desde este módulo.');
+        }
+        if ($provider->assignedProperties()->exists()) {
+            return redirect()->back()->with('error', 'No se puede eliminar: el proveedor todavía está asignado a una propiedad.');
+        }
+
+        DB::transaction(function () use ($provider): void {
+            $linkedUser = $provider->user;
+
+            $provider->update([
+                'is_active' => false,
+                'user_id' => null,
+            ]);
+
+            if ($linkedUser) {
+                $this->removeOperationalAccessIfUnused($linkedUser, 'proveedor');
+            }
+        });
+
+        return redirect()->back()->with('success', 'Proveedor archivado correctamente.');
     }
 
     private function resolveOrCreateOperationalUser(
@@ -1172,6 +1211,11 @@ class MaintenanceController extends Controller
                 'account_email' => "Debes proporcionar el correo para crear la cuenta del {$accountLabel}.",
             ]);
         }
+        if (User::query()->where('email', $email)->exists()) {
+            throw ValidationException::withMessages([
+                'account_email' => 'Ya existe un usuario con ese correo de acceso.',
+            ]);
+        }
         $password = filled($accountPassword) ? (string) $accountPassword : Str::random(12);
         $name = trim((string) ($accountName ?? ''));
         if ($name === '') {
@@ -1186,6 +1230,62 @@ class MaintenanceController extends Controller
         $this->ensureOperationalRole($user, $roleName);
 
         return [$user, $password];
+    }
+
+    private function syncOperationalUserAccess(
+        ?User $user,
+        ?string $accountName,
+        ?string $accountEmail,
+        ?string $accountPassword,
+        string $roleName,
+    ): ?string {
+        if (! $user) {
+            return null;
+        }
+
+        $updates = [];
+        $name = trim((string) ($accountName ?? ''));
+        if ($name !== '') {
+            $updates['name'] = $name;
+        }
+
+        $email = trim((string) ($accountEmail ?? ''));
+        if ($email !== '' && $email !== $user->email) {
+            if (User::query()->where('email', $email)->whereKeyNot($user->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'account_email' => 'Ya existe un usuario con ese correo de acceso.',
+                ]);
+            }
+            $updates['email'] = $email;
+        }
+
+        $plainPassword = filled($accountPassword) ? (string) $accountPassword : null;
+        if ($plainPassword !== null) {
+            $updates['password'] = Hash::make($plainPassword);
+        }
+
+        if ($updates !== []) {
+            $user->forceFill($updates)->save();
+        }
+        $this->ensureOperationalRole($user, $roleName);
+
+        return $plainPassword;
+    }
+
+    private function removeOperationalAccessIfUnused(User $user, string $roleName): void
+    {
+        $hasOtherProvider = MaintenanceProvider::query()
+            ->where('user_id', $user->id)
+            ->exists();
+        if ($hasOtherProvider) {
+            return;
+        }
+
+        foreach ([$roleName, $roleName === 'proveedor' ? 'provider' : 'technician'] as $role) {
+            if ($user->hasRole($role)) {
+                $user->removeRole($role);
+            }
+        }
     }
 
     private function ensureOperationalRole(User $user, string $roleName): void
@@ -1214,6 +1314,12 @@ class MaintenanceController extends Controller
                 || $user->hasRole('admin')
                 || $user->can(self::MANAGE_TECHNICIANS_PERMISSION)
             );
+    }
+
+    private function isAdminUser(?User $user): bool
+    {
+        return (bool) $user
+            && ($user->hasRole('administrador') || $user->hasRole('admin'));
     }
 
     private function resolveRole(?User $user): string

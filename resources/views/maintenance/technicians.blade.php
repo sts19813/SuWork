@@ -9,6 +9,7 @@
         $directoryDescription = $isTechnicianDirectory
             ? 'Administra el equipo técnico interno y sus cuentas de acceso al sistema.'
             : 'Administra los contactos externos disponibles para atender tickets de mantenimiento.';
+        $canDeleteSuppliers = auth()->user()?->hasAnyRole(['administrador', 'admin']) ?? false;
     @endphp
 
     <div class="maintenance-directory py-8">
@@ -72,7 +73,18 @@
                                 <td>@if ($supplier->user)<div class="fw-semibold">{{ $supplier->user->name }}</div><small>{{ $supplier->user->email }}</small>@else<span class="badge badge-light-warning">Sin cuenta vinculada</span>@endif</td>
                                 <td>{{ $supplier->availability ?: 'Sin especificar' }}</td>
                                 <td><span class="directory-status {{ $supplier->is_active ? 'is-active' : '' }}">{{ $supplier->is_active ? 'Activo' : 'Inactivo' }}</span></td>
-                                <td class="text-end"><button class="btn btn-sm btn-light-primary" data-bs-toggle="modal" data-bs-target="#editProviderModal-{{ $supplier->id }}">Editar</button></td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex gap-2">
+                                        <button class="btn btn-sm btn-light-primary" data-bs-toggle="modal" data-bs-target="#editProviderModal-{{ $supplier->id }}">Editar</button>
+                                        @if ($canDeleteSuppliers)
+                                            <form method="POST" action="{{ route('maintenance.providers.destroy', $supplier) }}" onsubmit="return confirm('¿Eliminar este proveedor? Se archivará y se removerá su acceso si no tiene propiedades asignadas.');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button class="btn btn-sm btn-light-danger" type="submit">Eliminar</button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr><td colspan="7"><div class="directory-empty"><i class="bi bi-building"></i><strong>Aún no hay proveedores</strong><span>Agrega el primer proveedor y configura su acceso a tickets.</span></div></td></tr>
@@ -152,8 +164,8 @@
                             <div class="col-12"><div class="directory-account-title"><i class="bi bi-shield-lock"></i><div><strong>Acceso al sistema</strong><span>Conserva la cuenta vinculada o crea una nueva.</span></div></div></div>
                             <div class="col-md-6"><label class="form-label">Vincular usuario existente</label><select class="form-select" name="user_id"><option value="">Conservar cuenta actual</option>@foreach ($users as $userRow)<option value="{{ $userRow->id }}" {{ (int) $provider->user_id === (int) $userRow->id ? 'selected' : '' }}>{{ $userRow->name }} · {{ $userRow->email }}</option>@endforeach</select></div>
                             <div class="col-md-6 d-flex align-items-end"><div class="form-check form-check-custom form-check-solid"><input class="form-check-input" type="checkbox" value="1" id="create_user_account_{{ $provider->id }}" name="create_user_account"><label class="form-check-label" for="create_user_account_{{ $provider->id }}">Crear usuario nuevo</label></div></div>
-                            <div class="col-md-6"><label class="form-label">Nombre del usuario</label><input class="form-control" name="account_name" maxlength="255" value="{{ $provider->name }}"></div>
-                            <div class="col-md-6"><label class="form-label">Correo de acceso</label><input class="form-control" type="email" name="account_email" maxlength="190"></div>
+                            <div class="col-md-6"><label class="form-label">Nombre del usuario</label><input class="form-control" name="account_name" maxlength="255" value="{{ $provider->user?->name ?? $provider->name }}"></div>
+                            <div class="col-md-6"><label class="form-label">Correo de acceso</label><input class="form-control" type="email" name="account_email" maxlength="190" value="{{ $provider->user?->email }}"></div>
                             <div class="col-md-6"><label class="form-label">Contraseña</label><input class="form-control" type="text" name="account_password" maxlength="120"></div>
                             <div class="col-md-6 d-flex align-items-end"><div class="form-check form-check-custom form-check-solid"><input class="form-check-input" type="checkbox" value="1" id="send_credentials_email_{{ $provider->id }}" name="send_credentials_email"><label class="form-check-label" for="send_credentials_email_{{ $provider->id }}">Enviar acceso por correo</label></div></div>
                             <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" value="1" name="is_active" id="provider_active_{{ $provider->id }}" {{ $provider->is_active ? 'checked' : '' }}><label class="form-check-label" for="provider_active_{{ $provider->id }}">Registro activo</label></div></div>

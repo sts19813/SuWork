@@ -225,6 +225,7 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::post('/mantenimiento/{maintenance}/mensajes', [MaintenanceController::class, 'storeMessage'])->name('maintenance.messages');
         Route::post('/mantenimiento/proveedores', [MaintenanceController::class, 'storeProvider'])->name('maintenance.providers.store');
         Route::put('/mantenimiento/proveedores/{provider}', [MaintenanceController::class, 'updateProvider'])->name('maintenance.providers.update');
+        Route::delete('/mantenimiento/proveedores/{provider}', [MaintenanceController::class, 'destroyProvider'])->name('maintenance.providers.destroy');
 
         // Almacén (solo técnicos y administradores)
         Route::middleware('storage.access')->group(function (): void {

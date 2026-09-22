@@ -15,6 +15,7 @@ use App\Models\Zone;
 use App\Support\NotificationSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -1254,6 +1255,145 @@ class MaintenanceModuleTest extends TestCase
             ->assertOk()
             ->assertSee('Proveedor exclusivo del catálogo')
             ->assertDontSee('Técnico exclusivo del catálogo');
+    }
+
+    public function test_supplier_system_access_is_updated_from_provider_edit(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']);
+
+        $linkedUser = User::factory()->create([
+            'name' => 'Acceso anterior',
+            'email' => 'acceso.anterior@example.test',
+            'password' => Hash::make('clave-anterior'),
+        ]);
+        $linkedUser->assignRole('proveedor');
+        $supplier = MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor anterior',
+            'email' => 'contacto.anterior@example.test',
+            'category' => 'Plomería',
+            'is_active' => true,
+            'user_id' => $linkedUser->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('maintenance.providers.update', $supplier), [
+                'type' => 'proveedor',
+                'name' => 'Proveedor actualizado',
+                'email' => 'contacto.actualizado@example.test',
+                'phone' => '9991112233',
+                'category' => 'Electricidad',
+                'availability' => 'Lunes a viernes',
+                'is_active' => '1',
+                'user_id' => $linkedUser->id,
+                'account_name' => 'Acceso actualizado',
+                'account_email' => 'acceso.actualizado@example.test',
+                'account_password' => 'nueva-clave-123',
+            ])
+            ->assertRedirect();
+
+        $linkedUser->refresh();
+        $supplier->refresh();
+        $this->assertSame('Acceso actualizado', $linkedUser->name);
+        $this->assertSame('acceso.actualizado@example.test', $linkedUser->email);
+        $this->assertTrue(Hash::check('nueva-clave-123', $linkedUser->password));
+        $this->assertSame('Proveedor actualizado', $supplier->name);
+        $this->assertSame('contacto.actualizado@example.test', $supplier->email);
+        $this->assertSame('Electricidad', $supplier->category);
+
+        auth()->logout();
+        $this->post('/login', [
+            'email' => 'acceso.actualizado@example.test',
+            'password' => 'nueva-clave-123',
+        ])->assertRedirect(route('maintenance.index', absolute: false));
+        $this->assertAuthenticatedAs($linkedUser);
+    }
+
+    public function test_only_admin_can_archive_unassigned_supplier_and_remove_access(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $advisor = User::factory()->create();
+        $advisor->assignRole(Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']));
+        $providerRole = Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']);
+        $linkedUser = User::factory()->create(['email' => 'proveedor.archivo@example.test']);
+        $linkedUser->assignRole($providerRole);
+        $supplier = MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor por archivar',
+            'email' => 'proveedor.archivo@example.test',
+            'category' => 'Jardinería',
+            'is_active' => true,
+            'user_id' => $linkedUser->id,
+        ]);
+        $ticket = MaintenanceTicket::query()->create([
+            'property_id' => $this->createPropertyFixture($admin)->id,
+            'current_provider_id' => $supplier->id,
+            'reported_by_user_id' => $admin->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $admin->name,
+            'category' => 'jardineria',
+            'priority' => 'media',
+            'status' => 'completado',
+            'title' => 'Ticket histórico',
+            'exact_location' => 'Patio',
+            'description' => 'Se mantiene histórico',
+            'reported_at' => now(),
+            'completed_at' => now(),
+        ]);
+
+        $this->actingAs($advisor)
+            ->delete(route('maintenance.providers.destroy', $supplier))
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->get(route('maintenance.providers.index'))
+            ->assertOk()
+            ->assertSee(route('maintenance.providers.destroy', $supplier), false);
+
+        $this->actingAs($admin)
+            ->delete(route('maintenance.providers.destroy', $supplier))
+            ->assertRedirect();
+
+        $supplier->refresh();
+        $linkedUser->refresh();
+        $this->assertFalse($supplier->is_active);
+        $this->assertNull($supplier->user_id);
+        $this->assertFalse($linkedUser->hasRole('proveedor'));
+        $this->assertSame($supplier->id, $ticket->fresh()->current_provider_id);
+    }
+
+    public function test_supplier_assigned_to_property_cannot_be_archived(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $linkedUser = User::factory()->create(['email' => 'proveedor.asignado@example.test']);
+        $linkedUser->assignRole(Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']));
+        $supplier = MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor asignado',
+            'email' => 'proveedor.asignado@example.test',
+            'category' => 'Seguridad',
+            'is_active' => true,
+            'user_id' => $linkedUser->id,
+        ]);
+        $property = $this->createPropertyFixture($admin);
+        $property->supplierProviders()->attach($supplier->id, ['assigned_by_user_id' => $admin->id]);
+
+        $this->actingAs($admin)
+            ->from(route('maintenance.providers.index'))
+            ->delete(route('maintenance.providers.destroy', $supplier))
+            ->assertRedirect(route('maintenance.providers.index'));
+
+        $supplier->refresh();
+        $this->assertTrue($supplier->is_active);
+        $this->assertSame($linkedUser->id, $supplier->user_id);
+        $this->assertDatabaseHas('maintenance_provider_property', [
+            'property_id' => $property->id,
+            'maintenance_provider_id' => $supplier->id,
+        ]);
     }
 
     public function test_supplier_can_manage_only_its_assigned_ticket_without_storage_access(): void
