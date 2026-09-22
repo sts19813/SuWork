@@ -343,7 +343,7 @@
                                         </span>
                                     </span>
                                     <span class="maintenance-provider-cell">
-                                        @if ($canUpdateTicketMeta)
+                                        @if ($canUpdateTicketProvider)
                                             <span class="dropdown maintenance-inline-dropdown maintenance-provider-dropdown" data-maintenance-row-action>
                                                 <button class="maintenance-provider-trigger dropdown-toggle" type="button"
                                                     data-bs-toggle="dropdown" aria-expanded="false"

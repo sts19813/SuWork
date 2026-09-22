@@ -297,7 +297,7 @@
                                         </select>
                                     </div>
                                 @endif
-                                @if (in_array($role, ['administrador', 'tecnico'], true))
+                                @if ($canUpdateTicketMeta)
                                     <div class="col-md-6">
                                         <label class="form-label">Destinatario</label>
                                         <select class="form-select" name="recipient_user_id">
@@ -593,7 +593,7 @@
                         <div class="d-flex flex-column gap-3">
                             <div>
                                 <label class="form-label">Categoría</label>
-                                @if (in_array($role, ['administrador', 'tecnico'], true))
+                                @if ($canUpdateTicketMeta)
                                     <select class="form-select js-ticket-meta" data-field="category">
                                         @foreach ($categoryOptions as $key => $label)
                                             <option value="{{ $key }}" {{ $ticket->category === $key ? 'selected' : '' }}>{{ $label }}</option>
@@ -605,7 +605,7 @@
                             </div>
                             <div>
                                 <label class="form-label">Prioridad</label>
-                                @if (in_array($role, ['administrador', 'tecnico'], true))
+                                @if ($canUpdateTicketMeta)
                                     <select class="form-select js-ticket-meta" data-field="priority">
                                         @foreach ($priorityOptions as $key => $label)
                                             <option value="{{ $key }}" {{ $ticket->priority === $key ? 'selected' : '' }}>{{ $label }}</option>
@@ -617,7 +617,7 @@
                             </div>
                             <div>
                                 <label class="form-label">Técnico o proveedor asignado</label>
-                                @if (in_array($role, ['administrador', 'tecnico'], true))
+                                @if ($canUpdateTicketProvider)
                                     <select class="form-select js-ticket-meta" data-field="provider_id" data-ticket-uuid="{{ $ticket->uuid }}" data-scheduled-visit-at="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i:s') }}">
                                         <option value="">Sin asignar</option>
                                         @foreach ($providers as $provider)

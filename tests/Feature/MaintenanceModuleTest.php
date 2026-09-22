@@ -1035,6 +1035,76 @@ class MaintenanceModuleTest extends TestCase
         ]);
     }
 
+    public function test_assigned_advisor_can_change_ticket_provider_but_not_other_meta(): void
+    {
+        Mail::fake();
+
+        $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $advisor = User::factory()->create(['name' => 'Asesora mantenimiento']);
+        $advisor->assignRole($advisorRole);
+        $creator = User::factory()->create();
+        $property = $this->createPropertyFixture($creator);
+        $property->advisors()->attach($advisor->id);
+        $technician = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Tecnico inicial',
+            'email' => 'tecnico.inicial@example.test',
+            'specialty' => 'General',
+            'is_active' => true,
+        ]);
+        $supplier = MaintenanceProvider::create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor nuevo',
+            'email' => 'proveedor.nuevo@example.test',
+            'category' => 'Carpinteria',
+            'is_active' => true,
+        ]);
+        $ticket = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'current_provider_id' => $technician->id,
+            'reported_by_user_id' => $creator->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $creator->name,
+            'category' => 'carpinteria',
+            'priority' => 'media',
+            'status' => 'asignado',
+            'title' => 'Puerta dañada',
+            'exact_location' => 'Acceso',
+            'description' => 'Cambiar responsable',
+            'reported_at' => now(),
+        ]);
+
+        $this->actingAs($advisor)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertSee('Cambiar técnico o proveedor de', false)
+            ->assertSee('Proveedor nuevo')
+            ->assertDontSee('Cambiar urgencia de', false);
+
+        $this->actingAs($advisor)
+            ->from(route('maintenance.index'))
+            ->patch(route('maintenance.meta', $ticket), [
+                'provider_id' => $supplier->id,
+                'notes' => 'Asignación rápida desde panel',
+            ])
+            ->assertRedirect(route('maintenance.index'));
+
+        $ticket->refresh();
+        $this->assertSame($supplier->id, $ticket->current_provider_id);
+        $this->assertSame('asignado', $ticket->status);
+        $this->assertDatabaseHas('maintenance_ticket_assignments', [
+            'ticket_id' => $ticket->id,
+            'provider_id' => $supplier->id,
+            'is_current' => true,
+        ]);
+
+        $this->actingAs($advisor)
+            ->patch(route('maintenance.meta', $ticket), [
+                'priority' => 'urgente',
+            ])
+            ->assertForbidden();
+    }
+
     public function test_user_without_technician_administration_permission_cannot_open_technicians_module(): void
     {
         Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);

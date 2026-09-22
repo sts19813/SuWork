@@ -234,6 +234,7 @@ class MaintenanceController extends Controller
             'canManageProviders' => $this->canManageTechnicians($user),
             'canManageAssignments' => $role === 'administrador',
             'canUpdateTicketMeta' => in_array($role, ['administrador', 'tecnico'], true),
+            'canUpdateTicketProvider' => in_array($role, ['administrador', 'tecnico', 'asesor'], true),
             'canManageCosts' => in_array($role, ['administrador', 'proveedor'], true),
             'isTenant' => $role === 'inquilino',
         ]);
@@ -425,7 +426,9 @@ class MaintenanceController extends Controller
             'costPayerOptions' => MaintenanceTicket::COST_PAYER_LABELS,
             'paymentRuleOptions' => MaintenanceTicket::PAYMENT_RULE_LABELS,
             'messageChannels' => MaintenanceTicketMessage::CHANNEL_LABELS,
-            'canManageAssignments' => in_array($role, ['administrador', 'tecnico'], true),
+            'canManageAssignments' => in_array($role, ['administrador', 'tecnico', 'asesor'], true),
+            'canUpdateTicketMeta' => in_array($role, ['administrador', 'tecnico'], true),
+            'canUpdateTicketProvider' => in_array($role, ['administrador', 'tecnico', 'asesor'], true),
             'canViewCosts' => $canViewCosts,
             'canManageCosts' => $canViewCosts && ! $isMaintenancePaid,
             'isMaintenancePaid' => $isMaintenancePaid,
@@ -528,7 +531,7 @@ class MaintenanceController extends Controller
         $user = $request->user();
         $role = $this->resolveRole($user);
         $this->ensureTicketVisible($maintenance, $user, $role);
-        if (! in_array($role, ['administrador', 'tecnico'], true)) {
+        if (! in_array($role, ['administrador', 'tecnico', 'asesor'], true)) {
             abort(403);
         }
 
@@ -541,6 +544,12 @@ class MaintenanceController extends Controller
             'scheduled_visit_at' => ['nullable', 'date'],
             'force_conflict' => ['nullable', 'boolean'],
         ]);
+        if ($role === 'asesor') {
+            $allowedAdvisorFields = ['provider_id', 'notes', 'force_conflict'];
+            if (array_diff(array_keys($validated), $allowedAdvisorFields) !== []) {
+                abort(403);
+            }
+        }
 
         $updates = [];
         if (filled($validated['category'] ?? null)) {
