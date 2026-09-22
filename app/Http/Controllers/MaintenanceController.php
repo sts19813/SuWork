@@ -230,7 +230,7 @@ class MaintenanceController extends Controller
             ],
             'calendarItems' => $calendarItems,
             'role' => $role,
-            'canCreateTicket' => in_array($role, ['administrador', 'inquilino', 'tecnico'], true),
+            'canCreateTicket' => in_array($role, ['administrador', 'inquilino', 'tecnico', 'asesor'], true),
             'canManageProviders' => $this->canManageTechnicians($user),
             'canManageAssignments' => $role === 'administrador',
             'canUpdateTicketMeta' => in_array($role, ['administrador', 'tecnico'], true),
@@ -271,7 +271,7 @@ class MaintenanceController extends Controller
     {
         $user = $request->user();
         $role = $this->resolveRole($user);
-        if (! in_array($role, ['administrador', 'inquilino', 'tecnico'], true)) {
+        if (! in_array($role, ['administrador', 'inquilino', 'tecnico', 'asesor'], true)) {
             abort(403);
         }
 

@@ -555,6 +555,70 @@ class PropertyModuleTest extends TestCase
         ]);
     }
 
+    public function test_assigned_advisor_can_create_maintenance_ticket_from_property_detail(): void
+    {
+        $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $advisor = User::factory()->create(['name' => 'Asesora mantenimiento']);
+        $advisor->assignRole($advisorRole);
+        $creator = User::factory()->create();
+        $type = PropertyType::query()->create(['name' => 'Casa mantenimiento asesor', 'slug' => 'casa-mantenimiento-asesor', 'is_active' => true]);
+        $zone = Zone::query()->create(['name' => 'Zona mantenimiento asesor', 'slug' => 'zona-mantenimiento-asesor', 'is_active' => true]);
+        $property = Property::query()->create([
+            'internal_name' => 'Casa ticket asesor',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Ticket 10',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $creator->id,
+        ]);
+        $property->advisors()->attach($advisor->id);
+        $otherProperty = Property::query()->create([
+            'internal_name' => 'Casa ticket ajena',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Ticket 11',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $creator->id,
+        ]);
+
+        $this->actingAs($advisor)
+            ->get(route('properties.show', $property).'#tab-maintenance')
+            ->assertOk()
+            ->assertSee('Crear ticket')
+            ->assertSee('createPropertyMaintenanceTicketModal');
+
+        $this->actingAs($advisor)
+            ->post(route('maintenance.store'), [
+                'property_id' => $property->id,
+                'category' => 'plomeria',
+                'priority' => 'media',
+                'title' => 'Reporte creado por asesor',
+                'exact_location' => 'Cocina',
+                'description' => 'Se reporta fuga en tarja.',
+                'reported_at' => '2026-09-22 10:00:00',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('maintenance_tickets', [
+            'property_id' => $property->id,
+            'reported_by_user_id' => $advisor->id,
+            'reported_by_role' => 'asesor',
+            'title' => 'Reporte creado por asesor',
+        ]);
+
+        $this->actingAs($advisor)
+            ->post(route('maintenance.store'), [
+                'property_id' => $otherProperty->id,
+                'category' => 'plomeria',
+                'priority' => 'media',
+                'title' => 'Reporte fuera de alcance',
+                'exact_location' => 'Cocina',
+                'description' => 'No debe permitirse.',
+                'reported_at' => '2026-09-22 10:00:00',
+            ])
+            ->assertNotFound();
+    }
+
     public function test_provider_cannot_access_property_inventory(): void
     {
         $providerRole = Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']);

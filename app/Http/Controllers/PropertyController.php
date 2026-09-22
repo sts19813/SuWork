@@ -799,6 +799,7 @@ class PropertyController extends Controller
                 || $user?->hasRole('tenant')
                 || $user?->hasRole('tecnico')
                 || $user?->hasRole('technician')
+                || $this->isAdvisorUser($user)
             ),
             'canCreateScheduledMaintenance' => $canCreateScheduledMaintenance,
             'isTenantMaintenanceReporter' => $isTenantMaintenanceReporter,
