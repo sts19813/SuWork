@@ -38,6 +38,8 @@ use Spatie\Permission\Models\Role;
 class MaintenanceController extends Controller
 {
     private const MANAGE_TECHNICIANS_PERMISSION = 'administracion de tecnicos';
+    private const EDIT_TICKET_EXPENSES_PERMISSION = 'editar gastos tickets';
+    private const DELETE_TICKET_EXPENSES_PERMISSION = 'eliminar gastos tickets';
 
     public function __construct(private readonly PropertyVisibility $propertyVisibility)
     {
@@ -413,6 +415,15 @@ class MaintenanceController extends Controller
             || $role === 'proveedor'
             || ($role === 'tecnico' && $this->isPropertyTechnician($maintenance, $user));
         $isMaintenancePaid = $maintenance->cutItem !== null;
+        $canCreateCosts = $canViewCosts
+            && ! $isMaintenancePaid
+            && (
+                $role === 'administrador'
+                || $role === 'proveedor'
+                || ($role === 'tecnico' && $this->isPropertyTechnician($maintenance, $user))
+            );
+        $canEditCosts = $canViewCosts && ! $isMaintenancePaid && $this->canEditTicketExpenses($user);
+        $canDeleteCosts = $canViewCosts && ! $isMaintenancePaid && $this->canDeleteTicketExpenses($user);
 
         return view('maintenance.show', [
             'ticket' => $maintenance,
@@ -431,7 +442,9 @@ class MaintenanceController extends Controller
             'canUpdateTicketMeta' => in_array($role, ['administrador', 'tecnico'], true),
             'canUpdateTicketProvider' => in_array($role, ['administrador', 'tecnico', 'asesor'], true),
             'canViewCosts' => $canViewCosts,
-            'canManageCosts' => $canViewCosts && ! $isMaintenancePaid,
+            'canManageCosts' => $canCreateCosts,
+            'canEditCosts' => $canEditCosts,
+            'canDeleteCosts' => $canDeleteCosts,
             'isMaintenancePaid' => $isMaintenancePaid,
             'canEditTicket' => $role === 'administrador',
             'canChangeStatus' => in_array($role, ['administrador', 'tecnico', 'proveedor'], true),
@@ -878,6 +891,128 @@ class MaintenanceController extends Controller
         return redirect()->back()->with('success', 'Costo registrado y agregado a los gastos de la propiedad.');
     }
 
+    public function updateCost(Request $request, MaintenanceTicket $maintenance, MaintenanceTicketCost $cost): RedirectResponse
+    {
+        $user = $request->user();
+        $role = $this->resolveRole($user);
+        $this->ensureTicketVisible($maintenance, $user, $role);
+        $this->ensureCostBelongsToTicket($maintenance, $cost);
+        if (! $this->canEditTicketExpenses($user)) {
+            abort(403);
+        }
+        $this->ensureCostCanBeMutated($maintenance, $cost);
+
+        $validated = $request->validate([
+            'labor_cost' => ['required', 'numeric', 'min:0'],
+            'material_cost' => ['required', 'numeric', 'min:0'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+            'payer' => ['required', Rule::in(array_keys(MaintenanceTicket::COST_PAYER_LABELS))],
+            'payment_rule' => ['nullable', Rule::in(array_keys(MaintenanceTicket::PAYMENT_RULE_LABELS))],
+            'invoice_files' => ['nullable', 'array', 'max:20'],
+            'invoice_files.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx,xls,xlsx,txt', 'max:51200'],
+            'remove_file_ids' => ['nullable', 'array'],
+            'remove_file_ids.*' => ['integer'],
+        ]);
+
+        $totalCost = round((float) $validated['labor_cost'] + (float) $validated['material_cost'], 2);
+
+        DB::transaction(function () use ($maintenance, $cost, $validated, $request, $user, $totalCost): void {
+            $lockedCost = MaintenanceTicketCost::query()
+                ->whereKey($cost->id)
+                ->where('ticket_id', $maintenance->id)
+                ->with('expense.files')
+                ->lockForUpdate()
+                ->firstOrFail();
+            $this->ensureCostCanBeMutated($maintenance->fresh('cutItem'), $lockedCost);
+
+            $payer = (string) $validated['payer'];
+            $paymentRule = $validated['payment_rule'] ?? null;
+            $notes = filled($validated['notes'] ?? null) ? trim((string) $validated['notes']) : null;
+
+            $lockedCost->update([
+                'labor_cost' => (float) $validated['labor_cost'],
+                'material_cost' => (float) $validated['material_cost'],
+                'advance_cost' => 0,
+                'final_cost' => $totalCost,
+                'payer' => $payer,
+                'payment_rule' => $paymentRule,
+                'notes' => $notes,
+            ]);
+
+            $expense = $lockedCost->expense;
+            if (! $expense) {
+                $expense = Expense::create([
+                    'property_id' => $maintenance->property_id,
+                    'concept' => Str::limit('Mantenimiento '.$maintenance->display_reference.': '.$maintenance->title, 190, ''),
+                    'amount' => $totalCost,
+                    'excluded_from_totals' => $payer === 'inquilino',
+                    'due_date' => now()->toDateString(),
+                    'description' => $notes,
+                    'created_by' => $user?->id,
+                ]);
+                $lockedCost->update(['expense_id' => $expense->id]);
+            } else {
+                $expense->update([
+                    'property_id' => $maintenance->property_id,
+                    'amount' => $totalCost,
+                    'excluded_from_totals' => $payer === 'inquilino',
+                    'description' => $notes,
+                ]);
+            }
+
+            $removeFileIds = collect((array) ($validated['remove_file_ids'] ?? []))
+                ->map(fn ($id) => (int) $id)
+                ->filter()
+                ->values();
+
+            if ($removeFileIds->isNotEmpty()) {
+                $filesToDelete = $expense->files()->whereIn('id', $removeFileIds->all())->get();
+                foreach ($filesToDelete as $file) {
+                    $this->deleteStoragePath($file->path);
+                }
+                $expense->files()->whereIn('id', $filesToDelete->pluck('id')->all())->delete();
+            }
+
+            $this->storeMaintenanceExpenseFiles($expense, (array) $request->file('invoice_files', []));
+        });
+
+        return redirect()->back()->with('success', 'Costo actualizado correctamente.');
+    }
+
+    public function destroyCost(Request $request, MaintenanceTicket $maintenance, MaintenanceTicketCost $cost): RedirectResponse
+    {
+        $user = $request->user();
+        $role = $this->resolveRole($user);
+        $this->ensureTicketVisible($maintenance, $user, $role);
+        $this->ensureCostBelongsToTicket($maintenance, $cost);
+        if (! $this->canDeleteTicketExpenses($user)) {
+            abort(403);
+        }
+        $this->ensureCostCanBeMutated($maintenance, $cost);
+
+        DB::transaction(function () use ($maintenance, $cost): void {
+            $lockedCost = MaintenanceTicketCost::query()
+                ->whereKey($cost->id)
+                ->where('ticket_id', $maintenance->id)
+                ->with('expense.files')
+                ->lockForUpdate()
+                ->firstOrFail();
+            $this->ensureCostCanBeMutated($maintenance->fresh('cutItem'), $lockedCost);
+
+            $expense = $lockedCost->expense;
+            if ($expense) {
+                foreach ($expense->files as $file) {
+                    $this->deleteStoragePath($file->path);
+                }
+                $expense->delete();
+            }
+
+            $lockedCost->delete();
+        });
+
+        return redirect()->back()->with('success', 'Costo eliminado correctamente.');
+    }
+
     /**
      * @param  array<int, UploadedFile|null>  $files
      */
@@ -897,6 +1032,18 @@ class MaintenanceController extends Controller
                 'original_name' => $file->getClientOriginalName(),
                 'size' => (int) ($file->getSize() ?: 0),
             ]);
+        }
+    }
+
+    private function deleteStoragePath(?string $path): void
+    {
+        if (! filled($path)) {
+            return;
+        }
+
+        $disk = Storage::disk('public');
+        if ($disk->exists($path)) {
+            $disk->delete($path);
         }
     }
 
@@ -1333,6 +1480,16 @@ class MaintenanceController extends Controller
             );
     }
 
+    private function canEditTicketExpenses(?User $user): bool
+    {
+        return (bool) $user && $user->can(self::EDIT_TICKET_EXPENSES_PERMISSION);
+    }
+
+    private function canDeleteTicketExpenses(?User $user): bool
+    {
+        return (bool) $user && $user->can(self::DELETE_TICKET_EXPENSES_PERMISSION);
+    }
+
     private function isAdminUser(?User $user): bool
     {
         return (bool) $user
@@ -1511,6 +1668,23 @@ class MaintenanceController extends Controller
             ->exists();
         if (! $exists) {
             abort(403);
+        }
+    }
+
+    private function ensureCostBelongsToTicket(MaintenanceTicket $ticket, MaintenanceTicketCost $cost): void
+    {
+        if ((int) $cost->ticket_id !== (int) $ticket->id) {
+            abort(404);
+        }
+    }
+
+    private function ensureCostCanBeMutated(MaintenanceTicket $ticket, MaintenanceTicketCost $cost): void
+    {
+        if ($ticket->cutItem()->exists()) {
+            abort(409, 'Este ticket ya fue pagado y sus costos no se pueden modificar.');
+        }
+        if ($cost->expense?->paid_at !== null) {
+            abort(409, 'Este gasto ya fue pagado y no se puede modificar.');
         }
     }
 

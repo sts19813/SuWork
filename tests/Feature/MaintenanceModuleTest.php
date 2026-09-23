@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Mail\MaintenanceTicketEventMail;
 use App\Models\Expense;
+use App\Models\ExpenseFile;
+use App\Models\MaintenanceCut;
 use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\Owner;
@@ -20,6 +22,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -1673,6 +1676,180 @@ class MaintenanceModuleTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_ticket_cost_edit_and_delete_actions_follow_explicit_permissions(): void
+    {
+        Permission::findOrCreate('editar gastos tickets', 'web');
+        Permission::findOrCreate('eliminar gastos tickets', 'web');
+
+        $role = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $property = $this->createPropertyFixture($user);
+        $ticket = $this->createTicketFixture($user, $property);
+        $expense = Expense::create([
+            'property_id' => $property->id,
+            'concept' => 'Mantenimiento '.$ticket->display_reference,
+            'amount' => 500,
+            'due_date' => now()->toDateString(),
+        ]);
+        $cost = $ticket->costs()->create([
+            'expense_id' => $expense->id,
+            'labor_cost' => 300,
+            'material_cost' => 200,
+            'final_cost' => 500,
+            'currency' => 'MXN',
+            'payer' => 'administracion',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('maintenance.show', $ticket))
+            ->assertOk()
+            ->assertDontSee(route('maintenance.costs.update', [$ticket, $cost]), false)
+            ->assertDontSee('¿Deseas eliminar este costo y su gasto asociado?', false);
+
+        $user->givePermissionTo('editar gastos tickets');
+
+        $this->actingAs($user)
+            ->get(route('maintenance.show', $ticket))
+            ->assertOk()
+            ->assertSee(route('maintenance.costs.update', [$ticket, $cost]), false)
+            ->assertDontSee('¿Deseas eliminar este costo y su gasto asociado?', false);
+
+        $user->givePermissionTo('eliminar gastos tickets');
+
+        $this->actingAs($user)
+            ->get(route('maintenance.show', $ticket))
+            ->assertOk()
+            ->assertSee(route('maintenance.costs.update', [$ticket, $cost]), false)
+            ->assertSee('¿Deseas eliminar este costo y su gasto asociado?', false);
+    }
+
+    public function test_user_with_ticket_expense_edit_permission_can_update_amount_notes_and_attachments(): void
+    {
+        Storage::fake('public');
+        Permission::findOrCreate('editar gastos tickets', 'web');
+
+        $role = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $user->givePermissionTo('editar gastos tickets');
+        $property = $this->createPropertyFixture($user);
+        $ticket = $this->createTicketFixture($user, $property);
+        $expense = Expense::create([
+            'property_id' => $property->id,
+            'concept' => 'Mantenimiento '.$ticket->display_reference,
+            'amount' => 500,
+            'due_date' => now()->toDateString(),
+            'description' => 'Nota anterior',
+        ]);
+        Storage::disk('public')->put('expenses/'.$expense->id.'/anterior.pdf', 'old');
+        $file = $expense->files()->create([
+            'path' => 'expenses/'.$expense->id.'/anterior.pdf',
+            'type' => ExpenseFile::TYPE_PDF,
+            'mime_type' => 'application/pdf',
+            'original_name' => 'anterior.pdf',
+            'size' => 10,
+        ]);
+        $cost = $ticket->costs()->create([
+            'expense_id' => $expense->id,
+            'labor_cost' => 300,
+            'material_cost' => 200,
+            'final_cost' => 500,
+            'currency' => 'MXN',
+            'payer' => 'administracion',
+            'notes' => 'Nota anterior',
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('maintenance.show', $ticket))
+            ->put(route('maintenance.costs.update', [$ticket, $cost]), [
+                'labor_cost' => 800,
+                'material_cost' => 125.5,
+                'payer' => 'inquilino',
+                'payment_rule' => 'mal_uso',
+                'notes' => 'Nota nueva',
+                'remove_file_ids' => [$file->id],
+                'invoice_files' => [UploadedFile::fake()->create('nueva.pdf', 100, 'application/pdf')],
+            ])
+            ->assertRedirect(route('maintenance.show', $ticket));
+
+        $this->assertDatabaseHas('maintenance_ticket_costs', [
+            'id' => $cost->id,
+            'labor_cost' => 800,
+            'material_cost' => 125.5,
+            'final_cost' => 925.5,
+            'payer' => 'inquilino',
+            'payment_rule' => 'mal_uso',
+            'notes' => 'Nota nueva',
+        ]);
+        $this->assertDatabaseHas('expenses', [
+            'id' => $expense->id,
+            'amount' => 925.5,
+            'description' => 'Nota nueva',
+            'excluded_from_totals' => true,
+        ]);
+        $this->assertDatabaseMissing('expense_files', ['id' => $file->id]);
+        $this->assertDatabaseHas('expense_files', ['expense_id' => $expense->id, 'original_name' => 'nueva.pdf']);
+        Storage::disk('public')->assertMissing('expenses/'.$expense->id.'/anterior.pdf');
+    }
+
+    public function test_paid_ticket_costs_cannot_be_edited_or_deleted(): void
+    {
+        Permission::findOrCreate('editar gastos tickets', 'web');
+        Permission::findOrCreate('eliminar gastos tickets', 'web');
+
+        $role = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $user->givePermissionTo(['editar gastos tickets', 'eliminar gastos tickets']);
+        $property = $this->createPropertyFixture($user);
+        $ticket = $this->createTicketFixture($user, $property);
+        $expense = Expense::create([
+            'property_id' => $property->id,
+            'concept' => 'Mantenimiento '.$ticket->display_reference,
+            'amount' => 500,
+            'due_date' => now()->toDateString(),
+        ]);
+        $cost = $ticket->costs()->create([
+            'expense_id' => $expense->id,
+            'labor_cost' => 300,
+            'material_cost' => 200,
+            'final_cost' => 500,
+            'currency' => 'MXN',
+            'payer' => 'administracion',
+        ]);
+        $cut = MaintenanceCut::create([
+            'uuid' => (string) Str::uuid(),
+            'paid_by_user_id' => $user->id,
+            'ticket_count' => 1,
+            'labor_total' => 300,
+            'material_total' => 200,
+            'grand_total' => 500,
+            'paid_at' => now(),
+        ]);
+        $ticket->cutItem()->create([
+            'maintenance_cut_id' => $cut->id,
+            'labor_total' => 300,
+            'material_total' => 200,
+            'grand_total' => 500,
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('maintenance.costs.update', [$ticket, $cost]), [
+                'labor_cost' => 1,
+                'material_cost' => 1,
+                'payer' => 'administracion',
+            ])
+            ->assertStatus(409);
+
+        $this->actingAs($user)
+            ->delete(route('maintenance.costs.destroy', [$ticket, $cost]))
+            ->assertStatus(409);
+
+        $this->assertDatabaseHas('maintenance_ticket_costs', ['id' => $cost->id, 'final_cost' => 500]);
+        $this->assertDatabaseHas('expenses', ['id' => $expense->id, 'amount' => 500]);
+    }
+
     private function createPropertyFixture(User $user): Property
     {
         $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
@@ -1686,6 +1863,23 @@ class MaintenanceModuleTest extends TestCase
             'status' => Property::STATUS_OCCUPIED,
             'onboarding_step' => 5,
             'created_by' => $user->id,
+        ]);
+    }
+
+    private function createTicketFixture(User $user, Property $property): MaintenanceTicket
+    {
+        return MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'alta',
+            'status' => 'pendiente',
+            'title' => 'Reparación de prueba',
+            'exact_location' => 'Cocina',
+            'description' => 'Descripción de prueba',
+            'reported_at' => now(),
         ]);
     }
 }

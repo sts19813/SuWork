@@ -355,10 +355,19 @@
                                             <th>Regla</th>
                                             <th>Estado</th>
                                             <th>Facturas</th>
+                                            @if ($canEditCosts || $canDeleteCosts)
+                                                <th class="text-end">Acciones</th>
+                                            @endif
                                         </tr>
                                     </thead>
                                     <tbody>
                                         @forelse ($maintenanceCosts as $costRow)
+                                            @php
+                                                $costIsLocked = $isMaintenancePaid || $costRow->expense?->paid_at !== null;
+                                                $canEditCostRow = $canEditCosts && ! $costIsLocked;
+                                                $canDeleteCostRow = $canDeleteCosts && ! $costIsLocked;
+                                                $costEditId = 'maintenance-cost-edit-' . $costRow->id;
+                                            @endphp
                                             <tr>
                                                 <td>{{ $costRow->created_at?->format('d/m/Y H:i') ?: '-' }}</td>
                                                 <td>${{ number_format((float) $costRow->labor_cost, 2) }}</td>
@@ -388,12 +397,108 @@
                                                         <span class="text-muted">-</span>
                                                     @endif
                                                 </td>
+                                                @if ($canEditCosts || $canDeleteCosts)
+                                                    <td class="text-end">
+                                                        @if ($canEditCostRow || $canDeleteCostRow)
+                                                            <div class="d-flex justify-content-end gap-2">
+                                                                @if ($canEditCostRow)
+                                                                    <button type="button" class="btn btn-sm btn-light-primary" data-bs-toggle="collapse"
+                                                                        data-bs-target="#{{ $costEditId }}" aria-expanded="false" aria-controls="{{ $costEditId }}">
+                                                                        Editar
+                                                                    </button>
+                                                                @endif
+                                                                @if ($canDeleteCostRow)
+                                                                    <form method="POST" action="{{ route('maintenance.costs.destroy', [$ticket, $costRow]) }}"
+                                                                        class="js-maintenance-cost-delete-form"
+                                                                        data-confirm-message="¿Deseas eliminar este costo y su gasto asociado?">
+                                                                        @csrf
+                                                                        @method('DELETE')
+                                                                        <button type="submit" class="btn btn-sm btn-light-danger">Eliminar</button>
+                                                                    </form>
+                                                                @endif
+                                                            </div>
+                                                        @else
+                                                            <span class="text-muted">Bloqueado</span>
+                                                        @endif
+                                                    </td>
+                                                @endif
                                             </tr>
                                             @if ($costRow->notes)
-                                                <tr><td colspan="8" class="text-muted pt-0"><strong>Notas:</strong> {{ $costRow->notes }}</td></tr>
+                                                <tr><td colspan="{{ ($canEditCosts || $canDeleteCosts) ? 9 : 8 }}" class="text-muted pt-0"><strong>Notas:</strong> {{ $costRow->notes }}</td></tr>
+                                            @endif
+                                            @if ($canEditCostRow)
+                                                <tr class="collapse" id="{{ $costEditId }}">
+                                                    <td colspan="{{ ($canEditCosts || $canDeleteCosts) ? 9 : 8 }}" class="bg-light">
+                                                        <form method="POST" action="{{ route('maintenance.costs.update', [$ticket, $costRow]) }}" enctype="multipart/form-data"
+                                                            class="row g-4 p-2 js-maintenance-cost-form">
+                                                            @csrf
+                                                            @method('PUT')
+                                                            <div class="col-md-3">
+                                                                <label class="form-label required">Mano de obra</label>
+                                                                <input class="form-control js-maintenance-cost-component" type="number" step="0.01" min="0" name="labor_cost"
+                                                                    value="{{ number_format((float) $costRow->labor_cost, 2, '.', '') }}" required>
+                                                            </div>
+                                                            <div class="col-md-3">
+                                                                <label class="form-label required">Materiales</label>
+                                                                <input class="form-control js-maintenance-cost-component" type="number" step="0.01" min="0" name="material_cost"
+                                                                    value="{{ number_format((float) $costRow->material_cost, 2, '.', '') }}" required>
+                                                            </div>
+                                                            <div class="col-md-3">
+                                                                <label class="form-label required">Gasto Total</label>
+                                                                <input class="form-control js-maintenance-cost-total" type="number" step="0.01" min="0"
+                                                                    value="{{ number_format((float) $costRow->final_cost, 2, '.', '') }}" readonly aria-readonly="true">
+                                                            </div>
+                                                            <div class="col-md-3">
+                                                                <label class="form-label required">Quién paga</label>
+                                                                <select class="form-select" name="payer" required>
+                                                                    @foreach ($costPayerOptions as $key => $label)
+                                                                        <option value="{{ $key }}" {{ $costRow->payer === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                                                    @endforeach
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <label class="form-label">Regla de pago</label>
+                                                                <select class="form-select" name="payment_rule">
+                                                                    <option value="">Sin definir</option>
+                                                                    @foreach ($paymentRuleOptions as $key => $label)
+                                                                        <option value="{{ $key }}" {{ $costRow->payment_rule === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                                                    @endforeach
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-8">
+                                                                <label class="form-label">Agregar facturas</label>
+                                                                <input class="form-control" type="file" name="invoice_files[]" multiple>
+                                                            </div>
+                                                            <div class="col-12">
+                                                                <label class="form-label">Notas de costo</label>
+                                                                <textarea class="form-control" name="notes" rows="3" maxlength="5000">{{ $costRow->notes }}</textarea>
+                                                            </div>
+                                                            @if ($costRow->expense?->files?->isNotEmpty())
+                                                                <div class="col-12">
+                                                                    <label class="form-label">Facturas actuales</label>
+                                                                    <div class="d-flex flex-column gap-2">
+                                                                        @foreach ($costRow->expense->files as $file)
+                                                                            <label class="form-check form-check-custom form-check-solid d-flex justify-content-between border rounded px-3 py-2">
+                                                                                <span>{{ $file->original_name ?: 'Archivo' }}</span>
+                                                                                <span>
+                                                                                    <input class="form-check-input" type="checkbox" name="remove_file_ids[]" value="{{ $file->id }}">
+                                                                                    <span class="form-check-label ms-2">Quitar</span>
+                                                                                </span>
+                                                                            </label>
+                                                                        @endforeach
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+                                                            <div class="col-12 d-flex justify-content-end gap-2">
+                                                                <button type="button" class="btn btn-light" data-bs-toggle="collapse" data-bs-target="#{{ $costEditId }}">Cancelar</button>
+                                                                <button type="submit" class="maintenance-primary-btn">Guardar cambios</button>
+                                                            </div>
+                                                        </form>
+                                                    </td>
+                                                </tr>
                                             @endif
                                         @empty
-                                            <tr><td colspan="8" class="text-center text-muted py-5">No hay costos registrados.</td></tr>
+                                            <tr><td colspan="{{ ($canEditCosts || $canDeleteCosts) ? 9 : 8 }}" class="text-center text-muted py-5">No hay costos registrados.</td></tr>
                                         @endforelse
                                     </tbody>
                                 </table>
@@ -685,7 +790,7 @@
         <div class="modal fade" id="createMaintenanceCostModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
                 <div class="modal-content">
-                    <form method="POST" action="{{ route('maintenance.costs', $ticket) }}" enctype="multipart/form-data">
+                    <form method="POST" action="{{ route('maintenance.costs', $ticket) }}" enctype="multipart/form-data" class="js-maintenance-cost-form">
                         @csrf
                         @method('PUT')
                         <div class="modal-header">
@@ -893,21 +998,45 @@
 @push('scripts')
     <script>
         (() => {
-            const costForm = document.querySelector('#createMaintenanceCostModal form');
-            const costComponents = costForm?.querySelectorAll('.js-maintenance-cost-component') ?? [];
-            const costTotal = costForm?.querySelector('.js-maintenance-cost-total');
-            const updateCostTotal = () => {
-                if (!costTotal) return;
+            const bindCostTotal = (costForm) => {
+                const costComponents = costForm?.querySelectorAll('.js-maintenance-cost-component') ?? [];
+                const costTotal = costForm?.querySelector('.js-maintenance-cost-total');
+                if (!costTotal || !costComponents.length) return;
 
-                const total = Array.from(costComponents).reduce((sum, input) => {
-                    const value = Number.parseFloat(input.value);
-                    return sum + (Number.isFinite(value) ? value : 0);
-                }, 0);
+                const updateCostTotal = () => {
+                    const total = Array.from(costComponents).reduce((sum, input) => {
+                        const value = Number.parseFloat(input.value);
+                        return sum + (Number.isFinite(value) ? value : 0);
+                    }, 0);
 
-                costTotal.value = total.toFixed(2);
+                    costTotal.value = total.toFixed(2);
+                };
+                costComponents.forEach((input) => input.addEventListener('input', updateCostTotal));
+                updateCostTotal();
             };
-            costComponents.forEach((input) => input.addEventListener('input', updateCostTotal));
-            updateCostTotal();
+            document.querySelectorAll('.js-maintenance-cost-form').forEach(bindCostTotal);
+
+            document.querySelectorAll('.js-maintenance-cost-delete-form').forEach((form) => {
+                form.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+                    let confirmed = false;
+                    if (window.Swal?.fire) {
+                        const result = await window.Swal.fire({
+                            icon: 'warning',
+                            title: 'Eliminar costo',
+                            text: form.dataset.confirmMessage || 'Esta acción eliminará el costo y el gasto asociado.',
+                            showCancelButton: true,
+                            confirmButtonText: 'Sí, eliminar',
+                            cancelButtonText: 'Cancelar',
+                            confirmButtonColor: '#d92d20',
+                        });
+                        confirmed = result.isConfirmed === true;
+                    } else {
+                        confirmed = window.confirm(form.dataset.confirmMessage || '¿Eliminar este costo?');
+                    }
+                    if (confirmed) form.submit();
+                });
+            });
 
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
             const conflictUrl = @json(route('maintenance.technician-conflicts'));

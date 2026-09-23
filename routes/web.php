@@ -220,6 +220,8 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::post('/mantenimiento/conflictos-tecnico', [MaintenanceController::class, 'technicianConflicts'])->name('maintenance.technician-conflicts');
         Route::post('/mantenimiento/{maintenance}/asignar', [MaintenanceController::class, 'assign'])->name('maintenance.assign');
         Route::put('/mantenimiento/{maintenance}/costos', [MaintenanceController::class, 'updateCosts'])->name('maintenance.costs');
+        Route::put('/mantenimiento/{maintenance}/costos/{cost}', [MaintenanceController::class, 'updateCost'])->name('maintenance.costs.update');
+        Route::delete('/mantenimiento/{maintenance}/costos/{cost}', [MaintenanceController::class, 'destroyCost'])->name('maintenance.costs.destroy');
         Route::post('/mantenimiento/{maintenance}/archivos', [MaintenanceController::class, 'uploadFiles'])->name('maintenance.files');
         Route::delete('/mantenimiento/{maintenance}/archivos/{file}', [MaintenanceController::class, 'destroyFile'])->name('maintenance.files.destroy');
         Route::post('/mantenimiento/{maintenance}/mensajes', [MaintenanceController::class, 'storeMessage'])->name('maintenance.messages');

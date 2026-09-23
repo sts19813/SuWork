@@ -27,6 +27,8 @@ class AccessControlSeeder extends Seeder
             'propietarios.eliminar',
             'cobranza.eliminar_pagados',
             'administracion de tecnicos',
+            'editar gastos tickets',
+            'eliminar gastos tickets',
         ];
 
         $permissions = collect($permissionNames)
