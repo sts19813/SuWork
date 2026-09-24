@@ -137,13 +137,19 @@ class MaintenanceTicket extends Model
 
     public function scopeOrderByOperationalPriority(Builder $query): Builder
     {
-        $priorityCase = collect(self::PRIORITY_SORT_ORDER)
-            ->map(fn (int $sort, string $priority): string => "WHEN '{$priority}' THEN {$sort}")
-            ->implode(' ');
+        $today = now()->toDateString();
 
         return $query
-            ->orderByRaw("CASE priority {$priorityCase} ELSE 5 END")
-            ->orderByRaw('CASE WHEN scheduled_visit_at IS NULL THEN 1 ELSE 0 END')
+            ->orderByRaw("CASE WHEN priority = 'urgente' THEN 0 WHEN scheduled_visit_at IS NOT NULL THEN 1 ELSE 2 END")
+            ->orderByRaw(
+                'CASE
+                    WHEN scheduled_visit_at IS NOT NULL AND DATE(scheduled_visit_at) < ? THEN 0
+                    WHEN scheduled_visit_at IS NOT NULL AND DATE(scheduled_visit_at) = ? THEN 1
+                    WHEN scheduled_visit_at IS NOT NULL THEN 2
+                    ELSE 3
+                END',
+                [$today, $today]
+            )
             ->orderBy('scheduled_visit_at')
             ->orderBy('created_at')
             ->orderBy('id');

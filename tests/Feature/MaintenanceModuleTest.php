@@ -43,8 +43,10 @@ class MaintenanceModuleTest extends TestCase
         $response->assertSee('Mantenimiento');
     }
 
-    public function test_operational_priority_order_groups_by_urgency_and_schedule(): void
+    public function test_operational_order_groups_urgent_scheduled_and_unscheduled_tickets(): void
     {
+        $this->travelTo('2026-09-24 12:00:00');
+
         $user = User::factory()->create();
         $property = $this->createPropertyFixture($user);
 
@@ -71,11 +73,14 @@ class MaintenanceModuleTest extends TestCase
             return $ticket;
         };
 
-        $createTicket('Media sin programar', 'media', null, '2026-09-20 08:00:00');
-        $createTicket('Urgente sin programar', 'urgente', null, '2026-09-18 08:00:00');
-        $createTicket('Alta programada', 'alta', '2026-09-25 10:00:00', '2026-09-19 08:00:00');
-        $createTicket('Urgente programada tarde', 'urgente', '2026-09-27 10:00:00', '2026-09-17 08:00:00');
-        $createTicket('Urgente programada temprano', 'urgente', '2026-09-24 10:00:00', '2026-09-21 08:00:00');
+        $createTicket('Por programar reciente', 'media', null, '2026-09-23 08:00:00');
+        $createTicket('Urgente futuro', 'urgente', '2026-09-27 10:00:00', '2026-09-17 08:00:00');
+        $createTicket('Programado hoy', 'alta', '2026-09-24 16:00:00', '2026-09-19 08:00:00');
+        $createTicket('Urgente atrasado', 'urgente', '2026-09-23 10:00:00', '2026-09-18 08:00:00');
+        $createTicket('Programado atrasado', 'media', '2026-09-22 10:00:00', '2026-09-20 08:00:00');
+        $createTicket('Urgente sin programar', 'urgente', null, '2026-09-16 08:00:00');
+        $createTicket('Por programar viejo', 'baja', null, '2026-09-21 08:00:00');
+        $createTicket('Programado futuro', 'sin_asignar', '2026-09-26 10:00:00', '2026-09-22 08:00:00');
 
         $titles = MaintenanceTicket::query()
             ->where('property_id', $property->id)
@@ -84,12 +89,32 @@ class MaintenanceModuleTest extends TestCase
             ->all();
 
         $this->assertSame([
-            'Urgente programada temprano',
-            'Urgente programada tarde',
+            'Urgente atrasado',
+            'Urgente futuro',
             'Urgente sin programar',
-            'Alta programada',
-            'Media sin programar',
+            'Programado atrasado',
+            'Programado hoy',
+            'Programado futuro',
+            'Por programar viejo',
+            'Por programar reciente',
         ], $titles);
+
+        $this->actingAs($user)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Urgentes',
+                'Urgente atrasado',
+                'Urgente futuro',
+                'Urgente sin programar',
+                'Programados',
+                'Programado atrasado',
+                'Programado hoy',
+                'Programado futuro',
+                'Por programar',
+                'Por programar viejo',
+                'Por programar reciente',
+            ]);
     }
 
     public function test_global_responsible_technician_configuration_no_longer_exists(): void

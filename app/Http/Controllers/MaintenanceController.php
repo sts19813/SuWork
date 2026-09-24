@@ -112,7 +112,7 @@ class MaintenanceController extends Controller
                 });
             });
 
-        if (in_array($role, ['tecnico', 'proveedor'], true)) {
+        if ($activeTab === 'activos') {
             $ticketsQuery->orderByOperationalPriority();
         } else {
             $ticketsQuery
