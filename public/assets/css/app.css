@@ -1399,6 +1399,10 @@ td .btn {
     overflow: visible;
 }
 
+.maintenance-group + .maintenance-group {
+    margin-top: 6px;
+}
+
 .maintenance-group-header {
     display: flex;
     align-items: center;
@@ -1428,6 +1432,13 @@ td .btn {
 .maintenance-group-hint {
     color: var(--maint-muted);
     font-size: 12px;
+}
+
+.maintenance-table-empty {
+    padding: 18px 16px;
+    color: var(--maint-muted);
+    background: #ffffff;
+    font-size: 13px;
 }
 
 .maintenance-list-header,

@@ -61,7 +61,7 @@
             $bucketMeta = [
                 'urgent' => ['title' => 'Urgentes', 'hint' => 'Sin fecha programada, ordenados por creación del ticket', 'icon' => 'bi-exclamation-octagon', 'tone' => 'red'],
                 'scheduled' => ['title' => 'Programados', 'hint' => 'Ordenados por fecha programada: atrasados, hoy y futuros', 'icon' => 'bi-calendar2-check', 'tone' => 'blue'],
-                'unscheduled' => ['title' => 'Por programar', 'hint' => 'Sin fecha programada, ordenados por creación del ticket', 'icon' => 'bi-calendar2-plus', 'tone' => 'amber'],
+                'unscheduled' => ['title' => 'Por asignar', 'hint' => 'Sin fecha programada, ordenados por creación del ticket', 'icon' => 'bi-calendar2-plus', 'tone' => 'amber'],
             ];
             $kpis = [
                 ['label' => 'Total', 'value' => number_format((int) ($metrics['total'] ?? 0)), 'sub' => 'Incidencias visibles', 'tone' => '#334155'],
@@ -248,7 +248,6 @@
                     </div>
 
                     @forelse ($ticketBuckets as $bucketKey => $bucketTickets)
-                        @continue($bucketTickets->isEmpty())
                         @php $meta = $bucketMeta[$bucketKey]; @endphp
                         <div class="maintenance-group">
                             <div class="maintenance-group-header">
@@ -270,7 +269,7 @@
                                 <span>Fecha programada</span>
                                 <span>Estado</span>
                             </div>
-                            @foreach ($bucketTickets as $ticket)
+                            @forelse ($bucketTickets as $ticket)
                                 @php
                                     $providerName = $ticket->currentProvider?->name;
                                     $providerInitials = collect(explode(' ', trim((string) $providerName)))
@@ -423,7 +422,11 @@
                                         @endif
                                     </span>
                                 </div>
-                            @endforeach
+                            @empty
+                                <div class="maintenance-table-empty">
+                                    No hay tickets en esta sección.
+                                </div>
+                            @endforelse
                         </div>
                     @empty
                         <div class="maintenance-panel maintenance-empty">

@@ -111,7 +111,7 @@ class MaintenanceModuleTest extends TestCase
                 'Programado hoy',
                 'Programado futuro',
                 'Urgente futuro',
-                'Por programar',
+                'Por asignar',
                 'Por programar viejo',
                 'Por programar reciente',
             ]);
