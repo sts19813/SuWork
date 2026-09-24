@@ -1425,7 +1425,7 @@
                                                 <th>Estado</th>
                                                 <th>Técnico/Proveedor</th>
                                                 <th>Fecha reporte</th>
-                                                <th>Fecha visita</th>
+                                                <th>Fecha programada</th>
                                                 <th class="text-end">Acción</th>
                                             </tr>
                                         </thead>

@@ -661,8 +661,7 @@ class PropertyController extends Controller
                     $this->constrainSupplierProviderToUser($providerQuery, $user);
                 });
             })
-            ->orderByDesc('reported_at')
-            ->orderByDesc('id')
+            ->orderByOperationalPriority()
             ->limit(50)
             ->get();
 

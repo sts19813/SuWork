@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -33,6 +34,14 @@ class MaintenanceTicket extends Model
         'media' => 'Media',
         'alta' => 'Alta',
         'urgente' => 'Urgente',
+    ];
+
+    public const PRIORITY_SORT_ORDER = [
+        'urgente' => 0,
+        'alta' => 1,
+        'media' => 2,
+        'baja' => 3,
+        'sin_asignar' => 4,
     ];
 
     public const STATUS_LABELS = [
@@ -124,6 +133,20 @@ class MaintenanceTicket extends Model
     public function getRouteKeyName(): string
     {
         return 'uuid';
+    }
+
+    public function scopeOrderByOperationalPriority(Builder $query): Builder
+    {
+        $priorityCase = collect(self::PRIORITY_SORT_ORDER)
+            ->map(fn (int $sort, string $priority): string => "WHEN '{$priority}' THEN {$sort}")
+            ->implode(' ');
+
+        return $query
+            ->orderByRaw("CASE priority {$priorityCase} ELSE 5 END")
+            ->orderByRaw('CASE WHEN scheduled_visit_at IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('scheduled_visit_at')
+            ->orderBy('created_at')
+            ->orderBy('id');
     }
 
     public function property(): BelongsTo

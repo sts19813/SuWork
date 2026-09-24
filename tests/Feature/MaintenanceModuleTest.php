@@ -43,6 +43,55 @@ class MaintenanceModuleTest extends TestCase
         $response->assertSee('Mantenimiento');
     }
 
+    public function test_operational_priority_order_groups_by_urgency_and_schedule(): void
+    {
+        $user = User::factory()->create();
+        $property = $this->createPropertyFixture($user);
+
+        $createTicket = function (string $title, string $priority, ?string $scheduledAt, string $createdAt) use ($user, $property): MaintenanceTicket {
+            $ticket = MaintenanceTicket::create([
+                'property_id' => $property->id,
+                'reported_by_user_id' => $user->id,
+                'reported_by_role' => 'administrador',
+                'reported_by_name' => $user->name,
+                'category' => 'plomeria',
+                'priority' => $priority,
+                'status' => 'pendiente',
+                'title' => $title,
+                'exact_location' => 'Cocina',
+                'description' => 'Ticket de ordenamiento',
+                'reported_at' => $createdAt,
+                'scheduled_visit_at' => $scheduledAt,
+            ]);
+            $ticket->forceFill([
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ])->save();
+
+            return $ticket;
+        };
+
+        $createTicket('Media sin programar', 'media', null, '2026-09-20 08:00:00');
+        $createTicket('Urgente sin programar', 'urgente', null, '2026-09-18 08:00:00');
+        $createTicket('Alta programada', 'alta', '2026-09-25 10:00:00', '2026-09-19 08:00:00');
+        $createTicket('Urgente programada tarde', 'urgente', '2026-09-27 10:00:00', '2026-09-17 08:00:00');
+        $createTicket('Urgente programada temprano', 'urgente', '2026-09-24 10:00:00', '2026-09-21 08:00:00');
+
+        $titles = MaintenanceTicket::query()
+            ->where('property_id', $property->id)
+            ->orderByOperationalPriority()
+            ->pluck('title')
+            ->all();
+
+        $this->assertSame([
+            'Urgente programada temprano',
+            'Urgente programada tarde',
+            'Urgente sin programar',
+            'Alta programada',
+            'Media sin programar',
+        ], $titles);
+    }
+
     public function test_global_responsible_technician_configuration_no_longer_exists(): void
     {
         $admin = User::factory()->create();

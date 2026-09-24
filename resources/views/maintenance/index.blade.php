@@ -45,33 +45,51 @@
             };
 
             $ticketCollection = $tickets->getCollection();
-            $ticketBuckets = [
-                'attention' => collect(),
-                'work' => collect(),
-                'scheduled' => collect(),
-                'done' => collect(),
-                'other' => collect(),
-            ];
-            foreach ($ticketCollection as $ticketRow) {
-                $bucket = 'other';
-                if (in_array($ticketRow->status, ['completado', 'cancelado'], true)) {
-                    $bucket = 'done';
-                } elseif ($ticketRow->priority === 'urgente' || !$ticketRow->currentProvider || in_array($ticketRow->status, ['pendiente', 'reabierto'], true)) {
-                    $bucket = 'attention';
-                } elseif (in_array($ticketRow->status, ['en_proceso', 'esperando_material'], true)) {
-                    $bucket = 'work';
-                } elseif (in_array($ticketRow->status, ['asignado', 'programado', 'revisado'], true)) {
-                    $bucket = 'scheduled';
+            $groupTicketsByPriority = in_array($role, ['tecnico', 'proveedor'], true);
+            if ($groupTicketsByPriority) {
+                $ticketBuckets = collect(\App\Models\MaintenanceTicket::PRIORITY_SORT_ORDER)
+                    ->mapWithKeys(fn ($_sort, $priorityKey) => [$priorityKey => collect()])
+                    ->all();
+                foreach ($ticketCollection as $ticketRow) {
+                    $bucket = array_key_exists($ticketRow->priority, $ticketBuckets) ? $ticketRow->priority : 'sin_asignar';
+                    $ticketBuckets[$bucket]->push($ticketRow);
                 }
-                $ticketBuckets[$bucket]->push($ticketRow);
+                $bucketMeta = [
+                    'urgente' => ['title' => 'Urgente', 'hint' => 'Programados primero, luego por creación', 'icon' => 'bi-exclamation-octagon', 'tone' => 'red'],
+                    'alta' => ['title' => 'Alta', 'hint' => 'Programados primero, luego por creación', 'icon' => 'bi-exclamation-triangle', 'tone' => 'amber'],
+                    'media' => ['title' => 'Media', 'hint' => 'Programados primero, luego por creación', 'icon' => 'bi-dash-circle', 'tone' => 'blue'],
+                    'baja' => ['title' => 'Baja', 'hint' => 'Programados primero, luego por creación', 'icon' => 'bi-arrow-down-circle', 'tone' => 'green'],
+                    'sin_asignar' => ['title' => 'Sin asignar', 'hint' => 'Programados primero, luego por creación', 'icon' => 'bi-question-circle', 'tone' => 'neutral'],
+                ];
+            } else {
+                $ticketBuckets = [
+                    'attention' => collect(),
+                    'work' => collect(),
+                    'scheduled' => collect(),
+                    'done' => collect(),
+                    'other' => collect(),
+                ];
+                foreach ($ticketCollection as $ticketRow) {
+                    $bucket = 'other';
+                    if (in_array($ticketRow->status, ['completado', 'cancelado'], true)) {
+                        $bucket = 'done';
+                    } elseif ($ticketRow->priority === 'urgente' || !$ticketRow->currentProvider || in_array($ticketRow->status, ['pendiente', 'reabierto'], true)) {
+                        $bucket = 'attention';
+                    } elseif (in_array($ticketRow->status, ['en_proceso', 'esperando_material'], true)) {
+                        $bucket = 'work';
+                    } elseif (in_array($ticketRow->status, ['asignado', 'programado', 'revisado'], true)) {
+                        $bucket = 'scheduled';
+                    }
+                    $ticketBuckets[$bucket]->push($ticketRow);
+                }
+                $bucketMeta = [
+                    'attention' => ['title' => 'Requiere atención', 'hint' => 'Urgentes, pendientes o sin técnico', 'icon' => 'bi-exclamation-triangle', 'tone' => 'red'],
+                    'work' => ['title' => 'En trabajo activo', 'hint' => 'Atención en proceso o esperando material', 'icon' => 'bi-tools', 'tone' => 'purple'],
+                    'scheduled' => ['title' => 'Agendados y revisados', 'hint' => 'Con técnico, revisión o visita programada', 'icon' => 'bi-calendar2-check', 'tone' => 'blue'],
+                    'done' => ['title' => 'Cerrados', 'hint' => 'Tickets completados o cancelados', 'icon' => 'bi-check2-circle', 'tone' => 'green'],
+                    'other' => ['title' => 'Otros tickets', 'hint' => 'Sin agrupación operativa', 'icon' => 'bi-list-task', 'tone' => 'neutral'],
+                ];
             }
-            $bucketMeta = [
-                'attention' => ['title' => 'Requiere atención', 'hint' => 'Urgentes, pendientes o sin técnico', 'icon' => 'bi-exclamation-triangle', 'tone' => 'red'],
-                'work' => ['title' => 'En trabajo activo', 'hint' => 'Atención en proceso o esperando material', 'icon' => 'bi-tools', 'tone' => 'purple'],
-                'scheduled' => ['title' => 'Agendados y revisados', 'hint' => 'Con técnico, revisión o visita programada', 'icon' => 'bi-calendar2-check', 'tone' => 'blue'],
-                'done' => ['title' => 'Cerrados', 'hint' => 'Tickets completados o cancelados', 'icon' => 'bi-check2-circle', 'tone' => 'green'],
-                'other' => ['title' => 'Otros tickets', 'hint' => 'Sin agrupación operativa', 'icon' => 'bi-list-task', 'tone' => 'neutral'],
-            ];
             $kpis = [
                 ['label' => 'Total', 'value' => number_format((int) ($metrics['total'] ?? 0)), 'sub' => 'Incidencias visibles', 'tone' => '#334155'],
                 ['label' => 'Pendientes', 'value' => number_format((int) ($metrics['pending'] ?? 0)), 'sub' => 'Por atender', 'tone' => '#b45309'],
@@ -276,6 +294,7 @@
                                 <span>Ticket</span>
                                 <span>Propiedad</span>
                                 <span>Responsable</span>
+                                <span>Fecha programada</span>
                                 <span>Estado</span>
                             </div>
                             @foreach ($bucketTickets as $ticket)
@@ -410,6 +429,15 @@
                                             <span class="maintenance-cell-icon"><i class="bi bi-person-plus"></i></span>
                                             <span class="maintenance-cell-title text-warning">Sin asignar</span>
                                         @endif
+                                    </span>
+                                    <span class="maintenance-scheduled-cell">
+                                        <span class="maintenance-cell-icon"><i class="bi bi-calendar2-week"></i></span>
+                                        <span class="min-w-0">
+                                            <span class="maintenance-cell-title">{{ $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?: 'Sin programar' }}</span>
+                                            <span class="maintenance-cell-subtitle">
+                                                {{ $ticket->scheduled_visit_at ? 'Programada' : 'Pendiente de agenda' }}
+                                            </span>
+                                        </span>
                                     </span>
                                     <span>
                                         <span class="maintenance-chip maintenance-chip-{{ $statusTone($ticket->status) }}">

@@ -112,9 +112,15 @@ class MaintenanceController extends Controller
                 });
             });
 
+        if (in_array($role, ['tecnico', 'proveedor'], true)) {
+            $ticketsQuery->orderByOperationalPriority();
+        } else {
+            $ticketsQuery
+                ->latest('reported_at')
+                ->latest('id');
+        }
+
         $tickets = $ticketsQuery
-            ->latest('reported_at')
-            ->latest('id')
             ->paginate(15)
             ->withQueryString();
 

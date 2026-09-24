@@ -911,7 +911,7 @@ class PropertyModuleTest extends TestCase
         $this->actingAs($providerUser)
             ->get(route('properties.show', $property).'#tab-maintenance')
             ->assertOk()
-            ->assertSee('Fecha visita')
+            ->assertSee('Fecha programada')
             ->assertSee('01/01/2026 10:30');
     }
 

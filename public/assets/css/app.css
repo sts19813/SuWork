@@ -1433,7 +1433,7 @@ td .btn {
 .maintenance-list-header,
 .maintenance-ticket-row {
     display: grid;
-    grid-template-columns: 4px 92px minmax(220px, 1fr) 210px 170px 118px;
+    grid-template-columns: 4px 92px minmax(220px, 1fr) 190px 160px 150px 118px;
     gap: 14px;
     align-items: center;
 }
@@ -1609,7 +1609,8 @@ td .btn {
 }
 
 .maintenance-property-cell,
-.maintenance-provider-cell {
+.maintenance-provider-cell,
+.maintenance-scheduled-cell {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1618,6 +1619,7 @@ td .btn {
 
 .maintenance-property-cell > .min-w-0,
 .maintenance-provider-cell > .min-w-0,
+.maintenance-scheduled-cell > .min-w-0,
 .maintenance-provider-trigger > .min-w-0 {
     flex: 1 1 0;
     min-width: 0;
@@ -2050,12 +2052,13 @@ td .btn {
 
     .maintenance-ticket-row .maintenance-priority-bar {
         align-self: stretch;
-        grid-row: 1 / span 5;
+        grid-row: 1 / span 6;
         height: auto;
     }
 
     .maintenance-property-cell,
-    .maintenance-provider-cell {
+    .maintenance-provider-cell,
+    .maintenance-scheduled-cell {
         align-items: flex-start;
     }
 
