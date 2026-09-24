@@ -52,14 +52,14 @@
             ];
             foreach ($ticketCollection as $ticketRow) {
                 $bucket = match (true) {
-                    $ticketRow->priority === 'urgente' => 'urgent',
+                    $ticketRow->priority === 'urgente' && $ticketRow->scheduled_visit_at === null => 'urgent',
                     $ticketRow->scheduled_visit_at !== null => 'scheduled',
                     default => 'unscheduled',
                 };
                 $ticketBuckets[$bucket]->push($ticketRow);
             }
             $bucketMeta = [
-                'urgent' => ['title' => 'Urgentes', 'hint' => 'Primero atrasados, luego hoy, futuros y pendientes por creación', 'icon' => 'bi-exclamation-octagon', 'tone' => 'red'],
+                'urgent' => ['title' => 'Urgentes', 'hint' => 'Sin fecha programada, ordenados por creación del ticket', 'icon' => 'bi-exclamation-octagon', 'tone' => 'red'],
                 'scheduled' => ['title' => 'Programados', 'hint' => 'Ordenados por fecha programada: atrasados, hoy y futuros', 'icon' => 'bi-calendar2-check', 'tone' => 'blue'],
                 'unscheduled' => ['title' => 'Por programar', 'hint' => 'Sin fecha programada, ordenados por creación del ticket', 'icon' => 'bi-calendar2-plus', 'tone' => 'amber'],
             ];

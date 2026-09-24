@@ -89,12 +89,12 @@ class MaintenanceModuleTest extends TestCase
             ->all();
 
         $this->assertSame([
-            'Urgente atrasado',
-            'Urgente futuro',
             'Urgente sin programar',
             'Programado atrasado',
+            'Urgente atrasado',
             'Programado hoy',
             'Programado futuro',
+            'Urgente futuro',
             'Por programar viejo',
             'Por programar reciente',
         ], $titles);
@@ -104,13 +104,13 @@ class MaintenanceModuleTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'Urgentes',
-                'Urgente atrasado',
-                'Urgente futuro',
                 'Urgente sin programar',
                 'Programados',
                 'Programado atrasado',
+                'Urgente atrasado',
                 'Programado hoy',
                 'Programado futuro',
+                'Urgente futuro',
                 'Por programar',
                 'Por programar viejo',
                 'Por programar reciente',
