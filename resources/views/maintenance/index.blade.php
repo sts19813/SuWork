@@ -49,9 +49,11 @@
                 'urgent' => collect(),
                 'scheduled' => collect(),
                 'unscheduled' => collect(),
+                'unassigned' => collect(),
             ];
             foreach ($ticketCollection as $ticketRow) {
                 $bucket = match (true) {
+                    $ticketRow->current_provider_id === null => 'unassigned',
                     $ticketRow->priority === 'urgente' && $ticketRow->scheduled_visit_at === null => 'urgent',
                     $ticketRow->scheduled_visit_at !== null => 'scheduled',
                     default => 'unscheduled',
@@ -61,7 +63,8 @@
             $bucketMeta = [
                 'urgent' => ['title' => 'Urgentes', 'hint' => 'Sin fecha programada, ordenados por creación del ticket', 'icon' => 'bi-exclamation-octagon', 'tone' => 'red'],
                 'scheduled' => ['title' => 'Programados', 'hint' => 'Ordenados por fecha programada: atrasados, hoy y futuros', 'icon' => 'bi-calendar2-check', 'tone' => 'blue'],
-                'unscheduled' => ['title' => 'Por asignar', 'hint' => 'Sin fecha programada, ordenados por creación del ticket', 'icon' => 'bi-calendar2-plus', 'tone' => 'amber'],
+                'unscheduled' => ['title' => 'Por programar', 'hint' => 'Asignados sin fecha programada, ordenados por creación del ticket', 'icon' => 'bi-calendar2-plus', 'tone' => 'amber'],
+                'unassigned' => ['title' => 'Por asignar', 'hint' => 'Sin responsable actual para que asesores y administradores los asignen', 'icon' => 'bi-person-plus', 'tone' => 'neutral'],
             ];
             $kpis = [
                 ['label' => 'Total', 'value' => number_format((int) ($metrics['total'] ?? 0)), 'sub' => 'Incidencias visibles', 'tone' => '#334155'],

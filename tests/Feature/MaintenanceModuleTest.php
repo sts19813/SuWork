@@ -49,11 +49,18 @@ class MaintenanceModuleTest extends TestCase
 
         $user = User::factory()->create();
         $property = $this->createPropertyFixture($user);
+        $provider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico operativo',
+            'email' => 'tecnico.operativo@example.com',
+            'is_active' => true,
+        ]);
 
-        $createTicket = function (string $title, string $priority, ?string $scheduledAt, string $createdAt) use ($user, $property): MaintenanceTicket {
+        $createTicket = function (string $title, string $priority, ?string $scheduledAt, string $createdAt, bool $assigned = true) use ($user, $property, $provider): MaintenanceTicket {
             $ticket = MaintenanceTicket::create([
                 'property_id' => $property->id,
                 'reported_by_user_id' => $user->id,
+                'current_provider_id' => $assigned ? $provider->id : null,
                 'reported_by_role' => 'administrador',
                 'reported_by_name' => $user->name,
                 'category' => 'plomeria',
@@ -81,6 +88,7 @@ class MaintenanceModuleTest extends TestCase
         $createTicket('Urgente sin programar', 'urgente', null, '2026-09-16 08:00:00');
         $createTicket('Por programar viejo', 'baja', null, '2026-09-21 08:00:00');
         $createTicket('Programado futuro', 'sin_asignar', '2026-09-26 10:00:00', '2026-09-22 08:00:00');
+        $createTicket('Sin asignar operativo', 'media', null, '2026-09-15 08:00:00', false);
 
         $titles = MaintenanceTicket::query()
             ->where('property_id', $property->id)
@@ -97,6 +105,7 @@ class MaintenanceModuleTest extends TestCase
             'Urgente futuro',
             'Por programar viejo',
             'Por programar reciente',
+            'Sin asignar operativo',
         ], $titles);
 
         $this->actingAs($user)
@@ -111,9 +120,11 @@ class MaintenanceModuleTest extends TestCase
                 'Programado hoy',
                 'Programado futuro',
                 'Urgente futuro',
-                'Por asignar',
+                'Por programar',
                 'Por programar viejo',
                 'Por programar reciente',
+                'Por asignar',
+                'Sin asignar operativo',
             ]);
     }
 

@@ -140,7 +140,7 @@ class MaintenanceTicket extends Model
         $today = now()->toDateString();
 
         return $query
-            ->orderByRaw("CASE WHEN priority = 'urgente' AND scheduled_visit_at IS NULL THEN 0 WHEN scheduled_visit_at IS NOT NULL THEN 1 ELSE 2 END")
+            ->orderByRaw("CASE WHEN current_provider_id IS NULL THEN 3 WHEN priority = 'urgente' AND scheduled_visit_at IS NULL THEN 0 WHEN scheduled_visit_at IS NOT NULL THEN 1 ELSE 2 END")
             ->orderByRaw(
                 'CASE
                     WHEN scheduled_visit_at IS NOT NULL AND DATE(scheduled_visit_at) < ? THEN 0
