@@ -128,6 +128,93 @@ class MaintenanceModuleTest extends TestCase
             ]);
     }
 
+    public function test_maintenance_tables_have_independent_paginators(): void
+    {
+        $this->travelTo('2026-09-24 12:00:00');
+
+        $user = User::factory()->create();
+        $property = $this->createPropertyFixture($user);
+        $provider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico paginador',
+            'email' => 'tecnico.paginador@example.com',
+            'is_active' => true,
+        ]);
+
+        for ($index = 1; $index <= 16; $index++) {
+            $suffix = str_pad((string) $index, 2, '0', STR_PAD_LEFT);
+            MaintenanceTicket::create([
+                'property_id' => $property->id,
+                'reported_by_user_id' => $user->id,
+                'current_provider_id' => $provider->id,
+                'reported_by_role' => 'administrador',
+                'reported_by_name' => $user->name,
+                'category' => 'plomeria',
+                'priority' => 'media',
+                'status' => 'pendiente',
+                'title' => "Programado tabla {$suffix}",
+                'exact_location' => 'Cocina',
+                'description' => 'Ticket programado',
+                'reported_at' => "2026-09-{$suffix} 08:00:00",
+                'scheduled_visit_at' => "2026-10-{$suffix} 10:00:00",
+                'created_at' => "2026-09-{$suffix} 08:00:00",
+                'updated_at' => "2026-09-{$suffix} 08:00:00",
+            ]);
+            MaintenanceTicket::create([
+                'property_id' => $property->id,
+                'reported_by_user_id' => $user->id,
+                'reported_by_role' => 'administrador',
+                'reported_by_name' => $user->name,
+                'category' => 'plomeria',
+                'priority' => 'media',
+                'status' => 'pendiente',
+                'title' => "Por asignar tabla {$suffix}",
+                'exact_location' => 'Cocina',
+                'description' => 'Ticket sin responsable',
+                'reported_at' => "2026-09-{$suffix} 08:00:00",
+                'created_at' => "2026-09-{$suffix} 08:00:00",
+                'updated_at' => "2026-09-{$suffix} 08:00:00",
+            ]);
+        }
+
+        $firstResponse = $this->actingAs($user)
+            ->get(route('maintenance.index', ['scheduled_page' => 2, 'unassigned_page' => 1]));
+        $firstResponse
+            ->assertOk()
+            ->assertSee('scheduled_page=2', false)
+            ->assertSee('unassigned_page=2', false);
+        $firstHtml = $firstResponse->getContent();
+        $firstScheduledTable = $this->extractMaintenanceTableHtml($firstHtml, 'Programados', 'Por programar');
+        $firstUnassignedTable = $this->extractMaintenanceTableHtml($firstHtml, 'Por asignar');
+        $this->assertStringContainsString('Programado tabla 16', $firstScheduledTable);
+        $this->assertStringNotContainsString('Programado tabla 01', $firstScheduledTable);
+        $this->assertStringContainsString('Por asignar tabla 01', $firstUnassignedTable);
+        $this->assertStringNotContainsString('Por asignar tabla 16', $firstUnassignedTable);
+
+        $secondResponse = $this->actingAs($user)
+            ->get(route('maintenance.index', ['scheduled_page' => 1, 'unassigned_page' => 2]));
+        $secondResponse->assertOk();
+        $secondHtml = $secondResponse->getContent();
+        $secondScheduledTable = $this->extractMaintenanceTableHtml($secondHtml, 'Programados', 'Por programar');
+        $secondUnassignedTable = $this->extractMaintenanceTableHtml($secondHtml, 'Por asignar');
+        $this->assertStringContainsString('Programado tabla 01', $secondScheduledTable);
+        $this->assertStringNotContainsString('Programado tabla 16', $secondScheduledTable);
+        $this->assertStringContainsString('Por asignar tabla 16', $secondUnassignedTable);
+        $this->assertStringNotContainsString('Por asignar tabla 01', $secondUnassignedTable);
+    }
+
+    private function extractMaintenanceTableHtml(string $html, string $title, ?string $nextTitle = null): string
+    {
+        $start = strpos($html, '<div class="maintenance-group-title">'.$title.'</div>');
+        $this->assertNotFalse($start, "No se encontró la tabla {$title}.");
+
+        $end = $nextTitle
+            ? strpos($html, '<div class="maintenance-group-title">'.$nextTitle.'</div>', $start)
+            : false;
+
+        return $end === false ? substr($html, $start) : substr($html, $start, $end - $start);
+    }
+
     public function test_global_responsible_technician_configuration_no_longer_exists(): void
     {
         $admin = User::factory()->create();

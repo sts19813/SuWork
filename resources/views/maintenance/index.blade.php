@@ -44,28 +44,6 @@
                 default => 'Operación diaria de tickets, técnicos, propiedades y visitas programadas.',
             };
 
-            $ticketCollection = $tickets->getCollection();
-            $ticketBuckets = [
-                'urgent' => collect(),
-                'scheduled' => collect(),
-                'unscheduled' => collect(),
-                'unassigned' => collect(),
-            ];
-            foreach ($ticketCollection as $ticketRow) {
-                $bucket = match (true) {
-                    $ticketRow->current_provider_id === null => 'unassigned',
-                    $ticketRow->priority === 'urgente' && $ticketRow->scheduled_visit_at === null => 'urgent',
-                    $ticketRow->scheduled_visit_at !== null => 'scheduled',
-                    default => 'unscheduled',
-                };
-                $ticketBuckets[$bucket]->push($ticketRow);
-            }
-            $bucketMeta = [
-                'urgent' => ['title' => 'Urgentes', 'hint' => 'Sin fecha programada, ordenados por creación del ticket', 'icon' => 'bi-exclamation-octagon', 'tone' => 'red'],
-                'scheduled' => ['title' => 'Programados', 'hint' => 'Ordenados por fecha programada: atrasados, hoy y futuros', 'icon' => 'bi-calendar2-check', 'tone' => 'blue'],
-                'unscheduled' => ['title' => 'Por programar', 'hint' => 'Asignados sin fecha programada, ordenados por creación del ticket', 'icon' => 'bi-calendar2-plus', 'tone' => 'amber'],
-                'unassigned' => ['title' => 'Por asignar', 'hint' => 'Sin responsable actual para que asesores y administradores los asignen', 'icon' => 'bi-person-plus', 'tone' => 'neutral'],
-            ];
             $kpis = [
                 ['label' => 'Total', 'value' => number_format((int) ($metrics['total'] ?? 0)), 'sub' => 'Incidencias visibles', 'tone' => '#334155'],
                 ['label' => 'Pendientes', 'value' => number_format((int) ($metrics['pending'] ?? 0)), 'sub' => 'Por atender', 'tone' => '#b45309'],
@@ -241,7 +219,7 @@
                             <div>
                                 <div class="maintenance-list-title">{{ $isTenant ? 'Tus tickets' : 'Lista operativa' }}</div>
                                 <div class="maintenance-list-count">
-                                    Mostrando {{ $tickets->count() }} de {{ $tickets->total() }} tickets
+                                    Mostrando {{ $visibleTicketsCount }} de {{ $visibleTicketsTotal }} tickets
                                 </div>
                             </div>
                             @if (!$isTenant && ($search || $status || $priority || $category || $dateFrom || $dateTo || $selectedProperty))
@@ -250,18 +228,18 @@
                         </div>
                     </div>
 
-                    @forelse ($ticketBuckets as $bucketKey => $bucketTickets)
-                        @php $meta = $bucketMeta[$bucketKey]; @endphp
+                    @forelse ($ticketTables as $bucketKey => $table)
+                        @php $bucketTickets = $table['paginator']; @endphp
                         <div class="maintenance-group">
                             <div class="maintenance-group-header">
-                                <span class="maintenance-group-icon maintenance-chip-{{ $meta['tone'] }}">
-                                    <i class="bi {{ $meta['icon'] }}"></i>
+                                <span class="maintenance-group-icon maintenance-chip-{{ $table['tone'] }}">
+                                    <i class="bi {{ $table['icon'] }}"></i>
                                 </span>
                                 <div class="min-w-0">
-                                    <div class="maintenance-group-title">{{ $meta['title'] }}</div>
-                                    <div class="maintenance-group-hint">{{ $meta['hint'] }}</div>
+                                    <div class="maintenance-group-title">{{ $table['title'] }}</div>
+                                    <div class="maintenance-group-hint">{{ $table['hint'] }}</div>
                                 </div>
-                                <span class="maintenance-chip maintenance-chip-neutral ms-auto">{{ $bucketTickets->count() }}</span>
+                                <span class="maintenance-chip maintenance-chip-neutral ms-auto">{{ $bucketTickets->total() }}</span>
                             </div>
                             <div class="maintenance-list-header">
                                 <span></span>
@@ -430,6 +408,11 @@
                                     No hay tickets en esta sección.
                                 </div>
                             @endforelse
+                            @if ($bucketTickets->hasPages())
+                                <div class="maintenance-table-pagination">
+                                    {{ $bucketTickets->links() }}
+                                </div>
+                            @endif
                         </div>
                     @empty
                         <div class="maintenance-panel maintenance-empty">
@@ -437,15 +420,11 @@
                         </div>
                     @endforelse
 
-                    @if ($ticketCollection->isEmpty())
+                    @if ($visibleTicketsTotal === 0)
                         <div class="maintenance-panel maintenance-empty">
                             {{ $isTenant ? 'Aún no tienes tickets registrados.' : 'No hay tickets de mantenimiento para los filtros seleccionados.' }}
                         </div>
                     @endif
-
-                    <div class="maintenance-pagination">
-                        {{ $tickets->links() }}
-                    </div>
                 </div>
 
                 @if (!$isTenant)

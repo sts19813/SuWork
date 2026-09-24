@@ -112,17 +112,62 @@ class MaintenanceController extends Controller
                 });
             });
 
-        if ($activeTab === 'activos') {
-            $ticketsQuery->orderByOperationalPriority();
-        } else {
-            $ticketsQuery
-                ->latest('reported_at')
-                ->latest('id');
-        }
-
-        $tickets = $ticketsQuery
-            ->paginate(15)
-            ->withQueryString();
+        $ticketTables = [
+            'urgent' => [
+                'title' => 'Urgentes',
+                'hint' => 'Sin fecha programada, ordenados por creación del ticket',
+                'icon' => 'bi-exclamation-octagon',
+                'tone' => 'red',
+                'paginator' => (clone $ticketsQuery)
+                    ->whereNotNull('current_provider_id')
+                    ->where('priority', 'urgente')
+                    ->whereNull('scheduled_visit_at')
+                    ->orderBy('created_at')
+                    ->orderBy('id')
+                    ->paginate(15, ['*'], 'urgent_page')
+                    ->withQueryString(),
+            ],
+            'scheduled' => [
+                'title' => 'Programados',
+                'hint' => 'Ordenados por fecha programada: atrasados, hoy y futuros',
+                'icon' => 'bi-calendar2-check',
+                'tone' => 'blue',
+                'paginator' => (clone $ticketsQuery)
+                    ->whereNotNull('current_provider_id')
+                    ->whereNotNull('scheduled_visit_at')
+                    ->orderByOperationalPriority()
+                    ->paginate(15, ['*'], 'scheduled_page')
+                    ->withQueryString(),
+            ],
+            'unscheduled' => [
+                'title' => 'Por programar',
+                'hint' => 'Asignados sin fecha programada, ordenados por creación del ticket',
+                'icon' => 'bi-calendar2-plus',
+                'tone' => 'amber',
+                'paginator' => (clone $ticketsQuery)
+                    ->whereNotNull('current_provider_id')
+                    ->whereNull('scheduled_visit_at')
+                    ->where('priority', '!=', 'urgente')
+                    ->orderBy('created_at')
+                    ->orderBy('id')
+                    ->paginate(15, ['*'], 'unscheduled_page')
+                    ->withQueryString(),
+            ],
+            'unassigned' => [
+                'title' => 'Por asignar',
+                'hint' => 'Sin responsable actual para que asesores y administradores los asignen',
+                'icon' => 'bi-person-plus',
+                'tone' => 'neutral',
+                'paginator' => (clone $ticketsQuery)
+                    ->whereNull('current_provider_id')
+                    ->orderBy('created_at')
+                    ->orderBy('id')
+                    ->paginate(15, ['*'], 'unassigned_page')
+                    ->withQueryString(),
+            ],
+        ];
+        $visibleTicketsCount = collect($ticketTables)->sum(fn (array $table): int => (int) $table['paginator']->count());
+        $visibleTicketsTotal = collect($ticketTables)->sum(fn (array $table): int => (int) $table['paginator']->total());
 
         $metricsBase = (clone $baseQuery)
             ->when($selectedPropertyId, fn (Builder $query) => $query->where('property_id', $selectedPropertyId));
@@ -210,7 +255,9 @@ class MaintenanceController extends Controller
             ->get();
 
         return view('maintenance.index', [
-            'tickets' => $tickets,
+            'ticketTables' => $ticketTables,
+            'visibleTicketsCount' => $visibleTicketsCount,
+            'visibleTicketsTotal' => $visibleTicketsTotal,
             'providers' => $providers,
             'properties' => $properties,
             'selectedProperty' => $selectedProperty,
