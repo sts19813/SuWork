@@ -1454,13 +1454,28 @@
                                     };
                                 @endphp
 
+                                <div class="d-flex flex-column flex-md-row gap-3 align-items-md-center justify-content-between mb-5">
+                                    <div class="flex-grow-1">
+                                        <label for="propertyMaintenanceSearch" class="form-label fs-8 text-muted text-uppercase mb-1">
+                                            Buscar tickets
+                                        </label>
+                                        <input type="search" id="propertyMaintenanceSearch" class="form-control form-control-solid"
+                                            placeholder="Busca por folio, ticket, estado, técnico, proveedor o fecha">
+                                    </div>
+                                    <div class="text-muted fs-8" id="propertyMaintenanceSearchSummary">
+                                        Filtra en tiempo real sin recargar.
+                                    </div>
+                                </div>
+
                                 <ul class="nav nav-tabs nav-line-tabs mb-5" role="tablist">
                                     @foreach ($maintenanceGroups as $groupKey => $group)
                                         <li class="nav-item" role="presentation">
                                             <button class="nav-link {{ $loop->first ? 'active' : '' }}" data-bs-toggle="tab"
                                                 data-bs-target="#property-maintenance-{{ $groupKey }}" type="button" role="tab">
                                                 {{ $group['label'] }}
-                                                <span class="badge badge-light ms-2">{{ $group['tickets']->count() }}</span>
+                                                <span class="badge badge-light ms-2" data-maintenance-count="{{ $groupKey }}">
+                                                    {{ $group['tickets']->count() }}
+                                                </span>
                                             </button>
                                         </li>
                                     @endforeach
@@ -1468,13 +1483,18 @@
 
                                 <div class="tab-content">
                                     @foreach ($maintenanceGroups as $groupKey => $group)
-                                        <div class="tab-pane fade {{ $loop->first ? 'show active' : '' }}" id="property-maintenance-{{ $groupKey }}" role="tabpanel">
+                                        <div class="tab-pane fade {{ $loop->first ? 'show active' : '' }}"
+                                            id="property-maintenance-{{ $groupKey }}" role="tabpanel"
+                                            data-maintenance-group-pane="{{ $groupKey }}"
+                                            data-maintenance-total="{{ $group['tickets']->count() }}">
                                             <div class="d-flex justify-content-between align-items-center mb-3">
                                                 <div>
                                                     <div class="fw-bold">{{ $group['label'] }}</div>
                                                     <div class="text-muted fs-8">{{ $group['hint'] }}</div>
                                                 </div>
-                                                <span class="badge badge-light">{{ $group['tickets']->count() }} tickets</span>
+                                                <span class="badge badge-light" data-maintenance-count="{{ $groupKey }}" data-maintenance-count-format="tickets">
+                                                    {{ $group['tickets']->count() }} tickets
+                                                </span>
                                             </div>
                                             <div class="table-responsive">
                                                 <table class="table table-row-bordered align-middle mb-0">
@@ -1491,9 +1511,32 @@
                                                             <th class="text-end">Acción</th>
                                                         </tr>
                                                     </thead>
-                                                    <tbody>
+                                                    <tbody data-maintenance-group-body="{{ $groupKey }}">
                                                         @forelse ($group['tickets'] as $ticket)
-                                                            <tr>
+                                                            @php
+                                                                $ticketReference = $ticket->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($ticket->uuid, 0, 8));
+                                                                $ticketCategoryLabel = \App\Models\MaintenanceTicket::CATEGORY_LABELS[$ticket->category] ?? $ticket->category;
+                                                                $ticketPriorityLabel = \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority;
+                                                                $ticketStatusLabel = \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status;
+                                                                $ticketProvider = $ticket->currentProvider;
+                                                                $ticketSearchText = collect([
+                                                                    $ticketReference,
+                                                                    $ticket->title,
+                                                                    $ticket->description,
+                                                                    $ticketCategoryLabel,
+                                                                    $ticketPriorityLabel,
+                                                                    $ticketStatusLabel,
+                                                                    $ticketProvider?->name,
+                                                                    $ticketProvider?->email,
+                                                                    $ticketProvider?->phone,
+                                                                    $ticket->reported_at?->format('d/m/Y H:i'),
+                                                                    $ticket->scheduled_visit_at?->format('d/m/Y H:i'),
+                                                                    $ticket->cutItem ? 'pagado' : null,
+                                                                ])->filter()->implode(' ');
+                                                            @endphp
+                                                            <tr class="js-property-maintenance-row"
+                                                                data-maintenance-group="{{ $groupKey }}"
+                                                                data-maintenance-search="{{ $ticketSearchText }}">
                                                                 <td class="fw-semibold">{{ $ticket->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($ticket->uuid, 0, 8)) }}</td>
                                                                 <td>
                                                                     <div class="fw-semibold">{{ $ticket->title }}</div>
@@ -1547,10 +1590,15 @@
                                                                 </td>
                                                             </tr>
                                                         @empty
-                                                            <tr>
+                                                            <tr data-maintenance-empty="{{ $groupKey }}">
                                                                 <td colspan="9" class="text-center py-8 text-muted">No hay tickets en este grupo.</td>
                                                             </tr>
                                                         @endforelse
+                                                        <tr class="js-property-maintenance-no-results d-none" data-maintenance-no-results="{{ $groupKey }}">
+                                                            <td colspan="9" class="text-center py-8 text-muted">
+                                                                No hay tickets que coincidan con la búsqueda.
+                                                            </td>
+                                                        </tr>
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -2246,5 +2294,65 @@
                 }
             });
         });
+
+        const maintenanceSearchInput = document.getElementById('propertyMaintenanceSearch');
+        if (maintenanceSearchInput) {
+            const maintenanceRows = Array.from(document.querySelectorAll('.js-property-maintenance-row'));
+            const maintenanceGroupPanes = Array.from(document.querySelectorAll('[data-maintenance-group-pane]'));
+            const maintenanceSearchSummary = document.getElementById('propertyMaintenanceSearchSummary');
+            const normalizeMaintenanceText = (value) => (value || '')
+                .toString()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .trim();
+
+            const applyMaintenanceSearch = () => {
+                const query = normalizeMaintenanceText(maintenanceSearchInput.value);
+                const visibleCounts = {};
+                const groupTotals = {};
+
+                maintenanceGroupPanes.forEach((pane) => {
+                    const group = pane.dataset.maintenanceGroupPane;
+                    visibleCounts[group] = 0;
+                    groupTotals[group] = Number.parseInt(pane.dataset.maintenanceTotal || '0', 10);
+                });
+
+                maintenanceRows.forEach((row) => {
+                    const group = row.dataset.maintenanceGroup;
+                    const haystack = normalizeMaintenanceText(row.dataset.maintenanceSearch);
+                    const isVisible = query === '' || haystack.includes(query);
+                    row.classList.toggle('d-none', !isVisible);
+
+                    if (isVisible && Object.prototype.hasOwnProperty.call(visibleCounts, group)) {
+                        visibleCounts[group] += 1;
+                    }
+                });
+
+                Object.entries(visibleCounts).forEach(([group, count]) => {
+                    document.querySelectorAll(`[data-maintenance-count="${group}"]`).forEach((badge) => {
+                        badge.textContent = badge.dataset.maintenanceCountFormat === 'tickets'
+                            ? `${count} tickets`
+                            : count;
+                    });
+
+                    const noResultsRow = document.querySelector(`[data-maintenance-no-results="${group}"]`);
+                    if (noResultsRow) {
+                        const shouldShowNoResults = query !== '' && groupTotals[group] > 0 && count === 0;
+                        noResultsRow.classList.toggle('d-none', !shouldShowNoResults);
+                    }
+                });
+
+                if (maintenanceSearchSummary) {
+                    const totalVisible = Object.values(visibleCounts).reduce((sum, count) => sum + count, 0);
+                    maintenanceSearchSummary.textContent = query === ''
+                        ? 'Filtra en tiempo real sin recargar.'
+                        : `Mostrando ${totalVisible} de ${maintenanceRows.length} tickets`;
+                }
+            };
+
+            maintenanceSearchInput.addEventListener('input', applyMaintenanceSearch);
+            applyMaintenanceSearch();
+        }
     </script>
 @endpush
