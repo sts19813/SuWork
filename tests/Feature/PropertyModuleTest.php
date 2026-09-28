@@ -697,7 +697,26 @@ class PropertyModuleTest extends TestCase
             ->assertSee('Ticket cancelado en propiedad')
             ->assertSee('js-property-maintenance-provider', false)
             ->assertSee(route('maintenance.meta', $activeTicket), false)
+            ->assertSee('js-property-maintenance-cancel-form', false)
             ->assertSee('Proveedor seleccionable');
+
+        $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $advisor = User::factory()->create(['name' => 'Asesor cancela tickets']);
+        $advisor->assignRole($advisorRole);
+        $property->advisors()->attach($advisor->id);
+
+        $this->actingAs($advisor)
+            ->patch(route('maintenance.status', $activeTicket), [
+                'status' => 'cancelado',
+                'notes' => 'Cancelado por asesor',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('maintenance_tickets', [
+            'id' => $activeTicket->id,
+            'status' => 'cancelado',
+            'cancel_reason' => 'Cancelado por asesor',
+        ]);
     }
 
     public function test_provider_cannot_access_property_inventory(): void
@@ -813,7 +832,8 @@ class PropertyModuleTest extends TestCase
             ->assertDontSee('Contrato vence')
             ->assertDontSee('30/04/2027')
             ->assertDontSee('Editar propiedad')
-            ->assertDontSee('createPropertyMaintenanceTicketModal');
+            ->assertDontSee('createPropertyMaintenanceTicketModal')
+            ->assertDontSee('btn-light-danger">Cancelar</button>', false);
 
         $this->actingAs($providerUser)
             ->get(route('properties.show', $hiddenProperty))

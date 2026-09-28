@@ -765,6 +765,11 @@ class PropertyController extends Controller
             || $user?->hasRole('technician')
             || $this->isAdvisorUser($user)
         );
+        $canCancelPropertyMaintenanceTickets = ! $isProviderPropertyViewer && (bool) (
+            $user?->hasRole('administrador')
+            || $user?->hasRole('admin')
+            || $this->isAdvisorUser($user)
+        );
 
         return view('properties.show', [
             'property' => $property,
@@ -814,6 +819,7 @@ class PropertyController extends Controller
             ),
             'canCreateScheduledMaintenance' => $canCreateScheduledMaintenance,
             'canUpdatePropertyMaintenanceProvider' => $canUpdatePropertyMaintenanceProvider,
+            'canCancelPropertyMaintenanceTickets' => $canCancelPropertyMaintenanceTickets,
             'isTenantMaintenanceReporter' => $isTenantMaintenanceReporter,
             'isProviderPropertyViewer' => $isProviderPropertyViewer,
             'propertyChangeLogs' => $propertyChangeLogs,

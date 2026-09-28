@@ -1911,6 +1911,13 @@ class MaintenanceModuleTest extends TestCase
             ->assertRedirect();
 
         $this->actingAs($supplierContactUser)
+            ->patch(route('maintenance.status', $ticket), [
+                'status' => 'cancelado',
+                'notes' => 'Proveedor intenta cancelar',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($supplierContactUser)
             ->put(route('maintenance.costs', $ticket), [
                 'labor_cost' => 350,
                 'material_cost' => 150,

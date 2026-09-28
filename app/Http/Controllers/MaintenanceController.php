@@ -556,7 +556,13 @@ class MaintenanceController extends Controller
         $nextStatus = (string) $validated['status'];
         $fromStatus = (string) $maintenance->status;
 
-        if (! in_array($role, ['administrador', 'tecnico', 'proveedor'], true)) {
+        if (! in_array($role, ['administrador', 'tecnico', 'proveedor', 'asesor'], true)) {
+            abort(403);
+        }
+        if ($role === 'asesor' && $nextStatus !== 'cancelado') {
+            abort(403);
+        }
+        if ($role === 'proveedor' && $nextStatus === 'cancelado') {
             abort(403);
         }
         if ($role !== 'administrador') {

@@ -1530,7 +1530,20 @@
                                                                 <td>{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</td>
                                                                 <td>{{ $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?: '-' }}</td>
                                                                 <td class="text-end">
-                                                                    <a href="{{ route('maintenance.show', $ticket) }}" class="btn btn-sm btn-light">Ver</a>
+                                                                    <div class="d-flex justify-content-end gap-2 flex-wrap">
+                                                                        <a href="{{ route('maintenance.show', $ticket) }}" class="btn btn-sm btn-light">Ver</a>
+                                                                        @if ($canCancelPropertyMaintenanceTickets && ! in_array($ticket->status, ['completado', 'cancelado'], true))
+                                                                            <form method="POST" action="{{ route('maintenance.status', $ticket) }}"
+                                                                                class="js-property-maintenance-cancel-form"
+                                                                                data-ticket-title="{{ $ticket->title }}">
+                                                                                @csrf
+                                                                                @method('PATCH')
+                                                                                <input type="hidden" name="status" value="cancelado">
+                                                                                <input type="hidden" name="notes" value="Cancelado desde la vista de propiedad.">
+                                                                                <button type="submit" class="btn btn-sm btn-light-danger">Cancelar</button>
+                                                                            </form>
+                                                                        @endif
+                                                                    </div>
                                                                 </td>
                                                             </tr>
                                                         @empty
@@ -2208,6 +2221,28 @@
                     }
                 } finally {
                     select.disabled = false;
+                }
+            });
+        });
+
+        document.querySelectorAll('.js-property-maintenance-cancel-form').forEach((form) => {
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const ticketTitle = form.dataset.ticketTitle || 'este ticket';
+                const confirmed = window.Swal?.fire
+                    ? (await window.Swal.fire({
+                        title: '¿Cancelar ticket?',
+                        text: `Se cancelará ${ticketTitle}.`,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, cancelar',
+                        cancelButtonText: 'No',
+                        confirmButtonColor: '#d9214e',
+                    })).isConfirmed
+                    : window.confirm(`¿Cancelar ${ticketTitle}?`);
+
+                if (confirmed) {
+                    form.submit();
                 }
             });
         });
