@@ -11,6 +11,7 @@ use App\Models\Property;
 use App\Models\PropertyDocument;
 use App\Models\PropertyType;
 use App\Models\DossierDocumentRequirement;
+use App\Models\MaintenanceCut;
 use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\Tenant;
@@ -617,6 +618,86 @@ class PropertyModuleTest extends TestCase
                 'reported_at' => '2026-09-22 10:00:00',
             ])
             ->assertNotFound();
+    }
+
+    public function test_property_maintenance_tab_groups_tickets_and_allows_provider_selection(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $type = PropertyType::query()->create(['name' => 'Casa mantenimiento tabs', 'slug' => 'casa-mantenimiento-tabs', 'is_active' => true]);
+        $zone = Zone::query()->create(['name' => 'Zona mantenimiento tabs', 'slug' => 'zona-mantenimiento-tabs', 'is_active' => true]);
+        $property = Property::query()->create([
+            'internal_name' => 'Casa tabs mantenimiento',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Tabs 12',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $admin->id,
+        ]);
+        $provider = MaintenanceProvider::query()->create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico de tabs',
+            'email' => 'tabs@example.com',
+            'is_active' => true,
+        ]);
+        MaintenanceProvider::query()->create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor seleccionable',
+            'email' => 'proveedor.tabs@example.com',
+            'is_active' => true,
+        ]);
+
+        $createTicket = function (string $title, string $status) use ($admin, $property, $provider): MaintenanceTicket {
+            return MaintenanceTicket::query()->create([
+                'property_id' => $property->id,
+                'reported_by_user_id' => $admin->id,
+                'current_provider_id' => $provider->id,
+                'reported_by_role' => 'administrador',
+                'reported_by_name' => $admin->name,
+                'category' => 'plomeria',
+                'priority' => 'media',
+                'status' => $status,
+                'title' => $title,
+                'exact_location' => 'Cocina',
+                'description' => 'Ticket para vista de propiedad',
+                'reported_at' => now(),
+                'completed_at' => $status === 'completado' ? now() : null,
+            ]);
+        };
+
+        $activeTicket = $createTicket('Ticket activo en propiedad', 'asignado');
+        $createTicket('Ticket completado no pagado', 'completado');
+        $paidTicket = $createTicket('Ticket completado pagado', 'completado');
+        $createTicket('Ticket cancelado en propiedad', 'cancelado');
+        $cut = MaintenanceCut::query()->create([
+            'ticket_count' => 1,
+            'labor_total' => 0,
+            'material_total' => 0,
+            'grand_total' => 0,
+            'paid_at' => now(),
+            'paid_by_user_id' => $admin->id,
+        ]);
+        $paidTicket->cutItem()->create([
+            'maintenance_cut_id' => $cut->id,
+            'labor_total' => 0,
+            'material_total' => 0,
+            'grand_total' => 0,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('properties.show', $property).'#tab-maintenance')
+            ->assertOk()
+            ->assertSee('Activos')
+            ->assertSee('Completados')
+            ->assertSee('Completados y pagados')
+            ->assertSee('Cancelados')
+            ->assertSee('Ticket activo en propiedad')
+            ->assertSee('Ticket completado no pagado')
+            ->assertSee('Ticket completado pagado')
+            ->assertSee('Ticket cancelado en propiedad')
+            ->assertSee('js-property-maintenance-provider', false)
+            ->assertSee(route('maintenance.meta', $activeTicket), false)
+            ->assertSee('Proveedor seleccionable');
     }
 
     public function test_provider_cannot_access_property_inventory(): void

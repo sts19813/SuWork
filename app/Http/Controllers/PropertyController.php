@@ -651,8 +651,9 @@ class PropertyController extends Controller
             ->get();
         $propertyMaintenanceTickets = MaintenanceTicket::query()
             ->with([
-                'currentProvider:id,uuid,name,type',
+                'currentProvider:id,uuid,name,type,email,phone',
                 'reporter:id,name,email',
+                'cutItem.cut:id,uuid,paid_at',
             ])
             ->withCount(['files', 'messages'])
             ->where('property_id', $property->id)
@@ -662,7 +663,6 @@ class PropertyController extends Controller
                 });
             })
             ->orderByOperationalPriority()
-            ->limit(50)
             ->get();
 
         $rentChargesTotal = Charge::query()
@@ -758,6 +758,13 @@ class PropertyController extends Controller
             ->values();
         $canManagePropertyTechnician = $this->canManagePropertyTechnician($user);
         $canCreateScheduledMaintenance = $isProviderPropertyViewer || $canManagePropertyTechnician;
+        $canUpdatePropertyMaintenanceProvider = ! $isProviderPropertyViewer && (bool) (
+            $user?->hasRole('administrador')
+            || $user?->hasRole('admin')
+            || $user?->hasRole('tecnico')
+            || $user?->hasRole('technician')
+            || $this->isAdvisorUser($user)
+        );
 
         return view('properties.show', [
             'property' => $property,
@@ -789,6 +796,11 @@ class PropertyController extends Controller
             'resolvedPropertyExpenseNotificationSetup' => $resolvedPropertyExpenseNotificationSetup,
             'recurringExpenseFrequencyOptions' => RecurringExpenseItem::FREQUENCY_LABELS,
             'propertyMaintenanceTickets' => $propertyMaintenanceTickets,
+            'propertyMaintenanceProviders' => MaintenanceProvider::query()
+                ->where('is_active', true)
+                ->whereIn('type', ['tecnico_interno', 'proveedor'])
+                ->orderBy('name')
+                ->get(['id', 'uuid', 'name', 'email', 'phone', 'type', 'specialty', 'category']),
             'maintenanceCategoryOptions' => MaintenanceTicket::CATEGORY_LABELS,
             'maintenancePriorityOptions' => MaintenanceTicket::PRIORITY_LABELS,
             'canCreatePropertyMaintenanceTicket' => ! $isProviderPropertyViewer && (bool) (
@@ -801,6 +813,7 @@ class PropertyController extends Controller
                 || $this->isAdvisorUser($user)
             ),
             'canCreateScheduledMaintenance' => $canCreateScheduledMaintenance,
+            'canUpdatePropertyMaintenanceProvider' => $canUpdatePropertyMaintenanceProvider,
             'isTenantMaintenanceReporter' => $isTenantMaintenanceReporter,
             'isProviderPropertyViewer' => $isProviderPropertyViewer,
             'propertyChangeLogs' => $propertyChangeLogs,

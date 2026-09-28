@@ -1414,50 +1414,135 @@
                                 </div>
                             </div>
                             <div class="card-body pt-0">
-                                <div class="table-responsive">
-                                    <table class="table table-row-bordered align-middle mb-0">
-                                        <thead>
-                                            <tr class="text-muted text-uppercase fs-8">
-                                                <th>Folio</th>
-                                                <th>Ticket</th>
-                                                <th>Categoría</th>
-                                                <th>Prioridad</th>
-                                                <th>Estado</th>
-                                                <th>Técnico/Proveedor</th>
-                                                <th>Fecha reporte</th>
-                                                <th>Fecha programada</th>
-                                                <th class="text-end">Acción</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @forelse ($propertyMaintenanceTickets as $ticket)
-                                                <tr>
-                                                    <td>{{ $ticket->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($ticket->uuid, 0, 8)) }}</td>
-                                                    <td>
-                                                        <div class="fw-semibold">{{ $ticket->title }}</div>
-                                                        <div class="text-muted fs-8">{{ $ticket->files_count }} archivos · {{ $ticket->messages_count }} mensajes</div>
-                                                    </td>
-                                                    <td>{{ \App\Models\MaintenanceTicket::CATEGORY_LABELS[$ticket->category] ?? $ticket->category }}</td>
-                                                    <td>{{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}</td>
-                                                    <td>
-                                                        <span class="badge badge-light">
-                                                            {{ \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status }}
-                                                        </span>
-                                                    </td>
-                                                    <td>{{ $ticket->currentProvider?->name ?: 'Sin asignar' }}</td>
-                                                    <td>{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</td>
-                                                    <td>{{ $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?: '-' }}</td>
-                                                    <td class="text-end">
-                                                        <a href="{{ route('maintenance.show', $ticket) }}" class="btn btn-sm btn-light">Ver</a>
-                                                    </td>
-                                                </tr>
-                                            @empty
-                                                <tr>
-                                                    <td colspan="9" class="text-center py-8 text-muted">No hay tickets de mantenimiento para esta propiedad.</td>
-                                                </tr>
-                                            @endforelse
-                                        </tbody>
-                                    </table>
+                                @php
+                                    $maintenanceGroups = [
+                                        'active' => [
+                                            'label' => 'Activos',
+                                            'hint' => 'Tickets en seguimiento',
+                                            'tickets' => $propertyMaintenanceTickets
+                                                ->reject(fn ($ticket) => in_array($ticket->status, ['completado', 'cancelado'], true))
+                                                ->values(),
+                                        ],
+                                        'completed' => [
+                                            'label' => 'Completados',
+                                            'hint' => 'Terminados sin corte pagado',
+                                            'tickets' => $propertyMaintenanceTickets
+                                                ->filter(fn ($ticket) => $ticket->status === 'completado' && ! $ticket->cutItem)
+                                                ->values(),
+                                        ],
+                                        'paid' => [
+                                            'label' => 'Completados y pagados',
+                                            'hint' => 'Cerrados en corte',
+                                            'tickets' => $propertyMaintenanceTickets
+                                                ->filter(fn ($ticket) => $ticket->status === 'completado' && $ticket->cutItem)
+                                                ->values(),
+                                        ],
+                                        'cancelled' => [
+                                            'label' => 'Cancelados',
+                                            'hint' => 'Tickets cancelados',
+                                            'tickets' => $propertyMaintenanceTickets
+                                                ->filter(fn ($ticket) => $ticket->status === 'cancelado')
+                                                ->values(),
+                                        ],
+                                    ];
+                                    $maintenanceBadgeTone = fn ($status) => match ($status) {
+                                        'completado' => 'badge-light-success',
+                                        'cancelado' => 'badge-light-danger',
+                                        'en_proceso' => 'badge-light-primary',
+                                        'programado', 'asignado' => 'badge-light-info',
+                                        default => 'badge-light-warning',
+                                    };
+                                @endphp
+
+                                <ul class="nav nav-tabs nav-line-tabs mb-5" role="tablist">
+                                    @foreach ($maintenanceGroups as $groupKey => $group)
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link {{ $loop->first ? 'active' : '' }}" data-bs-toggle="tab"
+                                                data-bs-target="#property-maintenance-{{ $groupKey }}" type="button" role="tab">
+                                                {{ $group['label'] }}
+                                                <span class="badge badge-light ms-2">{{ $group['tickets']->count() }}</span>
+                                            </button>
+                                        </li>
+                                    @endforeach
+                                </ul>
+
+                                <div class="tab-content">
+                                    @foreach ($maintenanceGroups as $groupKey => $group)
+                                        <div class="tab-pane fade {{ $loop->first ? 'show active' : '' }}" id="property-maintenance-{{ $groupKey }}" role="tabpanel">
+                                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                                <div>
+                                                    <div class="fw-bold">{{ $group['label'] }}</div>
+                                                    <div class="text-muted fs-8">{{ $group['hint'] }}</div>
+                                                </div>
+                                                <span class="badge badge-light">{{ $group['tickets']->count() }} tickets</span>
+                                            </div>
+                                            <div class="table-responsive">
+                                                <table class="table table-row-bordered align-middle mb-0">
+                                                    <thead>
+                                                        <tr class="text-muted text-uppercase fs-8">
+                                                            <th>Folio</th>
+                                                            <th>Ticket</th>
+                                                            <th>Categoría</th>
+                                                            <th>Prioridad</th>
+                                                            <th>Estado</th>
+                                                            <th style="min-width: 240px;">Técnico/Proveedor</th>
+                                                            <th>Fecha reporte</th>
+                                                            <th>Fecha programada</th>
+                                                            <th class="text-end">Acción</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @forelse ($group['tickets'] as $ticket)
+                                                            <tr>
+                                                                <td class="fw-semibold">{{ $ticket->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($ticket->uuid, 0, 8)) }}</td>
+                                                                <td>
+                                                                    <div class="fw-semibold">{{ $ticket->title }}</div>
+                                                                    <div class="text-muted fs-8">{{ $ticket->files_count }} archivos · {{ $ticket->messages_count }} mensajes</div>
+                                                                    @if ($ticket->cutItem)
+                                                                        <span class="badge badge-light-success mt-1">Pagado</span>
+                                                                    @endif
+                                                                </td>
+                                                                <td>{{ \App\Models\MaintenanceTicket::CATEGORY_LABELS[$ticket->category] ?? $ticket->category }}</td>
+                                                                <td>{{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}</td>
+                                                                <td>
+                                                                    <span class="badge {{ $maintenanceBadgeTone($ticket->status) }}">
+                                                                        {{ \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status }}
+                                                                    </span>
+                                                                </td>
+                                                                <td>
+                                                                    @if ($canUpdatePropertyMaintenanceProvider)
+                                                                        <select class="form-select form-select-sm js-property-maintenance-provider"
+                                                                            data-prev-value="{{ $ticket->current_provider_id }}"
+                                                                            data-meta-url="{{ route('maintenance.meta', $ticket) }}"
+                                                                            data-scheduled-visit-at="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i:s') }}">
+                                                                            <option value="">Sin asignar</option>
+                                                                            @foreach ($propertyMaintenanceProviders as $provider)
+                                                                                <option value="{{ $provider->id }}" {{ (int) $ticket->current_provider_id === (int) $provider->id ? 'selected' : '' }}>
+                                                                                    {{ $provider->name }} · {{ \App\Models\MaintenanceProvider::TYPE_LABELS[$provider->type] ?? $provider->type }}
+                                                                                </option>
+                                                                            @endforeach
+                                                                        </select>
+                                                                    @else
+                                                                        <div class="fw-semibold">{{ $ticket->currentProvider?->name ?: 'Sin asignar' }}</div>
+                                                                        <div class="text-muted fs-8">{{ $ticket->currentProvider?->email ?: ($ticket->currentProvider?->phone ?: '-') }}</div>
+                                                                    @endif
+                                                                </td>
+                                                                <td>{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                                                <td>{{ $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                                                <td class="text-end">
+                                                                    <a href="{{ route('maintenance.show', $ticket) }}" class="btn btn-sm btn-light">Ver</a>
+                                                                </td>
+                                                            </tr>
+                                                        @empty
+                                                            <tr>
+                                                                <td colspan="9" class="text-center py-8 text-muted">No hay tickets en este grupo.</td>
+                                                            </tr>
+                                                        @endforelse
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    @endforeach
                                 </div>
                             </div>
                         </div>
@@ -2051,6 +2136,78 @@
 
                 if (confirmed) {
                     form.submit();
+                }
+            });
+        });
+
+        document.querySelectorAll('.js-property-maintenance-provider').forEach((select) => {
+            select.addEventListener('focus', () => {
+                select.dataset.prevValue = select.value;
+            });
+
+            select.addEventListener('change', async () => {
+                const previousValue = select.dataset.prevValue ?? '';
+                const nextValue = select.value;
+                const metaUrl = select.dataset.metaUrl;
+                if (!metaUrl || nextValue === previousValue) return;
+
+                const saveProvider = async (forceConflict = false) => {
+                    const response = await fetch(metaUrl, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        },
+                        body: JSON.stringify({
+                            provider_id: nextValue === '' ? null : nextValue,
+                            notes: 'Asignación rápida desde propiedad',
+                            force_conflict: forceConflict ? 1 : 0,
+                        }),
+                    });
+
+                    const payload = await response.json().catch(() => ({}));
+                    return { response, payload };
+                };
+
+                select.disabled = true;
+                try {
+                    let { response, payload } = await saveProvider(false);
+                    if (response.status === 422 && payload.requires_confirmation) {
+                        const confirmed = window.Swal?.fire
+                            ? (await window.Swal.fire({
+                                title: 'Conflicto de agenda',
+                                text: payload.message || 'El técnico ya tiene asignaciones en esa fecha.',
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonText: 'Asignar de todos modos',
+                                cancelButtonText: 'Cancelar',
+                            })).isConfirmed
+                            : window.confirm(payload.message || 'El técnico ya tiene asignaciones en esa fecha. ¿Asignar de todos modos?');
+
+                        if (!confirmed) {
+                            select.value = previousValue;
+                            return;
+                        }
+
+                        ({ response, payload } = await saveProvider(true));
+                    }
+
+                    if (!response.ok || payload.success === false) {
+                        throw new Error(payload.message || 'No fue posible actualizar el responsable.');
+                    }
+
+                    select.dataset.prevValue = nextValue;
+                    window.SuWorkToast?.fire?.('success', payload.message || 'Responsable actualizado.');
+                } catch (error) {
+                    select.value = previousValue;
+                    window.SuWorkToast?.fire?.('danger', error.message || 'No fue posible actualizar el responsable.');
+                    if (!window.SuWorkToast?.fire) {
+                        window.alert(error.message || 'No fue posible actualizar el responsable.');
+                    }
+                } finally {
+                    select.disabled = false;
                 }
             });
         });
