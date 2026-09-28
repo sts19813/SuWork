@@ -339,8 +339,10 @@
                                     <button type="button" class="maintenance-primary-btn" data-bs-toggle="modal" data-bs-target="#createMaintenanceCostModal">
                                         <i class="bi bi-plus-lg"></i> Agregar costo
                                     </button>
-                                @else
+                                @elseif ($isMaintenancePaid)
                                     <span class="maintenance-chip maintenance-chip-green"><i class="bi bi-lock-fill me-1"></i> Pagado</span>
+                                @else
+                                    <span class="maintenance-chip maintenance-chip-neutral"><i class="bi bi-eye me-1"></i> Solo lectura</span>
                                 @endif
                             </div>
                             <div class="table-responsive">

@@ -464,16 +464,21 @@ class MaintenanceController extends Controller
                 array_flip(['revisado', 'programado', 'en_proceso', 'esperando_material', 'completado', 'cancelado', 'reabierto'])
             );
 
+        $isTicketTechnician = $role === 'tecnico'
+            && (
+                $this->isPropertyTechnician($maintenance, $user)
+                || $this->isAssignedTicketTechnician($maintenance, $user)
+            );
         $canViewCosts = $role === 'administrador'
             || $role === 'proveedor'
-            || ($role === 'tecnico' && $this->isPropertyTechnician($maintenance, $user));
+            || $isTicketTechnician;
         $isMaintenancePaid = $maintenance->cutItem !== null;
         $canCreateCosts = $canViewCosts
             && ! $isMaintenancePaid
             && (
                 $role === 'administrador'
                 || $role === 'proveedor'
-                || ($role === 'tecnico' && $this->isPropertyTechnician($maintenance, $user))
+                || $isTicketTechnician
             );
         $canEditCosts = $canViewCosts && ! $isMaintenancePaid && $this->canEditTicketExpenses($user);
         $canDeleteCosts = $canViewCosts && ! $isMaintenancePaid && $this->canDeleteTicketExpenses($user);
@@ -886,7 +891,13 @@ class MaintenanceController extends Controller
         if (
             $role !== 'administrador'
             && $role !== 'proveedor'
-            && ($role !== 'tecnico' || ! $this->isPropertyTechnician($maintenance, $user))
+            && (
+                $role !== 'tecnico'
+                || (
+                    ! $this->isPropertyTechnician($maintenance, $user)
+                    && ! $this->isAssignedTicketTechnician($maintenance, $user)
+                )
+            )
         ) {
             abort(403);
         }
@@ -1709,6 +1720,16 @@ class MaintenanceController extends Controller
         return Property::query()
             ->whereKey($ticket->property_id)
             ->whereHas('technicianProvider', function (Builder $providerQuery) use ($user): void {
+                $this->constrainProviderToUser($providerQuery, $user);
+            })
+            ->exists();
+    }
+
+    private function isAssignedTicketTechnician(MaintenanceTicket $ticket, User $user): bool
+    {
+        return MaintenanceTicket::query()
+            ->whereKey($ticket->id)
+            ->whereHas('currentProvider', function (Builder $providerQuery) use ($user): void {
                 $this->constrainProviderToUser($providerQuery, $user);
             })
             ->exists();
