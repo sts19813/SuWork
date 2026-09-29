@@ -50,7 +50,7 @@
     } elseif ($isTechnician) {
         $menuItems = [
             $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem, $storageItem]),
-            $makeMenuSection('Configuración', 'bi-gear', [$copilotItem, $profileItem]),
+            $makeMenuSection('Configuración', 'bi-gear', [$profileItem]),
         ];
     } elseif ($isProvider) {
         $menuItems = [

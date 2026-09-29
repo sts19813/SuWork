@@ -2198,24 +2198,94 @@ td .btn {
     }
 
     .maintenance-ticket-row {
-        grid-template-columns: 4px minmax(0, 1fr);
-        gap: 12px;
+        grid-template-columns: 4px minmax(0, 1fr) auto;
+        gap: 10px 12px;
+        align-items: start;
+        margin: 10px;
+        padding: 14px;
+        border: 1px solid var(--maint-border);
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
     }
 
     .maintenance-ticket-row > :not(.maintenance-priority-bar) {
-        grid-column: 2;
+        grid-column: 2 / -1;
     }
 
     .maintenance-ticket-row .maintenance-priority-bar {
         align-self: stretch;
-        grid-row: 1 / span 6;
+        grid-row: 1 / span 7;
         height: auto;
+    }
+
+    .maintenance-priority-cell {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .maintenance-priority-cell .maintenance-inline-dropdown,
+    .maintenance-priority-cell > .maintenance-chip {
+        flex: 0 0 auto;
+    }
+
+    .maintenance-reference {
+        font-size: 11px;
+    }
+
+    .maintenance-ticket-main {
+        display: block;
+    }
+
+    .maintenance-ticket-name {
+        font-size: 15px;
+        line-height: 1.25;
+        white-space: normal;
+    }
+
+    .maintenance-ticket-meta {
+        gap: 6px 10px;
+        margin-top: 7px;
+        font-size: 12px;
     }
 
     .maintenance-property-cell,
     .maintenance-provider-cell,
     .maintenance-scheduled-cell {
-        align-items: flex-start;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .maintenance-property-cell,
+    .maintenance-provider-cell {
+        padding: 8px 0;
+    }
+
+    .maintenance-scheduled-cell {
+        padding-top: 10px;
+        border-top: 1px solid #edf2f7;
+    }
+
+    .maintenance-scheduled-cell + span {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding-top: 0;
+    }
+
+    .maintenance-scheduled-cell .maintenance-cell-title {
+        font-size: 14px;
+    }
+
+    .maintenance-cell-title {
+        font-size: 13px;
+    }
+
+    .maintenance-cell-subtitle {
+        font-size: 11px;
     }
 
     .ticket-info-grid {
@@ -2564,6 +2634,63 @@ td .btn {
     .maintenance-title,
     .ticket-title {
         font-size: 23px;
+    }
+
+    .maintenance-group {
+        background: transparent;
+    }
+
+    .maintenance-group-header {
+        padding: 12px 15px;
+    }
+
+    .maintenance-group-title {
+        font-size: 13px;
+    }
+
+    .maintenance-group-hint {
+        font-size: 11px;
+        line-height: 1.25;
+    }
+
+    .maintenance-ticket-row {
+        margin: 9px 8px;
+        padding: 13px 12px;
+        border-radius: 12px;
+    }
+
+    .maintenance-ticket-row:hover {
+        transform: none;
+    }
+
+    .maintenance-priority-cell {
+        align-items: flex-start;
+    }
+
+    .maintenance-ticket-meta > span {
+        max-width: 100%;
+    }
+
+    .maintenance-property-cell,
+    .maintenance-provider-cell {
+        align-items: center;
+        padding: 7px 0;
+    }
+
+    .maintenance-provider-trigger {
+        gap: 10px;
+    }
+
+    .maintenance-provider-trigger.dropdown-toggle::after {
+        margin-left: 6px;
+    }
+
+    .maintenance-scheduled-cell {
+        margin-top: 2px;
+    }
+
+    .maintenance-scheduled-cell + span {
+        margin-top: -2px;
     }
 
     .maintenance-search-panel {

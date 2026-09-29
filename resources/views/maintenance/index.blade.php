@@ -90,7 +90,7 @@
                         @endif
                     @endif
                     @if ($canCreateTicket)
-                        <button class="maintenance-primary-btn" data-bs-toggle="modal" data-bs-target="#createMaintenanceTicketModal">
+                        <button class="maintenance-primary-btn {{ in_array($role, ['tecnico', 'proveedor'], true) ? 'd-none d-md-inline-flex' : '' }}" data-bs-toggle="modal" data-bs-target="#createMaintenanceTicketModal">
                             <i class="bi bi-plus-lg"></i> Nuevo ticket
                         </button>
                     @endif
