@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @include('partials.pwa-head')
     <title>@yield('title', 'Pago') | SuWork</title>
 
     <link href="{{ asset('/metronic/assets/plugins/global/plugins.bundle.css') }}" rel="stylesheet" type="text/css" />
@@ -41,6 +42,7 @@
     <script src="{{ asset('/metronic/assets/js/scripts.bundle.js') }}"></script>
     @include('partials.suwork-toasts')
     @stack('scripts')
+    @include('partials.pwa-register')
 </body>
 
 </html>

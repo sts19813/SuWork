@@ -7,6 +7,7 @@
     <title>@yield('title', 'SuWork')</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @include('partials.pwa-head')
 
     <!-- Vendor Stylesheets (para páginas específicas, opcional) -->
     <link href="{{ asset('/metronic/assets/plugins/custom/fullcalendar/fullcalendar.bundle.css') }}" rel="stylesheet"
@@ -214,6 +215,7 @@
     @include('partials.suwork-toasts')
 
     @stack('scripts')
+    @include('partials.pwa-register')
 </body>
 
 </html>

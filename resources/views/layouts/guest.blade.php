@@ -4,6 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        @include('partials.pwa-head')
 
         <title>{{ config('app.name', 'Laravel') }}</title>
 
@@ -26,5 +27,6 @@
                 {{ $slot }}
             </div>
         </div>
+        @include('partials.pwa-register')
     </body>
 </html>
