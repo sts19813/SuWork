@@ -244,6 +244,8 @@ body.su-admin-layout {
     inset: 0 auto 0 0;
     z-index: 105;
     width: var(--admin-sidebar-width);
+    min-width: var(--admin-sidebar-width);
+    max-width: var(--admin-sidebar-width);
     background: var(--admin-sidebar-bg);
     box-shadow: 12px 0 28px rgba(17, 24, 39, 0.08);
     transition: width 0.24s ease;
@@ -251,6 +253,9 @@ body.su-admin-layout {
 
 .su-admin-layout .app-sidebar-wrapper {
     height: 100vh;
+    width: var(--admin-sidebar-width) !important;
+    min-width: var(--admin-sidebar-width) !important;
+    max-width: var(--admin-sidebar-width) !important;
     background: transparent;
 }
 
@@ -258,6 +263,8 @@ body.su-admin-layout {
     display: flex;
     flex-direction: column;
     height: 100%;
+    width: 100%;
+    min-width: 0;
     padding: 14px 12px 18px;
 }
 
@@ -400,6 +407,7 @@ body.su-admin-layout {
 .su-admin-layout .app-sidebar-footer {
     margin-top: auto;
     padding-top: 16px;
+    min-width: 0;
 }
 
 .su-admin-layout .sidebar-user-card {
@@ -407,11 +415,13 @@ body.su-admin-layout {
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 0;
     min-height: 56px;
     padding: 10px 12px;
     border-radius: 18px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.07);
+    overflow: hidden;
 }
 
 .su-admin-layout .sidebar-user-menu-trigger {
@@ -452,7 +462,9 @@ body.su-admin-layout {
 }
 
 .su-admin-layout .sidebar-user-details {
+    flex: 1 1 auto;
     min-width: 0;
+    overflow: hidden;
 }
 
 .su-admin-layout .sidebar-user-name {
@@ -478,6 +490,12 @@ body.su-admin-layout {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex: 0 0 32px;
+}
+
+.su-admin-layout .sidebar-user-actions {
+    flex: 0 0 auto;
+    min-width: 0;
 }
 
 .su-admin-layout .sidebar-user-action:hover {
@@ -569,6 +587,14 @@ body.su-admin-layout {
 
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar {
     width: var(--admin-sidebar-mini-width);
+    min-width: var(--admin-sidebar-mini-width);
+    max-width: var(--admin-sidebar-mini-width);
+}
+
+[data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar-wrapper {
+    width: var(--admin-sidebar-mini-width) !important;
+    min-width: var(--admin-sidebar-mini-width) !important;
+    max-width: var(--admin-sidebar-mini-width) !important;
 }
 
 [data-kt-app-sidebar-minimize="on"].su-admin-layout .app-sidebar,
@@ -2565,7 +2591,35 @@ td .btn {
     }
 
     .maintenance-kpi-strip,
-    .maintenance-tenant-summary,
+    .maintenance-tenant-summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .maintenance-kpi {
+        padding: 10px;
+        min-height: 112px;
+    }
+
+    .maintenance-kpi-label {
+        gap: 6px;
+        font-size: 10px;
+        line-height: 1.15;
+    }
+
+    .maintenance-kpi-value {
+        margin-top: 10px;
+        font-size: 24px;
+        line-height: 1;
+        overflow-wrap: anywhere;
+    }
+
+    .maintenance-kpi-sub {
+        margin-top: 6px;
+        font-size: 10px;
+        line-height: 1.2;
+    }
+
     .ticket-info-grid,
     .ticket-file-grid {
         grid-template-columns: 1fr;
