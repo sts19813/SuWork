@@ -9,6 +9,64 @@
         .property-logbook { width: 100%; max-width: none; }
         .logbook-entry { border-left: 3px solid var(--bs-primary); }
         .logbook-entry__note { white-space: pre-wrap; line-height: 1.65; }
+        .property-maintenance-table {
+            table-layout: fixed;
+            min-width: 1240px;
+        }
+        .property-maintenance-table th,
+        .property-maintenance-table td {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+            vertical-align: middle;
+        }
+        .property-maintenance-folio-cell { width: 92px; }
+        .property-maintenance-ticket-cell { width: 140px; }
+        .property-maintenance-category-cell { width: 120px; }
+        .property-maintenance-priority-cell { width: 95px; }
+        .property-maintenance-status-cell { width: 130px; }
+        .property-maintenance-quick-select-cell {
+            width: 210px;
+            min-width: 210px;
+            max-width: 210px;
+        }
+        .property-maintenance-provider-cell {
+            padding-left: 1rem !important;
+            padding-right: 1.25rem !important;
+            border-right: 12px solid transparent;
+        }
+        .property-maintenance-date-cell { width: 112px; }
+        .property-maintenance-scheduled-cell { width: 118px; }
+        .property-maintenance-action-cell { width: 92px; }
+        .property-maintenance-quick-select-cell .select2-container,
+        .property-maintenance-quick-select {
+            width: 210px !important;
+            max-width: 210px;
+        }
+        .property-maintenance-quick-select-cell .select2-selection__rendered,
+        .property-maintenance-quick-select {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .property-maintenance-ticket-title {
+            max-width: 120px;
+            overflow-wrap: anywhere;
+        }
+        .property-maintenance-nowrap {
+            white-space: nowrap;
+        }
+        @media (max-width: 991.98px) {
+            .property-maintenance-table {
+                min-width: 1360px;
+            }
+            .property-maintenance-quick-select-cell,
+            .property-maintenance-quick-select-cell .select2-container,
+            .property-maintenance-quick-select {
+                width: 220px !important;
+                min-width: 220px;
+                max-width: 220px;
+            }
+        }
     </style>
 
     @php
@@ -1452,6 +1510,7 @@
                                         'programado', 'asignado' => 'badge-light-info',
                                         default => 'badge-light-warning',
                                     };
+                                    $maintenanceTableColspan = $canMovePropertyMaintenanceTickets ? 10 : 9;
                                 @endphp
 
                                 <div class="d-flex flex-column flex-md-row gap-3 align-items-md-center justify-content-between mb-5">
@@ -1497,18 +1556,21 @@
                                                 </span>
                                             </div>
                                             <div class="table-responsive">
-                                                <table class="table table-row-bordered align-middle mb-0">
+                                                <table class="table table-row-bordered align-middle mb-0 property-maintenance-table">
                                                     <thead>
                                                         <tr class="text-muted text-uppercase fs-8">
-                                                            <th>Folio</th>
-                                                            <th>Ticket</th>
-                                                            <th>Categoría</th>
-                                                            <th>Prioridad</th>
-                                                            <th>Estado</th>
-                                                            <th style="min-width: 240px;">Técnico/Proveedor</th>
-                                                            <th>Fecha reporte</th>
-                                                            <th>Fecha programada</th>
-                                                            <th class="text-end">Acción</th>
+                                                            <th class="property-maintenance-folio-cell">Folio</th>
+                                                            <th class="property-maintenance-ticket-cell">Ticket</th>
+                                                            <th class="property-maintenance-category-cell">Categoría</th>
+                                                            <th class="property-maintenance-priority-cell">Prioridad</th>
+                                                            <th class="property-maintenance-status-cell">Estado</th>
+                                                            @if ($canMovePropertyMaintenanceTickets)
+                                                                <th class="property-maintenance-quick-select-cell">Propiedad</th>
+                                                            @endif
+                                                            <th class="property-maintenance-quick-select-cell property-maintenance-provider-cell">Técnico/Proveedor</th>
+                                                            <th class="property-maintenance-date-cell">Fecha reporte</th>
+                                                            <th class="property-maintenance-scheduled-cell">Fecha programada</th>
+                                                            <th class="text-end property-maintenance-action-cell">Acción</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody data-maintenance-group-body="{{ $groupKey }}">
@@ -1537,24 +1599,40 @@
                                                             <tr class="js-property-maintenance-row"
                                                                 data-maintenance-group="{{ $groupKey }}"
                                                                 data-maintenance-search="{{ $ticketSearchText }}">
-                                                                <td class="fw-semibold">{{ $ticket->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($ticket->uuid, 0, 8)) }}</td>
-                                                                <td>
-                                                                    <div class="fw-semibold">{{ $ticket->title }}</div>
+                                                                <td class="fw-semibold property-maintenance-folio-cell property-maintenance-nowrap">{{ $ticket->reference ?: \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($ticket->uuid, 0, 8)) }}</td>
+                                                                <td class="property-maintenance-ticket-cell">
+                                                                    <div class="fw-semibold property-maintenance-ticket-title">{{ $ticket->title }}</div>
                                                                     <div class="text-muted fs-8">{{ $ticket->files_count }} archivos · {{ $ticket->messages_count }} mensajes</div>
                                                                     @if ($ticket->cutItem)
                                                                         <span class="badge badge-light-success mt-1">Pagado</span>
                                                                     @endif
                                                                 </td>
-                                                                <td>{{ \App\Models\MaintenanceTicket::CATEGORY_LABELS[$ticket->category] ?? $ticket->category }}</td>
-                                                                <td>{{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}</td>
-                                                                <td>
+                                                                <td class="property-maintenance-category-cell">{{ \App\Models\MaintenanceTicket::CATEGORY_LABELS[$ticket->category] ?? $ticket->category }}</td>
+                                                                <td class="property-maintenance-priority-cell">{{ \App\Models\MaintenanceTicket::PRIORITY_LABELS[$ticket->priority] ?? $ticket->priority }}</td>
+                                                                <td class="property-maintenance-status-cell">
                                                                     <span class="badge {{ $maintenanceBadgeTone($ticket->status) }}">
                                                                         {{ \App\Models\MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status }}
                                                                     </span>
                                                                 </td>
-                                                                <td>
+                                                                @if ($canMovePropertyMaintenanceTickets)
+                                                                    <td class="property-maintenance-quick-select-cell">
+                                                                        <select class="form-select form-select-sm js-property-maintenance-property property-maintenance-quick-select"
+                                                                            data-control="select2"
+                                                                            data-placeholder="Buscar propiedad"
+                                                                            data-prev-value="{{ $ticket->property_id }}"
+                                                                            data-property-url="{{ route('maintenance.property', $ticket) }}"
+                                                                            data-ticket-title="{{ $ticket->title }}">
+                                                                            @foreach ($propertyMaintenancePropertyOptions as $propertyOption)
+                                                                                <option value="{{ $propertyOption->id }}" {{ (int) $ticket->property_id === (int) $propertyOption->id ? 'selected' : '' }}>
+                                                                                    {{ $propertyOption->internal_name }}{{ $propertyOption->internal_reference ? ' · ' . $propertyOption->internal_reference : '' }}
+                                                                                </option>
+                                                                            @endforeach
+                                                                        </select>
+                                                                    </td>
+                                                                @endif
+                                                                <td class="property-maintenance-quick-select-cell property-maintenance-provider-cell">
                                                                     @if ($canUpdatePropertyMaintenanceProvider)
-                                                                        <select class="form-select form-select-sm js-property-maintenance-provider"
+                                                                        <select class="form-select form-select-sm js-property-maintenance-provider property-maintenance-quick-select"
                                                                             data-prev-value="{{ $ticket->current_provider_id }}"
                                                                             data-meta-url="{{ route('maintenance.meta', $ticket) }}"
                                                                             data-scheduled-visit-at="{{ $ticket->scheduled_visit_at?->format('Y-m-d\\TH:i:s') }}">
@@ -1570,9 +1648,9 @@
                                                                         <div class="text-muted fs-8">{{ $ticket->currentProvider?->email ?: ($ticket->currentProvider?->phone ?: '-') }}</div>
                                                                     @endif
                                                                 </td>
-                                                                <td>{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</td>
-                                                                <td>{{ $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?: '-' }}</td>
-                                                                <td class="text-end">
+                                                                <td class="property-maintenance-date-cell property-maintenance-nowrap">{{ $ticket->reported_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                                                <td class="property-maintenance-scheduled-cell property-maintenance-nowrap">{{ $ticket->scheduled_visit_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                                                <td class="text-end property-maintenance-action-cell">
                                                                     <div class="d-flex justify-content-end gap-2 flex-wrap">
                                                                         <a href="{{ route('maintenance.show', $ticket) }}" class="btn btn-sm btn-light">Ver</a>
                                                                         @if ($canCancelPropertyMaintenanceTickets && ! in_array($ticket->status, ['completado', 'cancelado'], true))
@@ -1591,11 +1669,11 @@
                                                             </tr>
                                                         @empty
                                                             <tr data-maintenance-empty="{{ $groupKey }}">
-                                                                <td colspan="9" class="text-center py-8 text-muted">No hay tickets en este grupo.</td>
+                                                                <td colspan="{{ $maintenanceTableColspan }}" class="text-center py-8 text-muted">No hay tickets en este grupo.</td>
                                                             </tr>
                                                         @endforelse
                                                         <tr class="js-property-maintenance-no-results d-none" data-maintenance-no-results="{{ $groupKey }}">
-                                                            <td colspan="9" class="text-center py-8 text-muted">
+                                                            <td colspan="{{ $maintenanceTableColspan }}" class="text-center py-8 text-muted">
                                                                 No hay tickets que coincidan con la búsqueda.
                                                             </td>
                                                         </tr>
@@ -2199,6 +2277,96 @@
                     form.submit();
                 }
             });
+        });
+
+        const setMaintenanceSelectValue = (select, value) => {
+            select.value = value;
+            if (window.jQuery && window.jQuery.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+                window.jQuery(select).val(value).trigger('change.select2');
+            }
+        };
+
+        const handlePropertyMoveSelect = async (select) => {
+            if (select.dataset.moveInProgress === '1') return;
+
+            const previousValue = select.dataset.prevValue ?? '';
+            const nextValue = select.value;
+            const propertyUrl = select.dataset.propertyUrl;
+            if (!propertyUrl || nextValue === previousValue) return;
+
+            select.dataset.moveInProgress = '1';
+            const selectedOption = select.options[select.selectedIndex];
+            const targetProperty = selectedOption?.text?.trim() || 'la nueva propiedad';
+            const ticketTitle = select.dataset.ticketTitle || 'este ticket';
+            const confirmed = window.Swal?.fire
+                ? (await window.Swal.fire({
+                    title: '¿Mover ticket?',
+                    text: `${ticketTitle} se moverá a ${targetProperty}. Se conservarán evidencias, costos e historial.`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, mover',
+                    cancelButtonText: 'Cancelar',
+                })).isConfirmed
+                : window.confirm(`${ticketTitle} se moverá a ${targetProperty}. ¿Continuar?`);
+
+            if (!confirmed) {
+                setMaintenanceSelectValue(select, previousValue);
+                select.dataset.moveInProgress = '0';
+                return;
+            }
+
+            select.disabled = true;
+            try {
+                const response = await fetch(propertyUrl, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    body: JSON.stringify({
+                        property_id: nextValue,
+                    }),
+                });
+
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok || payload.success === false) {
+                    throw new Error(payload.message || 'No fue posible mover el ticket.');
+                }
+
+                select.dataset.prevValue = nextValue;
+                window.SuWorkToast?.fire?.('success', payload.message || 'Ticket movido de propiedad.');
+                window.setTimeout(() => {
+                    window.location.reload();
+                }, 350);
+            } catch (error) {
+                setMaintenanceSelectValue(select, previousValue);
+                select.disabled = false;
+                select.dataset.moveInProgress = '0';
+                window.SuWorkToast?.fire?.('danger', error.message || 'No fue posible mover el ticket.');
+                if (!window.SuWorkToast?.fire) {
+                    window.alert(error.message || 'No fue posible mover el ticket.');
+                }
+            }
+        };
+
+        document.querySelectorAll('.js-property-maintenance-property').forEach((select) => {
+            if (window.jQuery && window.jQuery.fn?.select2) {
+                const propertySelect = window.jQuery(select);
+                if (!propertySelect.hasClass('select2-hidden-accessible')) {
+                    propertySelect.select2({
+                        width: 'resolve',
+                        minimumResultsForSearch: 0,
+                        placeholder: select.dataset.placeholder || 'Buscar propiedad',
+                    });
+                }
+                propertySelect
+                    .off('select2:select.propertyMove')
+                    .on('select2:select.propertyMove', () => handlePropertyMoveSelect(select));
+            }
+
+            select.addEventListener('change', () => handlePropertyMoveSelect(select));
         });
 
         document.querySelectorAll('.js-property-maintenance-provider').forEach((select) => {

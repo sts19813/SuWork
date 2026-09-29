@@ -5,15 +5,17 @@ namespace Tests\Feature;
 use App\Mail\PropertyTechnicianAssignedMail;
 use App\Models\Charge;
 use App\Models\ChargePayment;
+use App\Models\DossierDocumentRequirement;
+use App\Models\Expense;
+use App\Models\MaintenanceCut;
+use App\Models\MaintenanceProvider;
+use App\Models\MaintenanceTicket;
 use App\Models\Owner;
 use App\Models\OwnerDocument;
 use App\Models\Property;
 use App\Models\PropertyDocument;
+use App\Models\PropertyLogbookAttachment;
 use App\Models\PropertyType;
-use App\Models\DossierDocumentRequirement;
-use App\Models\MaintenanceCut;
-use App\Models\MaintenanceProvider;
-use App\Models\MaintenanceTicket;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
 use App\Models\User;
@@ -157,7 +159,7 @@ class PropertyModuleTest extends TestCase
                 'note' => 'Se confirmó la visita del técnico.',
                 'attachments' => [UploadedFile::fake()->image('evidencia.jpg')],
             ])
-            ->assertRedirect(route('properties.show', $property) . '#tab-logbook')
+            ->assertRedirect(route('properties.show', $property).'#tab-logbook')
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('property_logbook_entries', [
@@ -165,7 +167,7 @@ class PropertyModuleTest extends TestCase
             'user_id' => $user->id,
             'note' => 'Se confirmó la visita del técnico.',
         ]);
-        $attachment = \App\Models\PropertyLogbookAttachment::firstOrFail();
+        $attachment = PropertyLogbookAttachment::firstOrFail();
         Storage::disk('local')->assertExists($attachment->path);
 
         $this->actingAs($user)
@@ -266,7 +268,7 @@ class PropertyModuleTest extends TestCase
 
         $this->actingAs($user)
             ->delete(route('properties.logbook.destroy', [$property, $entry]))
-            ->assertRedirect(route('properties.show', $property) . '#tab-logbook');
+            ->assertRedirect(route('properties.show', $property).'#tab-logbook');
 
         $this->assertDatabaseMissing('property_logbook_entries', ['id' => $entry->id]);
         $this->assertDatabaseMissing('property_logbook_attachments', ['id' => $attachment->id]);
@@ -721,6 +723,188 @@ class PropertyModuleTest extends TestCase
             'id' => $activeTicket->id,
             'status' => 'cancelado',
             'cancel_reason' => 'Cancelado por asesor',
+        ]);
+    }
+
+    public function test_admin_can_move_property_ticket_preserving_related_records(): void
+    {
+        $admin = User::factory()->create(['name' => 'Admin mueve tickets']);
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $type = PropertyType::query()->create(['name' => 'Casa mover ticket', 'slug' => 'casa-mover-ticket', 'is_active' => true]);
+        $zone = Zone::query()->create(['name' => 'Zona mover ticket', 'slug' => 'zona-mover-ticket', 'is_active' => true]);
+        $sourceProperty = Property::query()->create([
+            'internal_name' => 'Casa origen ticket',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Origen 1',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $admin->id,
+        ]);
+        $targetProperty = Property::query()->create([
+            'internal_name' => 'Casa destino ticket',
+            'internal_reference' => 'DEST-1',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Destino 2',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $admin->id,
+        ]);
+        $ticket = MaintenanceTicket::query()->create([
+            'property_id' => $sourceProperty->id,
+            'reported_by_user_id' => $admin->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $admin->name,
+            'category' => 'plomeria',
+            'priority' => 'alta',
+            'status' => 'asignado',
+            'title' => 'Ticket para mover completo',
+            'exact_location' => 'Cocina',
+            'description' => 'Conserva toda la información al mover.',
+            'reported_at' => now(),
+        ]);
+        $file = $ticket->files()->create([
+            'uploaded_by_user_id' => $admin->id,
+            'kind' => 'evidencia',
+            'path' => 'maintenance/evidencia.jpg',
+            'original_name' => 'evidencia.jpg',
+            'mime_type' => 'image/jpeg',
+            'size' => 123,
+        ]);
+        $expense = Expense::query()->create([
+            'property_id' => $sourceProperty->id,
+            'concept' => 'Mantenimiento '.$ticket->display_reference,
+            'amount' => 750,
+            'due_date' => now()->toDateString(),
+            'created_by' => $admin->id,
+        ]);
+        $cost = $ticket->costs()->create([
+            'expense_id' => $expense->id,
+            'labor_cost' => 500,
+            'material_cost' => 250,
+            'final_cost' => 750,
+            'currency' => 'MXN',
+            'payer' => 'administracion',
+        ]);
+        $history = $ticket->statusHistory()->create([
+            'changed_by_user_id' => $admin->id,
+            'from_status' => 'pendiente',
+            'to_status' => 'asignado',
+            'notes' => 'Asignación previa',
+            'changed_at' => now()->subHour(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('properties.show', $sourceProperty).'#tab-maintenance')
+            ->assertOk()
+            ->assertSee('js-property-maintenance-property', false)
+            ->assertSee(route('maintenance.property', $ticket), false)
+            ->assertSee('Casa destino ticket');
+
+        $this->actingAs($admin)
+            ->patchJson(route('maintenance.property', $ticket), [
+                'property_id' => $targetProperty->id,
+            ])
+            ->assertOk()
+            ->assertJson([
+                'success' => true,
+                'moved' => true,
+                'property_id' => $targetProperty->id,
+            ]);
+
+        $this->assertDatabaseHas('maintenance_tickets', [
+            'id' => $ticket->id,
+            'property_id' => $targetProperty->id,
+            'title' => 'Ticket para mover completo',
+        ]);
+        $this->assertDatabaseHas('maintenance_ticket_files', [
+            'id' => $file->id,
+            'ticket_id' => $ticket->id,
+        ]);
+        $this->assertDatabaseHas('maintenance_ticket_costs', [
+            'id' => $cost->id,
+            'ticket_id' => $ticket->id,
+            'expense_id' => $expense->id,
+        ]);
+        $this->assertDatabaseHas('expenses', [
+            'id' => $expense->id,
+            'property_id' => $targetProperty->id,
+        ]);
+        $this->assertDatabaseHas('maintenance_ticket_status_histories', [
+            'id' => $history->id,
+            'ticket_id' => $ticket->id,
+            'notes' => 'Asignación previa',
+        ]);
+        $this->assertDatabaseHas('maintenance_ticket_status_histories', [
+            'ticket_id' => $ticket->id,
+            'from_status' => 'asignado',
+            'to_status' => 'asignado',
+            'changed_by_user_id' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('properties.show', $sourceProperty).'#tab-maintenance')
+            ->assertOk()
+            ->assertDontSee('Ticket para mover completo');
+
+        $this->actingAs($admin)
+            ->get(route('properties.show', $targetProperty).'#tab-maintenance')
+            ->assertOk()
+            ->assertSee('Ticket para mover completo');
+    }
+
+    public function test_non_admin_cannot_move_property_ticket_from_property_view(): void
+    {
+        $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $advisor = User::factory()->create(['name' => 'Asesor sin mover tickets']);
+        $advisor->assignRole($advisorRole);
+        $creator = User::factory()->create();
+        $type = PropertyType::query()->create(['name' => 'Casa no mover ticket', 'slug' => 'casa-no-mover-ticket', 'is_active' => true]);
+        $zone = Zone::query()->create(['name' => 'Zona no mover ticket', 'slug' => 'zona-no-mover-ticket', 'is_active' => true]);
+        $sourceProperty = Property::query()->create([
+            'internal_name' => 'Casa asesor origen',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Asesor 1',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $creator->id,
+        ]);
+        $targetProperty = Property::query()->create([
+            'internal_name' => 'Casa asesor destino',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Asesor 2',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $creator->id,
+        ]);
+        $sourceProperty->advisors()->attach($advisor->id);
+        $ticket = MaintenanceTicket::query()->create([
+            'property_id' => $sourceProperty->id,
+            'reported_by_user_id' => $advisor->id,
+            'reported_by_role' => 'asesor',
+            'reported_by_name' => $advisor->name,
+            'category' => 'plomeria',
+            'priority' => 'media',
+            'status' => 'pendiente',
+            'title' => 'Ticket que asesor no mueve',
+            'exact_location' => 'Baño',
+            'description' => 'No debe permitir cambio de propiedad.',
+            'reported_at' => now(),
+        ]);
+
+        $this->actingAs($advisor)
+            ->get(route('properties.show', $sourceProperty).'#tab-maintenance')
+            ->assertOk()
+            ->assertDontSee(route('maintenance.property', $ticket), false);
+
+        $this->actingAs($advisor)
+            ->patchJson(route('maintenance.property', $ticket), [
+                'property_id' => $targetProperty->id,
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('maintenance_tickets', [
+            'id' => $ticket->id,
+            'property_id' => $sourceProperty->id,
         ]);
     }
 
@@ -1434,7 +1618,7 @@ class PropertyModuleTest extends TestCase
         $response->assertSee('Asignar inquilino');
         $response->assertSee('suwork:property-tab-restore:', false);
         $this->assertNotNull($property->uuid);
-        $this->assertStringContainsString('/propiedades/' . $property->uuid, route('properties.show', $property));
+        $this->assertStringContainsString('/propiedades/'.$property->uuid, route('properties.show', $property));
     }
 
     public function test_property_detail_only_shows_uploaded_dossier_documents(): void
@@ -1656,7 +1840,7 @@ class PropertyModuleTest extends TestCase
             ->get(route('properties.edit', $property))
             ->assertOk();
         $this->assertMatchesRegularExpression(
-            '/<option\s+value="' . $type2->id . '"\s+selected>\s*Terreno\s*<\/option>/',
+            '/<option\s+value="'.$type2->id.'"\s+selected>\s*Terreno\s*<\/option>/',
             $editResponse->getContent(),
         );
         $this->assertDatabaseHas('owner_property', [

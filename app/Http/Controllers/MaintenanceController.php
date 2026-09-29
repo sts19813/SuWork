@@ -40,12 +40,12 @@ use Spatie\Permission\Models\Role;
 class MaintenanceController extends Controller
 {
     private const MANAGE_TECHNICIANS_PERMISSION = 'administracion de tecnicos';
+
     private const EDIT_TICKET_EXPENSES_PERMISSION = 'editar gastos tickets';
+
     private const DELETE_TICKET_EXPENSES_PERMISSION = 'eliminar gastos tickets';
 
-    public function __construct(private readonly PropertyVisibility $propertyVisibility)
-    {
-    }
+    public function __construct(private readonly PropertyVisibility $propertyVisibility) {}
 
     public function index(Request $request): View
     {
@@ -527,6 +527,75 @@ class MaintenanceController extends Controller
         return redirect()->back()->with('success', 'Ticket actualizado correctamente.');
     }
 
+    public function moveProperty(Request $request, MaintenanceTicket $maintenance): RedirectResponse|JsonResponse
+    {
+        $user = $request->user();
+        $role = $this->resolveRole($user);
+        $this->ensureTicketVisible($maintenance, $user, $role);
+        if ($role !== 'administrador') {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'property_id' => ['required', 'integer', 'exists:properties,id'],
+        ]);
+        $targetProperty = $this->accessiblePropertiesQuery($user, $role)
+            ->where('id', (int) $validated['property_id'])
+            ->firstOrFail();
+        $previousPropertyId = (int) $maintenance->property_id;
+
+        if ($previousPropertyId === (int) $targetProperty->id) {
+            $message = 'El ticket ya pertenece a esa propiedad.';
+
+            return $request->expectsJson()
+                ? response()->json(['success' => true, 'message' => $message, 'moved' => false])
+                : redirect()->back()->with('success', $message);
+        }
+
+        $previousProperty = Property::query()
+            ->whereKey($previousPropertyId)
+            ->first(['id', 'internal_name', 'internal_reference']);
+
+        DB::transaction(function () use ($maintenance, $targetProperty, $previousProperty, $user): void {
+            $lockedTicket = MaintenanceTicket::query()
+                ->whereKey($maintenance->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $lockedTicket->property_id = $targetProperty->id;
+            $lockedTicket->save();
+
+            Expense::query()
+                ->whereIn('id', $lockedTicket->costs()->whereNotNull('expense_id')->select('expense_id'))
+                ->update(['property_id' => $targetProperty->id]);
+
+            $fromName = $previousProperty
+                ? trim($previousProperty->internal_name.' '.($previousProperty->internal_reference ? '('.$previousProperty->internal_reference.')' : ''))
+                : 'propiedad anterior';
+            $toName = trim($targetProperty->internal_name.' '.($targetProperty->internal_reference ? '('.$targetProperty->internal_reference.')' : ''));
+
+            $lockedTicket->statusHistory()->create([
+                'changed_by_user_id' => $user?->id,
+                'from_status' => $lockedTicket->status,
+                'to_status' => $lockedTicket->status,
+                'notes' => "Propiedad cambiada de {$fromName} a {$toName}.",
+                'changed_at' => now(),
+            ]);
+        });
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Ticket movido de propiedad correctamente.',
+                'moved' => true,
+                'property_id' => $targetProperty->id,
+                'property_uuid' => $targetProperty->uuid,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Ticket movido de propiedad correctamente.');
+    }
+
     public function changeStatus(Request $request, MaintenanceTicket $maintenance): RedirectResponse
     {
         $user = $request->user();
@@ -611,6 +680,9 @@ class MaintenanceController extends Controller
             if (array_diff(array_keys($validated), $allowedAdvisorFields) !== []) {
                 abort(403);
             }
+        }
+        if (array_key_exists('property_id', $validated) && $role !== 'administrador') {
+            abort(403);
         }
 
         $updates = [];

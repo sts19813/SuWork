@@ -215,6 +215,7 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::get('/mantenimiento/{maintenance}', [MaintenanceController::class, 'show'])->name('maintenance.show');
         Route::put('/mantenimiento/{maintenance}', [MaintenanceController::class, 'update'])->name('maintenance.update');
         Route::patch('/mantenimiento/{maintenance}/meta', [MaintenanceController::class, 'updateMeta'])->name('maintenance.meta');
+        Route::patch('/mantenimiento/{maintenance}/propiedad', [MaintenanceController::class, 'moveProperty'])->name('maintenance.property');
         Route::patch('/mantenimiento/{maintenance}/estado', [MaintenanceController::class, 'changeStatus'])->name('maintenance.status');
         Route::patch('/mantenimiento/{maintenance}/programar-visita', [MaintenanceController::class, 'scheduleVisit'])->name('maintenance.schedule-visit');
         Route::post('/mantenimiento/conflictos-tecnico', [MaintenanceController::class, 'technicianConflicts'])->name('maintenance.technician-conflicts');

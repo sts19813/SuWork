@@ -770,6 +770,7 @@ class PropertyController extends Controller
             || $user?->hasRole('admin')
             || $this->isAdvisorUser($user)
         );
+        $canMovePropertyMaintenanceTickets = ! $isProviderPropertyViewer && $this->isAdminUser($user);
 
         return view('properties.show', [
             'property' => $property,
@@ -820,6 +821,12 @@ class PropertyController extends Controller
             'canCreateScheduledMaintenance' => $canCreateScheduledMaintenance,
             'canUpdatePropertyMaintenanceProvider' => $canUpdatePropertyMaintenanceProvider,
             'canCancelPropertyMaintenanceTickets' => $canCancelPropertyMaintenanceTickets,
+            'canMovePropertyMaintenanceTickets' => $canMovePropertyMaintenanceTickets,
+            'propertyMaintenancePropertyOptions' => $canMovePropertyMaintenanceTickets
+                ? Property::query()
+                    ->orderBy('internal_name')
+                    ->get(['id', 'uuid', 'internal_name', 'internal_reference'])
+                : collect(),
             'isTenantMaintenanceReporter' => $isTenantMaintenanceReporter,
             'isProviderPropertyViewer' => $isProviderPropertyViewer,
             'propertyChangeLogs' => $propertyChangeLogs,
