@@ -438,11 +438,15 @@ class MaintenanceModuleTest extends TestCase
 
         $admin = User::factory()->create();
         $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $technicianRole = Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']);
+        $technicianUser = User::factory()->create(['email' => 'propiedad@example.com']);
+        $technicianUser->assignRole($technicianRole);
         $property = $this->createPropertyFixture($admin);
         $provider = MaintenanceProvider::create([
             'type' => 'tecnico_interno',
             'name' => 'Técnico de la propiedad',
-            'email' => 'propiedad@example.com',
+            'email' => $technicianUser->email,
+            'user_id' => $technicianUser->id,
             'is_active' => true,
         ]);
         $property->update(['technician_provider_id' => $provider->id]);
@@ -473,6 +477,11 @@ class MaintenanceModuleTest extends TestCase
             'event' => 'nuevo_reporte',
             'recipient' => 'propiedad@example.com',
         ]);
+
+        $this->actingAs($technicianUser)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertSee('Ticket asignado al técnico de propiedad');
     }
 
     public function test_explicit_assignment_overrides_property_technician_and_both_are_notified(): void
@@ -1071,7 +1080,7 @@ class MaintenanceModuleTest extends TestCase
         $response->assertSee('<section class="ticket-panel d-none" id="ticket-chat-section" hidden>', false);
     }
 
-    public function test_property_technician_and_assigned_technician_can_manage_ticket_costs(): void
+    public function test_only_current_assigned_technician_can_manage_ticket_costs(): void
     {
         $technicianRole = Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']);
         $propertyTechnicianUser = User::factory()->create(['email' => 'propiedad-costos@example.com']);
@@ -1130,13 +1139,11 @@ class MaintenanceModuleTest extends TestCase
         $this->actingAs($propertyTechnicianUser)
             ->get(route('maintenance.index'))
             ->assertOk()
-            ->assertSee('Ticket visible por propiedad y asignación');
+            ->assertDontSee('Ticket visible por propiedad y asignación');
 
         $this->actingAs($propertyTechnicianUser)
             ->get(route('maintenance.show', $ticket))
-            ->assertOk()
-            ->assertSee('Costos y gastos del incidente')
-            ->assertSee('Agregar costo');
+            ->assertForbidden();
 
         $this->actingAs($assignedTechnicianUser)
             ->get(route('maintenance.show', $ticket))
@@ -1162,16 +1169,11 @@ class MaintenanceModuleTest extends TestCase
                 'payment_rule' => 'preventivo',
                 'notes' => 'Registrado por técnico de la propiedad',
             ])
-            ->assertRedirect(route('maintenance.show', $ticket));
+            ->assertForbidden();
 
-        $this->assertDatabaseHas('maintenance_ticket_costs', [
+        $this->assertDatabaseMissing('maintenance_ticket_costs', [
             'ticket_id' => $ticket->id,
             'final_cost' => 600,
-        ]);
-        $this->assertDatabaseHas('expenses', [
-            'property_id' => $property->id,
-            'amount' => 600,
-            'created_by' => $propertyTechnicianUser->id,
         ]);
         $this->assertDatabaseHas('maintenance_ticket_costs', [
             'ticket_id' => $ticket->id,

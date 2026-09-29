@@ -1813,14 +1813,8 @@ class MaintenanceController extends Controller
             return $query->whereHas('property', fn (Builder $propertyQuery) => $this->propertyVisibility->scopeVisibleToUser($propertyQuery, $user));
         }
 
-        return $query->where(function (Builder $ticketQuery) use ($user): void {
-            $ticketQuery
-                ->whereHas('currentProvider', function (Builder $providerQuery) use ($user): void {
-                    $this->constrainProviderToUser($providerQuery, $user);
-                })
-                ->orWhereHas('property.technicianProvider', function (Builder $providerQuery) use ($user): void {
-                    $this->constrainProviderToUser($providerQuery, $user);
-                });
+        return $query->whereHas('currentProvider', function (Builder $providerQuery) use ($user): void {
+            $this->constrainProviderToUser($providerQuery, $user);
         });
     }
 
