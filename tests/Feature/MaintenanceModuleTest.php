@@ -203,6 +203,168 @@ class MaintenanceModuleTest extends TestCase
         $this->assertStringNotContainsString('Por asignar tabla 01', $secondUnassignedTable);
     }
 
+    public function test_maintenance_search_matches_operational_ticket_fields(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        $property = Property::create([
+            'internal_name' => 'Torre Azul 9',
+            'internal_reference' => 'AZ-009',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Lago Azul 123',
+            'status' => Property::STATUS_OCCUPIED,
+            'onboarding_step' => 5,
+            'created_by' => $user->id,
+        ]);
+        $otherProperty = Property::create([
+            'internal_name' => 'Casa Roja 2',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Roja 456',
+            'status' => Property::STATUS_OCCUPIED,
+            'onboarding_step' => 5,
+            'created_by' => $user->id,
+        ]);
+        $provider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico buscador',
+            'email' => 'tecnico.buscador@example.test',
+            'is_active' => true,
+        ]);
+        $target = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'current_provider_id' => $provider->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'electricidad',
+            'priority' => 'urgente',
+            'status' => 'en_proceso',
+            'title' => 'Corto en tablero principal',
+            'reference' => '00000122',
+            'exact_location' => 'Cuarto eléctrico',
+            'description' => 'Buscar por varios campos operativos',
+            'reported_at' => '2026-09-25 08:30:00',
+        ]);
+        MaintenanceTicket::create([
+            'property_id' => $otherProperty->id,
+            'reported_by_user_id' => $user->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'baja',
+            'status' => 'pendiente',
+            'title' => 'Goteo menor de lavabo',
+            'exact_location' => 'Baño',
+            'description' => 'No debe aparecer en búsquedas específicas',
+            'reported_at' => '2026-09-20 08:30:00',
+        ]);
+
+        foreach (['00000122', 'Torre Azul', 'En proceso', 'Urgente', 'Electricidad', '25/09/2026', 'Técnico buscador'] as $query) {
+            $this->actingAs($user)
+                ->get(route('maintenance.index', ['q' => $query]))
+                ->assertOk()
+                ->assertSee($target->title)
+                ->assertDontSee('Goteo menor de lavabo');
+        }
+    }
+
+    public function test_technician_index_shows_all_visible_tickets_without_pagination(): void
+    {
+        $technicianRole = Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']);
+        $technicianUser = User::factory()->create(['email' => 'tecnico.todos@example.test']);
+        $technicianUser->assignRole($technicianRole);
+        $creator = User::factory()->create();
+        $property = $this->createPropertyFixture($creator);
+        $provider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'user_id' => $technicianUser->id,
+            'name' => 'Técnico todos',
+            'email' => $technicianUser->email,
+            'is_active' => true,
+        ]);
+
+        for ($index = 1; $index <= 18; $index++) {
+            $suffix = str_pad((string) $index, 2, '0', STR_PAD_LEFT);
+            MaintenanceTicket::create([
+                'property_id' => $property->id,
+                'reported_by_user_id' => $creator->id,
+                'current_provider_id' => $provider->id,
+                'reported_by_role' => 'administrador',
+                'reported_by_name' => $creator->name,
+                'category' => 'plomeria',
+                'priority' => 'media',
+                'status' => 'pendiente',
+                'title' => "Ticket técnico completo {$suffix}",
+                'exact_location' => 'Cocina',
+                'description' => 'Ticket visible para técnico',
+                'reported_at' => "2026-09-{$suffix} 08:00:00",
+                'scheduled_visit_at' => "2026-10-{$suffix} 10:00:00",
+                'created_at' => "2026-09-{$suffix} 08:00:00",
+                'updated_at' => "2026-09-{$suffix} 08:00:00",
+            ]);
+        }
+
+        $response = $this->actingAs($technicianUser)
+            ->get(route('maintenance.index'));
+
+        $response
+            ->assertOk()
+            ->assertSee('Ticket técnico completo 01')
+            ->assertSee('Ticket técnico completo 18')
+            ->assertDontSee('scheduled_page=2', false)
+            ->assertDontSee('pagination', false);
+    }
+
+    public function test_supplier_index_shows_all_visible_tickets_without_pagination(): void
+    {
+        $supplierRole = Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']);
+        $supplierUser = User::factory()->create(['email' => 'proveedor.todos@example.test']);
+        $supplierUser->assignRole($supplierRole);
+        $creator = User::factory()->create();
+        $property = $this->createPropertyFixture($creator);
+        $provider = MaintenanceProvider::create([
+            'type' => 'proveedor',
+            'user_id' => $supplierUser->id,
+            'name' => 'Proveedor todos',
+            'email' => $supplierUser->email,
+            'is_active' => true,
+        ]);
+
+        for ($index = 1; $index <= 18; $index++) {
+            $suffix = str_pad((string) $index, 2, '0', STR_PAD_LEFT);
+            MaintenanceTicket::create([
+                'property_id' => $property->id,
+                'reported_by_user_id' => $creator->id,
+                'current_provider_id' => $provider->id,
+                'reported_by_role' => 'administrador',
+                'reported_by_name' => $creator->name,
+                'category' => 'electricidad',
+                'priority' => 'media',
+                'status' => 'pendiente',
+                'title' => "Ticket proveedor completo {$suffix}",
+                'exact_location' => 'Tablero',
+                'description' => 'Ticket visible para proveedor',
+                'reported_at' => "2026-09-{$suffix} 08:00:00",
+                'scheduled_visit_at' => "2026-10-{$suffix} 10:00:00",
+                'created_at' => "2026-09-{$suffix} 08:00:00",
+                'updated_at' => "2026-09-{$suffix} 08:00:00",
+            ]);
+        }
+
+        $response = $this->actingAs($supplierUser)
+            ->get(route('maintenance.index'));
+
+        $response
+            ->assertOk()
+            ->assertSee('Ticket proveedor completo 01')
+            ->assertSee('Ticket proveedor completo 18')
+            ->assertDontSee('scheduled_page=2', false)
+            ->assertDontSee('pagination', false);
+    }
+
     private function extractMaintenanceTableHtml(string $html, string $title, ?string $nextTitle = null): string
     {
         $start = strpos($html, '<div class="maintenance-group-title">'.$title.'</div>');

@@ -80,11 +80,6 @@
                 </div>
                 <div class="maintenance-actions">
                     @if (!$isTenant)
-                        <button class="maintenance-plain-btn" type="button" data-bs-toggle="collapse"
-                            data-bs-target="#maintenanceFiltersCollapse" aria-expanded="false"
-                            aria-controls="maintenanceFiltersCollapse">
-                            <i class="bi bi-sliders"></i> Filtros
-                        </button>
                         @if ($canManageProviders)
                             <a class="maintenance-soft-btn" href="{{ route('maintenance.technicians.index') }}">
                                 <i class="bi bi-person-gear"></i> Técnicos
@@ -102,69 +97,9 @@
                 </div>
             </div>
 
-            @if (!$isTenant)
-                <div class="collapse" id="maintenanceFiltersCollapse">
-                    <div class="maintenance-filter-panel">
-                        <form class="row g-4 align-items-end" method="GET" action="{{ route('maintenance.index') }}">
-                            <input type="hidden" name="tab" value="{{ $activeTab }}">
-                            <div class="col-xl-3 col-md-6">
-                                <label class="form-label">Buscar</label>
-                                <input type="text" class="form-control" name="q" value="{{ $search }}"
-                                    placeholder="Título, folio, propiedad">
-                            </div>
-                            <div class="col-xl-3 col-md-6">
-                                <label class="form-label">Propiedad</label>
-                                <select class="form-select" name="property">
-                                    <option value="">Todas</option>
-                                    @foreach ($properties as $property)
-                                        <option value="{{ $property->uuid }}" {{ $selectedProperty?->uuid === $property->uuid ? 'selected' : '' }}>
-                                            {{ $property->internal_name }}{{ $property->internal_reference ? ' - ' . $property->internal_reference : '' }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-xl-2 col-md-4">
-                                <label class="form-label">Estado</label>
-                                <select class="form-select" name="status">
-                                    @foreach ($statusOptions as $statusKey => $statusLabel)
-                                        <option value="{{ $statusKey }}" {{ $status === $statusKey ? 'selected' : '' }}>{{ $statusLabel }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-xl-2 col-md-4">
-                                <label class="form-label">Prioridad</label>
-                                <select class="form-select" name="priority">
-                                    @foreach ($priorityOptions as $priorityKey => $priorityLabel)
-                                        <option value="{{ $priorityKey }}" {{ $priority === $priorityKey ? 'selected' : '' }}>{{ $priorityLabel }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-xl-2 col-md-4">
-                                <label class="form-label">Categoría</label>
-                                <select class="form-select" name="category">
-                                    @foreach ($categoryOptions as $categoryKey => $categoryLabel)
-                                        <option value="{{ $categoryKey }}" {{ $category === $categoryKey ? 'selected' : '' }}>{{ $categoryLabel }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Desde</label>
-                                <input type="date" class="form-control" name="from" value="{{ $dateFrom }}">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Hasta</label>
-                                <input type="date" class="form-control" name="to" value="{{ $dateTo }}">
-                            </div>
-                            <div class="col-md-3 d-grid">
-                                <button class="maintenance-primary-btn">Aplicar filtros</button>
-                            </div>
-                            <div class="col-md-3 d-grid">
-                                <a class="maintenance-plain-btn" href="{{ route('maintenance.index', ['tab' => $activeTab]) }}">Limpiar</a>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+           
 
+            @if (!$isTenant)
                 <div class="maintenance-kpi-strip">
                     @foreach ($kpis as $kpi)
                         <div class="maintenance-kpi">
@@ -197,17 +132,35 @@
                 </div>
             @endif
 
+             @php
+                $hasLegacyFilters = $selectedProperty || $status || $priority || $category || $dateFrom || $dateTo;
+                $hasSearchContext = $search || $hasLegacyFilters;
+            @endphp
+
+            <div class="maintenance-search-panel">
+                <form class="maintenance-search-form" method="GET" action="{{ route('maintenance.index') }}"
+                    data-maintenance-live-search data-current-query="{{ $search }}">
+                    <input type="hidden" name="tab" value="{{ $activeTab }}">
+                    <label class="maintenance-search-field" for="maintenance-global-search">
+                        <i class="bi bi-search"></i>
+                        <input id="maintenance-global-search" type="search" name="q" value="{{ $search }}"
+                            autocomplete="off"
+                            placeholder="Buscar por folio, propiedad, estado, prioridad, categoría o fecha">
+                    </label>
+                </form>
+            </div>
+
             <div class="maintenance-tabs">
                 <a class="maintenance-tab {{ $activeTab === 'activos' ? 'active' : '' }}"
-                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'activos'])) }}">
+                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'urgent_page', 'scheduled_page', 'unscheduled_page', 'unassigned_page', 'tab']), ['tab' => 'activos'])) }}">
                     Activos
                 </a>
                 <a class="maintenance-tab {{ $activeTab === 'completados' ? 'active' : '' }}"
-                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'completados'])) }}">
+                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'urgent_page', 'scheduled_page', 'unscheduled_page', 'unassigned_page', 'tab']), ['tab' => 'completados'])) }}">
                     Completados
                 </a>
                 <a class="maintenance-tab {{ $activeTab === 'cancelados' ? 'active' : '' }}"
-                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'tab']), ['tab' => 'cancelados'])) }}">
+                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'urgent_page', 'scheduled_page', 'unscheduled_page', 'unassigned_page', 'tab']), ['tab' => 'cancelados'])) }}">
                     Cancelados
                 </a>
             </div>
@@ -222,14 +175,21 @@
                                     Mostrando {{ $visibleTicketsCount }} de {{ $visibleTicketsTotal }} tickets
                                 </div>
                             </div>
-                            @if (!$isTenant && ($search || $status || $priority || $category || $dateFrom || $dateTo || $selectedProperty))
-                                <span class="maintenance-chip maintenance-chip-blue">Filtros activos</span>
+                            @if ($hasSearchContext)
+                                <span class="maintenance-chip maintenance-chip-blue">Búsqueda activa</span>
                             @endif
                         </div>
                     </div>
 
                     @forelse ($ticketTables as $bucketKey => $table)
-                        @php $bucketTickets = $table['paginator']; @endphp
+                        @php
+                            $bucketTickets = $table['tickets'];
+                            $bucketTotal = $bucketTickets instanceof \Illuminate\Pagination\LengthAwarePaginator
+                                ? $bucketTickets->total()
+                                : $bucketTickets->count();
+                            $bucketHasPages = $bucketTickets instanceof \Illuminate\Pagination\LengthAwarePaginator
+                                && $bucketTickets->hasPages();
+                        @endphp
                         <div class="maintenance-group">
                             <div class="maintenance-group-header">
                                 <span class="maintenance-group-icon maintenance-chip-{{ $table['tone'] }}">
@@ -239,7 +199,7 @@
                                     <div class="maintenance-group-title">{{ $table['title'] }}</div>
                                     <div class="maintenance-group-hint">{{ $table['hint'] }}</div>
                                 </div>
-                                <span class="maintenance-chip maintenance-chip-neutral ms-auto">{{ $bucketTickets->total() }}</span>
+                                <span class="maintenance-chip maintenance-chip-neutral ms-auto">{{ $bucketTotal }}</span>
                             </div>
                             <div class="maintenance-list-header">
                                 <span></span>
@@ -408,7 +368,7 @@
                                     No hay tickets en esta sección.
                                 </div>
                             @endforelse
-                            @if ($bucketTickets->hasPages())
+                            @if ($bucketHasPages)
                                 <div class="maintenance-table-pagination">
                                     {{ $bucketTickets->links() }}
                                 </div>
@@ -924,6 +884,43 @@
             }
 
             const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            const liveSearchForm = document.querySelector('[data-maintenance-live-search]');
+            if (liveSearchForm) {
+                const liveSearchInput = liveSearchForm.querySelector('input[name="q"]');
+                const liveSearchTab = liveSearchForm.querySelector('input[name="tab"]');
+                let liveSearchTimer = null;
+
+                const submitLiveSearch = () => {
+                    const nextQuery = String(liveSearchInput?.value || '').trim();
+                    const currentQuery = String(liveSearchForm.dataset.currentQuery || '').trim();
+                    if (nextQuery === currentQuery) return;
+
+                    const params = new URLSearchParams();
+                    if (liveSearchTab?.value) {
+                        params.set('tab', liveSearchTab.value);
+                    }
+                    if (nextQuery !== '') {
+                        params.set('q', nextQuery);
+                    }
+
+                    const queryString = params.toString();
+                    window.location.href = queryString
+                        ? `${liveSearchForm.action}?${queryString}`
+                        : liveSearchForm.action;
+                };
+
+                liveSearchInput?.addEventListener('input', () => {
+                    window.clearTimeout(liveSearchTimer);
+                    liveSearchTimer = window.setTimeout(submitLiveSearch, 450);
+                });
+
+                liveSearchForm.addEventListener('submit', (event) => {
+                    event.preventDefault();
+                    window.clearTimeout(liveSearchTimer);
+                    submitLiveSearch();
+                });
+            }
+
             const askConfirmation = async (message) => {
                 if (window.Swal?.fire) {
                     const result = await window.Swal.fire({

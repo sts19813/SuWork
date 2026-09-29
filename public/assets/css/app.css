@@ -1289,6 +1289,81 @@ td .btn {
     border-radius: 8px;
 }
 
+.maintenance-search-panel {
+    padding: 14px 16px;
+    background: #ffffff;
+    border: 1px solid var(--maint-border);
+    border-radius: 8px;
+}
+
+.maintenance-search-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+}
+
+.maintenance-search-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--maint-border);
+    border-radius: 8px;
+    background: #f8fafc;
+    color: var(--maint-muted);
+}
+
+.maintenance-search-field:focus-within {
+    border-color: rgba(37, 99, 235, 0.45);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.maintenance-search-field i {
+    flex: 0 0 auto;
+    font-size: 15px;
+}
+
+.maintenance-search-field input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--maint-ink);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.maintenance-search-field input::placeholder {
+    color: var(--maint-muted);
+    font-weight: 600;
+}
+
+.maintenance-search-field input::-webkit-search-cancel-button {
+    cursor: pointer;
+}
+
+.maintenance-search-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    min-width: 190px;
+    color: var(--maint-muted);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.maintenance-search-meta a {
+    color: var(--maint-primary);
+    font-weight: 800;
+}
+
 .maintenance-tabs {
     display: flex;
     gap: 4px;
@@ -2411,6 +2486,7 @@ td .btn {
 
     .maintenance-hero,
     .maintenance-panel,
+    .maintenance-search-panel,
     .maintenance-group,
     .maintenance-side-panel,
     .ticket-panel,
@@ -2424,6 +2500,30 @@ td .btn {
     .maintenance-title,
     .ticket-title {
         font-size: 23px;
+    }
+
+    .maintenance-search-panel {
+        padding: 12px 15px;
+    }
+
+    .maintenance-search-form {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .maintenance-search-field {
+        height: 46px;
+    }
+
+    .maintenance-search-meta {
+        min-width: 0;
+        justify-content: space-between;
+        white-space: normal;
+        line-height: 1.35;
+    }
+
+    .maintenance-search-meta span {
+        min-width: 0;
     }
 
     .maintenance-kpi-strip,

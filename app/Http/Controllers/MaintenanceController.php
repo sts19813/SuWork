@@ -24,7 +24,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -75,6 +77,7 @@ class MaintenanceController extends Controller
             'cancelados' => ['cancelado'],
             default => $activeStatuses,
         };
+        $disableTicketPagination = in_array($role, ['tecnico', 'proveedor'], true);
 
         $properties = $this->accessiblePropertiesQuery($user, $role)
             ->orderBy('internal_name')
@@ -99,18 +102,7 @@ class MaintenanceController extends Controller
             ->when($category !== '', fn (Builder $query) => $query->where('category', $category))
             ->when($from, fn (Builder $query) => $query->whereDate('reported_at', '>=', $from))
             ->when($to, fn (Builder $query) => $query->whereDate('reported_at', '<=', $to))
-            ->when($search !== '', function (Builder $query) use ($search): void {
-                $query->where(function (Builder $inner) use ($search): void {
-                    $inner->where('title', 'like', "%{$search}%")
-                        ->orWhere('reference', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%")
-                        ->orWhereHas('property', function (Builder $propertyQuery) use ($search): void {
-                            $propertyQuery
-                                ->where('internal_name', 'like', "%{$search}%")
-                                ->orWhere('internal_reference', 'like', "%{$search}%");
-                        });
-                });
-            });
+            ->when($search !== '', fn (Builder $query) => $this->applyTicketSearch($query, $search));
 
         $ticketTables = [
             'urgent' => [
@@ -118,56 +110,48 @@ class MaintenanceController extends Controller
                 'hint' => 'Sin fecha programada, ordenados por creación del ticket',
                 'icon' => 'bi-exclamation-octagon',
                 'tone' => 'red',
-                'paginator' => (clone $ticketsQuery)
+                'tickets' => $this->ticketTableResults((clone $ticketsQuery)
                     ->whereNotNull('current_provider_id')
                     ->where('priority', 'urgente')
                     ->whereNull('scheduled_visit_at')
                     ->orderBy('created_at')
-                    ->orderBy('id')
-                    ->paginate(15, ['*'], 'urgent_page')
-                    ->withQueryString(),
+                    ->orderBy('id'), 'urgent_page', $disableTicketPagination),
             ],
             'scheduled' => [
                 'title' => 'Programados',
                 'hint' => 'Ordenados por fecha programada: atrasados, hoy y futuros',
                 'icon' => 'bi-calendar2-check',
                 'tone' => 'blue',
-                'paginator' => (clone $ticketsQuery)
+                'tickets' => $this->ticketTableResults((clone $ticketsQuery)
                     ->whereNotNull('current_provider_id')
                     ->whereNotNull('scheduled_visit_at')
-                    ->orderByOperationalPriority()
-                    ->paginate(15, ['*'], 'scheduled_page')
-                    ->withQueryString(),
+                    ->orderByOperationalPriority(), 'scheduled_page', $disableTicketPagination),
             ],
             'unscheduled' => [
                 'title' => 'Por programar',
                 'hint' => 'Asignados sin fecha programada, ordenados por creación del ticket',
                 'icon' => 'bi-calendar2-plus',
                 'tone' => 'amber',
-                'paginator' => (clone $ticketsQuery)
+                'tickets' => $this->ticketTableResults((clone $ticketsQuery)
                     ->whereNotNull('current_provider_id')
                     ->whereNull('scheduled_visit_at')
                     ->where('priority', '!=', 'urgente')
                     ->orderBy('created_at')
-                    ->orderBy('id')
-                    ->paginate(15, ['*'], 'unscheduled_page')
-                    ->withQueryString(),
+                    ->orderBy('id'), 'unscheduled_page', $disableTicketPagination),
             ],
             'unassigned' => [
                 'title' => 'Por asignar',
                 'hint' => 'Sin responsable actual para que asesores y administradores los asignen',
                 'icon' => 'bi-person-plus',
                 'tone' => 'neutral',
-                'paginator' => (clone $ticketsQuery)
+                'tickets' => $this->ticketTableResults((clone $ticketsQuery)
                     ->whereNull('current_provider_id')
                     ->orderBy('created_at')
-                    ->orderBy('id')
-                    ->paginate(15, ['*'], 'unassigned_page')
-                    ->withQueryString(),
+                    ->orderBy('id'), 'unassigned_page', $disableTicketPagination),
             ],
         ];
-        $visibleTicketsCount = collect($ticketTables)->sum(fn (array $table): int => (int) $table['paginator']->count());
-        $visibleTicketsTotal = collect($ticketTables)->sum(fn (array $table): int => (int) $table['paginator']->total());
+        $visibleTicketsCount = collect($ticketTables)->sum(fn (array $table): int => $this->ticketTableCount($table['tickets']));
+        $visibleTicketsTotal = collect($ticketTables)->sum(fn (array $table): int => $this->ticketTableTotal($table['tickets']));
 
         $metricsBase = (clone $baseQuery)
             ->when($selectedPropertyId, fn (Builder $query) => $query->where('property_id', $selectedPropertyId));
@@ -1591,6 +1575,167 @@ class MaintenanceController extends Controller
         }
 
         return 'administrador';
+    }
+
+    private function ticketTableResults(Builder $query, string $pageName, bool $withoutPagination): LengthAwarePaginator|Collection
+    {
+        if ($withoutPagination) {
+            return $query->get();
+        }
+
+        return $query
+            ->paginate(15, ['*'], $pageName)
+            ->withQueryString();
+    }
+
+    private function ticketTableCount(LengthAwarePaginator|Collection $tickets): int
+    {
+        return $tickets->count();
+    }
+
+    private function ticketTableTotal(LengthAwarePaginator|Collection $tickets): int
+    {
+        if ($tickets instanceof LengthAwarePaginator) {
+            return (int) $tickets->total();
+        }
+
+        return $tickets->count();
+    }
+
+    private function applyTicketSearch(Builder $query, string $search): void
+    {
+        $like = "%{$search}%";
+        $numericId = ctype_digit($search) ? (int) ltrim($search, '0') : null;
+        $statusMatches = $this->matchingSearchKeys($search, MaintenanceTicket::STATUS_LABELS);
+        $priorityMatches = $this->matchingSearchKeys($search, MaintenanceTicket::PRIORITY_LABELS);
+        $categoryMatches = $this->matchingSearchKeys($search, MaintenanceTicket::CATEGORY_LABELS);
+        $providerTypeMatches = $this->matchingSearchKeys($search, MaintenanceProvider::TYPE_LABELS);
+        $dateMatches = $this->matchingSearchDates($search);
+
+        $query->where(function (Builder $inner) use ($like, $numericId, $search, $statusMatches, $priorityMatches, $categoryMatches, $providerTypeMatches, $dateMatches): void {
+            $inner->where('title', 'like', $like)
+                ->orWhere('reference', 'like', $like)
+                ->orWhere('description', 'like', $like)
+                ->orWhere('exact_location', 'like', $like)
+                ->orWhere('reported_by_name', 'like', $like)
+                ->orWhere('reported_at', 'like', $like)
+                ->orWhere('scheduled_visit_at', 'like', $like)
+                ->orWhere('completed_at', 'like', $like)
+                ->orWhereHas('property', function (Builder $propertyQuery) use ($like): void {
+                    $propertyQuery
+                        ->where('internal_name', 'like', $like)
+                        ->orWhere('internal_reference', 'like', $like)
+                        ->orWhere('full_address', 'like', $like)
+                        ->orWhere('current_tenant_name', 'like', $like);
+                })
+                ->orWhereHas('currentProvider', function (Builder $providerQuery) use ($like, $providerTypeMatches): void {
+                    $providerQuery
+                        ->where('name', 'like', $like)
+                        ->orWhere('email', 'like', $like)
+                        ->orWhere('phone', 'like', $like)
+                        ->orWhere('specialty', 'like', $like)
+                        ->orWhere('category', 'like', $like)
+                        ->orWhereHas('user', function (Builder $userQuery) use ($like): void {
+                            $userQuery
+                                ->where('name', 'like', $like)
+                                ->orWhere('email', 'like', $like);
+                        });
+
+                    if ($providerTypeMatches !== []) {
+                        $providerQuery->orWhereIn('type', $providerTypeMatches);
+                    }
+                });
+
+            if ($numericId !== null) {
+                $inner->orWhere('id', $numericId);
+            }
+
+            if ($statusMatches !== []) {
+                $inner->orWhereIn('status', $statusMatches);
+            }
+
+            if ($priorityMatches !== []) {
+                $inner->orWhereIn('priority', $priorityMatches);
+            }
+
+            if ($categoryMatches !== []) {
+                $inner->orWhereIn('category', $categoryMatches);
+            }
+
+            foreach ($dateMatches as $date) {
+                $inner
+                    ->orWhereDate('reported_at', $date)
+                    ->orWhereDate('scheduled_visit_at', $date)
+                    ->orWhereDate('completed_at', $date)
+                    ->orWhereDate('created_at', $date);
+            }
+
+            if (str_starts_with($this->normalizeSearchText($search), 'folio ')) {
+                $folio = trim((string) Str::after($search, ' '));
+                if ($folio !== '') {
+                    $inner->orWhere('reference', 'like', "%{$folio}%");
+                }
+            }
+        });
+    }
+
+    private function matchingSearchKeys(string $search, array $labels): array
+    {
+        $needle = $this->normalizeSearchText($search);
+        if ($needle === '') {
+            return [];
+        }
+
+        return collect($labels)
+            ->filter(function (string $label, string $key) use ($needle): bool {
+                $normalizedKey = $this->normalizeSearchText(str_replace('_', ' ', $key));
+                $normalizedLabel = $this->normalizeSearchText($label);
+
+                return str_contains($normalizedKey, $needle)
+                    || str_contains($normalizedLabel, $needle)
+                    || str_contains($needle, $normalizedKey)
+                    || str_contains($needle, $normalizedLabel);
+            })
+            ->keys()
+            ->values()
+            ->all();
+    }
+
+    private function matchingSearchDates(string $search): array
+    {
+        $value = trim($search);
+        if ($value === '') {
+            return [];
+        }
+
+        $formats = ['Y-m-d', 'd/m/Y', 'd-m-Y', 'm/d/Y', 'm-d-Y'];
+
+        return collect($formats)
+            ->map(function (string $format) use ($value): ?string {
+                try {
+                    $date = Carbon::createFromFormat($format, $value);
+                } catch (\Throwable) {
+                    return null;
+                }
+
+                return $date && $date->format($format) === $value
+                    ? $date->toDateString()
+                    : null;
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function normalizeSearchText(string $value): string
+    {
+        return Str::of($value)
+            ->ascii()
+            ->lower()
+            ->replace(['_', '-'], ' ')
+            ->squish()
+            ->toString();
     }
 
     private function accessiblePropertiesQuery(User $user, string $role): Builder
