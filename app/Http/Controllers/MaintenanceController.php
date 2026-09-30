@@ -283,12 +283,14 @@ class MaintenanceController extends Controller
             'isTenant' => $role === 'inquilino',
         ];
 
-        if ($request->ajax()) {
+        if ($request->ajax() && $request->wantsJson()) {
             return response()->json([
                 'html' => view('maintenance.partials.worklist', $viewData)->render(),
                 'visibleTicketsCount' => $visibleTicketsCount,
                 'visibleTicketsTotal' => $visibleTicketsTotal,
-            ]);
+            ])
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Vary', 'Accept, X-Requested-With');
         }
 
         return view('maintenance.index', $viewData);

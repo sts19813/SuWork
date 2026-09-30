@@ -451,6 +451,38 @@ class MaintenanceModuleTest extends TestCase
             ->assertDontSee('Ticket no coincidente');
     }
 
+    public function test_maintenance_index_returns_full_page_when_browser_navigation_has_ajax_header(): void
+    {
+        $user = User::factory()->create();
+        $property = $this->createPropertyFixture($user);
+
+        MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'media',
+            'status' => 'pendiente',
+            'title' => 'Ticket navegación completa',
+            'exact_location' => 'Cocina',
+            'description' => 'Debe regresar HTML completo',
+            'reported_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->withHeaders([
+                'X-Requested-With' => 'XMLHttpRequest',
+                'Accept' => 'text/html,application/xhtml+xml',
+            ])
+            ->get(route('maintenance.index', ['tab' => 'activos']))
+            ->assertOk()
+            ->assertViewIs('maintenance.index')
+            ->assertSee('Ticket navegación completa')
+            ->assertSee('<body', false)
+            ->assertDontSee('"html":', false);
+    }
+
     public function test_property_filter_only_lists_ticket_properties_for_technicians_and_advisors(): void
     {
         $technicianRole = Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']);
