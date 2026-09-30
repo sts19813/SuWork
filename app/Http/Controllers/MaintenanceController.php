@@ -270,7 +270,7 @@ class MaintenanceController extends Controller
             ],
             'calendarItems' => $calendarItems,
             'role' => $role,
-            'canCreateTicket' => in_array($role, ['administrador', 'inquilino', 'tecnico', 'asesor'], true),
+            'canCreateTicket' => in_array($role, ['administrador', 'inquilino', 'asesor'], true),
             'canManageProviders' => $this->canManageTechnicians($user),
             'canManageAssignments' => $role === 'administrador',
             'canUpdateTicketMeta' => in_array($role, ['administrador', 'tecnico'], true),

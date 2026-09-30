@@ -365,6 +365,50 @@ class MaintenanceModuleTest extends TestCase
             ->assertDontSee('pagination', false);
     }
 
+    public function test_create_ticket_action_is_hidden_for_technicians_and_suppliers(): void
+    {
+        $technicianRole = Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']);
+        $supplierRole = Role::query()->create(['name' => 'proveedor', 'guard_name' => 'web']);
+        $technicianUser = User::factory()->create(['email' => 'tecnico.sin.alta@example.test']);
+        $supplierUser = User::factory()->create(['email' => 'proveedor.sin.alta@example.test']);
+        $technicianUser->assignRole($technicianRole);
+        $supplierUser->assignRole($supplierRole);
+
+        $this->actingAs($technicianUser)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertDontSee('Nuevo ticket')
+            ->assertDontSee('createMaintenanceTicketModal', false);
+
+        $this->actingAs($supplierUser)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertDontSee('Nuevo ticket')
+            ->assertDontSee('createMaintenanceTicketModal', false);
+    }
+
+    public function test_create_ticket_action_remains_visible_for_admins_advisors_and_tenants(): void
+    {
+        Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        Role::query()->create(['name' => 'inquilino', 'guard_name' => 'web']);
+
+        $admin = User::factory()->create(['email' => 'admin.alta@example.test']);
+        $advisor = User::factory()->create(['email' => 'asesor.alta@example.test']);
+        $tenant = User::factory()->create(['email' => 'inquilino.alta@example.test']);
+        $admin->assignRole('administrador');
+        $advisor->assignRole('asesores');
+        $tenant->assignRole('inquilino');
+
+        foreach ([$admin, $advisor, $tenant] as $user) {
+            $this->actingAs($user)
+                ->get(route('maintenance.index'))
+                ->assertOk()
+                ->assertSee('Nuevo ticket')
+                ->assertSee('createMaintenanceTicketModal', false);
+        }
+    }
+
     private function extractMaintenanceTableHtml(string $html, string $title, ?string $nextTitle = null): string
     {
         $start = strpos($html, '<div class="maintenance-group-title">'.$title.'</div>');
