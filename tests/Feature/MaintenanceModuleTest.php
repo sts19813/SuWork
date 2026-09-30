@@ -409,6 +409,120 @@ class MaintenanceModuleTest extends TestCase
         }
     }
 
+    public function test_maintenance_search_can_refresh_worklist_over_ajax(): void
+    {
+        $user = User::factory()->create();
+        $property = $this->createPropertyFixture($user);
+
+        MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'media',
+            'status' => 'pendiente',
+            'title' => 'Ticket test ajax',
+            'exact_location' => 'Cocina',
+            'description' => 'Coincidencia ajax',
+            'reported_at' => now(),
+        ]);
+        MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'media',
+            'status' => 'pendiente',
+            'title' => 'Ticket no coincidente',
+            'exact_location' => 'Baño',
+            'description' => 'Sin match',
+            'reported_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('maintenance.index', ['tab' => 'activos', 'q' => 'test ajax']), ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertJsonPath('visibleTicketsTotal', 1)
+            ->assertJsonFragment(['visibleTicketsCount' => 1])
+            ->assertSee('Ticket test ajax')
+            ->assertDontSee('<body', false)
+            ->assertDontSee('Ticket no coincidente');
+    }
+
+    public function test_property_filter_only_lists_ticket_properties_for_technicians_and_advisors(): void
+    {
+        $technicianRole = Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']);
+        $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
+        $technicianUser = User::factory()->create(['email' => 'tecnico.filtro@example.test']);
+        $advisor = User::factory()->create(['email' => 'asesor.filtro@example.test']);
+        $creator = User::factory()->create();
+        $technicianUser->assignRole($technicianRole);
+        $advisor->assignRole($advisorRole);
+
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        $assignedProperty = Property::create([
+            'internal_name' => 'Casa con ticket visible',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 1',
+            'status' => Property::STATUS_OCCUPIED,
+            'onboarding_step' => 5,
+            'created_by' => $creator->id,
+        ]);
+        $emptyProperty = Property::create([
+            'internal_name' => 'Casa sin tickets',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 2',
+            'status' => Property::STATUS_OCCUPIED,
+            'onboarding_step' => 5,
+            'created_by' => $creator->id,
+        ]);
+        $assignedProperty->advisors()->attach($advisor->id);
+        $emptyProperty->advisors()->attach($advisor->id);
+
+        $provider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'user_id' => $technicianUser->id,
+            'name' => 'Técnico filtro',
+            'email' => $technicianUser->email,
+            'is_active' => true,
+        ]);
+
+        MaintenanceTicket::create([
+            'property_id' => $assignedProperty->id,
+            'reported_by_user_id' => $creator->id,
+            'current_provider_id' => $provider->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $creator->name,
+            'category' => 'plomeria',
+            'priority' => 'media',
+            'status' => 'pendiente',
+            'title' => 'Ticket visible para filtro',
+            'exact_location' => 'Cocina',
+            'description' => 'Debe habilitar la propiedad en el filtro',
+            'reported_at' => now(),
+        ]);
+
+        foreach ([$technicianUser, $advisor] as $user) {
+            $response = $this->actingAs($user)
+                ->get(route('maintenance.index'))
+                ->assertOk();
+
+            $html = $response->getContent();
+            $selectStart = strpos($html, '<select id="maintenance-property-filter"');
+            $this->assertNotFalse($selectStart);
+            $selectEnd = strpos($html, '</select>', $selectStart);
+            $filterSelectHtml = substr($html, $selectStart, $selectEnd - $selectStart);
+
+            $this->assertStringContainsString('value="'.$assignedProperty->uuid.'"', $filterSelectHtml);
+            $this->assertStringNotContainsString('value="'.$emptyProperty->uuid.'"', $filterSelectHtml);
+        }
+    }
+
     private function extractMaintenanceTableHtml(string $html, string $title, ?string $nextTitle = null): string
     {
         $start = strpos($html, '<div class="maintenance-group-title">'.$title.'</div>');

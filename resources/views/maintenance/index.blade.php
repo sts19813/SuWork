@@ -147,6 +147,18 @@
                             autocomplete="off"
                             placeholder="Buscar por folio, propiedad, estado, prioridad, categoría o fecha">
                     </label>
+                    <label class="maintenance-property-filter" for="maintenance-property-filter">
+                        <span class="visually-hidden">Filtrar por propiedad</span>
+                        <select id="maintenance-property-filter" class="form-select" name="property"
+                            data-control="select2" data-placeholder="Todas las propiedades" data-allow-clear="true">
+                            <option value="">Todas las propiedades</option>
+                            @foreach ($filterProperties as $filterProperty)
+                                <option value="{{ $filterProperty->uuid }}" {{ (string) $selectedProperty?->uuid === (string) $filterProperty->uuid ? 'selected' : '' }}>
+                                    {{ $filterProperty->internal_name }}{{ $filterProperty->internal_reference ? ' · ' . $filterProperty->internal_reference : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </label>
                 </form>
             </div>
 
@@ -166,6 +178,7 @@
             </div>
 
             <div class="maintenance-layout {{ $isTenant ? 'maintenance-layout-single' : '' }}">
+                <div id="maintenance-results" data-maintenance-results>
                 <div class="maintenance-worklist">
                     <div class="maintenance-panel">
                         <div class="maintenance-list-toolbar">
@@ -385,6 +398,7 @@
                             {{ $isTenant ? 'Aún no tienes tickets registrados.' : 'No hay tickets de mantenimiento para los filtros seleccionados.' }}
                         </div>
                     @endif
+                </div>
                 </div>
 
                 @if (!$isTenant)
@@ -885,41 +899,13 @@
 
             const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
             const liveSearchForm = document.querySelector('[data-maintenance-live-search]');
-            if (liveSearchForm) {
-                const liveSearchInput = liveSearchForm.querySelector('input[name="q"]');
-                const liveSearchTab = liveSearchForm.querySelector('input[name="tab"]');
-                let liveSearchTimer = null;
-
-                const submitLiveSearch = () => {
-                    const nextQuery = String(liveSearchInput?.value || '').trim();
-                    const currentQuery = String(liveSearchForm.dataset.currentQuery || '').trim();
-                    if (nextQuery === currentQuery) return;
-
-                    const params = new URLSearchParams();
-                    if (liveSearchTab?.value) {
-                        params.set('tab', liveSearchTab.value);
-                    }
-                    if (nextQuery !== '') {
-                        params.set('q', nextQuery);
-                    }
-
-                    const queryString = params.toString();
-                    window.location.href = queryString
-                        ? `${liveSearchForm.action}?${queryString}`
-                        : liveSearchForm.action;
-                };
-
-                liveSearchInput?.addEventListener('input', () => {
-                    window.clearTimeout(liveSearchTimer);
-                    liveSearchTimer = window.setTimeout(submitLiveSearch, 450);
-                });
-
-                liveSearchForm.addEventListener('submit', (event) => {
-                    event.preventDefault();
-                    window.clearTimeout(liveSearchTimer);
-                    submitLiveSearch();
-                });
-            }
+            const liveSearchInput = liveSearchForm?.querySelector('input[name="q"]');
+            const liveSearchTab = liveSearchForm?.querySelector('input[name="tab"]');
+            const propertyFilter = document.getElementById('maintenance-property-filter');
+            const resultsFrame = document.querySelector('[data-maintenance-results]');
+            let liveSearchTimer = null;
+            let liveSearchRequest = null;
+            let liveSearchSerial = 0;
 
             const askConfirmation = async (message) => {
                 if (window.Swal?.fire) {
@@ -935,36 +921,6 @@
                 }
                 return window.confirm(message);
             };
-
-            const rowIgnoreSelector = 'a, button, input, select, textarea, label, form, .dropdown-menu, [data-maintenance-row-action]';
-            document.querySelectorAll('[data-maintenance-row-url]').forEach((row) => {
-                const openTicket = () => {
-                    const url = row.dataset.maintenanceRowUrl;
-                    if (url) window.location.href = url;
-                };
-
-                row.addEventListener('click', (event) => {
-                    if (event.target.closest(rowIgnoreSelector)) return;
-                    openTicket();
-                });
-
-                row.addEventListener('keydown', (event) => {
-                    if (event.key !== 'Enter') return;
-                    if (event.target.closest(rowIgnoreSelector)) return;
-                    event.preventDefault();
-                    openTicket();
-                });
-            });
-
-            document.querySelectorAll('.maintenance-ticket-row .dropdown').forEach((dropdown) => {
-                const row = dropdown.closest('.maintenance-ticket-row');
-                dropdown.addEventListener('shown.bs.dropdown', () => {
-                    row?.classList.add('is-dropdown-open');
-                });
-                dropdown.addEventListener('hidden.bs.dropdown', () => {
-                    row?.classList.remove('is-dropdown-open');
-                });
-            });
 
             const renderNotice = (type, message) => {
                 if (window.SuWorkToast?.fire) {
@@ -1007,22 +963,201 @@
                 return true;
             };
 
-            document.querySelectorAll('.js-maintenance-inline-meta').forEach((inlineForm) => {
-                inlineForm.addEventListener('submit', async (event) => {
-                    event.preventDefault();
-                    const submitButton = inlineForm.querySelector('[type="submit"]');
-                    if (submitButton?.disabled) return;
-                    if (submitButton) submitButton.disabled = true;
+            const rowIgnoreSelector = 'a, button, input, select, textarea, label, form, .dropdown-menu, [data-maintenance-row-action]';
 
-                    try {
-                        const saved = await submitInlineMeta(inlineForm);
-                        if (!saved && submitButton) submitButton.disabled = false;
-                    } catch (error) {
-                        renderNotice('danger', error.message || 'No fue posible guardar el cambio.');
-                        if (submitButton) submitButton.disabled = false;
-                    }
+            const initMaintenanceRows = (root = document) => {
+                root.querySelectorAll('[data-maintenance-row-url]').forEach((row) => {
+                    const openTicket = () => {
+                        const url = row.dataset.maintenanceRowUrl;
+                        if (url) window.location.href = url;
+                    };
+
+                    row.addEventListener('click', (event) => {
+                        if (event.target.closest(rowIgnoreSelector)) return;
+                        openTicket();
+                    });
+
+                    row.addEventListener('keydown', (event) => {
+                        if (event.key !== 'Enter') return;
+                        if (event.target.closest(rowIgnoreSelector)) return;
+                        event.preventDefault();
+                        openTicket();
+                    });
                 });
-            });
+
+                root.querySelectorAll('.maintenance-ticket-row .dropdown').forEach((dropdown) => {
+                    const row = dropdown.closest('.maintenance-ticket-row');
+                    dropdown.addEventListener('shown.bs.dropdown', () => {
+                        row?.classList.add('is-dropdown-open');
+                    });
+                    dropdown.addEventListener('hidden.bs.dropdown', () => {
+                        row?.classList.remove('is-dropdown-open');
+                    });
+                });
+            };
+
+            const initInlineMetaForms = (root = document) => {
+                root.querySelectorAll('.js-maintenance-inline-meta').forEach((inlineForm) => {
+                    inlineForm.addEventListener('submit', async (event) => {
+                        event.preventDefault();
+                        const submitButton = inlineForm.querySelector('[type="submit"]');
+                        if (submitButton?.disabled) return;
+                        if (submitButton) submitButton.disabled = true;
+
+                        try {
+                            const saved = await submitInlineMeta(inlineForm);
+                            if (!saved && submitButton) submitButton.disabled = false;
+                        } catch (error) {
+                            renderNotice('danger', error.message || 'No fue posible guardar el cambio.');
+                            if (submitButton) submitButton.disabled = false;
+                        }
+                    });
+                });
+            };
+
+            const initMaintenanceInteractions = (root = document) => {
+                initMaintenanceRows(root);
+                initInlineMetaForms(root);
+            };
+
+            const resetPaginationParams = (params) => {
+                ['page', 'urgent_page', 'scheduled_page', 'unscheduled_page', 'unassigned_page'].forEach((key) => {
+                    params.delete(key);
+                });
+            };
+
+            const buildMaintenanceUrl = (sourceUrl = null, resetPages = false) => {
+                const url = new URL(sourceUrl || liveSearchForm?.action || window.location.href, window.location.origin);
+                const params = sourceUrl ? url.searchParams : new URLSearchParams();
+                const query = String(liveSearchInput?.value || '').trim();
+                const property = String(propertyFilter?.value || '').trim();
+                const tab = String(liveSearchTab?.value || params.get('tab') || 'activos').trim();
+
+                if (resetPages) {
+                    resetPaginationParams(params);
+                }
+
+                if (tab) {
+                    params.set('tab', tab);
+                }
+                if (query !== '') {
+                    params.set('q', query);
+                } else {
+                    params.delete('q');
+                }
+                if (property !== '') {
+                    params.set('property', property);
+                } else {
+                    params.delete('property');
+                }
+
+                url.search = params.toString();
+                return url;
+            };
+
+            const syncTabLinks = () => {
+                if (!liveSearchForm) return;
+                document.querySelectorAll('.maintenance-tab').forEach((tabLink) => {
+                    const tabUrl = new URL(tabLink.href, window.location.origin);
+                    const tabValue = tabUrl.searchParams.get('tab') || 'activos';
+                    const wasActive = liveSearchTab?.value === tabValue;
+                    const nextUrl = buildMaintenanceUrl(liveSearchForm.action, true);
+
+                    nextUrl.searchParams.set('tab', tabValue);
+                    tabLink.href = nextUrl.toString();
+                    tabLink.classList.toggle('active', wasActive);
+                });
+            };
+
+            const refreshMaintenanceList = async (url, replaceHistory = true) => {
+                if (!resultsFrame) {
+                    window.location.href = url.toString();
+                    return;
+                }
+
+                liveSearchRequest?.abort();
+                liveSearchRequest = new AbortController();
+                const requestSerial = ++liveSearchSerial;
+
+                resultsFrame.classList.add('is-loading');
+
+                try {
+                    const response = await fetch(url, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        signal: liveSearchRequest.signal,
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('No fue posible filtrar los tickets.');
+                    }
+
+                    const payload = await response.json();
+                    if (requestSerial !== liveSearchSerial) return;
+
+                    resultsFrame.innerHTML = payload.html || '';
+                    initMaintenanceInteractions(resultsFrame);
+
+                    if (replaceHistory) {
+                        window.history.replaceState({}, '', url.toString());
+                    }
+
+                    liveSearchForm.dataset.currentQuery = String(liveSearchInput?.value || '').trim();
+                    syncTabLinks();
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        renderNotice('danger', error.message || 'No fue posible filtrar los tickets.');
+                    }
+                } finally {
+                    if (requestSerial === liveSearchSerial) {
+                        resultsFrame.classList.remove('is-loading');
+                    }
+                }
+            };
+
+            const scheduleMaintenanceSearch = (delay = 250) => {
+                window.clearTimeout(liveSearchTimer);
+                liveSearchTimer = window.setTimeout(() => {
+                    refreshMaintenanceList(buildMaintenanceUrl(null, true));
+                }, delay);
+            };
+
+            if (liveSearchForm) {
+                liveSearchInput?.addEventListener('input', () => {
+                    scheduleMaintenanceSearch();
+                });
+
+                liveSearchForm.addEventListener('submit', (event) => {
+                    event.preventDefault();
+                    scheduleMaintenanceSearch(0);
+                });
+
+                const handlePropertyChange = () => {
+                    scheduleMaintenanceSearch(0);
+                };
+
+                if (window.jQuery && propertyFilter) {
+                    window.jQuery(propertyFilter).on('change', handlePropertyChange);
+                } else {
+                    propertyFilter?.addEventListener('change', handlePropertyChange);
+                }
+
+                document.querySelectorAll('.maintenance-tab').forEach((tabLink) => {
+                    tabLink.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        const tabUrl = new URL(tabLink.href, window.location.origin);
+                        if (liveSearchTab) {
+                            liveSearchTab.value = tabUrl.searchParams.get('tab') || 'activos';
+                        }
+                        refreshMaintenanceList(buildMaintenanceUrl(null, true));
+                    });
+                });
+                syncTabLinks();
+            }
+
+            initMaintenanceInteractions(document);
 
             const form = document.getElementById('createMaintenanceTicketForm');
             if (!form) return;

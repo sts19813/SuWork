@@ -47,7 +47,7 @@ class MaintenanceController extends Controller
 
     public function __construct(private readonly PropertyVisibility $propertyVisibility) {}
 
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $user = $request->user();
         $role = $this->resolveRole($user);
@@ -82,7 +82,10 @@ class MaintenanceController extends Controller
         $properties = $this->accessiblePropertiesQuery($user, $role)
             ->orderBy('internal_name')
             ->get(['id', 'uuid', 'internal_name', 'internal_reference']);
-        $selectedProperty = $propertyUuid !== '' ? $properties->firstWhere('uuid', $propertyUuid) : null;
+        $filterProperties = $this->filterableMaintenancePropertiesQuery($user, $role)
+            ->orderBy('internal_name')
+            ->get(['id', 'uuid', 'internal_name', 'internal_reference']);
+        $selectedProperty = $propertyUuid !== '' ? $filterProperties->firstWhere('uuid', $propertyUuid) : null;
         $selectedPropertyId = $selectedProperty?->id;
 
         $baseQuery = $this->visibleTicketsQuery($user, $role)
@@ -238,12 +241,13 @@ class MaintenanceController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('maintenance.index', [
+        $viewData = [
             'ticketTables' => $ticketTables,
             'visibleTicketsCount' => $visibleTicketsCount,
             'visibleTicketsTotal' => $visibleTicketsTotal,
             'providers' => $providers,
             'properties' => $properties,
+            'filterProperties' => $filterProperties,
             'selectedProperty' => $selectedProperty,
             'status' => $status,
             'priority' => $priority,
@@ -277,7 +281,17 @@ class MaintenanceController extends Controller
             'canUpdateTicketProvider' => in_array($role, ['administrador', 'tecnico', 'asesor'], true),
             'canManageCosts' => in_array($role, ['administrador', 'proveedor'], true),
             'isTenant' => $role === 'inquilino',
-        ]);
+        ];
+
+        if ($request->ajax()) {
+            return response()->json([
+                'html' => view('maintenance.partials.worklist', $viewData)->render(),
+                'visibleTicketsCount' => $visibleTicketsCount,
+                'visibleTicketsTotal' => $visibleTicketsTotal,
+            ]);
+        }
+
+        return view('maintenance.index', $viewData);
     }
 
     public function technicians(Request $request): View
@@ -1844,6 +1858,17 @@ class MaintenanceController extends Controller
                     $this->constrainProviderToUser($providerQuery, $user);
                 });
         });
+    }
+
+    private function filterableMaintenancePropertiesQuery(User $user, string $role): Builder
+    {
+        $query = $this->accessiblePropertiesQuery($user, $role);
+
+        if (in_array($role, ['tecnico', 'proveedor', 'asesor'], true)) {
+            $query->whereIn('id', $this->visibleTicketsQuery($user, $role)->select('property_id'));
+        }
+
+        return $query;
     }
 
     private function resolveInitialProviderId(Property $property, ?int $requestedProviderId): ?int

@@ -1324,9 +1324,47 @@ td .btn {
 
 .maintenance-search-form {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(230px, 340px);
     gap: 12px;
     align-items: center;
+}
+
+.maintenance-property-filter {
+    min-width: 0;
+}
+
+.maintenance-property-filter .select2-container {
+    width: 100% !important;
+}
+
+.maintenance-property-filter .select2-selection--single {
+    display: flex;
+    align-items: center;
+    height: 44px !important;
+    border: 1px solid var(--maint-border) !important;
+    border-radius: 8px !important;
+    background: #f8fafc !important;
+    box-shadow: none !important;
+}
+
+.maintenance-property-filter .select2-container--open .select2-selection--single,
+.maintenance-property-filter .select2-container--focus .select2-selection--single {
+    border-color: rgba(37, 99, 235, 0.45) !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08) !important;
+}
+
+.maintenance-property-filter .select2-selection__rendered {
+    padding-left: 14px !important;
+    color: var(--maint-ink) !important;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: normal !important;
+}
+
+.maintenance-property-filter .select2-selection__arrow {
+    height: 100% !important;
+    right: 10px !important;
 }
 
 .maintenance-search-field {
@@ -1419,6 +1457,15 @@ td .btn {
     grid-template-columns: minmax(0, 1fr) 380px;
     gap: 18px;
     align-items: start;
+}
+
+[data-maintenance-results] {
+    transition: opacity 0.16s ease;
+}
+
+[data-maintenance-results].is-loading {
+    opacity: 0.62;
+    pointer-events: none;
 }
 
 .maintenance-layout-single {
@@ -2704,6 +2751,10 @@ td .btn {
 
     .maintenance-search-field {
         height: 46px;
+    }
+
+    .maintenance-property-filter .select2-selection--single {
+        height: 46px !important;
     }
 
     .maintenance-search-meta {

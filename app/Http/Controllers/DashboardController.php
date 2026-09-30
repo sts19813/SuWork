@@ -409,7 +409,8 @@ class DashboardController extends Controller
                     $query->whereBetween('paid_at', [$monthStart->copy()->startOfDay(), $monthEnd->copy()->endOfDay()])
                         ->orWhere(function ($nested) use ($monthStart, $monthEnd): void {
                             $nested->whereNull('paid_at')
-                                ->whereBetween('due_date', [$monthStart->toDateString(), $monthEnd->toDateString()]);
+                                ->whereDate('due_date', '>=', $monthStart->toDateString())
+                                ->whereDate('due_date', '<=', $monthEnd->toDateString());
                         });
                 });
             $this->applyPropertyIdFilter($expensesQuery, $visiblePropertyIds);
