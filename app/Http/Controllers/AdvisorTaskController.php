@@ -17,9 +17,7 @@ use Illuminate\View\View;
 
 class AdvisorTaskController extends Controller
 {
-    public function __construct(private readonly PropertyVisibility $propertyVisibility)
-    {
-    }
+    public function __construct(private readonly PropertyVisibility $propertyVisibility) {}
 
     public function index(Request $request): View
     {
@@ -158,10 +156,7 @@ class AdvisorTaskController extends Controller
 
         return MaintenanceTicket::query()
             ->with('property:id,uuid,internal_name,internal_reference,facade_photo_path')
-            ->where(function ($query) use ($providerIds): void {
-                $query->whereIn('current_provider_id', $providerIds->all())
-                    ->orWhereHas('property', fn ($propertyQuery) => $propertyQuery->whereIn('technician_provider_id', $providerIds->all()));
-            })
+            ->whereIn('current_provider_id', $providerIds->all())
             ->whereIn('status', $activeStatuses)
             ->where(function ($query) use ($period): void {
                 $query->whereNull('scheduled_visit_at')

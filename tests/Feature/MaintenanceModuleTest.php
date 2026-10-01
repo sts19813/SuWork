@@ -1335,6 +1335,11 @@ class MaintenanceModuleTest extends TestCase
             ->get(route('maintenance.show', $ticket))
             ->assertForbidden();
 
+        $this->actingAs($propertyTechnicianUser)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertDontSee('Ticket visible por propiedad y asignación');
+
         $this->actingAs($assignedTechnicianUser)
             ->get(route('maintenance.show', $ticket))
             ->assertOk()
@@ -1378,6 +1383,83 @@ class MaintenanceModuleTest extends TestCase
         $this->actingAs($unrelatedTechnicianUser)
             ->get(route('maintenance.show', $ticket))
             ->assertForbidden();
+    }
+
+    public function test_property_technician_does_not_see_property_tickets_assigned_to_external_supplier(): void
+    {
+        $adminRole = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        $technicianRole = Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']);
+
+        $admin = User::factory()->create(['email' => 'admin-jardineria@example.com']);
+        $admin->assignRole($adminRole);
+        $propertyTechnicianUser = User::factory()->create(['email' => 'tecnico-propiedad-jardin@example.com']);
+        $propertyTechnicianUser->assignRole($technicianRole);
+        $unrelatedTechnicianUser = User::factory()->create(['email' => 'tecnico-sin-propiedad-jardin@example.com']);
+        $unrelatedTechnicianUser->assignRole($technicianRole);
+
+        $propertyProvider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico responsable',
+            'email' => $propertyTechnicianUser->email,
+            'user_id' => $propertyTechnicianUser->id,
+            'is_active' => true,
+        ]);
+        $supplier = MaintenanceProvider::create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor Jardinería',
+            'email' => 'jardineria@example.com',
+            'is_active' => true,
+        ]);
+
+        $property = $this->createPropertyFixture($admin);
+        $property->update(['technician_provider_id' => $propertyProvider->id]);
+
+        MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $admin->id,
+            'current_provider_id' => $supplier->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $admin->name,
+            'category' => 'jardineria',
+            'priority' => 'media',
+            'status' => 'asignado',
+            'title' => 'Ticket de jardinería proveedor externo',
+            'exact_location' => 'Jardín',
+            'description' => 'Debe verlo solo el proveedor asignado y administración',
+            'reported_at' => now(),
+            'assigned_at' => now(),
+        ]);
+        MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $admin->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $admin->name,
+            'category' => 'electricidad',
+            'priority' => 'media',
+            'status' => 'pendiente',
+            'title' => 'Ticket sin proveedor visible al técnico',
+            'exact_location' => 'Entrada',
+            'description' => 'Sin proveedor asignado',
+            'reported_at' => now(),
+        ]);
+
+        $this->actingAs($propertyTechnicianUser)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertSee('Ticket sin proveedor visible al técnico')
+            ->assertDontSee('Ticket de jardinería proveedor externo');
+
+        $this->actingAs($unrelatedTechnicianUser)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertDontSee('Ticket sin proveedor visible al técnico')
+            ->assertDontSee('Ticket de jardinería proveedor externo');
+
+        $this->actingAs($admin)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertSee('Ticket de jardinería proveedor externo')
+            ->assertSee('Ticket sin proveedor visible al técnico');
     }
 
     public function test_assigned_technician_can_add_costs_to_completed_ticket_until_it_is_paid(): void
@@ -2282,7 +2364,7 @@ class MaintenanceModuleTest extends TestCase
             ->post(route('maintenance.files', $ticket), [
                 'kind' => 'evidencia',
                 'files' => [UploadedFile::fake()->image('evidencia.jpg')],
-        ])
+            ])
             ->assertRedirect();
 
         $this->assertDatabaseHas('maintenance_ticket_costs', ['ticket_id' => $ticket->id, 'final_cost' => 500]);

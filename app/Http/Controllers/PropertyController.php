@@ -544,6 +544,9 @@ class PropertyController extends Controller
         $request = request();
         $user = $request->user();
         $isProviderPropertyViewer = $this->isProviderUser($user);
+        $isTechnicianPropertyViewer = ! $isProviderPropertyViewer
+            && ! $this->isAdminUser($user)
+            && (bool) $user?->hasAnyRole(['tecnico', 'technician']);
 
         $this->ensureCanViewArchivedProperty($request, $property);
         if ($isProviderPropertyViewer) {
@@ -660,6 +663,21 @@ class PropertyController extends Controller
             ->when($isProviderPropertyViewer, function (Builder $query) use ($user): void {
                 $query->whereHas('currentProvider', function (Builder $providerQuery) use ($user): void {
                     $this->constrainSupplierProviderToUser($providerQuery, $user);
+                });
+            })
+            ->when($isTechnicianPropertyViewer, function (Builder $query) use ($user): void {
+                $query->where(function (Builder $ticketQuery) use ($user): void {
+                    $ticketQuery
+                        ->whereHas('currentProvider', function (Builder $providerQuery) use ($user): void {
+                            $this->constrainTechnicianProviderToUser($providerQuery, $user);
+                        })
+                        ->orWhere(function (Builder $unassignedQuery) use ($user): void {
+                            $unassignedQuery
+                                ->whereNull('current_provider_id')
+                                ->whereHas('property.technicianProvider', function (Builder $providerQuery) use ($user): void {
+                                    $this->constrainTechnicianProviderToUser($providerQuery, $user);
+                                });
+                        });
                 });
             })
             ->orderByOperationalPriority()
@@ -1148,6 +1166,24 @@ class PropertyController extends Controller
         }
 
         $query->where('maintenance_providers.type', 'proveedor')
+            ->where(function (Builder $identityQuery) use ($user): void {
+                $identityQuery->where('maintenance_providers.user_id', $user->id);
+
+                if (filled($user->email)) {
+                    $identityQuery->orWhere('maintenance_providers.email', $user->email);
+                }
+            });
+    }
+
+    private function constrainTechnicianProviderToUser(Builder $query, ?User $user): void
+    {
+        if (! $user) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where('maintenance_providers.type', 'tecnico_interno')
             ->where(function (Builder $identityQuery) use ($user): void {
                 $identityQuery->where('maintenance_providers.user_id', $user->id);
 

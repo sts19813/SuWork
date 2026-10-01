@@ -1961,6 +1961,10 @@ class MaintenanceController extends Controller
 
     private function isPropertyTechnician(MaintenanceTicket $ticket, User $user): bool
     {
+        if ($ticket->current_provider_id && ! $this->isAssignedTicketTechnician($ticket, $user)) {
+            return false;
+        }
+
         return Property::query()
             ->whereKey($ticket->property_id)
             ->whereHas('technicianProvider', function (Builder $providerQuery) use ($user): void {

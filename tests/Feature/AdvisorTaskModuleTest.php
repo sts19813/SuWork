@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Charge;
+use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\Property;
 use App\Models\PropertyDocument;
@@ -242,6 +243,100 @@ class AdvisorTaskModuleTest extends TestCase
                 ->assertSee('En 6 días')
                 ->assertSee('30 jun. 2026')
                 ->assertDontSee('Visita Oculta');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_admin_technician_tasks_only_show_tickets_assigned_to_that_technician_provider(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-24 09:00:00'));
+
+        try {
+            $adminRole = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+            $technicianRole = Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']);
+
+            $admin = User::factory()->create(['email' => 'admin-pendientes-tecnico@example.com']);
+            $admin->assignRole($adminRole);
+            $technician = User::factory()->create([
+                'name' => 'Técnico Pendientes',
+                'email' => 'tecnico-pendientes@example.com',
+            ]);
+            $technician->assignRole($technicianRole);
+
+            $technicianProvider = MaintenanceProvider::query()->create([
+                'type' => 'tecnico_interno',
+                'name' => 'Técnico Pendientes',
+                'email' => $technician->email,
+                'user_id' => $technician->id,
+                'is_active' => true,
+            ]);
+            $supplierProvider = MaintenanceProvider::query()->create([
+                'type' => 'proveedor',
+                'name' => 'Proveedor Piscina',
+                'email' => 'piscina@example.com',
+                'is_active' => true,
+            ]);
+
+            $type = PropertyType::query()->create([
+                'name' => 'Casa',
+                'slug' => 'casa',
+                'is_active' => true,
+            ]);
+            $zone = Zone::query()->create([
+                'name' => 'Centro',
+                'slug' => 'centro',
+                'is_active' => true,
+            ]);
+            $property = Property::query()->create([
+                'internal_name' => 'Casa con técnico responsable',
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle técnico',
+                'status' => Property::STATUS_OCCUPIED,
+                'onboarding_step' => 5,
+                'technician_provider_id' => $technicianProvider->id,
+                'created_by' => $admin->id,
+            ]);
+
+            MaintenanceTicket::query()->create([
+                'property_id' => $property->id,
+                'reported_by_user_id' => $admin->id,
+                'current_provider_id' => $technicianProvider->id,
+                'reported_by_role' => 'administrador',
+                'reported_by_name' => $admin->name,
+                'category' => 'electricidad',
+                'priority' => 'alta',
+                'status' => 'programado',
+                'title' => 'Ticket asignado al técnico',
+                'description' => 'Debe aparecer en pendientes del técnico',
+                'reported_at' => now(),
+                'scheduled_visit_at' => now()->addDay(),
+            ]);
+            MaintenanceTicket::query()->create([
+                'property_id' => $property->id,
+                'reported_by_user_id' => $admin->id,
+                'current_provider_id' => $supplierProvider->id,
+                'reported_by_role' => 'administrador',
+                'reported_by_name' => $admin->name,
+                'category' => 'piscina',
+                'priority' => 'alta',
+                'status' => 'programado',
+                'title' => 'Ticket de piscina proveedor externo',
+                'description' => 'No debe aparecer por técnico responsable de la propiedad',
+                'reported_at' => now(),
+                'scheduled_visit_at' => now()->addDay(),
+            ]);
+
+            $this->actingAs($admin)
+                ->get(route('admin.tasks.index', [
+                    'user_id' => $technician->id,
+                    'filter' => 'maintenance',
+                    'range' => 'current_week',
+                ]))
+                ->assertOk()
+                ->assertSee('Ticket asignado al técnico')
+                ->assertDontSee('Ticket de piscina proveedor externo');
         } finally {
             Carbon::setTestNow();
         }
