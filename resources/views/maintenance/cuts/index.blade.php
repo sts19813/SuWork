@@ -90,6 +90,30 @@
                     @csrf
                     <div class="cut-workspace">
                     <div class="cut-table-column">
+                    <div class="cut-filters" aria-label="Filtros de tickets para corte">
+                        <label class="cut-filter-field">
+                            <span>Propiedad</span>
+                            <select class="form-select" id="cutPropertyFilter" aria-label="Filtrar tickets por propiedad"
+                                data-control="select2" data-placeholder="Todas las propiedades">
+                                <option value="all">Todas las propiedades</option>
+                                @foreach ($propertyOptions as $property)
+                                    <option value="{{ $property->id }}">
+                                        {{ $property->internal_name }}{{ $property->internal_reference ? ' · '.$property->internal_reference : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="cut-filter-field is-search">
+                            <span>Buscar</span>
+                            <div class="cut-search-box">
+                                <i class="bi bi-search"></i>
+                                <input class="form-control" id="cutTicketSearch" type="search"
+                                    placeholder="Buscar folio, ticket, propiedad, técnico..."
+                                    aria-label="Buscar tickets en tiempo real" autocomplete="off">
+                            </div>
+                        </label>
+                        <span class="cut-filter-count" id="cutFilterCount">{{ $tickets->count() }} tickets</span>
+                    </div>
                     <div class="table-responsive cut-table-wrap">
                         <table class="table cut-table align-middle mb-0">
                             <thead>
@@ -111,8 +135,18 @@
                                         $labor = (float) ($ticket->labor_total ?? 0);
                                         $materials = (float) ($ticket->material_total ?? 0);
                                         $grand = (float) ($ticket->grand_total ?? 0);
+                                        $searchText = collect([
+                                            $ticket->display_reference,
+                                            $ticket->title,
+                                            $ticket->property?->internal_name,
+                                            $ticket->property?->internal_reference,
+                                            $ticket->currentProvider?->name ?? 'Sin técnico asignado',
+                                            $ticket->created_at?->format('d/m/Y H:i'),
+                                            $ticket->completed_at?->format('d/m/Y H:i'),
+                                            number_format($grand, 2),
+                                        ])->filter()->implode(' ');
                                     @endphp
-                                    <tr class="cut-ticket-row">
+                                    <tr class="cut-ticket-row" data-property-id="{{ $ticket->property_id }}" data-search="{{ $searchText }}">
                                         <td class="cut-check-column">
                                             <input class="form-check-input cut-ticket-checkbox" type="checkbox"
                                                 name="ticket_ids[]" value="{{ $ticket->id }}"
@@ -139,6 +173,13 @@
                                         <td class="text-end text-nowrap fw-bold">${{ number_format($grand, 2) }}</td>
                                     </tr>
                                 @endforeach
+                                <tr class="cut-filter-empty d-none" id="cutFilterEmpty">
+                                    <td colspan="9" class="text-center py-10">
+                                        <span><i class="bi bi-search"></i></span>
+                                        <strong>No hay tickets que coincidan con el filtro.</strong>
+                                        <small>Ajusta la propiedad o el texto de búsqueda.</small>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -247,11 +288,13 @@
     @media(max-width:1100px){.cut-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.cut-history-item summary{grid-template-columns:1.3fr repeat(2,1fr) 1.1fr auto}.cut-history-item summary>span:nth-of-type(3),.cut-history-item summary>span:nth-of-type(4){display:none}}
     @media(max-width:767px){.maintenance-cuts{padding-top:1rem!important;padding-bottom:6rem!important}.cut-heading{align-items:flex-start;flex-direction:column}.cut-heading .maintenance-plain-btn{width:100%;justify-content:center}.cut-metrics{grid-template-columns:1fr 1fr;gap:.6rem}.cut-metric{padding:.75rem;border-radius:14px}.cut-metric-icon{display:none}.cut-metric strong{font-size:.92rem}.cut-panel{border-radius:16px}.cut-panel-heading{align-items:flex-start;padding:1rem;flex-direction:column}.cut-select-all-button{width:100%}.cut-table-wrap{max-height:58vh}.cut-table th,.cut-table td{padding:.75rem .6rem}.cut-payment-bar{bottom:82px;margin:.65rem;display:grid;grid-template-columns:auto 1fr;padding:.75rem}.cut-payment-count{min-width:80px}.cut-payment-amounts{justify-content:flex-end;gap:.7rem}.cut-payment-amounts>span:not(.is-total){display:none}.cut-pay-button{grid-column:1/-1;width:100%;justify-content:center}.cut-history-item summary{grid-template-columns:1fr 1fr auto;gap:.55rem;padding:.9rem 1rem}.cut-history-item summary>span:nth-of-type(3),.cut-history-item summary>span:nth-of-type(4),.cut-history-item summary>span:nth-of-type(5){display:none}.cut-history-total{text-align:right}.cut-history-detail{padding:.2rem}.cut-subtitle{font-size:.9rem}}
     .cut-tabs{display:flex;align-items:center;gap:.45rem;padding:.35rem;background:#eef1f6;border-radius:15px;width:max-content;max-width:100%}.cut-tab{display:flex;align-items:center;gap:.5rem;border:0;background:transparent;color:#6e7892;border-radius:11px;padding:.7rem 1rem;font-weight:700;transition:.18s ease}.cut-tab span{display:grid;place-items:center;min-width:23px;height:23px;padding:0 .35rem;border-radius:999px;background:#dfe4ed;color:#68738d;font-size:.72rem}.cut-tab:hover{color:#17213b}.cut-tab.active{background:#fff;color:#ef285c;box-shadow:0 4px 14px rgba(25,40,75,.09)}.cut-tab.active span{background:#fff0f4;color:#ef285c}.cut-workspace{display:grid;grid-template-columns:minmax(0,1fr) 320px;align-items:start;background:#f7f8fb}.cut-table-column{min-width:0;background:#fff;border-right:1px solid #edf0f5}.cut-table{min-width:980px}.cut-table th:last-child,.cut-table td:last-child{padding-right:1.5rem}.cut-summary-card{position:sticky;top:1rem;margin:1.2rem;background:#17213b;color:#fff;border-radius:18px;padding:1.2rem;box-shadow:0 16px 35px rgba(16,29,63,.17)}.cut-summary-heading{display:flex;align-items:center;gap:.75rem;padding-bottom:1rem;border-bottom:1px solid rgba(255,255,255,.12)}.cut-summary-heading small{color:#9eaac3;display:block;font-size:.72rem}.cut-summary-heading h3{font-size:1rem;margin:.12rem 0 0;color:#fff;font-weight:800}.cut-summary-icon{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:rgba(255,51,102,.16);color:#ff5b83}.cut-summary-count{display:flex;align-items:center;justify-content:space-between;margin:1rem 0;padding:.8rem .9rem;border-radius:12px;background:rgba(255,255,255,.07);color:#c4cce0;font-size:.82rem}.cut-summary-count strong{color:#fff;font-size:1.2rem;margin-right:.25rem}.cut-summary-count i{color:#ff5b83;font-size:1.05rem}.cut-summary-lines{display:grid;gap:.75rem}.cut-summary-lines>div{display:flex;align-items:center;justify-content:space-between;gap:1rem;color:#aeb9d1;font-size:.84rem}.cut-summary-lines strong{color:#fff;font-size:.94rem}.cut-summary-lines .cut-summary-total{margin-top:.15rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.14);color:#fff}.cut-summary-total span{font-weight:700}.cut-summary-total strong{color:#74e4ae;font-size:1.45rem}.cut-summary-note{display:flex;gap:.45rem;margin:1rem 0;color:#96a3bd;font-size:.73rem;line-height:1.4}.cut-summary-card .cut-pay-button{width:100%;justify-content:center;padding:.78rem 1rem}.tab-pane>.cut-panel{margin-top:0}
+    .cut-filters{--cut-filter-height:43px;display:grid;grid-template-columns:minmax(190px,260px) minmax(240px,1fr) auto;align-items:end;gap:.85rem;padding:1rem;background:#fbfcfe;border-bottom:1px solid #edf0f5}.cut-filter-field{display:grid;gap:.35rem;margin:0}.cut-filter-field span{color:#69758e;font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.cut-filter-field .form-select,.cut-filter-field .form-control{height:var(--cut-filter-height);min-height:var(--cut-filter-height);border-color:#dfe4ed;color:#24304d;font-weight:600}.cut-filter-field .select2-container{width:100%!important}.cut-filter-field .select2-selection--single{height:var(--cut-filter-height);min-height:var(--cut-filter-height);border-color:#dfe4ed}.cut-filter-field .select2-selection__rendered{font-weight:600;color:#24304d;line-height:calc(var(--cut-filter-height) - 2px);padding-left:1rem;padding-right:2.2rem}.cut-filter-field .select2-selection__arrow{height:calc(var(--cut-filter-height) - 2px);right:.65rem}.cut-search-box{position:relative}.cut-search-box i{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:#8a95ad;pointer-events:none}.cut-search-box .form-control{padding-left:2.35rem}.cut-filter-count{align-self:center;display:inline-flex;justify-content:center;min-width:92px;border-radius:999px;background:#fff0f4;color:#ef285c;padding:.55rem .8rem;font-weight:800;font-size:.78rem;white-space:nowrap}.cut-filter-empty td{background:#fff!important;color:#8490aa}.cut-filter-empty span{display:grid;place-items:center;margin:0 auto .65rem;width:42px;height:42px;border-radius:14px;background:#eef3fb;color:#69758e;font-size:1.05rem}.cut-filter-empty strong{display:block;color:#24304d}.cut-filter-empty small{display:block;margin-top:.2rem;color:#8490aa}
     @media(max-width:1200px){.cut-workspace{grid-template-columns:1fr}.cut-table-column{border-right:0;border-bottom:1px solid #edf0f5}.cut-summary-card{position:static;margin:1rem;display:grid;grid-template-columns:1fr 1.5fr;column-gap:1rem}.cut-summary-heading{grid-column:1/-1}.cut-summary-count{margin-bottom:0}.cut-summary-lines{grid-row:2/4;grid-column:2}.cut-summary-note{margin:.8rem 0 0}.cut-summary-card .cut-pay-button{align-self:end}}
     @media(max-width:767px){.cut-tabs{width:100%;display:grid;grid-template-columns:1fr 1fr}.cut-tab{justify-content:center;padding:.7rem .5rem;font-size:.82rem}.cut-tab i{display:none}.cut-tab span{min-width:20px;height:20px}.cut-workspace{display:block}.cut-table-wrap{max-height:none}.cut-summary-card{display:block;margin:.75rem;border-radius:15px;padding:1rem}.cut-summary-count{margin:1rem 0}.cut-summary-lines{display:grid}.cut-summary-note{margin:1rem 0}.cut-table th:last-child,.cut-table td:last-child{padding-right:1rem}}
     .cut-workspace{gap:1.25rem;padding:1.25rem}.cut-table-column{border:1px solid #e7ebf2;border-radius:16px;overflow:hidden}.cut-table th:last-child,.cut-table td:last-child{padding-right:2rem}.cut-summary-card{margin:0;background:#fff;color:#17213b;border:1px solid #e2e7f0;box-shadow:0 12px 28px rgba(25,40,75,.09)}.cut-summary-heading{border-bottom-color:#e8ecf3}.cut-summary-heading small{color:#8792aa}.cut-summary-heading h3{color:#17213b}.cut-summary-icon{background:#fff0f4;color:#ef285c}.cut-summary-count{background:#f6f7fa;color:#69758e;border:1px solid #ebedf3}.cut-summary-count strong{color:#17213b}.cut-summary-lines>div{color:#69758e}.cut-summary-lines strong{color:#17213b}.cut-summary-lines .cut-summary-total{border-top-color:#e5e9f0;color:#17213b}.cut-summary-note{color:#7d889f}.cut-summary-note i{color:#ef285c}
     @media(max-width:1200px){.cut-summary-card{margin:0}}
     @media(max-width:767px){.cut-workspace{padding:.75rem;display:grid;gap:.75rem}.cut-summary-card{margin:0}.cut-table th:last-child,.cut-table td:last-child{padding-right:1.35rem}}
+    @media(max-width:767px){.cut-filters{grid-template-columns:1fr;padding:.85rem}.cut-filter-count{width:100%}}
     @media(min-width:768px){.cut-table-wrap{overflow-x:visible}.cut-table{width:100%;min-width:0;table-layout:fixed}.cut-ticket-link{min-width:0}.cut-table th,.cut-table td{padding-left:.5rem;padding-right:.5rem}.cut-table th:nth-child(2){width:14%}.cut-table th:nth-child(3){width:15%}.cut-table th:nth-child(4){width:12%}.cut-table th:nth-child(5),.cut-table th:nth-child(6){width:12%}.cut-table th:nth-child(7),.cut-table th:nth-child(8){width:9%}.cut-table th:nth-child(9){width:10%}.cut-table th:last-child,.cut-table td:last-child{padding-right:1.75rem}}
     @media(max-width:767px){.cut-table{min-width:1020px}.cut-table-wrap{overflow-x:auto}}
 </style>
@@ -264,12 +307,34 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!form) return;
 
     const boxes = Array.from(form.querySelectorAll('.cut-ticket-checkbox'));
+    const rows = boxes.map(box => ({ box, row: box.closest('.cut-ticket-row') })).filter(item => item.row);
     const selectAll = document.getElementById('selectAllVisible');
     const payButton = document.getElementById('paySelectedButton');
+    const propertyFilter = document.getElementById('cutPropertyFilter');
+    const searchInput = document.getElementById('cutTicketSearch');
+    const filterCount = document.getElementById('cutFilterCount');
+    const emptyRow = document.getElementById('cutFilterEmpty');
     const currency = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
+    function normalize(value) {
+        return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim();
+    }
+
+    function isVisible(row) {
+        return !row.classList.contains('d-none');
+    }
+
+    function visibleBoxes() {
+        return rows.filter(({ row }) => isVisible(row)).map(({ box }) => box);
+    }
+
     function updateSummary() {
-        const selected = boxes.filter(box => box.checked);
+        const visible = visibleBoxes();
+        const selected = visible.filter(box => box.checked);
         const technicianKey = selected[0]?.dataset.technicianKey || null;
         const technicianName = selected[0]?.dataset.technicianName || 'Sin seleccionar';
         const sum = key => selected.reduce((total, box) => total + Number(box.dataset[key] || 0), 0);
@@ -279,22 +344,49 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('selectedMaterials').textContent = currency.format(sum('materials'));
         document.getElementById('selectedGrand').textContent = currency.format(sum('grand'));
         payButton.disabled = selected.length === 0;
-        boxes.forEach(box => {
-            const incompatible = Boolean(technicianKey && box.dataset.technicianKey !== technicianKey);
-            box.disabled = incompatible;
-            const row = box.closest('tr');
+        rows.forEach(({ box, row }) => {
+            const hidden = !isVisible(row);
+            const incompatible = Boolean(!hidden && technicianKey && box.dataset.technicianKey !== technicianKey);
+            box.disabled = hidden || incompatible;
             row?.classList.toggle('is-selected', box.checked);
             row?.classList.toggle('is-incompatible', incompatible);
             row?.setAttribute('title', incompatible ? 'Solo puedes incluir tickets del mismo técnico en este corte.' : '');
         });
         if (selectAll) {
             const compatible = technicianKey
-                ? boxes.filter(box => box.dataset.technicianKey === technicianKey)
-                : boxes;
+                ? visible.filter(box => box.dataset.technicianKey === technicianKey)
+                : visible;
             selectAll.innerHTML = selected.length > 0 && selected.length === compatible.length
                 ? '<i class="bi bi-square"></i> Quitar selección'
                 : '<i class="bi bi-check2-square"></i> Seleccionar todos';
+            selectAll.disabled = visible.length === 0;
         }
+    }
+
+    function applyFilters() {
+        const propertyId = propertyFilter?.value || 'all';
+        const query = normalize(searchInput?.value || '');
+        let visibleCount = 0;
+
+        rows.forEach(({ box, row }) => {
+            const matchesProperty = propertyId === 'all' || row.dataset.propertyId === propertyId;
+            const searchable = normalize(row.dataset.search || row.textContent);
+            const matchesSearch = !query || searchable.includes(query);
+            const visible = matchesProperty && matchesSearch;
+
+            row.classList.toggle('d-none', !visible);
+            if (!visible) {
+                box.checked = false;
+            } else {
+                visibleCount += 1;
+            }
+        });
+
+        emptyRow?.classList.toggle('d-none', visibleCount > 0);
+        if (filterCount) {
+            filterCount.textContent = `${visibleCount} ${visibleCount === 1 ? 'ticket' : 'tickets'}`;
+        }
+        updateSummary();
     }
 
     boxes.forEach(box => {
@@ -306,15 +398,21 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
     selectAll?.addEventListener('click', () => {
-        const selected = boxes.filter(box => box.checked);
-        const technicianKey = selected[0]?.dataset.technicianKey || boxes[0]?.dataset.technicianKey;
-        const compatible = boxes.filter(box => box.dataset.technicianKey === technicianKey);
+        const visible = visibleBoxes();
+        const selected = visible.filter(box => box.checked);
+        const technicianKey = selected[0]?.dataset.technicianKey || visible[0]?.dataset.technicianKey;
+        const compatible = visible.filter(box => box.dataset.technicianKey === technicianKey);
         const shouldSelect = compatible.some(box => !box.checked);
         compatible.forEach(box => box.checked = shouldSelect);
         updateSummary();
     });
+    propertyFilter?.addEventListener('change', applyFilters);
+    if (propertyFilter && window.jQuery) {
+        window.jQuery(propertyFilter).on('change.maintenanceCutFilters', applyFilters);
+    }
+    searchInput?.addEventListener('input', applyFilters);
     form.addEventListener('submit', event => {
-        const count = boxes.filter(box => box.checked).length;
+        const count = visibleBoxes().filter(box => box.checked).length;
         if (!count || !window.confirm(`¿Confirmas el pago de ${count} ticket(s)? Después del pago sus costos no podrán modificarse.`)) {
             event.preventDefault();
         } else {
@@ -322,7 +420,7 @@ document.addEventListener('DOMContentLoaded', function () {
             payButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Registrando pago...';
         }
     });
-    updateSummary();
+    applyFilters();
 });
 </script>
 @endpush

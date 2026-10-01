@@ -31,6 +31,13 @@ class MaintenanceCutController extends Controller
             ->orderByDesc('id')
             ->get();
 
+        $propertyOptions = $tickets
+            ->pluck('property')
+            ->filter()
+            ->unique('id')
+            ->sortBy(fn ($property) => mb_strtolower((string) $property->internal_name))
+            ->values();
+
         $cuts = MaintenanceCut::query()
             ->with([
                 'paidBy:id,name,email',
@@ -45,6 +52,7 @@ class MaintenanceCutController extends Controller
         return view('maintenance.cuts.index', [
             'tickets' => $tickets,
             'cuts' => $cuts,
+            'propertyOptions' => $propertyOptions,
             'pendingTotals' => $this->totalsFor($tickets),
             'paidGrandTotal' => (float) MaintenanceCut::query()->sum('grand_total'),
         ]);

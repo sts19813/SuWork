@@ -153,6 +153,36 @@ class MaintenanceCutModuleTest extends TestCase
         $this->assertDatabaseCount('maintenance_cut_items', 0);
     }
 
+    public function test_administrator_can_filter_cut_tickets_by_property_and_realtime_search_metadata(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $northProperty = $this->createProperty($admin, 'Casa Norte Corte', 'casa-norte-corte');
+        $southProperty = $this->createProperty($admin, 'Casa Sur Corte', 'casa-sur-corte');
+
+        $northTicket = $this->createTicket($northProperty, 'Cambio de minisplit', 'completado');
+        $southTicket = $this->createTicket($southProperty, 'Reparación de chapa', 'completado');
+
+        $this->actingAs($admin)
+            ->get(route('maintenance-cuts.index'))
+            ->assertOk()
+            ->assertSee('Todas las propiedades')
+            ->assertSee('Casa Norte Corte')
+            ->assertSee('Casa Sur Corte')
+            ->assertSee('id="cutPropertyFilter"', false)
+            ->assertSee('data-control="select2"', false)
+            ->assertSee('data-placeholder="Todas las propiedades"', false)
+            ->assertSee('<option value="all">Todas las propiedades</option>', false)
+            ->assertSee('id="cutTicketSearch"', false)
+            ->assertSee('placeholder="Buscar folio, ticket, propiedad, técnico..."', false)
+            ->assertSee('value="'.$northProperty->id.'"', false)
+            ->assertSee('value="'.$southProperty->id.'"', false)
+            ->assertSee('data-property-id="'.$northProperty->id.'"', false)
+            ->assertSee('data-property-id="'.$southProperty->id.'"', false)
+            ->assertSee('Cambio de minisplit')
+            ->assertSee('Reparación de chapa');
+    }
+
     private function createTicket(Property $property, string $title, string $status): MaintenanceTicket
     {
         return MaintenanceTicket::create([
@@ -167,13 +197,13 @@ class MaintenanceCutModuleTest extends TestCase
         ]);
     }
 
-    private function createProperty(User $user): Property
+    private function createProperty(User $user, string $name = 'Casa Corte', string $slug = 'casa-corte'): Property
     {
-        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa-corte', 'is_active' => true]);
-        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro-corte', 'is_active' => true]);
+        $type = PropertyType::create(['name' => 'Casa '.$slug, 'slug' => 'tipo-'.$slug, 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro '.$slug, 'slug' => 'zona-'.$slug, 'is_active' => true]);
 
         return Property::create([
-            'internal_name' => 'Casa Corte',
+            'internal_name' => $name,
             'property_type_id' => $type->id,
             'zone_id' => $zone->id,
             'full_address' => 'Calle de prueba 100',
