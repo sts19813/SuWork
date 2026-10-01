@@ -5,7 +5,15 @@
 @section('content')
     <div class="maintenance-module maintenance-cuts py-8">
         @php
-            $showHistory = !$errors->any() && (session('success') || request('tab') === 'historial');
+            $activeCutTab = match (true) {
+                $errors->any() => 'pending',
+                session('success') || request('tab') === 'historial' => 'history',
+                request('tab') === 'sin-costo' => 'zero-cost',
+                default => 'pending',
+            };
+            $showPending = $activeCutTab === 'pending';
+            $showZeroCost = $activeCutTab === 'zero-cost';
+            $showHistory = $activeCutTab === 'history';
         @endphp
         <div class="cut-heading">
             <div>
@@ -48,12 +56,19 @@
         </div>
 
         <div class="cut-tabs" role="tablist" aria-label="Secciones del corte de mantenimiento">
-            <button class="cut-tab {{ $showHistory ? '' : 'active' }}" id="pending-tab" data-bs-toggle="tab"
+            <button class="cut-tab {{ $showPending ? 'active' : '' }}" id="pending-tab" data-bs-toggle="tab"
                 data-bs-target="#pending-pane" type="button" role="tab" aria-controls="pending-pane"
-                aria-selected="{{ $showHistory ? 'false' : 'true' }}">
+                aria-selected="{{ $showPending ? 'true' : 'false' }}">
                 <i class="bi bi-list-check"></i>
                 Pendientes de pago
                 <span>{{ $tickets->count() }}</span>
+            </button>
+            <button class="cut-tab {{ $showZeroCost ? 'active' : '' }}" id="zero-cost-tab" data-bs-toggle="tab"
+                data-bs-target="#zero-cost-pane" type="button" role="tab" aria-controls="zero-cost-pane"
+                aria-selected="{{ $showZeroCost ? 'true' : 'false' }}">
+                <i class="bi bi-slash-circle"></i>
+                Tickets sin costo
+                <span>{{ $zeroCostTickets->count() }}</span>
             </button>
             <button class="cut-tab {{ $showHistory ? 'active' : '' }}" id="history-tab" data-bs-toggle="tab"
                 data-bs-target="#history-pane" type="button" role="tab" aria-controls="history-pane"
@@ -65,7 +80,7 @@
         </div>
 
         <div class="tab-content">
-        <div class="tab-pane fade {{ $showHistory ? '' : 'show active' }}" id="pending-pane" role="tabpanel" aria-labelledby="pending-tab" tabindex="0">
+        <div class="tab-pane fade {{ $showPending ? 'show active' : '' }}" id="pending-pane" role="tabpanel" aria-labelledby="pending-tab" tabindex="0">
         <section class="cut-panel">
             <div class="cut-panel-heading">
                 <div>
@@ -73,7 +88,7 @@
                     <p>Los importes ya incluyen todos los costos. Cada corte solo puede incluir tickets del mismo técnico.</p>
                 </div>
                 @if ($tickets->isNotEmpty())
-                    <button type="button" class="cut-select-all-button" id="selectAllVisible">
+                    <button type="button" class="cut-select-all-button" id="selectAllVisible" data-cut-select-all="maintenanceCutForm">
                         <i class="bi bi-check2-square"></i> Seleccionar todos
                     </button>
                 @endif
@@ -86,14 +101,16 @@
                     <p>No hay tickets completados pendientes de pago.</p>
                 </div>
             @else
-                <form method="POST" action="{{ route('maintenance-cuts.store') }}" id="maintenanceCutForm">
+                <form method="POST" action="{{ route('maintenance-cuts.store') }}" id="maintenanceCutForm"
+                    data-cut-form data-cut-confirm="¿Confirmas el pago de :count ticket(s)? Después del pago sus costos no podrán modificarse."
+                    data-cut-submitting-label="Registrando pago...">
                     @csrf
                     <div class="cut-workspace">
                     <div class="cut-table-column">
                     <div class="cut-filters" aria-label="Filtros de tickets para corte">
                         <label class="cut-filter-field">
                             <span>Propiedad</span>
-                            <select class="form-select" id="cutPropertyFilter" aria-label="Filtrar tickets por propiedad"
+                            <select class="form-select" id="cutPropertyFilter" aria-label="Filtrar tickets por propiedad" data-cut-property-filter
                                 data-control="select2" data-placeholder="Todas las propiedades">
                                 <option value="all">Todas las propiedades</option>
                                 @foreach ($propertyOptions as $property)
@@ -105,7 +122,7 @@
                         </label>
                         <label class="cut-filter-field">
                             <span>Proveedor / técnico</span>
-                            <select class="form-select" id="cutTechnicianFilter" aria-label="Filtrar tickets por proveedor o técnico"
+                            <select class="form-select" id="cutTechnicianFilter" aria-label="Filtrar tickets por proveedor o técnico" data-cut-technician-filter
                                 data-control="select2" data-placeholder="Todos los proveedores / técnicos">
                                 <option value="all">Todos los proveedores / técnicos</option>
                                 @foreach ($technicianOptions as $technician)
@@ -117,12 +134,12 @@
                             <span>Buscar</span>
                             <div class="cut-search-box">
                                 <i class="bi bi-search"></i>
-                                <input class="form-control" id="cutTicketSearch" type="search"
+                                <input class="form-control" id="cutTicketSearch" type="search" data-cut-search
                                     placeholder="Buscar folio, ticket, propiedad, técnico..."
                                     aria-label="Buscar tickets en tiempo real" autocomplete="off">
                             </div>
                         </label>
-                        <span class="cut-filter-count" id="cutFilterCount">{{ $tickets->count() }} tickets</span>
+                        <span class="cut-filter-count" id="cutFilterCount" data-cut-filter-count>{{ $tickets->count() }} tickets</span>
                     </div>
                     <div class="table-responsive cut-table-wrap">
                         <table class="table cut-table align-middle mb-0">
@@ -183,7 +200,7 @@
                                         <td class="text-end text-nowrap fw-bold">${{ number_format($grand, 2) }}</td>
                                     </tr>
                                 @endforeach
-                                <tr class="cut-filter-empty d-none" id="cutFilterEmpty">
+                                <tr class="cut-filter-empty d-none" id="cutFilterEmpty" data-cut-filter-empty>
                                     <td colspan="9" class="text-center py-10">
                                         <span><i class="bi bi-search"></i></span>
                                         <strong>No hay tickets que coincidan con el filtro.</strong>
@@ -204,18 +221,178 @@
                             </div>
                         </div>
                         <div class="cut-summary-count">
-                            <span><strong id="selectedCount">0</strong> tickets seleccionados</span>
+                            <span><strong id="selectedCount" data-cut-selected-count>0</strong> tickets seleccionados</span>
                             <i class="bi bi-check2-square"></i>
                         </div>
                         <div class="cut-summary-lines">
-                            <div><span>Técnico</span><strong id="selectedTechnician">Sin seleccionar</strong></div>
-                            <div><span>Mano de obra</span><strong id="selectedLabor">$0.00</strong></div>
-                            <div><span>Materiales</span><strong id="selectedMaterials">$0.00</strong></div>
-                            <div class="cut-summary-total"><span>Total a pagar</span><strong id="selectedGrand">$0.00</strong></div>
+                            <div><span>Técnico</span><strong id="selectedTechnician" data-cut-selected-technician>Sin seleccionar</strong></div>
+                            <div><span>Mano de obra</span><strong id="selectedLabor" data-cut-selected-labor>$0.00</strong></div>
+                            <div><span>Materiales</span><strong id="selectedMaterials" data-cut-selected-materials>$0.00</strong></div>
+                            <div class="cut-summary-total"><span>Total a pagar</span><strong id="selectedGrand" data-cut-selected-grand>$0.00</strong></div>
                         </div>
                         <p class="cut-summary-note"><i class="bi bi-lock"></i> Al pagar, los costos seleccionados quedarán cerrados.</p>
-                        <button class="maintenance-primary-btn cut-pay-button" type="submit" id="paySelectedButton" disabled>
+                        <button class="maintenance-primary-btn cut-pay-button" type="submit" id="paySelectedButton" data-cut-submit disabled>
                             <i class="bi bi-lock-fill"></i> Pagar seleccionados
+                        </button>
+                    </aside>
+                    </div>
+                </form>
+            @endif
+        </section>
+        </div>
+
+        <div class="tab-pane fade {{ $showZeroCost ? 'show active' : '' }}" id="zero-cost-pane" role="tabpanel" aria-labelledby="zero-cost-tab" tabindex="0">
+        <section class="cut-panel">
+            <div class="cut-panel-heading">
+                <div>
+                    <h2>Tickets sin costo</h2>
+                    <p>Tickets completados con total $0.00. Ciérralos en un corte sin valor para conservar el registro sin mezclarlos con pagos pendientes.</p>
+                </div>
+                @if ($zeroCostTickets->isNotEmpty())
+                    <button type="button" class="cut-select-all-button" data-cut-select-all="zeroCostCutForm">
+                        <i class="bi bi-check2-square"></i> Seleccionar todos
+                    </button>
+                @endif
+            </div>
+
+            @if ($zeroCostTickets->isEmpty())
+                <div class="cut-empty is-compact">
+                    <span><i class="bi bi-check-circle"></i></span>
+                    <h3>No hay tickets sin costo</h3>
+                    <p>Cuando un ticket completado cierre en $0.00 aparecerá en esta sección.</p>
+                </div>
+            @else
+                <form method="POST" action="{{ route('maintenance-cuts.store') }}" id="zeroCostCutForm"
+                    data-cut-form data-cut-confirm="¿Confirmas el cierre sin costo de :count ticket(s)?"
+                    data-cut-submitting-label="Cerrando corte...">
+                    @csrf
+                    <div class="cut-workspace">
+                    <div class="cut-table-column">
+                    <div class="cut-filters" aria-label="Filtros de tickets sin costo">
+                        <label class="cut-filter-field">
+                            <span>Propiedad</span>
+                            <select class="form-select" aria-label="Filtrar tickets sin costo por propiedad" data-cut-property-filter
+                                data-control="select2" data-placeholder="Todas las propiedades">
+                                <option value="all">Todas las propiedades</option>
+                                @foreach ($zeroCostPropertyOptions as $property)
+                                    <option value="{{ $property->id }}">
+                                        {{ $property->internal_name }}{{ $property->internal_reference ? ' · '.$property->internal_reference : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="cut-filter-field">
+                            <span>Proveedor / técnico</span>
+                            <select class="form-select" aria-label="Filtrar tickets sin costo por proveedor o técnico" data-cut-technician-filter
+                                data-control="select2" data-placeholder="Todos los proveedores / técnicos">
+                                <option value="all">Todos los proveedores / técnicos</option>
+                                @foreach ($zeroCostTechnicianOptions as $technician)
+                                    <option value="{{ $technician['key'] }}">{{ $technician['name'] }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="cut-filter-field is-search">
+                            <span>Buscar</span>
+                            <div class="cut-search-box">
+                                <i class="bi bi-search"></i>
+                                <input class="form-control" type="search" data-cut-search
+                                    placeholder="Buscar folio, ticket, propiedad, técnico..."
+                                    aria-label="Buscar tickets sin costo en tiempo real" autocomplete="off">
+                            </div>
+                        </label>
+                        <span class="cut-filter-count" data-cut-filter-count>{{ $zeroCostTickets->count() }} tickets</span>
+                    </div>
+                    <div class="table-responsive cut-table-wrap">
+                    <table class="table cut-table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th class="cut-check-column"><span class="visually-hidden">Seleccionar</span></th>
+                                <th>Ticket</th>
+                                <th>Propiedad</th>
+                                <th>Técnico</th>
+                                <th>Creado</th>
+                                <th>Completado</th>
+                                <th class="text-end">Mano de obra</th>
+                                <th class="text-end">Materiales</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($zeroCostTickets as $ticket)
+                                @php
+                                    $labor = (float) ($ticket->labor_total ?? 0);
+                                    $materials = (float) ($ticket->material_total ?? 0);
+                                    $grand = (float) ($ticket->grand_total ?? 0);
+                                    $searchText = collect([
+                                        $ticket->display_reference,
+                                        $ticket->title,
+                                        $ticket->property?->internal_name,
+                                        $ticket->property?->internal_reference,
+                                        $ticket->currentProvider?->name ?? 'Sin técnico asignado',
+                                        $ticket->created_at?->format('d/m/Y H:i'),
+                                        $ticket->completed_at?->format('d/m/Y H:i'),
+                                    ])->filter()->implode(' ');
+                                @endphp
+                                <tr class="cut-ticket-row" data-property-id="{{ $ticket->property_id }}" data-technician-key="{{ $ticket->current_provider_id ? 'technician-'.$ticket->current_provider_id : 'unassigned' }}" data-search="{{ $searchText }}">
+                                    <td class="cut-check-column">
+                                        <input class="form-check-input cut-ticket-checkbox" type="checkbox"
+                                            name="ticket_ids[]" value="{{ $ticket->id }}"
+                                            data-labor="{{ $labor }}" data-materials="{{ $materials }}" data-grand="{{ $grand }}"
+                                            data-technician-key="{{ $ticket->current_provider_id ? 'technician-'.$ticket->current_provider_id : 'unassigned' }}"
+                                            data-technician-name="{{ $ticket->currentProvider?->name ?? 'Sin técnico asignado' }}"
+                                            aria-label="Seleccionar ticket sin costo {{ $ticket->display_reference }}">
+                                    </td>
+                                    <td>
+                                        <a class="cut-ticket-link" href="{{ route('maintenance.show', $ticket) }}">
+                                            <strong>#{{ $ticket->display_reference }}</strong>
+                                            <span>{{ $ticket->title }}</span>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <strong class="d-block">{{ $ticket->property?->internal_name ?? '-' }}</strong>
+                                        <small class="text-muted">{{ $ticket->property?->internal_reference ?: 'Sin referencia' }}</small>
+                                    </td>
+                                    <td><span class="cut-technician-name">{{ $ticket->currentProvider?->name ?? 'Sin técnico asignado' }}</span></td>
+                                    <td class="text-nowrap">{{ $ticket->created_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                    <td class="text-nowrap">{{ $ticket->completed_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                    <td class="text-end text-nowrap">${{ number_format($labor, 2) }}</td>
+                                    <td class="text-end text-nowrap">${{ number_format($materials, 2) }}</td>
+                                    <td class="text-end text-nowrap fw-bold">${{ number_format($grand, 2) }}</td>
+                                </tr>
+                            @endforeach
+                            <tr class="cut-filter-empty d-none" data-cut-filter-empty>
+                                <td colspan="9" class="text-center py-10">
+                                    <span><i class="bi bi-search"></i></span>
+                                    <strong>No hay tickets que coincidan con el filtro.</strong>
+                                    <small>Ajusta la propiedad o el texto de búsqueda.</small>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    </div>
+                    </div>
+
+                    <aside class="cut-summary-card" aria-live="polite">
+                        <div class="cut-summary-heading">
+                            <span class="cut-summary-icon"><i class="bi bi-receipt-cutoff"></i></span>
+                            <div>
+                                <small>Resumen del corte</small>
+                                <h3>Cierre sin costo</h3>
+                            </div>
+                        </div>
+                        <div class="cut-summary-count">
+                            <span><strong data-cut-selected-count>0</strong> tickets seleccionados</span>
+                            <i class="bi bi-check2-square"></i>
+                        </div>
+                        <div class="cut-summary-lines">
+                            <div><span>Técnico</span><strong data-cut-selected-technician>Sin seleccionar</strong></div>
+                            <div><span>Mano de obra</span><strong data-cut-selected-labor>$0.00</strong></div>
+                            <div><span>Materiales</span><strong data-cut-selected-materials>$0.00</strong></div>
+                            <div class="cut-summary-total"><span>Total del corte</span><strong data-cut-selected-grand>$0.00</strong></div>
+                        </div>
+                        <p class="cut-summary-note"><i class="bi bi-lock"></i> Al cerrar, los tickets quedarán registrados en historial con valor $0.00.</p>
+                        <button class="maintenance-primary-btn cut-pay-button" type="submit" data-cut-submit disabled>
+                            <i class="bi bi-check2-circle"></i> Cerrar seleccionados
                         </button>
                     </aside>
                     </div>
@@ -300,31 +477,21 @@
     .cut-tabs{display:flex;align-items:center;gap:.45rem;padding:.35rem;background:#eef1f6;border-radius:15px;width:max-content;max-width:100%}.cut-tab{display:flex;align-items:center;gap:.5rem;border:0;background:transparent;color:#6e7892;border-radius:11px;padding:.7rem 1rem;font-weight:700;transition:.18s ease}.cut-tab span{display:grid;place-items:center;min-width:23px;height:23px;padding:0 .35rem;border-radius:999px;background:#dfe4ed;color:#68738d;font-size:.72rem}.cut-tab:hover{color:#17213b}.cut-tab.active{background:#fff;color:#ef285c;box-shadow:0 4px 14px rgba(25,40,75,.09)}.cut-tab.active span{background:#fff0f4;color:#ef285c}.cut-workspace{display:grid;grid-template-columns:minmax(0,1fr) 320px;align-items:start;background:#f7f8fb}.cut-table-column{min-width:0;background:#fff;border-right:1px solid #edf0f5}.cut-table{min-width:980px}.cut-table th:last-child,.cut-table td:last-child{padding-right:1.5rem}.cut-summary-card{position:sticky;top:1rem;margin:1.2rem;background:#17213b;color:#fff;border-radius:18px;padding:1.2rem;box-shadow:0 16px 35px rgba(16,29,63,.17)}.cut-summary-heading{display:flex;align-items:center;gap:.75rem;padding-bottom:1rem;border-bottom:1px solid rgba(255,255,255,.12)}.cut-summary-heading small{color:#9eaac3;display:block;font-size:.72rem}.cut-summary-heading h3{font-size:1rem;margin:.12rem 0 0;color:#fff;font-weight:800}.cut-summary-icon{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:rgba(255,51,102,.16);color:#ff5b83}.cut-summary-count{display:flex;align-items:center;justify-content:space-between;margin:1rem 0;padding:.8rem .9rem;border-radius:12px;background:rgba(255,255,255,.07);color:#c4cce0;font-size:.82rem}.cut-summary-count strong{color:#fff;font-size:1.2rem;margin-right:.25rem}.cut-summary-count i{color:#ff5b83;font-size:1.05rem}.cut-summary-lines{display:grid;gap:.75rem}.cut-summary-lines>div{display:flex;align-items:center;justify-content:space-between;gap:1rem;color:#aeb9d1;font-size:.84rem}.cut-summary-lines strong{color:#fff;font-size:.94rem}.cut-summary-lines .cut-summary-total{margin-top:.15rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.14);color:#fff}.cut-summary-total span{font-weight:700}.cut-summary-total strong{color:#74e4ae;font-size:1.45rem}.cut-summary-note{display:flex;gap:.45rem;margin:1rem 0;color:#96a3bd;font-size:.73rem;line-height:1.4}.cut-summary-card .cut-pay-button{width:100%;justify-content:center;padding:.78rem 1rem}.tab-pane>.cut-panel{margin-top:0}
     .cut-filters{--cut-filter-height:43px;display:grid;grid-template-columns:minmax(170px,230px) minmax(190px,250px) minmax(240px,1fr) auto;align-items:end;gap:.85rem;padding:1rem;background:#fbfcfe;border-bottom:1px solid #edf0f5}.cut-filter-field{display:grid;gap:.35rem;margin:0}.cut-filter-field span{color:#69758e;font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.cut-filter-field .form-select,.cut-filter-field .form-control{height:var(--cut-filter-height);min-height:var(--cut-filter-height);border-color:#dfe4ed;color:#24304d;font-weight:600}.cut-filter-field .select2-container{width:100%!important}.cut-filter-field .select2-selection--single{height:var(--cut-filter-height);min-height:var(--cut-filter-height);border-color:#dfe4ed}.cut-filter-field .select2-selection__rendered{font-weight:600;color:#24304d;line-height:calc(var(--cut-filter-height) - 2px);padding-left:1rem;padding-right:2.2rem}.cut-filter-field .select2-selection__arrow{height:calc(var(--cut-filter-height) - 2px);right:.65rem}.cut-search-box{position:relative}.cut-search-box i{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:#8a95ad;pointer-events:none}.cut-search-box .form-control{padding-left:2.35rem}.cut-filter-count{align-self:center;display:inline-flex;justify-content:center;min-width:92px;border-radius:999px;background:#fff0f4;color:#ef285c;padding:.55rem .8rem;font-weight:800;font-size:.78rem;white-space:nowrap}.cut-filter-empty td{background:#fff!important;color:#8490aa}.cut-filter-empty span{display:grid;place-items:center;margin:0 auto .65rem;width:42px;height:42px;border-radius:14px;background:#eef3fb;color:#69758e;font-size:1.05rem}.cut-filter-empty strong{display:block;color:#24304d}.cut-filter-empty small{display:block;margin-top:.2rem;color:#8490aa}
     @media(max-width:1200px){.cut-workspace{grid-template-columns:1fr}.cut-table-column{border-right:0;border-bottom:1px solid #edf0f5}.cut-summary-card{position:static;margin:1rem;display:grid;grid-template-columns:1fr 1.5fr;column-gap:1rem}.cut-summary-heading{grid-column:1/-1}.cut-summary-count{margin-bottom:0}.cut-summary-lines{grid-row:2/4;grid-column:2}.cut-summary-note{margin:.8rem 0 0}.cut-summary-card .cut-pay-button{align-self:end}}
-    @media(max-width:767px){.cut-tabs{width:100%;display:grid;grid-template-columns:1fr 1fr}.cut-tab{justify-content:center;padding:.7rem .5rem;font-size:.82rem}.cut-tab i{display:none}.cut-tab span{min-width:20px;height:20px}.cut-workspace{display:block}.cut-table-wrap{max-height:none}.cut-summary-card{display:block;margin:.75rem;border-radius:15px;padding:1rem}.cut-summary-count{margin:1rem 0}.cut-summary-lines{display:grid}.cut-summary-note{margin:1rem 0}.cut-table th:last-child,.cut-table td:last-child{padding-right:1rem}}
+    @media(max-width:767px){.cut-tabs{width:100%;display:grid;grid-template-columns:1fr}.cut-tab{justify-content:center;padding:.7rem .5rem;font-size:.82rem}.cut-tab i{display:none}.cut-tab span{min-width:20px;height:20px}.cut-workspace{display:block}.cut-table-wrap{max-height:none}.cut-summary-card{display:block;margin:.75rem;border-radius:15px;padding:1rem}.cut-summary-count{margin:1rem 0}.cut-summary-lines{display:grid}.cut-summary-note{margin:1rem 0}.cut-table th:last-child,.cut-table td:last-child{padding-right:1rem}}
     .cut-workspace{gap:1.25rem;padding:1.25rem}.cut-table-column{border:1px solid #e7ebf2;border-radius:16px;overflow:hidden}.cut-table th:last-child,.cut-table td:last-child{padding-right:2rem}.cut-summary-card{margin:0;background:#fff;color:#17213b;border:1px solid #e2e7f0;box-shadow:0 12px 28px rgba(25,40,75,.09)}.cut-summary-heading{border-bottom-color:#e8ecf3}.cut-summary-heading small{color:#8792aa}.cut-summary-heading h3{color:#17213b}.cut-summary-icon{background:#fff0f4;color:#ef285c}.cut-summary-count{background:#f6f7fa;color:#69758e;border:1px solid #ebedf3}.cut-summary-count strong{color:#17213b}.cut-summary-lines>div{color:#69758e}.cut-summary-lines strong{color:#17213b}.cut-summary-lines .cut-summary-total{border-top-color:#e5e9f0;color:#17213b}.cut-summary-note{color:#7d889f}.cut-summary-note i{color:#ef285c}
     @media(max-width:1200px){.cut-summary-card{margin:0}}
     @media(max-width:767px){.cut-workspace{padding:.75rem;display:grid;gap:.75rem}.cut-summary-card{margin:0}.cut-table th:last-child,.cut-table td:last-child{padding-right:1.35rem}}
     @media(max-width:767px){.cut-filters{grid-template-columns:1fr;padding:.85rem}.cut-filter-count{width:100%}}
     @media(min-width:768px){.cut-table-wrap{overflow-x:visible}.cut-table{width:100%;min-width:0;table-layout:fixed}.cut-ticket-link{min-width:0}.cut-table th,.cut-table td{padding-left:.5rem;padding-right:.5rem}.cut-table th:nth-child(2){width:14%}.cut-table th:nth-child(3){width:15%}.cut-table th:nth-child(4){width:12%}.cut-table th:nth-child(5),.cut-table th:nth-child(6){width:12%}.cut-table th:nth-child(7),.cut-table th:nth-child(8){width:9%}.cut-table th:nth-child(9){width:10%}.cut-table th:last-child,.cut-table td:last-child{padding-right:1.75rem}}
     @media(max-width:767px){.cut-table{min-width:1020px}.cut-table-wrap{overflow-x:auto}}
+    .cut-zero-cost-table{padding:0 1.25rem 1.25rem}.cut-zero-cost-table .cut-table{border:1px solid #e7ebf2;border-radius:16px;overflow:hidden}
+    @media(max-width:767px){.cut-zero-cost-table{padding:.75rem}.cut-zero-cost-table .cut-table{min-width:920px}}
 </style>
 @endpush
 
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const form = document.getElementById('maintenanceCutForm');
-    if (!form) return;
-
-    const boxes = Array.from(form.querySelectorAll('.cut-ticket-checkbox'));
-    const rows = boxes.map(box => ({ box, row: box.closest('.cut-ticket-row') })).filter(item => item.row);
-    const selectAll = document.getElementById('selectAllVisible');
-    const payButton = document.getElementById('paySelectedButton');
-    const propertyFilter = document.getElementById('cutPropertyFilter');
-    const technicianFilter = document.getElementById('cutTechnicianFilter');
-    const searchInput = document.getElementById('cutTicketSearch');
-    const filterCount = document.getElementById('cutFilterCount');
-    const emptyRow = document.getElementById('cutFilterEmpty');
     const currency = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
     function normalize(value) {
@@ -335,109 +502,133 @@ document.addEventListener('DOMContentLoaded', function () {
             .trim();
     }
 
-    function isVisible(row) {
-        return !row.classList.contains('d-none');
-    }
+    document.querySelectorAll('[data-cut-form]').forEach(form => {
+        const boxes = Array.from(form.querySelectorAll('.cut-ticket-checkbox'));
+        const rows = boxes.map(box => ({ box, row: box.closest('.cut-ticket-row') })).filter(item => item.row);
+        const selectAll = document.querySelector(`[data-cut-select-all="${form.id}"]`);
+        const payButton = form.querySelector('[data-cut-submit]');
+        const propertyFilter = form.querySelector('[data-cut-property-filter]');
+        const technicianFilter = form.querySelector('[data-cut-technician-filter]');
+        const searchInput = form.querySelector('[data-cut-search]');
+        const filterCount = form.querySelector('[data-cut-filter-count]');
+        const emptyRow = form.querySelector('[data-cut-filter-empty]');
+        const selectedCount = form.querySelector('[data-cut-selected-count]');
+        const selectedTechnician = form.querySelector('[data-cut-selected-technician]');
+        const selectedLabor = form.querySelector('[data-cut-selected-labor]');
+        const selectedMaterials = form.querySelector('[data-cut-selected-materials]');
+        const selectedGrand = form.querySelector('[data-cut-selected-grand]');
 
-    function visibleBoxes() {
-        return rows.filter(({ row }) => isVisible(row)).map(({ box }) => box);
-    }
-
-    function updateSummary() {
-        const visible = visibleBoxes();
-        const selected = visible.filter(box => box.checked);
-        const technicianKey = selected[0]?.dataset.technicianKey || null;
-        const technicianName = selected[0]?.dataset.technicianName || 'Sin seleccionar';
-        const sum = key => selected.reduce((total, box) => total + Number(box.dataset[key] || 0), 0);
-        document.getElementById('selectedCount').textContent = selected.length;
-        document.getElementById('selectedTechnician').textContent = technicianName;
-        document.getElementById('selectedLabor').textContent = currency.format(sum('labor'));
-        document.getElementById('selectedMaterials').textContent = currency.format(sum('materials'));
-        document.getElementById('selectedGrand').textContent = currency.format(sum('grand'));
-        payButton.disabled = selected.length === 0;
-        rows.forEach(({ box, row }) => {
-            const hidden = !isVisible(row);
-            const incompatible = Boolean(!hidden && technicianKey && box.dataset.technicianKey !== technicianKey);
-            box.disabled = hidden || incompatible;
-            row?.classList.toggle('is-selected', box.checked);
-            row?.classList.toggle('is-incompatible', incompatible);
-            row?.setAttribute('title', incompatible ? 'Solo puedes incluir tickets del mismo técnico en este corte.' : '');
-        });
-        if (selectAll) {
-            const compatible = technicianKey
-                ? visible.filter(box => box.dataset.technicianKey === technicianKey)
-                : visible;
-            selectAll.innerHTML = selected.length > 0 && selected.length === compatible.length
-                ? '<i class="bi bi-square"></i> Quitar selección'
-                : '<i class="bi bi-check2-square"></i> Seleccionar todos';
-            selectAll.disabled = visible.length === 0;
+        function isVisible(row) {
+            return !row.classList.contains('d-none');
         }
-    }
 
-    function applyFilters() {
-        const propertyId = propertyFilter?.value || 'all';
-        const technicianKey = technicianFilter?.value || 'all';
-        const query = normalize(searchInput?.value || '');
-        let visibleCount = 0;
+        function visibleBoxes() {
+            return rows.filter(({ row }) => isVisible(row)).map(({ box }) => box);
+        }
 
-        rows.forEach(({ box, row }) => {
-            const matchesProperty = propertyId === 'all' || row.dataset.propertyId === propertyId;
-            const matchesTechnician = technicianKey === 'all' || row.dataset.technicianKey === technicianKey;
-            const searchable = normalize(row.dataset.search || row.textContent);
-            const matchesSearch = !query || searchable.includes(query);
-            const visible = matchesProperty && matchesTechnician && matchesSearch;
+        function updateSummary() {
+            const visible = visibleBoxes();
+            const selected = visible.filter(box => box.checked);
+            const technicianKey = selected[0]?.dataset.technicianKey || null;
+            const technicianName = selected[0]?.dataset.technicianName || 'Sin seleccionar';
+            const sum = key => selected.reduce((total, box) => total + Number(box.dataset[key] || 0), 0);
 
-            row.classList.toggle('d-none', !visible);
-            if (!visible) {
-                box.checked = false;
-            } else {
-                visibleCount += 1;
+            if (selectedCount) selectedCount.textContent = selected.length;
+            if (selectedTechnician) selectedTechnician.textContent = technicianName;
+            if (selectedLabor) selectedLabor.textContent = currency.format(sum('labor'));
+            if (selectedMaterials) selectedMaterials.textContent = currency.format(sum('materials'));
+            if (selectedGrand) selectedGrand.textContent = currency.format(sum('grand'));
+            if (payButton) payButton.disabled = selected.length === 0;
+
+            rows.forEach(({ box, row }) => {
+                const hidden = !isVisible(row);
+                const incompatible = Boolean(!hidden && technicianKey && box.dataset.technicianKey !== technicianKey);
+                box.disabled = hidden || incompatible;
+                row.classList.toggle('is-selected', box.checked);
+                row.classList.toggle('is-incompatible', incompatible);
+                row.setAttribute('title', incompatible ? 'Solo puedes incluir tickets del mismo técnico en este corte.' : '');
+            });
+
+            if (selectAll) {
+                const compatible = technicianKey
+                    ? visible.filter(box => box.dataset.technicianKey === technicianKey)
+                    : visible;
+                selectAll.innerHTML = selected.length > 0 && selected.length === compatible.length
+                    ? '<i class="bi bi-square"></i> Quitar selección'
+                    : '<i class="bi bi-check2-square"></i> Seleccionar todos';
+                selectAll.disabled = visible.length === 0;
+            }
+        }
+
+        function applyFilters() {
+            const propertyId = propertyFilter?.value || 'all';
+            const technicianKey = technicianFilter?.value || 'all';
+            const query = normalize(searchInput?.value || '');
+            let visibleCount = 0;
+
+            rows.forEach(({ box, row }) => {
+                const matchesProperty = propertyId === 'all' || row.dataset.propertyId === propertyId;
+                const matchesTechnician = technicianKey === 'all' || row.dataset.technicianKey === technicianKey;
+                const searchable = normalize(row.dataset.search || row.textContent);
+                const matchesSearch = !query || searchable.includes(query);
+                const visible = matchesProperty && matchesTechnician && matchesSearch;
+
+                row.classList.toggle('d-none', !visible);
+                if (!visible) {
+                    box.checked = false;
+                } else {
+                    visibleCount += 1;
+                }
+            });
+
+            emptyRow?.classList.toggle('d-none', visibleCount > 0);
+            if (filterCount) {
+                filterCount.textContent = `${visibleCount} ${visibleCount === 1 ? 'ticket' : 'tickets'}`;
+            }
+            updateSummary();
+        }
+
+        boxes.forEach(box => {
+            box.addEventListener('change', updateSummary);
+            box.closest('tr')?.addEventListener('click', event => {
+                if (box.disabled || event.target.closest('a, input, button')) return;
+                box.checked = !box.checked;
+                updateSummary();
+            });
+        });
+
+        selectAll?.addEventListener('click', () => {
+            const visible = visibleBoxes();
+            const selected = visible.filter(box => box.checked);
+            const technicianKey = selected[0]?.dataset.technicianKey || visible[0]?.dataset.technicianKey;
+            const compatible = visible.filter(box => box.dataset.technicianKey === technicianKey);
+            const shouldSelect = compatible.some(box => !box.checked);
+            compatible.forEach(box => box.checked = shouldSelect);
+            updateSummary();
+        });
+
+        [propertyFilter, technicianFilter].forEach(filter => {
+            filter?.addEventListener('change', applyFilters);
+            if (filter && window.jQuery) {
+                window.jQuery(filter).on('change.maintenanceCutFilters', applyFilters);
+            }
+        });
+        searchInput?.addEventListener('input', applyFilters);
+
+        form.addEventListener('submit', event => {
+            const count = visibleBoxes().filter(box => box.checked).length;
+            const confirmTemplate = form.dataset.cutConfirm || '¿Confirmas el cierre de :count ticket(s)?';
+            const confirmMessage = confirmTemplate.replace(':count', count);
+            if (!count || !window.confirm(confirmMessage)) {
+                event.preventDefault();
+            } else if (payButton) {
+                payButton.disabled = true;
+                payButton.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${form.dataset.cutSubmittingLabel || 'Registrando corte...'}`;
             }
         });
 
-        emptyRow?.classList.toggle('d-none', visibleCount > 0);
-        if (filterCount) {
-            filterCount.textContent = `${visibleCount} ${visibleCount === 1 ? 'ticket' : 'tickets'}`;
-        }
-        updateSummary();
-    }
-
-    boxes.forEach(box => {
-        box.addEventListener('change', updateSummary);
-        box.closest('tr')?.addEventListener('click', event => {
-            if (box.disabled || event.target.closest('a, input, button')) return;
-            box.checked = !box.checked;
-            updateSummary();
-        });
+        applyFilters();
     });
-    selectAll?.addEventListener('click', () => {
-        const visible = visibleBoxes();
-        const selected = visible.filter(box => box.checked);
-        const technicianKey = selected[0]?.dataset.technicianKey || visible[0]?.dataset.technicianKey;
-        const compatible = visible.filter(box => box.dataset.technicianKey === technicianKey);
-        const shouldSelect = compatible.some(box => !box.checked);
-        compatible.forEach(box => box.checked = shouldSelect);
-        updateSummary();
-    });
-    propertyFilter?.addEventListener('change', applyFilters);
-    if (propertyFilter && window.jQuery) {
-        window.jQuery(propertyFilter).on('change.maintenanceCutFilters', applyFilters);
-    }
-    technicianFilter?.addEventListener('change', applyFilters);
-    if (technicianFilter && window.jQuery) {
-        window.jQuery(technicianFilter).on('change.maintenanceCutFilters', applyFilters);
-    }
-    searchInput?.addEventListener('input', applyFilters);
-    form.addEventListener('submit', event => {
-        const count = visibleBoxes().filter(box => box.checked).length;
-        if (!count || !window.confirm(`¿Confirmas el pago de ${count} ticket(s)? Después del pago sus costos no podrán modificarse.`)) {
-            event.preventDefault();
-        } else {
-            payButton.disabled = true;
-            payButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Registrando pago...';
-        }
-    });
-    applyFilters();
 });
 </script>
 @endpush

@@ -17,7 +17,7 @@ class MaintenanceCutController extends Controller
     {
         $this->ensureAdministrator($request);
 
-        $tickets = MaintenanceTicket::query()
+        $completedTickets = MaintenanceTicket::query()
             ->where('status', 'completado')
             ->whereDoesntHave('cutItem')
             ->with([
@@ -31,6 +31,12 @@ class MaintenanceCutController extends Controller
             ->orderByDesc('id')
             ->get();
 
+        $partitionedTickets = $completedTickets->partition(
+            fn (MaintenanceTicket $ticket): bool => round((float) ($ticket->grand_total ?? 0), 2) <= 0
+        );
+        $zeroCostTickets = $partitionedTickets[0]->values();
+        $tickets = $partitionedTickets[1]->values();
+
         $propertyOptions = $tickets
             ->pluck('property')
             ->filter()
@@ -39,6 +45,22 @@ class MaintenanceCutController extends Controller
             ->values();
 
         $technicianOptions = $tickets
+            ->map(fn (MaintenanceTicket $ticket): array => [
+                'key' => $ticket->current_provider_id ? 'technician-'.$ticket->current_provider_id : 'unassigned',
+                'name' => $ticket->currentProvider?->name ?? 'Sin técnico asignado',
+            ])
+            ->unique('key')
+            ->sortBy(fn (array $technician) => mb_strtolower($technician['name']))
+            ->values();
+
+        $zeroCostPropertyOptions = $zeroCostTickets
+            ->pluck('property')
+            ->filter()
+            ->unique('id')
+            ->sortBy(fn ($property) => mb_strtolower((string) $property->internal_name))
+            ->values();
+
+        $zeroCostTechnicianOptions = $zeroCostTickets
             ->map(fn (MaintenanceTicket $ticket): array => [
                 'key' => $ticket->current_provider_id ? 'technician-'.$ticket->current_provider_id : 'unassigned',
                 'name' => $ticket->currentProvider?->name ?? 'Sin técnico asignado',
@@ -60,9 +82,12 @@ class MaintenanceCutController extends Controller
 
         return view('maintenance.cuts.index', [
             'tickets' => $tickets,
+            'zeroCostTickets' => $zeroCostTickets,
             'cuts' => $cuts,
             'propertyOptions' => $propertyOptions,
             'technicianOptions' => $technicianOptions,
+            'zeroCostPropertyOptions' => $zeroCostPropertyOptions,
+            'zeroCostTechnicianOptions' => $zeroCostTechnicianOptions,
             'pendingTotals' => $this->totalsFor($tickets),
             'paidGrandTotal' => (float) MaintenanceCut::query()->sum('grand_total'),
         ]);
@@ -122,6 +147,15 @@ class MaintenanceCutController extends Controller
                 ];
             });
             $totals = $this->totalsFor($rows);
+
+            $hasZeroCostTickets = $rows->contains(fn (array $row): bool => (float) $row['grand_total'] <= 0);
+            $hasPayableTickets = $rows->contains(fn (array $row): bool => (float) $row['grand_total'] > 0);
+
+            if ($hasZeroCostTickets && $hasPayableTickets) {
+                throw ValidationException::withMessages([
+                    'ticket_ids' => 'Los tickets sin costo deben cerrarse en su propio corte, separados de los tickets con monto.',
+                ]);
+            }
 
             $cut = MaintenanceCut::create([
                 'paid_by_user_id' => $request->user()?->id,
