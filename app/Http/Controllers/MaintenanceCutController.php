@@ -38,6 +38,15 @@ class MaintenanceCutController extends Controller
             ->sortBy(fn ($property) => mb_strtolower((string) $property->internal_name))
             ->values();
 
+        $technicianOptions = $tickets
+            ->map(fn (MaintenanceTicket $ticket): array => [
+                'key' => $ticket->current_provider_id ? 'technician-'.$ticket->current_provider_id : 'unassigned',
+                'name' => $ticket->currentProvider?->name ?? 'Sin técnico asignado',
+            ])
+            ->unique('key')
+            ->sortBy(fn (array $technician) => mb_strtolower($technician['name']))
+            ->values();
+
         $cuts = MaintenanceCut::query()
             ->with([
                 'paidBy:id,name,email',
@@ -53,6 +62,7 @@ class MaintenanceCutController extends Controller
             'tickets' => $tickets,
             'cuts' => $cuts,
             'propertyOptions' => $propertyOptions,
+            'technicianOptions' => $technicianOptions,
             'pendingTotals' => $this->totalsFor($tickets),
             'paidGrandTotal' => (float) MaintenanceCut::query()->sum('grand_total'),
         ]);

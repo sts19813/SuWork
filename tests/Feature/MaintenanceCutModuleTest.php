@@ -162,6 +162,13 @@ class MaintenanceCutModuleTest extends TestCase
 
         $northTicket = $this->createTicket($northProperty, 'Cambio de minisplit', 'completado');
         $southTicket = $this->createTicket($southProperty, 'Reparación de chapa', 'completado');
+        $technician = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico Filtro Corte',
+            'email' => 'tecnico.filtro.corte@example.test',
+            'is_active' => true,
+        ]);
+        $northTicket->update(['current_provider_id' => $technician->id]);
 
         $this->actingAs($admin)
             ->get(route('maintenance-cuts.index'))
@@ -173,12 +180,20 @@ class MaintenanceCutModuleTest extends TestCase
             ->assertSee('data-control="select2"', false)
             ->assertSee('data-placeholder="Todas las propiedades"', false)
             ->assertSee('<option value="all">Todas las propiedades</option>', false)
+            ->assertSee('id="cutTechnicianFilter"', false)
+            ->assertSee('data-placeholder="Todos los proveedores / técnicos"', false)
+            ->assertSee('<option value="all">Todos los proveedores / técnicos</option>', false)
+            ->assertSee('value="technician-'.$technician->id.'"', false)
+            ->assertSee('Técnico Filtro Corte')
+            ->assertSee('Sin técnico asignado')
             ->assertSee('id="cutTicketSearch"', false)
             ->assertSee('placeholder="Buscar folio, ticket, propiedad, técnico..."', false)
             ->assertSee('value="'.$northProperty->id.'"', false)
             ->assertSee('value="'.$southProperty->id.'"', false)
             ->assertSee('data-property-id="'.$northProperty->id.'"', false)
             ->assertSee('data-property-id="'.$southProperty->id.'"', false)
+            ->assertSee('data-technician-key="technician-'.$technician->id.'"', false)
+            ->assertSee('data-technician-key="unassigned"', false)
             ->assertSee('Cambio de minisplit')
             ->assertSee('Reparación de chapa');
     }
