@@ -105,6 +105,19 @@ class User extends Authenticatable
         return $this->roles()->exists() || $this->permissions()->exists();
     }
 
+    public function canViewStorage(): bool
+    {
+        $isProvider = $this->hasRole('proveedor') || $this->hasRole('provider');
+        if ($isProvider) {
+            return false;
+        }
+
+        $isAdmin = $this->hasRole('administrador') || $this->hasRole('admin');
+        $isTechnician = $this->hasRole('tecnico') || $this->hasRole('technician');
+
+        return ($isAdmin || $isTechnician) && $this->can('Ver almacén');
+    }
+
     public function profilePhotoUrl(): string
     {
         if (!$this->profile_photo) {

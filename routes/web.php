@@ -230,7 +230,7 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::put('/mantenimiento/proveedores/{provider}', [MaintenanceController::class, 'updateProvider'])->name('maintenance.providers.update');
         Route::delete('/mantenimiento/proveedores/{provider}', [MaintenanceController::class, 'destroyProvider'])->name('maintenance.providers.destroy');
 
-        // Almacén (solo técnicos y administradores)
+        // Almacén (solo usuarios internos con permiso "Ver almacén"; proveedores externos quedan fuera)
         Route::middleware('storage.access')->group(function (): void {
             Route::resource('storage_items', StorageItemController::class);
             Route::post('storage_items/catalog/warehouse', [StorageItemController::class, 'storeWarehouse'])->name('storage_items.warehouses.store');

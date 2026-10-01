@@ -14,6 +14,7 @@
     $canViewPropertyControl = $user->can('propiedades.control_ver') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canConfigureDossiers = $user->can('expedientes.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canConfigureNotifications = $user->can('notificaciones.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
+    $canViewStorage = $user->canViewStorage();
     $homeRoute = ($isTenant || $isTechnician || $isProvider) ? 'maintenance.index' : 'dashboard';
     $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : ($isProvider ? 'Panel de proveedor' : 'Panel SuWork'));
     $currentHour = now()->hour;
@@ -34,7 +35,7 @@
         : ($isTechnician
             ? [
                 ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
-                ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
+                ...($canViewStorage ? [['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam']] : []),
                 [
                     'patterns' => ['profile.*'],
                     'label' => 'Configuración',
@@ -69,7 +70,7 @@
             ...($isAdmin ? [['patterns' => ['cash-cuts.*'], 'route' => 'cash-cuts.index', 'label' => 'Corte de efectivo', 'icon' => 'bi-cash-stack']] : []),
             ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Mantenimiento', 'icon' => 'bi-tools'],
             ...($isAdmin ? [['patterns' => ['maintenance-cuts.*'], 'route' => 'maintenance-cuts.index', 'label' => 'Corte de mantenimiento', 'icon' => 'bi-cash-coin']] : []),
-            ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
+            ...($canViewStorage ? [['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam']] : []),
             [
                 'patterns' => ['settings.dossiers.*', 'settings.notifications.*', 'access.*', 'profile.*'],
                 'label' => 'Configuración',
@@ -102,7 +103,7 @@
         : ($isTechnician
             ? [
                 ['patterns' => ['maintenance.*'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
-                ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
+                ...($canViewStorage ? [['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam']] : []),
             ]
             : ($isProvider
                 ? [

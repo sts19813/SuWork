@@ -59,6 +59,7 @@ class DashboardModulesTest extends TestCase
         $adminRole = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
         $admin = User::factory()->create();
         $admin->assignRole($adminRole);
+        $admin->givePermissionTo(Permission::findOrCreate('Ver almacén', 'web'));
 
         $this->actingAs($admin)
             ->get(route('dashboard'))

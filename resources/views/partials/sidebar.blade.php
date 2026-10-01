@@ -16,6 +16,7 @@
     $canConfigureDossiers = $user->can('expedientes.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canConfigureNotifications = $user->can('notificaciones.configurar') || $user->hasRole('administrador') || $user->hasRole('admin');
     $canManageMaintenanceProviders = $user->can('administracion de tecnicos') || $user->hasRole('administrador') || $user->hasRole('admin');
+    $canViewStorage = $user->canViewStorage();
     $homeRoute = $isAdvisor ? 'advisor.tasks.index' : (($isTenant || $isTechnician || $isProvider) ? 'maintenance.index' : 'dashboard');
     $roleLabel = $isTenant ? 'Panel de inquilino' : ($isTechnician ? 'Panel técnico' : ($isProvider ? 'Panel de proveedor' : ($isAdvisor ? 'Panel de asesor' : 'Panel SuWork')));
     $currentHour = now()->hour;
@@ -49,7 +50,7 @@
         ];
     } elseif ($isTechnician) {
         $menuItems = [
-            $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem, $storageItem]),
+            $makeMenuSection('Mantenimiento', 'bi-tools', [$ticketsItem, $canViewStorage ? $storageItem : null]),
             $makeMenuSection('Configuración', 'bi-gear', [$profileItem]),
         ];
     } elseif ($isProvider) {
@@ -101,7 +102,7 @@
                 $canManageMaintenanceProviders
                     ? ['patterns' => ['maintenance.providers.index'], 'route' => 'maintenance.providers.index', 'label' => 'Proveedores', 'icon' => 'bi-building']
                     : null,
-                $storageItem,
+                $canViewStorage ? $storageItem : null,
             ]),
             $makeMenuSection('Configuración', 'bi-gear', [
                 $canConfigureDossiers
@@ -134,7 +135,7 @@
         : ($isTechnician
             ? [
                 ['patterns' => ['maintenance.index', 'maintenance.show'], 'route' => 'maintenance.index', 'label' => 'Tickets', 'icon' => 'bi-tools'],
-                ['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam'],
+                ...($canViewStorage ? [['patterns' => ['storage_items.*'], 'route' => 'storage_items.index', 'label' => 'Almacén', 'icon' => 'bi-box-seam']] : []),
             ]
             : ($isProvider
                 ? [

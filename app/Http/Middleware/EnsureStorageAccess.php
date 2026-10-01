@@ -11,14 +11,8 @@ class EnsureStorageAccess
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        $canAccessStorage = $user && (
-            $user->hasRole('administrador')
-            || $user->hasRole('admin')
-            || $user->hasRole('tecnico')
-            || $user->hasRole('technician')
-        );
 
-        abort_unless($canAccessStorage, 403);
+        abort_unless($user?->canViewStorage(), 403);
 
         return $next($request);
     }
