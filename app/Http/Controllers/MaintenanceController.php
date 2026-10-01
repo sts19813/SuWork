@@ -473,15 +473,16 @@ class MaintenanceController extends Controller
             || $role === 'proveedor'
             || $isTicketTechnician;
         $isMaintenancePaid = $maintenance->cutItem !== null;
+        $canMutateCosts = $canViewCosts && $this->canMutateTicketCosts($maintenance, $role);
         $canCreateCosts = $canViewCosts
-            && ! $isMaintenancePaid
+            && $canMutateCosts
             && (
                 $role === 'administrador'
                 || $role === 'proveedor'
                 || $isTicketTechnician
             );
-        $canEditCosts = $canViewCosts && ! $isMaintenancePaid && $this->canEditTicketExpenses($user);
-        $canDeleteCosts = $canViewCosts && ! $isMaintenancePaid && $this->canDeleteTicketExpenses($user);
+        $canEditCosts = $canMutateCosts && $this->canEditTicketExpensesForRole($user, $role);
+        $canDeleteCosts = $canMutateCosts && $this->canDeleteTicketExpensesForRole($user, $role);
 
         return view('maintenance.show', [
             'ticket' => $maintenance,
@@ -982,6 +983,7 @@ class MaintenanceController extends Controller
         if ($maintenance->cutItem()->exists()) {
             abort(409, 'Este ticket ya fue pagado y sus costos no se pueden modificar.');
         }
+        $this->ensureTicketCostsCanBeMutated($maintenance, $role);
 
         $validated = $request->validate([
             'labor_cost' => ['required', 'numeric', 'min:0'],
@@ -1001,6 +1003,7 @@ class MaintenanceController extends Controller
             if ($lockedTicket->cutItem()->exists()) {
                 abort(409, 'Este ticket ya fue pagado y sus costos no se pueden modificar.');
             }
+            $this->ensureTicketCostsCanBeMutated($lockedTicket, $this->resolveRole($user));
 
             $payer = (string) $validated['payer'];
             $paymentRule = $validated['payment_rule'] ?? null;
@@ -1039,10 +1042,10 @@ class MaintenanceController extends Controller
         $role = $this->resolveRole($user);
         $this->ensureTicketVisible($maintenance, $user, $role);
         $this->ensureCostBelongsToTicket($maintenance, $cost);
-        if (! $this->canEditTicketExpenses($user)) {
+        if (! $this->canEditTicketExpensesForRole($user, $role)) {
             abort(403);
         }
-        $this->ensureCostCanBeMutated($maintenance, $cost);
+        $this->ensureCostCanBeMutated($maintenance, $cost, $role);
 
         $validated = $request->validate([
             'labor_cost' => ['required', 'numeric', 'min:0'],
@@ -1065,7 +1068,7 @@ class MaintenanceController extends Controller
                 ->with('expense.files')
                 ->lockForUpdate()
                 ->firstOrFail();
-            $this->ensureCostCanBeMutated($maintenance->fresh('cutItem'), $lockedCost);
+            $this->ensureCostCanBeMutated($maintenance->fresh('cutItem'), $lockedCost, $this->resolveRole($user));
 
             $payer = (string) $validated['payer'];
             $paymentRule = $validated['payment_rule'] ?? null;
@@ -1127,19 +1130,19 @@ class MaintenanceController extends Controller
         $role = $this->resolveRole($user);
         $this->ensureTicketVisible($maintenance, $user, $role);
         $this->ensureCostBelongsToTicket($maintenance, $cost);
-        if (! $this->canDeleteTicketExpenses($user)) {
+        if (! $this->canDeleteTicketExpensesForRole($user, $role)) {
             abort(403);
         }
-        $this->ensureCostCanBeMutated($maintenance, $cost);
+        $this->ensureCostCanBeMutated($maintenance, $cost, $role);
 
-        DB::transaction(function () use ($maintenance, $cost): void {
+        DB::transaction(function () use ($maintenance, $cost, $role): void {
             $lockedCost = MaintenanceTicketCost::query()
                 ->whereKey($cost->id)
                 ->where('ticket_id', $maintenance->id)
                 ->with('expense.files')
                 ->lockForUpdate()
                 ->firstOrFail();
-            $this->ensureCostCanBeMutated($maintenance->fresh('cutItem'), $lockedCost);
+            $this->ensureCostCanBeMutated($maintenance->fresh('cutItem'), $lockedCost, $role);
 
             $expense = $lockedCost->expense;
             if ($expense) {
@@ -1627,9 +1630,31 @@ class MaintenanceController extends Controller
         return (bool) $user && $user->can(self::EDIT_TICKET_EXPENSES_PERMISSION);
     }
 
+    private function canEditTicketExpensesForRole(?User $user, string $role): bool
+    {
+        return in_array($role, ['tecnico', 'proveedor'], true)
+            || $this->canEditTicketExpenses($user);
+    }
+
     private function canDeleteTicketExpenses(?User $user): bool
     {
         return (bool) $user && $user->can(self::DELETE_TICKET_EXPENSES_PERMISSION);
+    }
+
+    private function canDeleteTicketExpensesForRole(?User $user, string $role): bool
+    {
+        return in_array($role, ['tecnico', 'proveedor'], true)
+            || $this->canDeleteTicketExpenses($user);
+    }
+
+    private function canMutateTicketCosts(MaintenanceTicket $ticket, string $role): bool
+    {
+        if ($ticket->cutItem()->exists()) {
+            return false;
+        }
+
+        return $role === 'administrador'
+            || ! in_array($ticket->status, ['completado', 'cancelado'], true);
     }
 
     private function isAdminUser(?User $user): bool
@@ -2000,11 +2025,19 @@ class MaintenanceController extends Controller
         }
     }
 
-    private function ensureCostCanBeMutated(MaintenanceTicket $ticket, MaintenanceTicketCost $cost): void
+    private function ensureTicketCostsCanBeMutated(MaintenanceTicket $ticket, string $role): void
     {
         if ($ticket->cutItem()->exists()) {
             abort(409, 'Este ticket ya fue pagado y sus costos no se pueden modificar.');
         }
+        if ($role !== 'administrador' && in_array($ticket->status, ['completado', 'cancelado'], true)) {
+            abort(409, 'Este ticket ya fue completado y sus costos no se pueden modificar.');
+        }
+    }
+
+    private function ensureCostCanBeMutated(MaintenanceTicket $ticket, MaintenanceTicketCost $cost, string $role): void
+    {
+        $this->ensureTicketCostsCanBeMutated($ticket, $role);
         if ($cost->expense?->paid_at !== null) {
             abort(409, 'Este gasto ya fue pagado y no se puede modificar.');
         }

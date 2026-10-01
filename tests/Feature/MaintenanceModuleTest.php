@@ -1462,82 +1462,195 @@ class MaintenanceModuleTest extends TestCase
             ->assertSee('Ticket sin proveedor visible al técnico');
     }
 
-    public function test_assigned_technician_can_add_costs_to_completed_ticket_until_it_is_paid(): void
+    public function test_technicians_and_suppliers_can_edit_and_delete_costs_while_ticket_is_open(): void
     {
-        $technicianRole = Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']);
-        $technicianUser = User::factory()->create(['email' => 'tecnico-completado@example.com']);
-        $technicianUser->assignRole($technicianRole);
-        $provider = MaintenanceProvider::create([
-            'type' => 'tecnico_interno',
-            'name' => 'Técnico con ticket completado',
-            'email' => $technicianUser->email,
-            'user_id' => $technicianUser->id,
-            'is_active' => true,
-        ]);
-        $property = $this->createPropertyFixture($technicianUser);
-        $ticket = MaintenanceTicket::create([
-            'property_id' => $property->id,
-            'reported_by_user_id' => $technicianUser->id,
-            'current_provider_id' => $provider->id,
-            'reported_by_role' => 'tecnico',
-            'reported_by_name' => $technicianUser->name,
-            'category' => 'plomeria',
-            'priority' => 'media',
-            'status' => 'completado',
-            'title' => 'Ticket completado sin pago',
-            'exact_location' => 'Baño',
-            'description' => 'Debe aceptar gastos hasta que se pague',
-            'reported_at' => now(),
-            'assigned_at' => now(),
-            'completed_at' => now(),
-        ]);
-        $ticket->assignments()->create([
-            'provider_id' => $provider->id,
-            'assigned_at' => now(),
-            'is_current' => true,
-        ]);
+        $type = PropertyType::create(['name' => 'Casa costos abiertos', 'slug' => 'casa-costos-abiertos', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro costos abiertos', 'slug' => 'centro-costos-abiertos', 'is_active' => true]);
 
-        $this->actingAs($technicianUser)
-            ->get(route('maintenance.show', $ticket))
-            ->assertOk()
-            ->assertSee('Agregar costo');
+        foreach ([
+            ['role' => 'tecnico', 'provider_type' => 'tecnico_interno', 'email' => 'tecnico-costos-abierto@example.com'],
+            ['role' => 'proveedor', 'provider_type' => 'proveedor', 'email' => 'proveedor-costos-abierto@example.com'],
+        ] as $case) {
+            Role::findOrCreate($case['role'], 'web');
 
-        $this->actingAs($technicianUser)
-            ->from(route('maintenance.show', $ticket))
-            ->put(route('maintenance.costs', $ticket), [
-                'labor_cost' => 250,
-                'material_cost' => 75,
+            $user = User::factory()->create(['email' => $case['email']]);
+            $user->assignRole($case['role']);
+            $provider = MaintenanceProvider::create([
+                'type' => $case['provider_type'],
+                'name' => 'Proveedor de costos '.$case['role'],
+                'email' => $user->email,
+                'user_id' => $user->id,
+                'is_active' => true,
+            ]);
+            $property = Property::create([
+                'internal_name' => 'Casa costos abiertos '.$case['role'],
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle costos abiertos',
+                'status' => Property::STATUS_OCCUPIED,
+                'onboarding_step' => 5,
+                'created_by' => $user->id,
+            ]);
+            $ticket = MaintenanceTicket::create([
+                'property_id' => $property->id,
+                'reported_by_user_id' => $user->id,
+                'current_provider_id' => $provider->id,
+                'reported_by_role' => $case['role'],
+                'reported_by_name' => $user->name,
+                'category' => 'plomeria',
+                'priority' => 'media',
+                'status' => 'en_proceso',
+                'title' => 'Ticket abierto para costos '.$case['role'],
+                'exact_location' => 'Baño',
+                'description' => 'Debe permitir editar y eliminar costos',
+                'reported_at' => now(),
+                'assigned_at' => now(),
+            ]);
+            $expense = Expense::create([
+                'property_id' => $property->id,
+                'concept' => 'Mantenimiento '.$ticket->display_reference,
+                'amount' => 300,
+                'due_date' => now()->toDateString(),
+            ]);
+            $cost = $ticket->costs()->create([
+                'expense_id' => $expense->id,
+                'labor_cost' => 200,
+                'material_cost' => 100,
+                'final_cost' => 300,
+                'currency' => 'MXN',
                 'payer' => 'administracion',
-            ])
-            ->assertRedirect(route('maintenance.show', $ticket));
+            ]);
 
-        $this->assertDatabaseHas('maintenance_ticket_costs', [
-            'ticket_id' => $ticket->id,
-            'final_cost' => 325,
-        ]);
+            $this->actingAs($user)
+                ->from(route('maintenance.show', $ticket))
+                ->put(route('maintenance.costs.update', [$ticket, $cost]), [
+                    'labor_cost' => 450,
+                    'material_cost' => 125,
+                    'payer' => 'administracion',
+                    'payment_rule' => 'preventivo',
+                    'notes' => 'Ajuste operativo',
+                ])
+                ->assertRedirect(route('maintenance.show', $ticket));
 
-        $cut = MaintenanceCut::create([
-            'ticket_count' => 1,
-            'labor_total' => 250,
-            'material_total' => 75,
-            'grand_total' => 325,
-            'paid_at' => now(),
-            'paid_by_user_id' => $technicianUser->id,
-        ]);
-        $ticket->cutItem()->create([
-            'maintenance_cut_id' => $cut->id,
-            'labor_total' => 250,
-            'material_total' => 75,
-            'grand_total' => 325,
-        ]);
+            $this->assertDatabaseHas('maintenance_ticket_costs', [
+                'id' => $cost->id,
+                'labor_cost' => 450,
+                'material_cost' => 125,
+                'final_cost' => 575,
+                'payment_rule' => 'preventivo',
+                'notes' => 'Ajuste operativo',
+            ]);
+            $this->assertDatabaseHas('expenses', [
+                'id' => $expense->id,
+                'amount' => 575,
+            ]);
 
-        $this->actingAs($technicianUser)
-            ->put(route('maintenance.costs', $ticket), [
-                'labor_cost' => 1,
-                'material_cost' => 1,
+            $this->actingAs($user)
+                ->from(route('maintenance.show', $ticket))
+                ->delete(route('maintenance.costs.destroy', [$ticket, $cost]))
+                ->assertRedirect(route('maintenance.show', $ticket));
+
+            $this->assertDatabaseMissing('maintenance_ticket_costs', ['id' => $cost->id]);
+            $this->assertDatabaseMissing('expenses', ['id' => $expense->id]);
+        }
+    }
+
+    public function test_technicians_and_suppliers_cannot_mutate_costs_after_ticket_is_completed(): void
+    {
+        $type = PropertyType::create(['name' => 'Casa costos completos', 'slug' => 'casa-costos-completos', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro costos completos', 'slug' => 'centro-costos-completos', 'is_active' => true]);
+
+        foreach ([
+            ['role' => 'tecnico', 'provider_type' => 'tecnico_interno', 'email' => 'tecnico-costos-completo@example.com'],
+            ['role' => 'proveedor', 'provider_type' => 'proveedor', 'email' => 'proveedor-costos-completo@example.com'],
+        ] as $case) {
+            Role::findOrCreate($case['role'], 'web');
+
+            $user = User::factory()->create(['email' => $case['email']]);
+            $user->assignRole($case['role']);
+            $provider = MaintenanceProvider::create([
+                'type' => $case['provider_type'],
+                'name' => 'Proveedor completado '.$case['role'],
+                'email' => $user->email,
+                'user_id' => $user->id,
+                'is_active' => true,
+            ]);
+            $property = Property::create([
+                'internal_name' => 'Casa costos completos '.$case['role'],
+                'property_type_id' => $type->id,
+                'zone_id' => $zone->id,
+                'full_address' => 'Calle costos completos',
+                'status' => Property::STATUS_OCCUPIED,
+                'onboarding_step' => 5,
+                'created_by' => $user->id,
+            ]);
+            $ticket = MaintenanceTicket::create([
+                'property_id' => $property->id,
+                'reported_by_user_id' => $user->id,
+                'current_provider_id' => $provider->id,
+                'reported_by_role' => $case['role'],
+                'reported_by_name' => $user->name,
+                'category' => 'plomeria',
+                'priority' => 'media',
+                'status' => 'completado',
+                'title' => 'Ticket completado sin edición '.$case['role'],
+                'exact_location' => 'Baño',
+                'description' => 'Debe bloquear costos al estar completado',
+                'reported_at' => now(),
+                'assigned_at' => now(),
+                'completed_at' => now(),
+            ]);
+            $expense = Expense::create([
+                'property_id' => $property->id,
+                'concept' => 'Mantenimiento '.$ticket->display_reference,
+                'amount' => 300,
+                'due_date' => now()->toDateString(),
+            ]);
+            $cost = $ticket->costs()->create([
+                'expense_id' => $expense->id,
+                'labor_cost' => 200,
+                'material_cost' => 100,
+                'final_cost' => 300,
+                'currency' => 'MXN',
                 'payer' => 'administracion',
-            ])
-            ->assertStatus(409);
+            ]);
+
+            $this->actingAs($user)
+                ->get(route('maintenance.show', $ticket))
+                ->assertOk()
+                ->assertDontSee('Agregar costo')
+                ->assertDontSee(route('maintenance.costs.update', [$ticket, $cost]), false)
+                ->assertDontSee('¿Deseas eliminar este costo y su gasto asociado?', false);
+
+            $this->actingAs($user)
+                ->put(route('maintenance.costs', $ticket), [
+                    'labor_cost' => 1,
+                    'material_cost' => 1,
+                    'payer' => 'administracion',
+                ])
+                ->assertStatus(409);
+
+            $this->actingAs($user)
+                ->put(route('maintenance.costs.update', [$ticket, $cost]), [
+                    'labor_cost' => 1,
+                    'material_cost' => 1,
+                    'payer' => 'administracion',
+                ])
+                ->assertStatus(409);
+
+            $this->actingAs($user)
+                ->delete(route('maintenance.costs.destroy', [$ticket, $cost]))
+                ->assertStatus(409);
+
+            $this->assertDatabaseHas('maintenance_ticket_costs', [
+                'id' => $cost->id,
+                'final_cost' => 300,
+            ]);
+            $this->assertDatabaseHas('expenses', [
+                'id' => $expense->id,
+                'amount' => 300,
+            ]);
+        }
     }
 
     public function test_multiple_costs_create_expenses_and_tenant_costs_are_excluded_from_totals(): void
@@ -1697,6 +1810,13 @@ class MaintenanceModuleTest extends TestCase
             'provider_id' => $provider->id,
             'is_current' => true,
         ]);
+
+        $this->actingAs($user)
+            ->get(route('maintenance.show', $ticket))
+            ->assertOk()
+            ->assertSee('data-completion-cost-count="0"', false)
+            ->assertSee('Este ticket no tiene costos registrados. Si continúas, será completado con un total de $0.00. ¿Deseas continuar?')
+            ->assertSee('Estás por completar este ticket con un total de');
 
         $statusResponse = $this
             ->actingAs($user)
@@ -2494,6 +2614,65 @@ class MaintenanceModuleTest extends TestCase
         $this->assertDatabaseMissing('expense_files', ['id' => $file->id]);
         $this->assertDatabaseHas('expense_files', ['expense_id' => $expense->id, 'original_name' => 'nueva.pdf']);
         Storage::disk('public')->assertMissing('expenses/'.$expense->id.'/anterior.pdf');
+    }
+
+    public function test_admin_can_edit_ticket_cost_after_ticket_is_completed_before_it_is_paid(): void
+    {
+        Permission::findOrCreate('editar gastos tickets', 'web');
+
+        $role = Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $user->givePermissionTo('editar gastos tickets');
+        $property = $this->createPropertyFixture($user);
+        $ticket = $this->createTicketFixture($user, $property);
+        $ticket->update([
+            'status' => 'completado',
+            'completed_at' => now(),
+        ]);
+        $expense = Expense::create([
+            'property_id' => $property->id,
+            'concept' => 'Mantenimiento '.$ticket->display_reference,
+            'amount' => 500,
+            'due_date' => now()->toDateString(),
+        ]);
+        $cost = $ticket->costs()->create([
+            'expense_id' => $expense->id,
+            'labor_cost' => 300,
+            'material_cost' => 200,
+            'final_cost' => 500,
+            'currency' => 'MXN',
+            'payer' => 'administracion',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('maintenance.show', $ticket))
+            ->assertOk()
+            ->assertSee(route('maintenance.costs.update', [$ticket, $cost]), false);
+
+        $this->actingAs($user)
+            ->from(route('maintenance.show', $ticket))
+            ->put(route('maintenance.costs.update', [$ticket, $cost]), [
+                'labor_cost' => 650,
+                'material_cost' => 125,
+                'payer' => 'administracion',
+                'payment_rule' => 'preventivo',
+                'notes' => 'Ajuste administrativo posterior al cierre',
+            ])
+            ->assertRedirect(route('maintenance.show', $ticket));
+
+        $this->assertDatabaseHas('maintenance_ticket_costs', [
+            'id' => $cost->id,
+            'labor_cost' => 650,
+            'material_cost' => 125,
+            'final_cost' => 775,
+            'notes' => 'Ajuste administrativo posterior al cierre',
+        ]);
+        $this->assertDatabaseHas('expenses', [
+            'id' => $expense->id,
+            'amount' => 775,
+            'description' => 'Ajuste administrativo posterior al cierre',
+        ]);
     }
 
     public function test_paid_ticket_costs_cannot_be_edited_or_deleted(): void

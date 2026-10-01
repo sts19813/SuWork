@@ -43,6 +43,8 @@
                 default => 'neutral',
             };
             $maintenanceCosts = $ticket->costs->sortByDesc('created_at')->values();
+            $maintenanceCostsTotal = (float) $maintenanceCosts->sum('final_cost');
+            $maintenanceCostsTotalFormatted = '$' . number_format($maintenanceCostsTotal, 2);
             $visibleMessages = $ticket->messages
                 ->filter(function ($message) use ($role) {
                     if ($role === 'inquilino') {
@@ -648,7 +650,11 @@
                             </span>
                         </div>
                         @if ($canChangeStatus)
-                            <form method="POST" action="{{ route('maintenance.status', $ticket) }}" class="row g-3 mb-4 js-ticket-status-form">
+                            <form method="POST" action="{{ route('maintenance.status', $ticket) }}" class="row g-3 mb-4 js-ticket-status-form"
+                                data-current-status="{{ $ticket->status }}"
+                                data-completion-cost-count="{{ $maintenanceCosts->count() }}"
+                                data-completion-cost-total="{{ number_format($maintenanceCostsTotal, 2, '.', '') }}"
+                                data-completion-cost-total-formatted="{{ $maintenanceCostsTotalFormatted }}">
                                 @csrf
                                 @method('PATCH')
                                 <div class="col-12">
@@ -775,7 +781,11 @@
 
             @if ($canChangeStatus && !in_array($ticket->status, ['completado', 'cancelado'], true))
                 <div class="ticket-mobile-actionbar">
-                    <form method="POST" action="{{ route('maintenance.status', $ticket) }}" class="flex-grow-1">
+                    <form method="POST" action="{{ route('maintenance.status', $ticket) }}" class="flex-grow-1 js-ticket-status-form"
+                        data-current-status="{{ $ticket->status }}"
+                        data-completion-cost-count="{{ $maintenanceCosts->count() }}"
+                        data-completion-cost-total="{{ number_format($maintenanceCostsTotal, 2, '.', '') }}"
+                        data-completion-cost-total-formatted="{{ $maintenanceCostsTotalFormatted }}">
                         @csrf
                         @method('PATCH')
                         <input type="hidden" name="status" value="completado">
@@ -1127,30 +1137,71 @@
                     if (confirmed) form.submit();
                 });
             });
-            document.querySelectorAll('.js-ticket-status-form').forEach((form) => {
-                form.addEventListener('submit', () => {
-                    const button = form.querySelector('.js-ticket-status-submit');
-                    const spinner = button?.querySelector('.spinner-border');
-                    const text = button?.querySelector('.js-ticket-status-submit-text');
-                    if (!button) return;
+            const setStatusFormLoading = (form) => {
+                const button = form.querySelector('.js-ticket-status-submit');
+                const spinner = button?.querySelector('.spinner-border');
+                const text = button?.querySelector('.js-ticket-status-submit-text');
+                if (!button) return;
 
-                    const loadingMessages = [
-                        'Guardando cambios...',
-                        'Actualizando historial...',
-                        'Notificando al técnico...',
-                        'Procesando solicitud...',
-                    ];
-                    let messageIndex = 0;
-                    button.disabled = true;
-                    button.setAttribute('aria-busy', 'true');
-                    spinner?.classList.remove('d-none');
-                    if (text) {
+                const loadingMessages = [
+                    'Guardando cambios...',
+                    'Actualizando historial...',
+                    'Notificando al técnico...',
+                    'Procesando solicitud...',
+                ];
+                let messageIndex = 0;
+                button.disabled = true;
+                button.setAttribute('aria-busy', 'true');
+                spinner?.classList.remove('d-none');
+                if (text) {
+                    text.textContent = loadingMessages[messageIndex];
+                    window.setInterval(() => {
+                        messageIndex = (messageIndex + 1) % loadingMessages.length;
                         text.textContent = loadingMessages[messageIndex];
-                        window.setInterval(() => {
-                            messageIndex = (messageIndex + 1) % loadingMessages.length;
-                            text.textContent = loadingMessages[messageIndex];
-                        }, 2800);
+                    }, 2800);
+                }
+            };
+            const askCompletionConfirmation = async (form) => {
+                const costCount = Number.parseInt(form.dataset.completionCostCount || '0', 10);
+                const total = form.dataset.completionCostTotalFormatted || '$0.00';
+                const hasCosts = Number.isFinite(costCount) && costCount > 0;
+                const message = hasCosts
+                    ? `Estás por completar este ticket con un total de ${total}. Una vez completado no podrás modificar sus costos. ¿Es correcto?`
+                    : 'Este ticket no tiene costos registrados. Si continúas, será completado con un total de $0.00. ¿Deseas continuar?';
+
+                if (window.Swal?.fire) {
+                    const result = await window.Swal.fire({
+                        icon: 'warning',
+                        title: 'Completar ticket',
+                        text: message,
+                        showCancelButton: true,
+                        confirmButtonText: hasCosts ? 'Confirmar y completar' : 'Completar con $0',
+                        cancelButtonText: 'Regresar',
+                        confirmButtonColor: '#1b84ff',
+                    });
+                    return result.isConfirmed === true;
+                }
+
+                return window.confirm(message);
+            };
+            document.querySelectorAll('.js-ticket-status-form').forEach((form) => {
+                form.addEventListener('submit', async (event) => {
+                    const statusInput = form.querySelector('[name="status"]');
+                    const nextStatus = statusInput?.value || '';
+                    const currentStatus = form.dataset.currentStatus || '';
+                    if (nextStatus === 'completado' && currentStatus !== 'completado' && form.dataset.completionConfirmed !== '1') {
+                        event.preventDefault();
+                        const confirmed = await askCompletionConfirmation(form);
+                        if (!confirmed) return;
+                        form.dataset.completionConfirmed = '1';
+                        setStatusFormLoading(form);
+                        form.submit();
+                        return;
                     }
+
+                    const button = form.querySelector('.js-ticket-status-submit');
+                    if (!button) return;
+                    setStatusFormLoading(form);
                 });
             });
             const askConfirmation = async (message) => {
