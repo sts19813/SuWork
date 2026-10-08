@@ -87,6 +87,7 @@ class MaintenanceTicket extends Model
         'property_id',
         'reported_by_user_id',
         'current_provider_id',
+        'master_ticket_id',
         'reported_by_role',
         'reported_by_name',
         'category',
@@ -168,6 +169,16 @@ class MaintenanceTicket extends Model
     public function currentProvider(): BelongsTo
     {
         return $this->belongsTo(MaintenanceProvider::class, 'current_provider_id');
+    }
+
+    public function masterTicket(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'master_ticket_id');
+    }
+
+    public function childTickets(): HasMany
+    {
+        return $this->hasMany(self::class, 'master_ticket_id');
     }
 
     public function assignments(): HasMany

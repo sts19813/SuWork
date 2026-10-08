@@ -294,6 +294,124 @@ class MaintenanceCutModuleTest extends TestCase
         ]);
     }
 
+    public function test_technician_can_group_completed_tickets_into_master_for_cut(): void
+    {
+        $technicianUser = User::factory()->create(['name' => 'Técnico Agrupador', 'email' => 'tecnico.agrupador@example.test']);
+        $technicianUser->assignRole(Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']));
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+
+        $provider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico Agrupador',
+            'email' => $technicianUser->email,
+            'user_id' => $technicianUser->id,
+            'is_active' => true,
+        ]);
+        $property = $this->createProperty($admin, 'Casa Master Corte', 'casa-master-corte');
+
+        $first = $this->createTicket($property, 'Cambio de bomba agrupado', 'completado');
+        $first->update(['current_provider_id' => $provider->id]);
+        $firstExpense = Expense::query()->create([
+            'property_id' => $property->id,
+            'concept' => 'Gasto hijo uno',
+            'amount' => 500,
+            'due_date' => now()->toDateString(),
+        ]);
+        $first->costs()->create([
+            'expense_id' => $firstExpense->id,
+            'labor_cost' => 300,
+            'material_cost' => 200,
+            'final_cost' => 500,
+            'currency' => 'MXN',
+        ]);
+        $first->files()->create([
+            'kind' => 'evidencia',
+            'path' => 'maintenance/evidencia-uno.jpg',
+            'original_name' => 'evidencia-uno.jpg',
+            'mime_type' => 'image/jpeg',
+            'size' => 120,
+        ]);
+
+        $second = $this->createTicket($property, 'Reparación eléctrica agrupada', 'completado');
+        $second->update(['current_provider_id' => $provider->id]);
+        $secondExpense = Expense::query()->create([
+            'property_id' => $property->id,
+            'concept' => 'Gasto hijo dos',
+            'amount' => 750,
+            'due_date' => now()->toDateString(),
+        ]);
+        $second->costs()->create([
+            'expense_id' => $secondExpense->id,
+            'labor_cost' => 250,
+            'material_cost' => 500,
+            'final_cost' => 750,
+            'currency' => 'MXN',
+        ]);
+
+        $this->actingAs($technicianUser)
+            ->get(route('maintenance.index', ['tab' => 'completados']))
+            ->assertOk()
+            ->assertSee('name="ticket_ids[]" value="'.$first->id.'"', false)
+            ->assertSee('Nombre del ticket')
+            ->assertSee('Agrupar');
+
+        $this->actingAs($technicianUser)
+            ->post(route('maintenance.group'), [
+                'title' => 'Ticket master semanal',
+                'ticket_ids' => [$first->id, $second->id],
+            ])
+            ->assertRedirect();
+
+        $master = MaintenanceTicket::query()
+            ->where('title', 'Ticket master semanal')
+            ->with(['childTickets', 'costs', 'files'])
+            ->firstOrFail();
+
+        $this->assertSame('completado', $master->status);
+        $this->assertSame($provider->id, $master->current_provider_id);
+        $childIds = $master->childTickets->pluck('id')->sort()->values()->all();
+        $this->assertSame([$first->id, $second->id], $childIds);
+        $this->assertSame(2, $master->costs->count());
+        $this->assertSame(0, $first->fresh()->costs()->count());
+        $this->assertSame(0, $second->fresh()->costs()->count());
+
+        $this->actingAs($admin)
+            ->get(route('maintenance-cuts.index'))
+            ->assertOk()
+            ->assertSee('Ticket master semanal')
+            ->assertDontSee('Cambio de bomba agrupado')
+            ->assertSee('$1,250.00');
+
+        $this->actingAs($admin)
+            ->post(route('maintenance-cuts.store'), ['ticket_ids' => [$master->id]])
+            ->assertRedirect(route('maintenance-cuts.index'));
+
+        $this->assertDatabaseHas('maintenance_cut_items', [
+            'ticket_id' => $master->id,
+            'labor_total' => 550,
+            'material_total' => 700,
+            'grand_total' => 1250,
+        ]);
+        $this->assertNotNull($firstExpense->fresh()->paid_at);
+        $this->assertNotNull($secondExpense->fresh()->paid_at);
+
+        $this->actingAs($admin)
+            ->get(route('maintenance-cuts.index', ['tab' => 'historial']))
+            ->assertOk()
+            ->assertSee('Master · 2 hijos')
+            ->assertSee('Ver tickets hijos agrupados')
+            ->assertSee('Cambio de bomba agrupado')
+            ->assertSee('Reparación eléctrica agrupada');
+
+        $this->actingAs($admin)
+            ->get(route('maintenance.show', $master))
+            ->assertOk()
+            ->assertSee('Tickets hijos agrupados')
+            ->assertSee('Evidencias centralizadas de tickets hijos')
+            ->assertSee('evidencia-uno.jpg');
+    }
+
     private function createTicket(Property $property, string $title, string $status): MaintenanceTicket
     {
         return MaintenanceTicket::create([

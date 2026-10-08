@@ -32,6 +32,7 @@
                 'urgente' => 'red',
                 default => 'neutral',
             };
+            $canBulkGroupTickets = ($canGroupTickets ?? false) && $activeTab === 'completados';
 
             $roleTitle = match ($role) {
                 'inquilino' => 'Mis reportes de mantenimiento',
@@ -194,6 +195,26 @@
                         </div>
                     </div>
 
+                    @if ($canBulkGroupTickets)
+                        <form id="maintenanceGroupForm" class="maintenance-group-form" method="POST" action="{{ route('maintenance.group') }}">
+                            @csrf
+                            <label class="maintenance-group-name">
+                                <span>Nombre del ticket</span>
+                                <input class="form-control" type="text" name="title" maxlength="190" required
+                                    placeholder="Ej. Cierre semanal de mantenimiento">
+                            </label>
+                            <button class="maintenance-primary-btn" type="submit">
+                                <i class="bi bi-collection"></i> Agrupar
+                            </button>
+                        </form>
+                        @error('ticket_ids')
+                            <div class="alert alert-danger mb-0">{{ $message }}</div>
+                        @enderror
+                        @error('title')
+                            <div class="alert alert-danger mb-0">{{ $message }}</div>
+                        @enderror
+                    @endif
+
                     @forelse ($ticketTables as $bucketKey => $table)
                         @php
                             $bucketTickets = $table['tickets'];
@@ -214,7 +235,10 @@
                                 </div>
                                 <span class="maintenance-chip maintenance-chip-neutral ms-auto">{{ $bucketTotal }}</span>
                             </div>
-                            <div class="maintenance-list-header">
+                            <div class="maintenance-list-header {{ $canBulkGroupTickets ? 'is-groupable' : '' }}">
+                                @if ($canBulkGroupTickets)
+                                    <span></span>
+                                @endif
                                 <span></span>
                                 <span>Folio</span>
                                 <span>Ticket</span>
@@ -232,8 +256,18 @@
                                         ->take(2)
                                         ->implode('');
                                 @endphp
-                                <div class="maintenance-ticket-row" role="link" tabindex="0" data-maintenance-row-url="{{ route('maintenance.show', $ticket) }}">
+                                <div class="maintenance-ticket-row {{ $canBulkGroupTickets ? 'is-groupable' : '' }}" role="link" tabindex="0" data-maintenance-row-url="{{ route('maintenance.show', $ticket) }}">
                                     <span class="maintenance-priority-bar maintenance-priority-{{ $ticket->priority }}"></span>
+                                    @if ($canBulkGroupTickets)
+                                        <span class="maintenance-group-check" data-maintenance-row-action>
+                                            @if (!$ticket->cutItem && !$ticket->master_ticket_id && (int) ($ticket->child_tickets_count ?? 0) === 0)
+                                                <input class="form-check-input" type="checkbox" name="ticket_ids[]" value="{{ $ticket->id }}"
+                                                    form="maintenanceGroupForm" aria-label="Seleccionar ticket {{ $ticket->display_reference }}">
+                                            @else
+                                                <i class="bi bi-lock text-muted" title="Ticket no disponible para agrupar"></i>
+                                            @endif
+                                        </span>
+                                    @endif
                                     <span class="maintenance-priority-cell">
                                         <span class="maintenance-reference">#{{ $ticket->display_reference }}</span>
                                         @if ($canUpdateTicketMeta)
@@ -372,6 +406,15 @@
                                         @if ($ticket->cutItem)
                                             <span class="maintenance-chip maintenance-chip-green mt-1">
                                                 <i class="bi bi-check-circle-fill me-1"></i> Pagado
+                                            </span>
+                                        @endif
+                                        @if ($ticket->master_ticket_id)
+                                            <span class="maintenance-chip maintenance-chip-blue mt-1">
+                                                <i class="bi bi-diagram-3 me-1"></i> Agrupado
+                                            </span>
+                                        @elseif ((int) ($ticket->child_tickets_count ?? 0) > 0)
+                                            <span class="maintenance-chip maintenance-chip-purple mt-1">
+                                                <i class="bi bi-collection me-1"></i> Master · {{ (int) $ticket->child_tickets_count }}
                                             </span>
                                         @endif
                                     </span>

@@ -28,6 +28,17 @@
             $finishedWorkFiles = $allFiles
                 ->filter(fn ($file) => filled($file->preview_url) && (string) $file->kind === 'trabajo_finalizado')
                 ->values();
+            $childTickets = $ticket->childTickets ?? collect();
+            $childTicketFiles = $childTickets
+                ->flatMap(function ($childTicket) {
+                    return $childTicket->files->map(function ($file) use ($childTicket) {
+                        $file->preview_url = $file->url;
+                        $file->source_ticket = $childTicket;
+                        return $file;
+                    });
+                })
+                ->filter(fn ($file) => filled($file->preview_url))
+                ->values();
             $statusTone = match ($ticket->status) {
                 'completado' => 'green',
                 'cancelado' => 'red',
@@ -206,6 +217,38 @@
                         @endif
                     </section>
 
+                    @if ($ticket->masterTicket)
+                        <section class="ticket-panel">
+                            <div class="ticket-panel-header">
+                                <h2 class="ticket-panel-title">Ticket master</h2>
+                                <a class="maintenance-chip maintenance-chip-blue" href="{{ route('maintenance.show', $ticket->masterTicket) }}">
+                                    #{{ $ticket->masterTicket->display_reference }}
+                                </a>
+                            </div>
+                            <div class="text-muted">
+                                Este ticket hijo está agrupado en {{ $ticket->masterTicket->title }}. El corte y los gastos se gestionan desde el master.
+                            </div>
+                        </section>
+                    @endif
+
+                    @if ($childTickets->isNotEmpty())
+                        <section class="ticket-panel">
+                            <div class="ticket-panel-header">
+                                <h2 class="ticket-panel-title">Tickets hijos agrupados</h2>
+                                <span class="maintenance-chip maintenance-chip-purple">{{ $childTickets->count() }} tickets</span>
+                            </div>
+                            <div class="ticket-child-list">
+                                @foreach ($childTickets as $childTicket)
+                                    <a class="ticket-child-row" href="{{ route('maintenance.show', $childTicket) }}">
+                                        <strong>#{{ $childTicket->display_reference }}</strong>
+                                        <span>{{ $childTicket->title }}</span>
+                                        <small>{{ $childTicket->property?->internal_name ?? '-' }} · {{ $childTicket->completed_at?->format('d/m/Y H:i') ?: '-' }}</small>
+                                    </a>
+                                @endforeach
+                            </div>
+                        </section>
+                    @endif
+
                     <section class="ticket-panel">
                         <div class="ticket-panel-header">
                             <h2 class="ticket-panel-title">Evidencias y archivos del incidente</h2>
@@ -259,6 +302,46 @@
                             </div>
                         </form>
                     </section>
+
+                    @if ($childTicketFiles->isNotEmpty())
+                        <section class="ticket-panel">
+                            <div class="ticket-panel-header">
+                                <h2 class="ticket-panel-title">Evidencias centralizadas de tickets hijos</h2>
+                                <span class="maintenance-chip maintenance-chip-neutral">{{ $childTicketFiles->count() }} archivos</span>
+                            </div>
+                            <div class="ticket-file-grid mb-0">
+                                @foreach ($childTicketFiles as $file)
+                                    <div class="ticket-file-tile">
+                                        <button type="button" class="ticket-file-thumb js-ticket-file-preview"
+                                            data-file-url="{{ $file->preview_url }}"
+                                            data-file-name="{{ $file->original_name }}"
+                                            data-file-mime="{{ $file->mime_type }}"
+                                            data-file-download="{{ $file->preview_url }}"
+                                            data-file-delete-url="{{ route('maintenance.files.destroy', [$file->source_ticket, $file]) }}">
+                                            @if (str_starts_with((string) $file->mime_type, 'video/'))
+                                                <video src="{{ $file->preview_url }}" muted preload="metadata"></video>
+                                            @elseif ((string) $file->mime_type === 'application/pdf')
+                                                <span class="ticket-file-pdf-thumb">
+                                                    <i class="bi bi-file-earmark-pdf"></i>
+                                                    <span>{{ $file->original_name }}</span>
+                                                </span>
+                                            @elseif (str_starts_with((string) $file->mime_type, 'image/'))
+                                                <img src="{{ $file->preview_url }}" alt="{{ $file->original_name }}">
+                                            @else
+                                                <span class="ticket-file-pdf-thumb">
+                                                    <i class="bi bi-file-earmark"></i>
+                                                    <span>{{ $file->original_name }}</span>
+                                                </span>
+                                            @endif
+                                        </button>
+                                        <div class="ticket-file-caption">
+                                            #{{ $file->source_ticket->display_reference }} · {{ \App\Models\MaintenanceTicketFile::KIND_LABELS[$file->kind] ?? $file->kind }}
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </section>
+                    @endif
 
                     <section class="ticket-panel d-none" id="ticket-chat-section" hidden>
                         <div class="ticket-panel-header">

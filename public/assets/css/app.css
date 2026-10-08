@@ -1603,6 +1603,41 @@ td .btn {
     align-items: center;
 }
 
+.maintenance-list-header.is-groupable,
+.maintenance-ticket-row.is-groupable {
+    grid-template-columns: 4px 34px 84px minmax(165px, 1.35fr) minmax(132px, 0.85fr) minmax(138px, 0.8fr) 132px 92px;
+}
+
+.maintenance-group-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 14px;
+    background: #ffffff;
+    border: 1px solid var(--maint-border);
+    border-radius: 14px;
+}
+
+.maintenance-group-name {
+    display: grid;
+    gap: 6px;
+    flex: 1 1 280px;
+    margin: 0;
+}
+
+.maintenance-group-name span {
+    color: var(--maint-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.maintenance-group-check {
+    display: grid;
+    place-items: center;
+}
+
 .maintenance-list-header {
     padding: 10px 14px;
     color: var(--maint-muted);
@@ -2038,6 +2073,39 @@ td .btn {
     gap: 12px;
 }
 
+.ticket-child-list {
+    display: grid;
+    gap: 8px;
+}
+
+.ticket-child-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(180px, auto);
+    gap: 12px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--maint-border);
+    border-radius: 12px;
+    color: var(--maint-text);
+    text-decoration: none;
+    background: #fbfcfe;
+}
+
+.ticket-child-row strong {
+    color: var(--maint-primary);
+}
+
+.ticket-child-row span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ticket-child-row small {
+    color: var(--maint-muted);
+    text-align: right;
+}
+
 .ticket-file-thumb {
     display: block;
     width: 100%;
@@ -2240,6 +2308,11 @@ td .btn {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .maintenance-group-form {
+        display: grid;
+        gap: 10px;
+    }
+
     .maintenance-list-header {
         display: none;
     }
@@ -2256,8 +2329,22 @@ td .btn {
         box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
     }
 
+    .maintenance-ticket-row.is-groupable {
+        grid-template-columns: 4px 34px minmax(0, 1fr) auto;
+    }
+
     .maintenance-ticket-row > :not(.maintenance-priority-bar) {
         grid-column: 2 / -1;
+    }
+
+    .maintenance-ticket-row.is-groupable > :not(.maintenance-priority-bar):not(.maintenance-group-check) {
+        grid-column: 3 / -1;
+    }
+
+    .maintenance-ticket-row.is-groupable .maintenance-group-check {
+        grid-column: 2;
+        grid-row: 1;
+        align-self: center;
     }
 
     .maintenance-ticket-row .maintenance-priority-bar {
@@ -2341,6 +2428,15 @@ td .btn {
 
     .ticket-file-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ticket-child-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+
+    .ticket-child-row small {
+        text-align: left;
     }
 }
 
