@@ -573,7 +573,7 @@ class MaintenanceController extends Controller
         $master = DB::transaction(function () use ($ticketIds, $validated, $user, $role): MaintenanceTicket {
             $tickets = $this->visibleTicketsQuery($user, $role)
                 ->whereIn('maintenance_tickets.id', $ticketIds->all())
-                ->where('status', 'completado')
+                ->where('status', '!=', 'cancelado')
                 ->whereNull('master_ticket_id')
                 ->whereDoesntHave('cutItem')
                 ->whereDoesntHave('childTickets')
@@ -588,7 +588,7 @@ class MaintenanceController extends Controller
 
             if ($tickets->count() !== $ticketIds->count()) {
                 throw ValidationException::withMessages([
-                    'ticket_ids' => 'Uno o más tickets ya fueron agrupados, pagados o dejaron de estar completados. Actualiza la página e inténtalo nuevamente.',
+                    'ticket_ids' => 'Uno o más tickets ya fueron agrupados, pagados, cancelados o dejaron de estar disponibles. Actualiza la página e inténtalo nuevamente.',
                 ]);
             }
 
@@ -615,6 +615,10 @@ class MaintenanceController extends Controller
             $highestPriority = $orderedTickets
                 ->sortBy(fn (MaintenanceTicket $ticket): int => MaintenanceTicket::PRIORITY_SORT_ORDER[$ticket->priority] ?? 99)
                 ->first()?->priority ?? 'media';
+            $masterStatus = $this->resolveGroupedTicketMasterStatus($orderedTickets);
+            $masterCompletedAt = $masterStatus === 'completado'
+                ? ($orderedTickets->max('completed_at') ?? now())
+                : null;
             $description = $orderedTickets
                 ->map(function (MaintenanceTicket $ticket): string {
                     $property = trim((string) ($ticket->property?->internal_name ?? 'Sin propiedad'));
@@ -632,7 +636,7 @@ class MaintenanceController extends Controller
                 'reported_by_name' => $user?->name,
                 'category' => $firstTicket->category ?: 'sin_categoria',
                 'priority' => $highestPriority,
-                'status' => 'completado',
+                'status' => $masterStatus,
                 'title' => trim((string) $validated['title']),
                 'reference' => null,
                 'exact_location' => 'Ticket agrupado',
@@ -645,8 +649,10 @@ class MaintenanceController extends Controller
                 'payment_rule_notes' => $firstTicket->payment_rule_notes,
                 'assigned_at' => $firstTicket->assigned_at,
                 'started_at' => $orderedTickets->min('started_at'),
-                'completed_at' => $orderedTickets->max('completed_at') ?? now(),
+                'completed_at' => $masterCompletedAt,
             ]);
+            $master->status = $masterStatus;
+            $this->applyOperationalTimestampsForStatus($master, $masterStatus, null, null);
             $master->reference = str_pad((string) $master->id, 8, '0', STR_PAD_LEFT);
             $master->save();
 
@@ -663,7 +669,7 @@ class MaintenanceController extends Controller
             $master->statusHistory()->create([
                 'changed_by_user_id' => $user?->id,
                 'from_status' => null,
-                'to_status' => 'completado',
+                'to_status' => $masterStatus,
                 'notes' => 'Ticket master creado al agrupar '.$orderedTickets->count().' tickets.',
                 'changed_at' => now(),
             ]);
@@ -813,6 +819,14 @@ class MaintenanceController extends Controller
                 'notes' => $validated['notes'] ?? null,
                 'changed_at' => now(),
             ]);
+
+            if ($nextStatus === 'completado') {
+                $this->completeGroupedChildTickets(
+                    $maintenance,
+                    $user?->id,
+                    filled($validated['notes'] ?? null) ? (string) $validated['notes'] : null,
+                );
+            }
         });
 
         $event = $nextStatus === 'completado' ? 'cierre' : 'cambio_estado';
@@ -2306,6 +2320,45 @@ class MaintenanceController extends Controller
         }
         if (in_array($fromStatus, ['asignado', 'programado'], true) && $status === 'pendiente') {
             $ticket->assigned_at = null;
+        }
+    }
+
+    private function resolveGroupedTicketMasterStatus(Collection $tickets): string
+    {
+        $statuses = $tickets->pluck('status')->unique()->values();
+        if ($statuses->count() === 1 && $statuses->first() === 'completado') {
+            return 'completado';
+        }
+
+        foreach (['en_proceso', 'esperando_material', 'programado', 'asignado', 'reabierto', 'revisado'] as $status) {
+            if ($statuses->contains($status)) {
+                return $status;
+            }
+        }
+
+        return 'pendiente';
+    }
+
+    private function completeGroupedChildTickets(MaintenanceTicket $master, ?int $userId, ?string $notes): void
+    {
+        $children = $master->childTickets()
+            ->where('status', '!=', 'completado')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($children as $child) {
+            $fromStatus = (string) $child->status;
+            $child->status = 'completado';
+            $this->applyOperationalTimestampsForStatus($child, 'completado', $fromStatus, $notes);
+            $child->save();
+
+            $child->statusHistory()->create([
+                'changed_by_user_id' => $userId,
+                'from_status' => $fromStatus,
+                'to_status' => 'completado',
+                'notes' => $notes ?: 'Completado automáticamente al cerrar el ticket master #'.$master->display_reference.'.',
+                'changed_at' => now(),
+            ]);
         }
     }
 

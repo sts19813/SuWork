@@ -10,6 +10,7 @@ use App\Models\PropertyType;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -410,6 +411,84 @@ class MaintenanceCutModuleTest extends TestCase
             ->assertSee('Tickets hijos agrupados')
             ->assertSee('Evidencias centralizadas de tickets hijos')
             ->assertSee('evidencia-uno.jpg');
+    }
+
+    public function test_technician_can_group_active_tickets_and_completing_master_completes_children(): void
+    {
+        Mail::fake();
+
+        $technicianUser = User::factory()->create(['name' => 'Técnico Activo', 'email' => 'tecnico.activo@example.test']);
+        $technicianUser->assignRole(Role::query()->create(['name' => 'tecnico', 'guard_name' => 'web']));
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+
+        $provider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico Activo',
+            'email' => $technicianUser->email,
+            'user_id' => $technicianUser->id,
+            'is_active' => true,
+        ]);
+        $property = $this->createProperty($admin, 'Casa Master Activo', 'casa-master-activo');
+
+        $first = $this->createTicket($property, 'Ticket activo uno', 'asignado');
+        $first->update(['current_provider_id' => $provider->id]);
+        $second = $this->createTicket($property, 'Ticket activo dos', 'en_proceso');
+        $second->update(['current_provider_id' => $provider->id]);
+
+        $this->actingAs($technicianUser)
+            ->get(route('maintenance.index', ['tab' => 'activos']))
+            ->assertOk()
+            ->assertSee('name="ticket_ids[]" value="'.$first->id.'"', false)
+            ->assertSee('Nombre del ticket')
+            ->assertSee('Agrupar');
+
+        $this->actingAs($technicianUser)
+            ->post(route('maintenance.group'), [
+                'title' => 'Ticket master activo',
+                'ticket_ids' => [$first->id, $second->id],
+            ])
+            ->assertRedirect();
+
+        $master = MaintenanceTicket::query()
+            ->where('title', 'Ticket master activo')
+            ->with('childTickets')
+            ->firstOrFail();
+
+        $this->assertSame('en_proceso', $master->status);
+        $this->assertNull($master->completed_at);
+        $this->assertSame([$first->id, $second->id], $master->childTickets->pluck('id')->sort()->values()->all());
+        $this->assertSame('asignado', $first->fresh()->status);
+        $this->assertSame('en_proceso', $second->fresh()->status);
+
+        $this->actingAs($technicianUser)
+            ->patch(route('maintenance.status', $master), [
+                'status' => 'completado',
+                'notes' => 'Master terminado',
+            ])
+            ->assertRedirect();
+
+        $master->refresh();
+        $first->refresh();
+        $second->refresh();
+
+        $this->assertSame('completado', $master->status);
+        $this->assertSame('completado', $first->status);
+        $this->assertSame('completado', $second->status);
+        $this->assertNotNull($first->completed_at);
+        $this->assertNotNull($second->completed_at);
+        $this->assertDatabaseHas('maintenance_ticket_status_histories', [
+            'ticket_id' => $first->id,
+            'from_status' => 'asignado',
+            'to_status' => 'completado',
+            'notes' => 'Master terminado',
+        ]);
+        $this->assertDatabaseHas('maintenance_ticket_status_histories', [
+            'ticket_id' => $second->id,
+            'from_status' => 'en_proceso',
+            'to_status' => 'completado',
+            'notes' => 'Master terminado',
+        ]);
     }
 
     private function createTicket(Property $property, string $title, string $status): MaintenanceTicket

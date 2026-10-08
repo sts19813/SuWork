@@ -14,7 +14,7 @@
         'urgente' => 'red',
         default => 'neutral',
     };
-    $canBulkGroupTickets = ($canGroupTickets ?? false) && ($activeTab ?? '') === 'completados';
+    $canBulkGroupTickets = ($canGroupTickets ?? false) && in_array($activeTab ?? '', ['activos', 'completados'], true);
 @endphp
 
 <div class="maintenance-worklist">

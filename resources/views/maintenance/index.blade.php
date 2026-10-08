@@ -32,7 +32,7 @@
                 'urgente' => 'red',
                 default => 'neutral',
             };
-            $canBulkGroupTickets = ($canGroupTickets ?? false) && $activeTab === 'completados';
+            $canBulkGroupTickets = ($canGroupTickets ?? false) && in_array($activeTab, ['activos', 'completados'], true);
 
             $roleTitle = match ($role) {
                 'inquilino' => 'Mis reportes de mantenimiento',
