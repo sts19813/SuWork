@@ -435,6 +435,11 @@
                                                 <a href="{{ route('maintenance.show', $item->ticket) }}" class="cut-ticket-link">
                                                     <strong>#{{ $item->ticket->display_reference }}</strong><span>{{ $item->ticket->title }}</span>
                                                 </a>
+                                                @if ($item->ticket->childTickets->isNotEmpty())
+                                                    <span class="maintenance-chip maintenance-chip-purple mt-1">
+                                                        <i class="bi bi-collection me-1"></i> Master · {{ $item->ticket->childTickets->count() }} hijos
+                                                    </span>
+                                                @endif
                                             @else
                                                 <span class="text-muted">Ticket no disponible</span>
                                             @endif
@@ -446,6 +451,27 @@
                                         <td class="text-end text-nowrap">${{ number_format((float) $item->material_total, 2) }}</td>
                                         <td class="text-end text-nowrap fw-bold">${{ number_format((float) $item->grand_total, 2) }}</td>
                                     </tr>
+                                    @if ($item->ticket?->childTickets?->isNotEmpty())
+                                        <tr class="cut-child-row">
+                                            <td colspan="7">
+                                                <details class="cut-child-details">
+                                                    <summary>
+                                                        <i class="bi bi-chevron-right"></i>
+                                                        Ver tickets hijos agrupados
+                                                    </summary>
+                                                    <div class="cut-child-list">
+                                                        @foreach ($item->ticket->childTickets as $childTicket)
+                                                            <a class="cut-child-ticket" href="{{ route('maintenance.show', $childTicket) }}">
+                                                                <strong>#{{ $childTicket->display_reference }}</strong>
+                                                                <span>{{ $childTicket->title }}</span>
+                                                                <small>{{ $childTicket->property?->internal_name ?? '-' }} · {{ $childTicket->completed_at?->format('d/m/Y H:i') ?: '-' }}</small>
+                                                            </a>
+                                                        @endforeach
+                                                    </div>
+                                                </details>
+                                            </td>
+                                        </tr>
+                                    @endif
                                 @endforeach
                             </tbody>
                         </table>
@@ -486,6 +512,8 @@
     @media(max-width:767px){.cut-table{min-width:1020px}.cut-table-wrap{overflow-x:auto}}
     .cut-zero-cost-table{padding:0 1.25rem 1.25rem}.cut-zero-cost-table .cut-table{border:1px solid #e7ebf2;border-radius:16px;overflow:hidden}
     @media(max-width:767px){.cut-zero-cost-table{padding:.75rem}.cut-zero-cost-table .cut-table{min-width:920px}}
+    .cut-child-row td{background:#fbfcfe!important;padding:.75rem 1rem 1rem!important}.cut-child-details{border:1px dashed #d8deea;border-radius:12px;background:#fff}.cut-child-details summary{display:flex;align-items:center;gap:.45rem;padding:.75rem .9rem;cursor:pointer;color:#5f6b84;font-weight:800}.cut-child-details summary::-webkit-details-marker{display:none}.cut-child-details[open] summary i{transform:rotate(90deg)}.cut-child-details summary i{transition:.16s ease}.cut-child-list{display:grid;gap:.5rem;padding:0 .9rem .9rem}.cut-child-ticket{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(150px,auto);gap:.75rem;align-items:center;color:#24304d;text-decoration:none;padding:.55rem .65rem;border-radius:10px;background:#f7f8fb}.cut-child-ticket strong{color:#ef285c}.cut-child-ticket span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cut-child-ticket small{color:#8490aa;text-align:right}
+    @media(max-width:767px){.cut-child-ticket{grid-template-columns:1fr;gap:.15rem}.cut-child-ticket small{text-align:left}}
 </style>
 @endpush
 

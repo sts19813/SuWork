@@ -94,8 +94,9 @@ class MaintenanceController extends Controller
                 'reporter:id,name,email',
                 'currentProvider:id,uuid,user_id,name,type,email,phone,specialty,rating,availability',
                 'cutItem:id,maintenance_cut_id,ticket_id',
+                'masterTicket:id,uuid,reference,title',
             ])
-            ->withCount(['files', 'messages']);
+            ->withCount(['files', 'messages', 'childTickets']);
 
         $ticketsQuery = (clone $baseQuery)
             ->when($selectedPropertyId, fn (Builder $query) => $query->where('property_id', $selectedPropertyId))
@@ -280,6 +281,7 @@ class MaintenanceController extends Controller
             'canUpdateTicketMeta' => in_array($role, ['administrador', 'tecnico'], true),
             'canUpdateTicketProvider' => in_array($role, ['administrador', 'tecnico', 'asesor'], true),
             'canManageCosts' => in_array($role, ['administrador', 'proveedor'], true),
+            'canGroupTickets' => in_array($role, ['administrador', 'tecnico'], true),
             'isTenant' => $role === 'inquilino',
         ];
 
@@ -438,6 +440,10 @@ class MaintenanceController extends Controller
             'messages.recipient:id,name,email',
             'notifications',
             'cutItem.cut:id,uuid,paid_at,grand_total',
+            'masterTicket:id,uuid,reference,title',
+            'childTickets' => fn ($query) => $query->orderBy('reference')->orderBy('id'),
+            'childTickets.property:id,uuid,internal_name,internal_reference',
+            'childTickets.files.uploader:id,name,email',
         ]);
 
         $providers = MaintenanceProvider::query()
@@ -542,6 +548,156 @@ class MaintenanceController extends Controller
         $this->storeTicketFiles($maintenance, (array) $request->file('files', []), 'reporte', $user?->id);
 
         return redirect()->back()->with('success', 'Ticket actualizado correctamente.');
+    }
+
+    public function groupTickets(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $role = $this->resolveRole($user);
+        if (! in_array($role, ['administrador', 'tecnico'], true)) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:190'],
+            'ticket_ids' => ['required', 'array', 'min:2'],
+            'ticket_ids.*' => ['required', 'integer', 'distinct', 'exists:maintenance_tickets,id'],
+        ], [
+            'title.required' => 'Indica el nombre del ticket agrupado.',
+            'ticket_ids.required' => 'Selecciona al menos dos tickets para agrupar.',
+            'ticket_ids.min' => 'Selecciona al menos dos tickets para agrupar.',
+        ]);
+
+        $ticketIds = collect($validated['ticket_ids'])->map(fn ($id) => (int) $id)->unique()->values();
+
+        $master = DB::transaction(function () use ($ticketIds, $validated, $user, $role): MaintenanceTicket {
+            $tickets = $this->visibleTicketsQuery($user, $role)
+                ->whereIn('maintenance_tickets.id', $ticketIds->all())
+                ->where('status', '!=', 'cancelado')
+                ->whereNull('master_ticket_id')
+                ->whereDoesntHave('cutItem')
+                ->whereDoesntHave('childTickets')
+                ->with([
+                    'property:id,internal_name,internal_reference',
+                    'currentProvider:id,name',
+                    'files:id,ticket_id,kind,path,original_name,mime_type,size,is_compressed,created_at',
+                    'costs:id,ticket_id,expense_id,labor_cost,material_cost,advance_cost,final_cost,currency,payer,payment_rule,notes',
+                ])
+                ->lockForUpdate()
+                ->get();
+
+            if ($tickets->count() !== $ticketIds->count()) {
+                throw ValidationException::withMessages([
+                    'ticket_ids' => 'Uno o más tickets ya fueron agrupados, pagados, cancelados o dejaron de estar disponibles. Actualiza la página e inténtalo nuevamente.',
+                ]);
+            }
+
+            $technicianKeys = $tickets
+                ->map(fn (MaintenanceTicket $ticket): string => $ticket->current_provider_id
+                    ? (string) $ticket->current_provider_id
+                    : 'unassigned')
+                ->unique();
+
+            if ($technicianKeys->count() > 1) {
+                throw ValidationException::withMessages([
+                    'ticket_ids' => 'Todos los tickets agrupados deben pertenecer al mismo técnico.',
+                ]);
+            }
+
+            $orderedTickets = $tickets->sortBy('id')->values();
+            $firstTicket = $orderedTickets->first();
+            if (! $firstTicket) {
+                throw ValidationException::withMessages([
+                    'ticket_ids' => 'Selecciona al menos dos tickets para agrupar.',
+                ]);
+            }
+
+            $highestPriority = $orderedTickets
+                ->sortBy(fn (MaintenanceTicket $ticket): int => MaintenanceTicket::PRIORITY_SORT_ORDER[$ticket->priority] ?? 99)
+                ->first()?->priority ?? 'media';
+            $masterStatus = $this->resolveGroupedTicketMasterStatus($orderedTickets);
+            $masterCompletedAt = $masterStatus === 'completado'
+                ? ($orderedTickets->max('completed_at') ?? now())
+                : null;
+            $description = $orderedTickets
+                ->map(function (MaintenanceTicket $ticket): string {
+                    $property = trim((string) ($ticket->property?->internal_name ?? 'Sin propiedad'));
+                    $reference = $ticket->property?->internal_reference ? ' ('.$ticket->property->internal_reference.')' : '';
+
+                    return '#'.$ticket->display_reference.' · '.$ticket->title.' · '.$property.$reference;
+                })
+                ->implode("\n");
+
+            $master = MaintenanceTicket::create([
+                'property_id' => $firstTicket->property_id,
+                'reported_by_user_id' => $user?->id,
+                'current_provider_id' => $firstTicket->current_provider_id,
+                'reported_by_role' => $role,
+                'reported_by_name' => $user?->name,
+                'category' => $firstTicket->category ?: 'sin_categoria',
+                'priority' => $highestPriority,
+                'status' => $masterStatus,
+                'title' => trim((string) $validated['title']),
+                'reference' => null,
+                'exact_location' => 'Ticket agrupado',
+                'description' => "Ticket master agrupado con los siguientes tickets:\n".$description,
+                'additional_notes' => 'Agrupa '.$orderedTickets->count().' tickets hijos. Los gastos quedaron centralizados en este ticket master.',
+                'reported_at' => $orderedTickets->min('reported_at') ?? now(),
+                'scheduled_visit_at' => null,
+                'payer' => $firstTicket->payer,
+                'payment_rule' => $firstTicket->payment_rule,
+                'payment_rule_notes' => $firstTicket->payment_rule_notes,
+                'assigned_at' => $firstTicket->assigned_at,
+                'started_at' => $orderedTickets->min('started_at'),
+                'completed_at' => $masterCompletedAt,
+            ]);
+            $master->status = $masterStatus;
+            $this->applyOperationalTimestampsForStatus($master, $masterStatus, null, null);
+            $master->reference = str_pad((string) $master->id, 8, '0', STR_PAD_LEFT);
+            $master->save();
+
+            if ($master->current_provider_id) {
+                $master->assignments()->create([
+                    'provider_id' => $master->current_provider_id,
+                    'assigned_by_user_id' => $user?->id,
+                    'notes' => 'Asignado automáticamente al agrupar tickets.',
+                    'assigned_at' => now(),
+                    'is_current' => true,
+                ]);
+            }
+
+            $master->statusHistory()->create([
+                'changed_by_user_id' => $user?->id,
+                'from_status' => null,
+                'to_status' => $masterStatus,
+                'notes' => 'Ticket master creado al agrupar '.$orderedTickets->count().' tickets.',
+                'changed_at' => now(),
+            ]);
+
+            MaintenanceTicketCost::query()
+                ->whereIn('ticket_id', $orderedTickets->pluck('id')->all())
+                ->update(['ticket_id' => $master->id]);
+
+            MaintenanceTicket::query()
+                ->whereIn('id', $orderedTickets->pluck('id')->all())
+                ->update(['master_ticket_id' => $master->id]);
+
+            foreach ($orderedTickets as $ticket) {
+                $ticket->statusHistory()->create([
+                    'changed_by_user_id' => $user?->id,
+                    'from_status' => $ticket->status,
+                    'to_status' => $ticket->status,
+                    'notes' => 'Agrupado en ticket master #'.$master->display_reference.'.',
+                    'changed_at' => now(),
+                ]);
+            }
+
+            return $master;
+        });
+
+        return redirect()
+            ->route('maintenance.show', $master)
+            ->with('success', 'Ticket master creado correctamente. Los gastos quedaron centralizados para corte.');
     }
 
     public function moveProperty(Request $request, MaintenanceTicket $maintenance): RedirectResponse|JsonResponse
@@ -663,6 +819,14 @@ class MaintenanceController extends Controller
                 'notes' => $validated['notes'] ?? null,
                 'changed_at' => now(),
             ]);
+
+            if ($nextStatus === 'completado') {
+                $this->completeGroupedChildTickets(
+                    $maintenance,
+                    $user?->id,
+                    filled($validated['notes'] ?? null) ? (string) $validated['notes'] : null,
+                );
+            }
         });
 
         $event = $nextStatus === 'completado' ? 'cierre' : 'cambio_estado';
@@ -2156,6 +2320,45 @@ class MaintenanceController extends Controller
         }
         if (in_array($fromStatus, ['asignado', 'programado'], true) && $status === 'pendiente') {
             $ticket->assigned_at = null;
+        }
+    }
+
+    private function resolveGroupedTicketMasterStatus(Collection $tickets): string
+    {
+        $statuses = $tickets->pluck('status')->unique()->values();
+        if ($statuses->count() === 1 && $statuses->first() === 'completado') {
+            return 'completado';
+        }
+
+        foreach (['en_proceso', 'esperando_material', 'programado', 'asignado', 'reabierto', 'revisado'] as $status) {
+            if ($statuses->contains($status)) {
+                return $status;
+            }
+        }
+
+        return 'pendiente';
+    }
+
+    private function completeGroupedChildTickets(MaintenanceTicket $master, ?int $userId, ?string $notes): void
+    {
+        $children = $master->childTickets()
+            ->where('status', '!=', 'completado')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($children as $child) {
+            $fromStatus = (string) $child->status;
+            $child->status = 'completado';
+            $this->applyOperationalTimestampsForStatus($child, 'completado', $fromStatus, $notes);
+            $child->save();
+
+            $child->statusHistory()->create([
+                'changed_by_user_id' => $userId,
+                'from_status' => $fromStatus,
+                'to_status' => 'completado',
+                'notes' => $notes ?: 'Completado automáticamente al cerrar el ticket master #'.$master->display_reference.'.',
+                'changed_at' => now(),
+            ]);
         }
     }
 
