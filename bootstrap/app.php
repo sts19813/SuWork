@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\GenerateRecurringExpensesCommand;
+use App\Console\Commands\IssueAirbnbIntegrationTokenCommand;
 use App\Console\Commands\SendExpenseNotificationsCommand;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -16,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withCommands([
         GenerateRecurringExpensesCommand::class,
+        IssueAirbnbIntegrationTokenCommand::class,
         SendExpenseNotificationsCommand::class,
     ])
     ->withSchedule(function (Schedule $schedule): void {
@@ -34,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'provider.operational' => \App\Http\Middleware\RestrictProviderToOperations::class,
             'reviewer.restricted' => \App\Http\Middleware\RestrictTicketReviewerToMaintenance::class,
             'property.visible' => \App\Http\Middleware\EnsurePropertyIsVisible::class,
+            'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
         ]);
 
         //
