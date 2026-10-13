@@ -35,12 +35,14 @@ class SuhomesAirbnbIntegrationApiTest extends TestCase
     {
         $property = $this->createProperty('Casa Disponible');
         $occupied = $this->createProperty('Casa Ocupada');
+        $occupiedWithoutTenant = $this->createProperty('Casa Marcada Ocupada');
         $tenant = Tenant::query()->create([
             'full_name' => 'Inquilino Uno',
             'phone_primary' => '9991112233',
             'is_active' => true,
         ]);
         $occupied->update(['tenant_id' => $tenant->id]);
+        $occupiedWithoutTenant->update(['status' => Property::STATUS_OCCUPIED]);
 
         $token = $this->airbnbToken();
 
@@ -48,7 +50,8 @@ class SuhomesAirbnbIntegrationApiTest extends TestCase
             ->getJson('/api/internal/airbnb/properties')
             ->assertOk()
             ->assertJsonPath('data.0.uuid', $property->uuid)
-            ->assertJsonMissing(['uuid' => $occupied->uuid]);
+            ->assertJsonMissing(['uuid' => $occupied->uuid])
+            ->assertJsonMissing(['uuid' => $occupiedWithoutTenant->uuid]);
 
         $this->withToken($token)
             ->postJson("/api/internal/airbnb/properties/{$property->uuid}/claim", [
@@ -71,6 +74,28 @@ class SuhomesAirbnbIntegrationApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.airbnb_external_property_id', null)
             ->assertJsonPath('data.status', Property::STATUS_AVAILABLE);
+    }
+
+    public function test_claim_rejects_properties_marked_as_occupied_or_rented(): void
+    {
+        $occupied = $this->createProperty('Casa Ocupada');
+        $occupied->update(['status' => Property::STATUS_OCCUPIED]);
+
+        $rented = $this->createProperty('Casa Rentada');
+        $rented->update(['status' => Property::STATUS_RENTED]);
+        $token = $this->airbnbToken();
+
+        $this->withToken($token)
+            ->postJson("/api/internal/airbnb/properties/{$occupied->uuid}/claim", [
+                'external_property_id' => 'airbnb-property-occupied',
+            ])
+            ->assertUnprocessable();
+
+        $this->withToken($token)
+            ->postJson("/api/internal/airbnb/properties/{$rented->uuid}/claim", [
+                'external_property_id' => 'airbnb-property-rented',
+            ])
+            ->assertUnprocessable();
     }
 
     public function test_claim_rejects_properties_with_open_charges(): void
