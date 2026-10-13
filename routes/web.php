@@ -84,6 +84,7 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
             Route::get('/propiedades/{property}/editar', [PropertyController::class, 'edit'])->name('properties.edit');
             Route::put('/propiedades/{property}', [PropertyController::class, 'update'])->name('properties.update');
             Route::put('/propiedades/{property}/inquilino', [PropertyController::class, 'updateTenant'])->name('properties.update.tenant');
+            Route::patch('/propiedades/{property}/airbnb', [PropertyController::class, 'updateAirbnbManagement'])->name('properties.update.airbnb');
             Route::put('/propiedades/{property}/asesores', [PropertyController::class, 'updateAdvisors'])->name('properties.update.advisors');
             Route::put('/propiedades/{property}/tecnico', [PropertyController::class, 'updateTechnician'])->name('properties.update.technician');
             Route::put('/propiedades/{property}/proveedores', [PropertyController::class, 'updateProviders'])->name('properties.update.providers');

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Internal;
 use App\Http\Controllers\Controller;
 use App\Models\AirbnbFinancialEvent;
 use App\Models\Charge;
+use App\Models\ChargePayment;
 use App\Models\Property;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -25,17 +26,16 @@ class AirbnbIntegrationController extends Controller
         $properties = Property::query()
             ->with(['type:id,name', 'zone:id,name'])
             ->whereNull('archived_at')
+            ->whereNotNull('airbnb_enabled_at')
             ->when(
                 ! $request->boolean('include_claimed'),
                 fn (Builder $query) => $query->whereNull('airbnb_managed_at'),
             )
             ->whereNotIn('status', [Property::STATUS_OCCUPIED, Property::STATUS_RENTED])
             ->whereNull('tenant_id')
-            ->whereDoesntHave('charges', fn (Builder $query) => $query->whereIn('status', [
-                Charge::STATUS_PENDING,
-                Charge::STATUS_PARTIAL,
-                Charge::STATUS_IN_VALIDATION,
-            ]))
+            ->whereDoesntHave('charges', fn (Builder $query) => $query
+                ->whereIn('status', $this->openChargeStatuses())
+                ->orWhereHas('payments', fn (Builder $paymentQuery) => $paymentQuery->whereIn('status', $this->openPaymentStatuses())))
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $inner) use ($search): void {
                     $like = "%{$search}%";
@@ -77,12 +77,17 @@ class AirbnbIntegrationController extends Controller
             if (filled($locked->airbnb_external_property_id)) {
                 Property::withoutEvents(function () use ($locked, $validated): void {
                     $locked->forceFill([
+                        'airbnb_enabled_at' => $locked->airbnb_enabled_at ?: now(),
                         'airbnb_external_property_code' => $validated['external_property_code'] ?? $locked->airbnb_external_property_code,
                         'airbnb_external_property_name' => $validated['external_property_name'] ?? $locked->airbnb_external_property_name,
                     ])->save();
                 });
 
                 return $locked;
+            }
+
+            if (! $locked->airbnb_enabled_at) {
+                abort(422, 'La propiedad no está habilitada para administrarse por Airbnb.');
             }
 
             if ($locked->tenant_id) {
@@ -93,21 +98,22 @@ class AirbnbIntegrationController extends Controller
                 abort(422, 'La propiedad está ocupada o rentada y no puede reclamarse para Airbnb.');
             }
 
-            $hasOpenCharges = $locked->charges()
-                ->whereIn('status', [
-                    Charge::STATUS_PENDING,
-                    Charge::STATUS_PARTIAL,
-                    Charge::STATUS_IN_VALIDATION,
-                ])
+            $hasOpenPayments = $locked->charges()
+                ->where(function (Builder $query): void {
+                    $query
+                        ->whereIn('status', $this->openChargeStatuses())
+                        ->orWhereHas('payments', fn (Builder $paymentQuery) => $paymentQuery->whereIn('status', $this->openPaymentStatuses()));
+                })
                 ->exists();
 
-            if ($hasOpenCharges) {
+            if ($hasOpenPayments) {
                 abort(422, 'La propiedad tiene cobranza abierta y no puede reclamarse para Airbnb.');
             }
 
             Property::withoutEvents(function () use ($locked, $validated): void {
                 $locked->forceFill([
                     'status' => Property::STATUS_BLOCKED,
+                    'airbnb_enabled_at' => $locked->airbnb_enabled_at ?: now(),
                     'airbnb_managed_at' => now(),
                     'airbnb_external_property_id' => $validated['external_property_id'],
                     'airbnb_external_property_code' => $validated['external_property_code'] ?? null,
@@ -143,7 +149,7 @@ class AirbnbIntegrationController extends Controller
             Property::withoutEvents(function () use ($locked): void {
                 $locked->forceFill([
                     'status' => $locked->status === Property::STATUS_BLOCKED
-                        ? Property::STATUS_AVAILABLE
+                        ? ($locked->airbnb_enabled_at ? Property::STATUS_BLOCKED : Property::STATUS_AVAILABLE)
                         : $locked->status,
                     'airbnb_managed_at' => null,
                     'airbnb_external_property_id' => null,
@@ -214,10 +220,30 @@ class AirbnbIntegrationController extends Controller
             'type' => $property->type?->name,
             'zone' => $property->zone?->name ?: $property->zone_text,
             'monthly_rent_price' => $property->monthly_rent_price,
+            'airbnb_enabled_at' => $property->airbnb_enabled_at?->toISOString(),
             'airbnb_managed_at' => $property->airbnb_managed_at?->toISOString(),
             'airbnb_external_property_id' => $property->airbnb_external_property_id,
             'airbnb_external_property_code' => $property->airbnb_external_property_code,
             'airbnb_external_property_name' => $property->airbnb_external_property_name,
+        ];
+    }
+
+    /** @return array<int, string> */
+    private function openChargeStatuses(): array
+    {
+        return [
+            Charge::STATUS_PENDING,
+            Charge::STATUS_PARTIAL,
+            Charge::STATUS_IN_VALIDATION,
+        ];
+    }
+
+    /** @return array<int, string> */
+    private function openPaymentStatuses(): array
+    {
+        return [
+            ChargePayment::STATUS_PENDING,
+            ChargePayment::STATUS_PENDING_VALIDATION,
         ];
     }
 }

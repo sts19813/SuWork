@@ -2142,6 +2142,99 @@ class PropertyModuleTest extends TestCase
         $this->assertNull($property->fresh()->tenant_id);
     }
 
+    public function test_property_can_be_enabled_for_airbnb_and_removes_tenant(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa Airbnb', 'slug' => 'casa-airbnb', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Playa Airbnb', 'slug' => 'playa-airbnb', 'is_active' => true]);
+        $tenant = Tenant::create([
+            'full_name' => 'Inquilino Airbnb',
+            'phone_primary' => '9991112233',
+            'dossier_status' => Tenant::DOSSIER_COMPLETE,
+            'is_active' => true,
+        ]);
+        $property = Property::create([
+            'internal_name' => 'Casa para Airbnb',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Airbnb 1',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+            'contract_starts_at' => now()->subMonth()->toDateString(),
+            'contract_expires_at' => now()->addMonth()->toDateString(),
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertSee('Administrar por Airbnb');
+
+        $this->actingAs($user)
+            ->from(route('properties.show', $property).'#tab-airbnb')
+            ->patch(route('properties.update.airbnb', $property), ['airbnb_enabled' => '1'])
+            ->assertRedirect(route('properties.show', $property).'#tab-airbnb')
+            ->assertSessionHas('success', 'La propiedad quedó bloqueada y disponible para administrarse por Airbnb.');
+
+        $property->refresh();
+
+        $this->assertSame(Property::STATUS_BLOCKED, $property->status);
+        $this->assertNull($property->tenant_id);
+        $this->assertNull($property->current_tenant_name);
+        $this->assertNull($property->contract_starts_at);
+        $this->assertNull($property->contract_expires_at);
+        $this->assertNotNull($property->airbnb_enabled_at);
+    }
+
+    public function test_property_cannot_be_enabled_for_airbnb_with_pending_charges(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa Airbnb Pendiente', 'slug' => 'casa-airbnb-pendiente', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Playa Airbnb Pendiente', 'slug' => 'playa-airbnb-pendiente', 'is_active' => true]);
+        $tenant = Tenant::create([
+            'full_name' => 'Inquilino Con Cargo',
+            'phone_primary' => '9991112233',
+            'dossier_status' => Tenant::DOSSIER_COMPLETE,
+            'is_active' => true,
+        ]);
+        $property = Property::create([
+            'internal_name' => 'Casa Airbnb con cargo',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Airbnb 2',
+            'status' => Property::STATUS_OCCUPIED,
+            'tenant_id' => $tenant->id,
+            'current_tenant_name' => $tenant->full_name,
+            'created_by' => $user->id,
+        ]);
+        Charge::create([
+            'property_id' => $property->id,
+            'tenant_id' => $tenant->id,
+            'type' => Charge::TYPE_RENT,
+            'due_date' => now()->toDateString(),
+            'amount' => 1000,
+            'paid_amount' => 0,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+            'concept' => 'Renta pendiente',
+            'status' => Charge::STATUS_PENDING,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('properties.show', $property).'#tab-airbnb')
+            ->patch(route('properties.update.airbnb', $property), ['airbnb_enabled' => '1'])
+            ->assertRedirect(route('properties.show', $property).'#tab-airbnb')
+            ->assertSessionHas('warning', 'No es posible administrar por Airbnb mientras la propiedad tenga cargos o pagos pendientes, parciales o en validación.');
+
+        $property->refresh();
+
+        $this->assertSame(Property::STATUS_OCCUPIED, $property->status);
+        $this->assertSame($tenant->id, $property->tenant_id);
+        $this->assertNull($property->airbnb_enabled_at);
+    }
+
     public function test_tenant_controls_remain_visible_and_block_changes_when_property_has_pending_charges(): void
     {
         $user = User::factory()->create();
