@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class AirbnbIntegrationController extends Controller
 {
@@ -30,6 +29,7 @@ class AirbnbIntegrationController extends Controller
                 ! $request->boolean('include_claimed'),
                 fn (Builder $query) => $query->whereNull('airbnb_managed_at'),
             )
+            ->whereNotIn('status', [Property::STATUS_OCCUPIED, Property::STATUS_RENTED])
             ->whereNull('tenant_id')
             ->whereDoesntHave('charges', fn (Builder $query) => $query->whereIn('status', [
                 Charge::STATUS_PENDING,
@@ -87,6 +87,10 @@ class AirbnbIntegrationController extends Controller
 
             if ($locked->tenant_id) {
                 abort(422, 'La propiedad tiene un inquilino asignado y no puede reclamarse para Airbnb.');
+            }
+
+            if (in_array($locked->status, [Property::STATUS_OCCUPIED, Property::STATUS_RENTED], true)) {
+                abort(422, 'La propiedad está ocupada o rentada y no puede reclamarse para Airbnb.');
             }
 
             $hasOpenCharges = $locked->charges()
