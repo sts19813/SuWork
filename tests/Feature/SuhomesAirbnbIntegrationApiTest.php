@@ -36,13 +36,15 @@ class SuhomesAirbnbIntegrationApiTest extends TestCase
         $property = $this->createProperty('Casa Disponible');
         $occupied = $this->createProperty('Casa Ocupada');
         $occupiedWithoutTenant = $this->createProperty('Casa Marcada Ocupada');
+        $notEnabled = $this->createProperty('Casa Sin Airbnb');
         $tenant = Tenant::query()->create([
             'full_name' => 'Inquilino Uno',
             'phone_primary' => '9991112233',
             'is_active' => true,
         ]);
-        $occupied->update(['tenant_id' => $tenant->id]);
-        $occupiedWithoutTenant->update(['status' => Property::STATUS_OCCUPIED]);
+        $property->update(['airbnb_enabled_at' => now()]);
+        $occupied->update(['airbnb_enabled_at' => now(), 'tenant_id' => $tenant->id]);
+        $occupiedWithoutTenant->update(['airbnb_enabled_at' => now(), 'status' => Property::STATUS_OCCUPIED]);
 
         $token = $this->airbnbToken();
 
@@ -51,7 +53,8 @@ class SuhomesAirbnbIntegrationApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.uuid', $property->uuid)
             ->assertJsonMissing(['uuid' => $occupied->uuid])
-            ->assertJsonMissing(['uuid' => $occupiedWithoutTenant->uuid]);
+            ->assertJsonMissing(['uuid' => $occupiedWithoutTenant->uuid])
+            ->assertJsonMissing(['uuid' => $notEnabled->uuid]);
 
         $this->withToken($token)
             ->postJson("/api/internal/airbnb/properties/{$property->uuid}/claim", [
@@ -64,6 +67,7 @@ class SuhomesAirbnbIntegrationApiTest extends TestCase
             ->assertJsonPath('data.status', Property::STATUS_BLOCKED);
 
         $property->refresh();
+        $this->assertNotNull($property->airbnb_enabled_at);
         $this->assertNotNull($property->airbnb_managed_at);
         $this->assertSame('airbnb-property-1', $property->airbnb_external_property_id);
 
@@ -73,16 +77,27 @@ class SuhomesAirbnbIntegrationApiTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('data.airbnb_external_property_id', null)
-            ->assertJsonPath('data.status', Property::STATUS_AVAILABLE);
+            ->assertJsonPath('data.status', Property::STATUS_BLOCKED);
+    }
+
+    public function test_claim_rejects_properties_that_are_not_enabled_for_airbnb(): void
+    {
+        $property = $this->createProperty('Casa Sin Activar');
+
+        $this->withToken($this->airbnbToken())
+            ->postJson("/api/internal/airbnb/properties/{$property->uuid}/claim", [
+                'external_property_id' => 'airbnb-property-disabled',
+            ])
+            ->assertUnprocessable();
     }
 
     public function test_claim_rejects_properties_marked_as_occupied_or_rented(): void
     {
         $occupied = $this->createProperty('Casa Ocupada');
-        $occupied->update(['status' => Property::STATUS_OCCUPIED]);
+        $occupied->update(['airbnb_enabled_at' => now(), 'status' => Property::STATUS_OCCUPIED]);
 
         $rented = $this->createProperty('Casa Rentada');
-        $rented->update(['status' => Property::STATUS_RENTED]);
+        $rented->update(['airbnb_enabled_at' => now(), 'status' => Property::STATUS_RENTED]);
         $token = $this->airbnbToken();
 
         $this->withToken($token)
@@ -101,6 +116,7 @@ class SuhomesAirbnbIntegrationApiTest extends TestCase
     public function test_claim_rejects_properties_with_open_charges(): void
     {
         $property = $this->createProperty('Casa con Cobranza');
+        $property->update(['airbnb_enabled_at' => now(), 'status' => Property::STATUS_BLOCKED]);
         $tenant = Tenant::query()->create([
             'full_name' => 'Inquilino Cargo',
             'phone_primary' => '9991112233',

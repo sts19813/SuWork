@@ -624,6 +624,12 @@
                                 Gastos
                             </button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-airbnb-tab" data-bs-toggle="tab" data-bs-target="#tab-airbnb"
+                                type="button" role="tab" aria-controls="tab-airbnb" aria-selected="false">
+                                Administrar por Airbnb
+                            </button>
+                        </li>
                     @endunless
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="tab-maintenance-tab" data-bs-toggle="tab" data-bs-target="#tab-maintenance"
@@ -1447,6 +1453,67 @@
                     </div>
 
                     @include('expenses.partials.property-tab')
+
+                    <div class="tab-pane fade property-tab-pane" id="tab-airbnb" role="tabpanel"
+                        aria-labelledby="tab-airbnb-tab">
+                        <div class="card property-block-card">
+                            <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h3 class="card-title fw-bold mb-1">Administrar por Airbnb</h3>
+                                    <div class="text-muted fs-7">
+                                        {{ $property->airbnb_enabled_at ? 'Activa desde '.$property->airbnb_enabled_at->format('d/m/Y H:i') : 'Inactiva' }}
+                                    </div>
+                                </div>
+                                <span class="badge {{ $property->airbnb_managed_at ? 'badge-light-success text-success' : ($property->airbnb_enabled_at ? 'badge-light-warning text-warning' : 'badge-light-secondary text-gray-700') }}">
+                                    {{ $property->airbnb_managed_at ? 'Enlazada' : ($property->airbnb_enabled_at ? 'Lista para Airbnb' : 'Sin activar') }}
+                                </span>
+                            </div>
+                            <div class="card-body pt-0">
+                                <div class="row g-6 align-items-start">
+                                    <div class="col-lg-7">
+                                        <form method="POST" action="{{ route('properties.update.airbnb', $property) }}"
+                                            class="border rounded p-5 js-airbnb-management-form"
+                                            data-has-tenant="{{ $property->tenant_id ? 'true' : 'false' }}"
+                                            data-tenant-name="{{ $property->tenant?->full_name ?: ($property->current_tenant_name ?: 'el inquilino actual') }}"
+                                            data-has-pending-payments="{{ $propertyHasPendingPayments ? 'true' : 'false' }}"
+                                            data-blocked-message="{{ $airbnbEnableBlockedMessage }}">
+                                            @csrf
+                                            @method('PATCH')
+
+                                            <div class="form-check form-switch form-check-custom form-check-solid mb-4">
+                                                <input type="hidden" name="airbnb_enabled" value="0">
+                                                <input class="form-check-input" type="checkbox" value="1" name="airbnb_enabled"
+                                                    id="airbnb_enabled" @checked($property->airbnb_enabled_at) @disabled($property->airbnb_external_property_id)>
+                                                <label class="form-check-label fw-semibold" for="airbnb_enabled">
+                                                    Administrar esta propiedad por Airbnb
+                                                </label>
+                                            </div>
+
+                                            <div class="text-muted fs-7 mb-5">
+                                                Al activar, la propiedad se bloquea y queda sin inquilino asignado.
+                                            </div>
+                                        </form>
+                                    </div>
+                                    <div class="col-lg-5">
+                                        <div class="border rounded p-5 h-100">
+                                            <div class="property-value-label">Propiedad Airbnb</div>
+                                            <div class="property-value-content mb-4">
+                                                {{ $property->airbnb_external_property_name ?: '-' }}
+                                            </div>
+                                            <div class="property-value-label">Código</div>
+                                            <div class="property-value-content mb-4">
+                                                {{ $property->airbnb_external_property_code ?: '-' }}
+                                            </div>
+                                            <div class="property-value-label">ID externo</div>
+                                            <div class="property-value-content text-break">
+                                                {{ $property->airbnb_external_property_id ?: '-' }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     @endunless
 
                     <div class="tab-pane fade property-tab-pane" id="tab-maintenance" role="tabpanel"
@@ -2134,6 +2201,61 @@
                     if (forceInput) {
                         forceInput.value = '1';
                     }
+                    form.submit();
+                });
+            });
+
+            document.querySelectorAll('.js-airbnb-management-form').forEach((form) => {
+                const checkbox = form.querySelector('input[name="airbnb_enabled"][type="checkbox"]');
+                if (!checkbox) {
+                    return;
+                }
+
+                checkbox.addEventListener('change', async () => {
+                    const enabling = checkbox.checked;
+
+                    if (!enabling) {
+                        form.submit();
+                        return;
+                    }
+
+                    if (form.dataset.hasPendingPayments === 'true') {
+                        checkbox.checked = false;
+                        const message = form.dataset.blockedMessage || 'No es posible activar Airbnb con cobranza pendiente.';
+                        if (window.Swal?.fire) {
+                            await window.Swal.fire({
+                                title: 'Cobranza pendiente',
+                                text: message,
+                                icon: 'warning',
+                                confirmButtonText: 'Entendido',
+                            });
+                        } else {
+                            window.alert(message);
+                        }
+                        return;
+                    }
+
+                    if (form.dataset.hasTenant === 'true') {
+                        const tenantName = form.dataset.tenantName || 'el inquilino actual';
+                        const message = `Se removerá a ${tenantName} y la propiedad quedará bloqueada para Airbnb.`;
+                        const confirmed = window.Swal?.fire
+                            ? (await window.Swal.fire({
+                                title: 'Administrar por Airbnb',
+                                text: message,
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonText: 'Sí, activar',
+                                cancelButtonText: 'Cancelar',
+                                reverseButtons: true,
+                            })).isConfirmed
+                            : window.confirm(`${message} ¿Continuar?`);
+
+                        if (!confirmed) {
+                            checkbox.checked = false;
+                            return;
+                        }
+                    }
+
                     form.submit();
                 });
             });
