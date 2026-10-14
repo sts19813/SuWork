@@ -30,6 +30,8 @@ class AccessControlSeeder extends Seeder
             'editar gastos tickets',
             'eliminar gastos tickets',
             'Ver almacén',
+            'mantenimiento.consultar_tickets',
+            'mantenimiento.validar_tickets',
         ];
 
         $permissions = collect($permissionNames)
@@ -56,6 +58,15 @@ class AccessControlSeeder extends Seeder
         Role::query()->firstOrCreate([
             'name' => 'proveedor',
             'guard_name' => 'web',
+        ]);
+
+        $reviewerRole = Role::query()->firstOrCreate([
+            'name' => 'revisor de tickets',
+            'guard_name' => 'web',
+        ]);
+        $reviewerRole->syncPermissions([
+            Permission::findOrCreate('mantenimiento.consultar_tickets', 'web'),
+            Permission::findOrCreate('mantenimiento.validar_tickets', 'web'),
         ]);
 
         $advisorRole = Role::query()->firstOrCreate([

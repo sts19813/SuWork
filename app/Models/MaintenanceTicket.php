@@ -196,6 +196,11 @@ class MaintenanceTicket extends Model
         return $this->hasMany(MaintenanceTicketCost::class, 'ticket_id');
     }
 
+    public function ticketValidation(): HasOne
+    {
+        return $this->hasOne(MaintenanceTicketValidation::class, 'ticket_id');
+    }
+
     public function cutItem(): HasOne
     {
         return $this->hasOne(MaintenanceCutItem::class, 'ticket_id');

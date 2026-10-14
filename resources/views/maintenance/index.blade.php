@@ -37,11 +37,13 @@
             $roleTitle = match ($role) {
                 'inquilino' => 'Mis reportes de mantenimiento',
                 'tecnico' => 'Mis tickets asignados',
+                'revisor_tickets' => 'Revisión de tickets',
                 default => 'Mantenimiento',
             };
             $roleSubtitle = match ($role) {
                 'inquilino' => 'Consulta tus tickets y levanta nuevos reportes para tus propiedades asignadas.',
                 'tecnico' => 'Agenda de campo, evidencias, estados y comunicación del ticket.',
+                'revisor_tickets' => 'Consulta importes y comprobantes; sólo puedes registrar la validación de cada ticket.',
                 default => 'Operación diaria de tickets, técnicos, propiedades y visitas programadas.',
             };
 
@@ -80,7 +82,7 @@
                     </div>
                 </div>
                 <div class="maintenance-actions">
-                    @if (!$isTenant)
+                    @if (!$isTenant && !($isTicketReviewer ?? false))
                         @if ($canManageProviders)
                             <a class="maintenance-soft-btn" href="{{ route('maintenance.technicians.index') }}">
                                 <i class="bi bi-person-gear"></i> Técnicos
@@ -100,7 +102,7 @@
 
            
 
-            @if (!$isTenant)
+            @if (!$isTenant && !($isTicketReviewer ?? false))
                 <div class="maintenance-kpi-strip">
                     @foreach ($kpis as $kpi)
                         <div class="maintenance-kpi">
@@ -163,34 +165,39 @@
                 </form>
             </div>
 
-            <div class="maintenance-tabs">
-                <a class="maintenance-tab {{ $activeTab === 'activos' ? 'active' : '' }}"
-                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'urgent_page', 'scheduled_page', 'unscheduled_page', 'unassigned_page', 'tab']), ['tab' => 'activos'])) }}">
-                    Activos
-                </a>
-                <a class="maintenance-tab {{ $activeTab === 'completados' ? 'active' : '' }}"
-                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'urgent_page', 'scheduled_page', 'unscheduled_page', 'unassigned_page', 'tab']), ['tab' => 'completados'])) }}">
-                    Completados
-                </a>
-                <a class="maintenance-tab {{ $activeTab === 'cancelados' ? 'active' : '' }}"
-                    href="{{ route('maintenance.index', array_merge(request()->except(['page', 'urgent_page', 'scheduled_page', 'unscheduled_page', 'unassigned_page', 'tab']), ['tab' => 'cancelados'])) }}">
-                    Cancelados
-                </a>
-            </div>
+            @if (!($isTicketReviewer ?? false))
+                <div class="maintenance-tabs">
+                    <a class="maintenance-tab {{ $activeTab === 'activos' ? 'active' : '' }}"
+                        href="{{ route('maintenance.index', array_merge(request()->except(['page', 'urgent_page', 'scheduled_page', 'unscheduled_page', 'unassigned_page', 'tab']), ['tab' => 'activos'])) }}">
+                        Activos
+                    </a>
+                    <a class="maintenance-tab {{ $activeTab === 'completados' ? 'active' : '' }}"
+                        href="{{ route('maintenance.index', array_merge(request()->except(['page', 'urgent_page', 'scheduled_page', 'unscheduled_page', 'unassigned_page', 'tab']), ['tab' => 'completados'])) }}">
+                        Completados
+                    </a>
+                    <a class="maintenance-tab {{ $activeTab === 'cancelados' ? 'active' : '' }}"
+                        href="{{ route('maintenance.index', array_merge(request()->except(['page', 'urgent_page', 'scheduled_page', 'unscheduled_page', 'unassigned_page', 'tab']), ['tab' => 'cancelados'])) }}">
+                        Cancelados
+                    </a>
+                </div>
+            @endif
 
-            <div class="maintenance-layout {{ $isTenant ? 'maintenance-layout-single' : '' }}">
+            <div class="maintenance-layout {{ ($isTenant || ($isTicketReviewer ?? false)) ? 'maintenance-layout-single' : '' }}">
                 <div id="maintenance-results" data-maintenance-results>
                 <div class="maintenance-worklist">
                     <div class="maintenance-panel">
                         <div class="maintenance-list-toolbar">
                             <div>
-                                <div class="maintenance-list-title">{{ $isTenant ? 'Tus tickets' : 'Lista operativa' }}</div>
+                                <div class="maintenance-list-title">{{ ($isTicketReviewer ?? false) ? 'Tickets por revisar' : ($isTenant ? 'Tus tickets' : 'Lista operativa') }}</div>
                                 <div class="maintenance-list-count">
                                     Mostrando {{ $visibleTicketsCount }} de {{ $visibleTicketsTotal }} tickets
                                 </div>
                             </div>
                             @if ($hasSearchContext)
                                 <span class="maintenance-chip maintenance-chip-blue">Búsqueda activa</span>
+                            @endif
+                            @if (($isTicketReviewer ?? false) && $reviewerDateRange)
+                                <span class="maintenance-chip maintenance-chip-neutral">Rango: {{ $reviewerDateRange[0]->format('d/m/Y') }}–{{ $reviewerDateRange[1]->format('d/m/Y') }}</span>
                             @endif
                         </div>
                     </div>
@@ -215,6 +222,21 @@
                         @enderror
                     @endif
 
+                    @if ($canValidateTickets ?? false)
+                        <form id="maintenanceValidationForm" class="maintenance-group-form" method="POST" action="{{ route('maintenance.validate') }}">
+                            @csrf
+                            @method('PATCH')
+                            <div class="maintenance-group-name">
+                                <span>Validación de gastos</span>
+                                <small class="text-muted">Selecciona los tickets cuyos importes y comprobantes ya verificaste.</small>
+                            </div>
+                            <button class="maintenance-primary-btn" type="submit"><i class="bi bi-check2-square"></i> Marcar como validados</button>
+                        </form>
+                        @error('ticket_uuids')
+                            <div class="alert alert-danger mb-0">{{ $message }}</div>
+                        @enderror
+                    @endif
+
                     @forelse ($ticketTables as $bucketKey => $table)
                         @php
                             $bucketTickets = $table['tickets'];
@@ -235,8 +257,8 @@
                                 </div>
                                 <span class="maintenance-chip maintenance-chip-neutral ms-auto">{{ $bucketTotal }}</span>
                             </div>
-                            <div class="maintenance-list-header {{ $canBulkGroupTickets ? 'is-groupable' : '' }}">
-                                @if ($canBulkGroupTickets)
+                            <div class="maintenance-list-header {{ ($canBulkGroupTickets || ($canValidateTickets ?? false)) ? 'is-groupable' : '' }}">
+                                @if ($canBulkGroupTickets || ($canValidateTickets ?? false))
                                     <span></span>
                                 @endif
                                 <span></span>
@@ -256,7 +278,7 @@
                                         ->take(2)
                                         ->implode('');
                                 @endphp
-                                <div class="maintenance-ticket-row {{ $canBulkGroupTickets ? 'is-groupable' : '' }}" role="link" tabindex="0" data-maintenance-row-url="{{ route('maintenance.show', $ticket) }}">
+                                <div class="maintenance-ticket-row {{ ($canBulkGroupTickets || ($canValidateTickets ?? false)) ? 'is-groupable' : '' }}" role="link" tabindex="0" data-maintenance-row-url="{{ route('maintenance.show', $ticket) }}">
                                     <span class="maintenance-priority-bar maintenance-priority-{{ $ticket->priority }}"></span>
                                     @if ($canBulkGroupTickets)
                                         <span class="maintenance-group-check" data-maintenance-row-action>
@@ -265,6 +287,15 @@
                                                     form="maintenanceGroupForm" aria-label="Seleccionar ticket {{ $ticket->display_reference }}">
                                             @else
                                                 <i class="bi bi-lock text-muted" title="Ticket no disponible para agrupar"></i>
+                                            @endif
+                                        </span>
+                                    @elseif ($canValidateTickets ?? false)
+                                        <span class="maintenance-group-check" data-maintenance-row-action>
+                                            @if ($ticket->ticketValidation)
+                                                <i class="bi bi-check-circle-fill text-success" title="Validado"></i>
+                                            @else
+                                                <input class="form-check-input" type="checkbox" name="ticket_uuids[]" value="{{ $ticket->uuid }}"
+                                                    form="maintenanceValidationForm" aria-label="Validar ticket {{ $ticket->display_reference }}">
                                             @endif
                                         </span>
                                     @endif
@@ -408,6 +439,11 @@
                                                 <i class="bi bi-check-circle-fill me-1"></i> Pagado
                                             </span>
                                         @endif
+                                        @if ($ticket->ticketValidation)
+                                            <span class="maintenance-chip maintenance-chip-green mt-1" title="{{ $ticket->ticketValidation->validatedBy?->name }} · {{ $ticket->ticketValidation->validated_at?->format('d/m/Y H:i') }}">
+                                                <i class="bi bi-patch-check-fill me-1"></i> Validado
+                                            </span>
+                                        @endif
                                         @if ($ticket->master_ticket_id)
                                             <span class="maintenance-chip maintenance-chip-blue mt-1">
                                                 <i class="bi bi-diagram-3 me-1"></i> Agrupado
@@ -444,7 +480,7 @@
                 </div>
                 </div>
 
-                @if (!$isTenant)
+                @if (!$isTenant && !($isTicketReviewer ?? false))
                     <aside class="maintenance-side">
                         <div class="maintenance-side-panel">
                             <h3 class="maintenance-panel-title">Agenda del equipo</h3>

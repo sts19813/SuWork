@@ -122,6 +122,11 @@
                             <span class="maintenance-chip maintenance-chip-{{ $priorityTone }}">
                                 {{ $priorityOptions[$ticket->priority] ?? $ticket->priority }}
                             </span>
+                            @if ($ticket->ticketValidation)
+                                <span class="maintenance-chip maintenance-chip-green" title="{{ $ticket->ticketValidation->validatedBy?->name }} · {{ $ticket->ticketValidation->validated_at?->format('d/m/Y H:i') }}">
+                                    <i class="bi bi-patch-check-fill me-1"></i> Validado
+                                </span>
+                            @endif
                             <span class="maintenance-chip maintenance-chip-neutral">
                                 {{ $categoryOptions[$ticket->category] ?? $ticket->category }}
                             </span>

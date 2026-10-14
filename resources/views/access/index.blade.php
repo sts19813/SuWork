@@ -55,6 +55,24 @@
             const moduleSelector = '#access-module';
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
+            const bindReviewerAccessSettings = () => {
+                document.querySelectorAll('[data-reviewer-access-settings]').forEach((settings) => {
+                    const form = settings.closest('form');
+                    const reviewerRole = form?.querySelector('input[name="role_names[]"][value="revisor de tickets"]');
+                    const rangeType = settings.querySelector('[data-reviewer-range-type]');
+                    const sync = () => {
+                        const enabled = Boolean(reviewerRole?.checked);
+                        settings.classList.toggle('d-none', !enabled);
+                        const isCustom = rangeType?.value === 'custom';
+                        settings.querySelectorAll('[data-reviewer-relative-field]').forEach((field) => field.classList.toggle('d-none', isCustom));
+                        settings.querySelectorAll('[data-reviewer-custom-field]').forEach((field) => field.classList.toggle('d-none', !isCustom));
+                    };
+                    reviewerRole?.addEventListener('change', sync);
+                    rangeType?.addEventListener('change', sync);
+                    sync();
+                });
+            };
+
             const showToast = (type, message) => {
                 if (window.SuWorkToast?.fire) {
                     window.SuWorkToast.fire(type, message);
@@ -168,9 +186,13 @@
                 }
                 window.history.replaceState({}, '', url.toString());
                 initTables();
+                bindReviewerAccessSettings();
             };
 
-            document.addEventListener('DOMContentLoaded', initTables);
+            document.addEventListener('DOMContentLoaded', () => {
+                initTables();
+                bindReviewerAccessSettings();
+            });
 
             document.addEventListener('shown.bs.tab', (event) => {
                 const tab = event.target?.dataset?.tabKey;

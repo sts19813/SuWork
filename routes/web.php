@@ -33,11 +33,12 @@ Route::get('/', function () {
         $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
         $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
         $isProvider = $user->hasRole('proveedor') || $user->hasRole('provider');
+        $isTicketReviewer = $user->hasRole('revisor de tickets');
         $isAdmin = $user->hasRole('administrador') || $user->hasRole('admin');
         $isAdvisor = ! $isAdmin && ($user->hasRole('asesores') || $user->hasRole('asesor') || $user->can('propiedades.ver_propias'));
 
         return redirect()->route(match (true) {
-            $isTenant || $isTechnician || $isProvider => 'maintenance.index',
+            $isTenant || $isTechnician || $isProvider || $isTicketReviewer => 'maintenance.index',
             $isAdvisor => 'advisor.tasks.index',
             default => 'dashboard',
         });
@@ -55,7 +56,7 @@ Route::post('/stripe/webhook', [ChargePaymentController::class, 'webhook'])
     ->name('stripe.webhook')
     ->withoutMiddleware([ValidateCsrfToken::class]);
 
-Route::middleware(['auth', 'system.access', 'provider.operational'])
+Route::middleware(['auth', 'system.access', 'provider.operational', 'reviewer.restricted'])
     ->group(function () {
         Route::get('/perfil', [ProfileController::class, 'index'])->name('profile.index');
         Route::post('/perfil/actualizar', [ProfileController::class, 'update'])->name('profile.index.update');
@@ -206,6 +207,7 @@ Route::middleware(['auth', 'system.access', 'provider.operational'])
         Route::delete('/gastos/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
 
         Route::get('/mantenimiento', [MaintenanceController::class, 'index'])->name('maintenance.index');
+        Route::patch('/mantenimiento/validar', [MaintenanceController::class, 'validateTickets'])->name('maintenance.validate');
         Route::get('/mantenimiento/cortes', [MaintenanceCutController::class, 'index'])->name('maintenance-cuts.index');
         Route::post('/mantenimiento/cortes', [MaintenanceCutController::class, 'store'])->name('maintenance-cuts.store');
         Route::post('/mantenimiento', [MaintenanceController::class, 'store'])->name('maintenance.store');
