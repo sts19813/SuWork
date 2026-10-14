@@ -34,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'system.access' => \App\Http\Middleware\EnsureUserHasSystemAccess::class,
             'storage.access' => \App\Http\Middleware\EnsureStorageAccess::class,
             'provider.operational' => \App\Http\Middleware\RestrictProviderToOperations::class,
+            'reviewer.restricted' => \App\Http\Middleware\RestrictTicketReviewerToMaintenance::class,
             'property.visible' => \App\Http\Middleware\EnsurePropertyIsVisible::class,
             'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
         ]);

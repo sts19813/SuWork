@@ -15,19 +15,24 @@
         default => 'neutral',
     };
     $canBulkGroupTickets = ($canGroupTickets ?? false) && in_array($activeTab ?? '', ['activos', 'completados'], true);
+    $canBulkValidateTickets = (bool) ($canValidateTickets ?? false);
+    $hasBulkTicketAction = $canBulkGroupTickets || $canBulkValidateTickets;
 @endphp
 
 <div class="maintenance-worklist">
     <div class="maintenance-panel">
         <div class="maintenance-list-toolbar">
             <div>
-                <div class="maintenance-list-title">{{ $isTenant ? 'Tus tickets' : 'Lista operativa' }}</div>
+                <div class="maintenance-list-title">{{ ($isTicketReviewer ?? false) ? 'Tickets por revisar' : ($isTenant ? 'Tus tickets' : 'Lista operativa') }}</div>
                 <div class="maintenance-list-count">
                     Mostrando {{ $visibleTicketsCount }} de {{ $visibleTicketsTotal }} tickets
                 </div>
             </div>
             @if ($search || $selectedProperty || $status || $priority || $category || $dateFrom || $dateTo)
                 <span class="maintenance-chip maintenance-chip-blue">Búsqueda activa</span>
+            @endif
+            @if (($isTicketReviewer ?? false) && $reviewerDateRange)
+                <span class="maintenance-chip maintenance-chip-neutral">Rango: {{ $reviewerDateRange[0]->format('d/m/Y') }}–{{ $reviewerDateRange[1]->format('d/m/Y') }}</span>
             @endif
         </div>
     </div>
@@ -52,6 +57,23 @@
         @enderror
     @endif
 
+    @if ($canBulkValidateTickets)
+        <form id="maintenanceValidationForm" class="maintenance-group-form" method="POST" action="{{ route('maintenance.validate') }}">
+            @csrf
+            @method('PATCH')
+            <div class="maintenance-group-name">
+                <span>Validación de gastos</span>
+                <small class="text-muted">Selecciona los tickets cuyos importes y comprobantes ya verificaste.</small>
+            </div>
+            <button class="maintenance-primary-btn" type="submit">
+                <i class="bi bi-check2-square"></i> Marcar como validados
+            </button>
+        </form>
+        @error('ticket_uuids')
+            <div class="alert alert-danger mb-0">{{ $message }}</div>
+        @enderror
+    @endif
+
     @forelse ($ticketTables as $bucketKey => $table)
         @php
             $bucketTickets = $table['tickets'];
@@ -72,8 +94,8 @@
                 </div>
                 <span class="maintenance-chip maintenance-chip-neutral ms-auto">{{ $bucketTotal }}</span>
             </div>
-            <div class="maintenance-list-header {{ $canBulkGroupTickets ? 'is-groupable' : '' }}">
-                @if ($canBulkGroupTickets)
+            <div class="maintenance-list-header {{ $hasBulkTicketAction ? 'is-groupable' : '' }}">
+                @if ($hasBulkTicketAction)
                     <span></span>
                 @endif
                 <span></span>
@@ -93,7 +115,7 @@
                         ->take(2)
                         ->implode('');
                 @endphp
-                <div class="maintenance-ticket-row {{ $canBulkGroupTickets ? 'is-groupable' : '' }}" role="link" tabindex="0" data-maintenance-row-url="{{ route('maintenance.show', $ticket) }}">
+                <div class="maintenance-ticket-row {{ $hasBulkTicketAction ? 'is-groupable' : '' }}" role="link" tabindex="0" data-maintenance-row-url="{{ route('maintenance.show', $ticket) }}">
                     <span class="maintenance-priority-bar maintenance-priority-{{ $ticket->priority }}"></span>
                     @if ($canBulkGroupTickets)
                         <span class="maintenance-group-check" data-maintenance-row-action>
@@ -102,6 +124,15 @@
                                     form="maintenanceGroupForm" aria-label="Seleccionar ticket {{ $ticket->display_reference }}">
                             @else
                                 <i class="bi bi-lock text-muted" title="Ticket no disponible para agrupar"></i>
+                            @endif
+                        </span>
+                    @elseif ($canBulkValidateTickets)
+                        <span class="maintenance-group-check" data-maintenance-row-action>
+                            @if ($ticket->ticketValidation)
+                                <i class="bi bi-check-circle-fill text-success" title="Validado"></i>
+                            @else
+                                <input class="form-check-input" type="checkbox" name="ticket_uuids[]" value="{{ $ticket->uuid }}"
+                                    form="maintenanceValidationForm" aria-label="Validar ticket {{ $ticket->display_reference }}">
                             @endif
                         </span>
                     @endif
@@ -243,6 +274,11 @@
                         @if ($ticket->cutItem)
                             <span class="maintenance-chip maintenance-chip-green mt-1">
                                 <i class="bi bi-check-circle-fill me-1"></i> Pagado
+                            </span>
+                        @endif
+                        @if ($ticket->ticketValidation)
+                            <span class="maintenance-chip maintenance-chip-green mt-1" title="{{ $ticket->ticketValidation->validatedBy?->name }} · {{ $ticket->ticketValidation->validated_at?->format('d/m/Y H:i') }}">
+                                <i class="bi bi-patch-check-fill me-1"></i> Validado
                             </span>
                         @endif
                         @if ($ticket->master_ticket_id)

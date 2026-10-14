@@ -96,6 +96,11 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    public function maintenanceReviewerAccess(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(MaintenanceReviewerAccess::class);
+    }
+
     public function hasSystemAccess(): bool
     {
         if (!$this->is_active) {

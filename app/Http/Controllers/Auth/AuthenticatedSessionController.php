@@ -42,16 +42,17 @@ class AuthenticatedSessionController extends Controller
         $isTenant = $user->hasRole('inquilino') || $user->hasRole('tenant');
         $isTechnician = $user->hasRole('tecnico') || $user->hasRole('technician');
         $isProvider = $user->hasRole('proveedor') || $user->hasRole('provider');
+        $isTicketReviewer = $user->hasRole('revisor de tickets');
         $isAdmin = $user->hasRole('administrador') || $user->hasRole('admin');
         $isAdvisor = ! $isAdmin && ($user->hasRole('asesores') || $user->hasRole('asesor') || $user->can('propiedades.ver_propias'));
 
         $defaultRoute = match (true) {
-            $isTenant || $isTechnician || $isProvider => 'maintenance.index',
+            $isTenant || $isTechnician || $isProvider || $isTicketReviewer => 'maintenance.index',
             $isAdvisor => 'advisor.tasks.index',
             default => 'dashboard',
         };
 
-        if ($isProvider) {
+        if ($isProvider || $isTicketReviewer) {
             return redirect()->route('maintenance.index');
         }
 

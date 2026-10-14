@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\MaintenanceReviewerAccess;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -40,7 +41,13 @@ class UserAccessController extends Controller
             'role_names.*' => ['string', Rule::exists('roles', 'name')],
             'permission_names' => ['nullable', 'array'],
             'permission_names.*' => ['string', Rule::exists('permissions', 'name')],
+            'reviewer_range_type' => ['nullable', Rule::in([MaintenanceReviewerAccess::RANGE_RELATIVE, MaintenanceReviewerAccess::RANGE_CUSTOM])],
+            'reviewer_days_before' => ['nullable', 'integer', 'min:0', 'max:36500'],
+            'reviewer_days_after' => ['nullable', 'integer', 'min:0', 'max:36500'],
+            'reviewer_starts_on' => ['nullable', 'date'],
+            'reviewer_ends_on' => ['nullable', 'date', 'after_or_equal:reviewer_starts_on'],
         ]);
+        $this->ensureReviewerRangeIsComplete($validated);
 
         $user = User::query()->create([
             'name' => trim((string) $validated['name']),
@@ -50,6 +57,7 @@ class UserAccessController extends Controller
         ]);
         $user->syncRoles($validated['role_names'] ?? []);
         $user->syncPermissions($validated['permission_names'] ?? []);
+        $this->syncMaintenanceReviewerAccess($user, $validated);
 
         return $this->respond($request, 'Usuario creado correctamente.', 'users');
     }
@@ -67,7 +75,13 @@ class UserAccessController extends Controller
             'role_names.*' => ['string', Rule::exists('roles', 'name')],
             'permission_names' => ['nullable', 'array'],
             'permission_names.*' => ['string', Rule::exists('permissions', 'name')],
+            'reviewer_range_type' => ['nullable', Rule::in([MaintenanceReviewerAccess::RANGE_RELATIVE, MaintenanceReviewerAccess::RANGE_CUSTOM])],
+            'reviewer_days_before' => ['nullable', 'integer', 'min:0', 'max:36500'],
+            'reviewer_days_after' => ['nullable', 'integer', 'min:0', 'max:36500'],
+            'reviewer_starts_on' => ['nullable', 'date'],
+            'reviewer_ends_on' => ['nullable', 'date', 'after_or_equal:reviewer_starts_on'],
         ]);
+        $this->ensureReviewerRangeIsComplete($validated);
 
         $payload = [
             'name' => trim((string) $validated['name']),
@@ -81,6 +95,7 @@ class UserAccessController extends Controller
         $user->update($payload);
         $user->syncRoles($validated['role_names'] ?? []);
         $user->syncPermissions($validated['permission_names'] ?? []);
+        $this->syncMaintenanceReviewerAccess($user, $validated);
 
         return $this->respond($request, 'Usuario actualizado correctamente.', 'users');
     }
@@ -200,7 +215,7 @@ class UserAccessController extends Controller
         $permissions = Permission::query()->orderBy('name')->get();
 
         $users = User::query()
-            ->with(['roles:name,id', 'permissions:name,id'])
+            ->with(['roles:name,id', 'permissions:name,id', 'maintenanceReviewerAccess'])
             ->orderBy('name')
             ->get();
         $tenantUsers = $users
@@ -227,6 +242,46 @@ class UserAccessController extends Controller
     private function userHasTenantRole(User $user): bool
     {
         return $user->roles->contains(fn(Role $role): bool => in_array($role->name, ['inquilino', 'tenant'], true));
+    }
+
+    private function syncMaintenanceReviewerAccess(User $user, array $validated): void
+    {
+        if (! $user->hasRole('revisor de tickets')) {
+            $user->maintenanceReviewerAccess()->delete();
+
+            return;
+        }
+
+        $rangeType = (string) ($validated['reviewer_range_type'] ?? MaintenanceReviewerAccess::RANGE_RELATIVE);
+        $user->maintenanceReviewerAccess()->updateOrCreate([], [
+            'range_type' => $rangeType,
+            'days_before' => $rangeType === MaintenanceReviewerAccess::RANGE_RELATIVE
+                ? (int) ($validated['reviewer_days_before'] ?? 30)
+                : null,
+            'days_after' => $rangeType === MaintenanceReviewerAccess::RANGE_RELATIVE
+                ? (int) ($validated['reviewer_days_after'] ?? 0)
+                : null,
+            'starts_on' => $rangeType === MaintenanceReviewerAccess::RANGE_CUSTOM
+                ? $validated['reviewer_starts_on']
+                : null,
+            'ends_on' => $rangeType === MaintenanceReviewerAccess::RANGE_CUSTOM
+                ? $validated['reviewer_ends_on']
+                : null,
+        ]);
+    }
+
+    private function ensureReviewerRangeIsComplete(array $validated): void
+    {
+        if (! in_array('revisor de tickets', $validated['role_names'] ?? [], true)) {
+            return;
+        }
+
+        if (($validated['reviewer_range_type'] ?? MaintenanceReviewerAccess::RANGE_RELATIVE) === MaintenanceReviewerAccess::RANGE_CUSTOM
+            && (blank($validated['reviewer_starts_on'] ?? null) || blank($validated['reviewer_ends_on'] ?? null))) {
+            throw ValidationException::withMessages([
+                'reviewer_starts_on' => 'Indica el inicio y fin del rango personalizado del revisor.',
+            ]);
+        }
     }
 
     private function respond(Request $request, string $message, string $tab): RedirectResponse|JsonResponse

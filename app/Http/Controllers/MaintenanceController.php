@@ -8,12 +8,14 @@ use App\Mail\MaintenanceTicketEventMail;
 use App\Models\Expense;
 use App\Models\ExpenseFile;
 use App\Models\MaintenanceProvider;
+use App\Models\MaintenanceReviewerAccess;
 use App\Models\MaintenanceTicket;
 use App\Models\MaintenanceTicketAssignment;
 use App\Models\MaintenanceTicketCost;
 use App\Models\MaintenanceTicketFile;
 use App\Models\MaintenanceTicketMessage;
 use App\Models\MaintenanceTicketNotification;
+use App\Models\MaintenanceTicketValidation;
 use App\Models\Property;
 use App\Models\Tenant;
 use App\Models\User;
@@ -45,6 +47,8 @@ class MaintenanceController extends Controller
 
     private const DELETE_TICKET_EXPENSES_PERMISSION = 'eliminar gastos tickets';
 
+    private const TICKET_REVIEWER_ROLE = 'revisor de tickets';
+
     public function __construct(private readonly PropertyVisibility $propertyVisibility) {}
 
     public function index(Request $request): View|JsonResponse
@@ -69,14 +73,18 @@ class MaintenanceController extends Controller
         $category = (string) ($filters['category'] ?? '');
         $from = $filters['from'] ?? null;
         $to = $filters['to'] ?? null;
-        $activeTab = (string) ($filters['tab'] ?? 'activos');
+        $activeTab = $role === 'revisor_tickets'
+            ? 'completados'
+            : (string) ($filters['tab'] ?? 'activos');
         $activeStatuses = ['pendiente', 'revisado', 'asignado', 'programado', 'en_proceso', 'esperando_material', 'reabierto'];
         $pendingStatuses = ['pendiente', 'revisado', 'asignado', 'programado', 'esperando_material', 'reabierto'];
-        $tabStatuses = match ($activeTab) {
-            'completados' => ['completado'],
-            'cancelados' => ['cancelado'],
-            default => $activeStatuses,
-        };
+        $tabStatuses = $role === 'revisor_tickets'
+            ? ['completado']
+            : match ($activeTab) {
+                'completados' => ['completado'],
+                'cancelados' => ['cancelado'],
+                default => $activeStatuses,
+            };
         $disableTicketPagination = in_array($role, ['tecnico', 'proveedor'], true);
 
         $properties = $this->accessiblePropertiesQuery($user, $role)
@@ -95,6 +103,7 @@ class MaintenanceController extends Controller
                 'currentProvider:id,uuid,user_id,name,type,email,phone,specialty,rating,availability',
                 'cutItem:id,maintenance_cut_id,ticket_id',
                 'masterTicket:id,uuid,reference,title',
+                'ticketValidation.validatedBy:id,name',
             ])
             ->withCount(['files', 'messages', 'childTickets']);
 
@@ -283,6 +292,9 @@ class MaintenanceController extends Controller
             'canManageCosts' => in_array($role, ['administrador', 'proveedor'], true),
             'canGroupTickets' => in_array($role, ['administrador', 'tecnico'], true),
             'isTenant' => $role === 'inquilino',
+            'isTicketReviewer' => $role === 'revisor_tickets',
+            'canValidateTickets' => $role === 'revisor_tickets' && $user?->can('mantenimiento.validar_tickets'),
+            'reviewerDateRange' => $role === 'revisor_tickets' ? $this->reviewerDateRange($user) : null,
         ];
 
         if ($request->ajax() && $request->wantsJson()) {
@@ -435,6 +447,7 @@ class MaintenanceController extends Controller
             'assignments.assignedBy:id,name,email',
             'files.uploader:id,name,email',
             'costs.expense.files',
+            'ticketValidation.validatedBy:id,name',
             'statusHistory.changedBy:id,name,email',
             'messages.sender:id,name,email',
             'messages.recipient:id,name,email',
@@ -477,6 +490,7 @@ class MaintenanceController extends Controller
             );
         $canViewCosts = $role === 'administrador'
             || $role === 'proveedor'
+            || $role === 'revisor_tickets'
             || $isTicketTechnician;
         $isMaintenancePaid = $maintenance->cutItem !== null;
         $canMutateCosts = $canViewCosts && $this->canMutateTicketCosts($maintenance, $role);
@@ -514,7 +528,55 @@ class MaintenanceController extends Controller
             'canEditTicket' => $role === 'administrador',
             'canChangeStatus' => in_array($role, ['administrador', 'tecnico', 'proveedor'], true),
             'canQuickScheduleVisit' => in_array($role, ['administrador', 'tecnico'], true),
+            'canValidateTickets' => $role === 'revisor_tickets' && $user?->can('mantenimiento.validar_tickets'),
         ]);
+    }
+
+    public function validateTickets(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $role = $this->resolveRole($user);
+        if ($role !== 'revisor_tickets' || ! $user?->can('mantenimiento.validar_tickets')) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'ticket_uuids' => ['required', 'array', 'min:1', 'max:100'],
+            'ticket_uuids.*' => ['required', 'uuid', 'distinct'],
+        ], [
+            'ticket_uuids.required' => 'Selecciona al menos un ticket para validar.',
+            'ticket_uuids.min' => 'Selecciona al menos un ticket para validar.',
+        ]);
+
+        $tickets = $this->visibleTicketsQuery($user, $role)
+            ->whereIn('uuid', $validated['ticket_uuids'])
+            ->get(['id', 'uuid']);
+
+        if ($tickets->count() !== count($validated['ticket_uuids'])) {
+            abort(403);
+        }
+
+        $validatedCount = 0;
+        DB::transaction(function () use ($tickets, $user, &$validatedCount): void {
+            foreach ($tickets as $ticket) {
+                $validation = MaintenanceTicketValidation::query()->firstOrCreate(
+                    ['ticket_id' => $ticket->id],
+                    [
+                        'validated_by_user_id' => $user->id,
+                        'validated_at' => now(),
+                    ],
+                );
+                if ($validation->wasRecentlyCreated) {
+                    $validatedCount++;
+                }
+            }
+        });
+
+        $message = $validatedCount > 0
+            ? ($validatedCount === 1 ? 'Ticket validado correctamente.' : "{$validatedCount} tickets validados correctamente.")
+            : 'Los tickets seleccionados ya estaban validados.';
+
+        return redirect()->back()->with('success', $message);
     }
 
     public function update(UpdateMaintenanceTicketRequest $request, MaintenanceTicket $maintenance): RedirectResponse
@@ -1361,6 +1423,9 @@ class MaintenanceController extends Controller
         $user = $request->user();
         $role = $this->resolveRole($user);
         $this->ensureTicketVisible($maintenance, $user, $role);
+        if ($role === 'revisor_tickets') {
+            abort(403);
+        }
 
         $validated = $request->validate([
             'kind' => ['required', Rule::in(array_keys(MaintenanceTicketFile::KIND_LABELS))],
@@ -1377,6 +1442,10 @@ class MaintenanceController extends Controller
         $user = $request->user();
         $role = $this->resolveRole($user);
         $this->ensureTicketVisible($maintenance, $user, $role);
+
+        if ($role === 'revisor_tickets') {
+            abort(403);
+        }
 
         if ((int) $file->ticket_id !== (int) $maintenance->id) {
             abort(404);
@@ -1847,6 +1916,9 @@ class MaintenanceController extends Controller
         if ($user->hasRole('proveedor') || $user->hasRole('provider')) {
             return 'proveedor';
         }
+        if ($user->hasRole(self::TICKET_REVIEWER_ROLE)) {
+            return 'revisor_tickets';
+        }
         if ($this->propertyVisibility->shouldLimitToOwnProperties($user)) {
             return 'asesor';
         }
@@ -2039,6 +2111,9 @@ class MaintenanceController extends Controller
         if ($role === 'asesor') {
             return $this->propertyVisibility->scopeVisibleToUser($query, $user);
         }
+        if ($role === 'revisor_tickets') {
+            return $query->whereIn('id', $this->visibleTicketsQuery($user, $role)->select('property_id'));
+        }
 
         return $query->where(function (Builder $propertyQuery) use ($user): void {
             $propertyQuery
@@ -2055,7 +2130,7 @@ class MaintenanceController extends Controller
     {
         $query = $this->accessiblePropertiesQuery($user, $role);
 
-        if (in_array($role, ['tecnico', 'proveedor', 'asesor'], true)) {
+        if (in_array($role, ['tecnico', 'proveedor', 'asesor', 'revisor_tickets'], true)) {
             $query->whereIn('id', $this->visibleTicketsQuery($user, $role)->select('property_id'));
         }
 
@@ -2099,6 +2174,13 @@ class MaintenanceController extends Controller
         }
         if ($role === 'asesor') {
             return $query->whereHas('property', fn (Builder $propertyQuery) => $this->propertyVisibility->scopeVisibleToUser($propertyQuery, $user));
+        }
+        if ($role === 'revisor_tickets') {
+            $range = $this->reviewerDateRange($user);
+
+            return $range === null
+                ? $query->whereRaw('1 = 0')
+                : $query->whereBetween('reported_at', $range);
         }
 
         return $query->whereHas('currentProvider', function (Builder $providerQuery) use ($user): void {
@@ -2180,6 +2262,12 @@ class MaintenanceController extends Controller
         if (! $exists) {
             abort(403);
         }
+    }
+
+    /** @return array{0: Carbon, 1: Carbon}|null */
+    private function reviewerDateRange(User $user): ?array
+    {
+        return $user->maintenanceReviewerAccess?->ticketDateRange();
     }
 
     private function ensureCostBelongsToTicket(MaintenanceTicket $ticket, MaintenanceTicketCost $cost): void
