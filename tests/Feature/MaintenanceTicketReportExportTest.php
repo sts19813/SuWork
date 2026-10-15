@@ -47,7 +47,7 @@ class MaintenanceTicketReportExportTest extends TestCase
         $query = [
             'technician_ids' => [$departingTechnician->id],
             'statuses' => ['completado'],
-            'date_field' => 'completed_at',
+            'sort_completed' => 'completed_desc',
             'date_from' => now()->subMonth()->toDateString(),
             'date_to' => now()->toDateString(),
         ];
@@ -102,6 +102,33 @@ class MaintenanceTicketReportExportTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_administrator_can_order_reports_by_completion_date(): void
+    {
+        $administrator = $this->administrator();
+        $property = $this->createProperty($administrator);
+        $technician = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico de orden',
+            'is_active' => true,
+        ]);
+        $oldest = $this->createTicket($administrator, $property, $technician, 'Ticket completado primero', 'completado');
+        $oldest->update(['completed_at' => now()->subDays(5)]);
+        $mostRecent = $this->createTicket($administrator, $property, $technician, 'Ticket completado recientemente', 'completado');
+        $mostRecent->update(['completed_at' => now()->subDay()]);
+
+        $baseQuery = [
+            'technician_ids' => [$technician->id],
+            'statuses' => ['completado'],
+        ];
+
+        $this->assertSame('Ticket completado recientemente', $this->firstExcelTicketTitle($administrator, $baseQuery + [
+            'sort_completed' => 'completed_desc',
+        ]));
+        $this->assertSame('Ticket completado primero', $this->firstExcelTicketTitle($administrator, $baseQuery + [
+            'sort_completed' => 'completed_asc',
+        ]));
+    }
+
     private function administrator(): User
     {
         $administrator = User::factory()->create(['is_active' => true]);
@@ -143,5 +170,22 @@ class MaintenanceTicketReportExportTest extends TestCase
             'reported_at' => now()->subDays(5),
             'completed_at' => $status === 'completado' ? now()->subDay() : null,
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     */
+    private function firstExcelTicketTitle(User $administrator, array $query): string
+    {
+        $response = $this->actingAs($administrator)->get(route('maintenance.export.excel', $query));
+        $response->assertOk();
+
+        $temporaryFile = tempnam(sys_get_temp_dir(), 'maintenance-report-');
+        file_put_contents($temporaryFile, $response->streamedContent());
+        try {
+            return (string) (new Xlsx)->load($temporaryFile)->getActiveSheet()->getCell('C5')->getValue();
+        } finally {
+            @unlink($temporaryFile);
+        }
     }
 }

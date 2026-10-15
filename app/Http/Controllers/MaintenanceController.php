@@ -1950,7 +1950,7 @@ class MaintenanceController extends Controller
             ],
             'statuses' => ['nullable', 'array'],
             'statuses.*' => [Rule::in(array_keys(MaintenanceTicket::STATUS_LABELS))],
-            'date_field' => ['nullable', Rule::in(['reported_at', 'completed_at'])],
+            'sort_completed' => ['nullable', Rule::in(['completed_desc', 'completed_asc'])],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
         ]);
@@ -1963,7 +1963,7 @@ class MaintenanceController extends Controller
             ->filter(fn ($status): bool => array_key_exists($status, MaintenanceTicket::STATUS_LABELS))
             ->unique()
             ->values();
-        $dateField = (string) ($filters['date_field'] ?? 'reported_at');
+        $sortCompleted = (string) ($filters['sort_completed'] ?? 'completed_desc');
         $dateFrom = $filters['date_from'] ?? null;
         $dateTo = $filters['date_to'] ?? null;
 
@@ -1976,10 +1976,10 @@ class MaintenanceController extends Controller
                 $query->whereIn('current_provider_id', $technicianIds->all());
             })
             ->when($statuses->isNotEmpty(), fn (Builder $query) => $query->whereIn('status', $statuses->all()))
-            ->when($dateFrom, fn (Builder $query) => $query->whereDate($dateField, '>=', $dateFrom))
-            ->when($dateTo, fn (Builder $query) => $query->whereDate($dateField, '<=', $dateTo))
-            ->orderByRaw($dateField.' IS NULL')
-            ->orderBy($dateField)
+            ->when($dateFrom, fn (Builder $query) => $query->whereDate('completed_at', '>=', $dateFrom))
+            ->when($dateTo, fn (Builder $query) => $query->whereDate('completed_at', '<=', $dateTo))
+            ->orderByRaw('completed_at IS NULL')
+            ->orderBy('completed_at', $sortCompleted === 'completed_asc' ? 'asc' : 'desc')
             ->orderBy('id')
             ->get();
 
@@ -1995,10 +1995,11 @@ class MaintenanceController extends Controller
             'Estatus: '.($statuses->isNotEmpty()
                 ? $statuses->map(fn (string $status) => MaintenanceTicket::STATUS_LABELS[$status])->implode(', ')
                 : 'Todos'),
-            'Rango por '.($dateField === 'completed_at' ? 'fecha de completado' : 'fecha de creación').': '
+            'Rango por fecha de completado: '
                 .($dateFrom ? Carbon::parse($dateFrom)->format('d/m/Y') : 'sin inicio')
                 .' a '
                 .($dateTo ? Carbon::parse($dateTo)->format('d/m/Y') : 'sin fin'),
+            'Orden: '.($sortCompleted === 'completed_asc' ? 'completados más antiguos' : 'completados más recientes'),
         ])->implode(' · ');
 
         return [$tickets, $summary];
