@@ -10,7 +10,7 @@ class MaintenanceTicketReportPdfExporter
     /**
      * @param  array<int, array<string, string>>  $rows
      */
-    public function generate(array $rows, string $filterSummary, CarbonInterface $generatedAt): string
+    public function generate(array $rows, string $filterSummary, CarbonInterface $generatedAt, ?array $indicators = null): string
     {
         $pdf = new TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
         $pdf->SetCreator(config('app.name'));
@@ -29,8 +29,13 @@ class MaintenanceTicketReportPdfExporter
         $pdf->MultiCell(0, 5, 'Generado el '.$generatedAt->format('d/m/Y H:i').' · '.$filterSummary, 0, 'L', false, 1);
         $pdf->Ln(2);
 
-        $widths = [25, 47, 75, 44, 28, 30, 28];
-        $headers = ['Folio', 'Propiedad', 'Solicitud', 'Técnico asignado', 'Estatus', 'Creación', 'Completado'];
+        if ($indicators !== null) {
+            $this->drawIndicators($pdf, $indicators);
+            $pdf->Ln(3);
+        }
+
+        $widths = [20, 39, 64, 36, 24, 27, 27, 40];
+        $headers = ['Folio', 'Propiedad', 'Solicitud', 'Técnico asignado', 'Estatus', 'Creación', 'Completado', 'Corte'];
         $this->drawHeader($pdf, $headers, $widths);
 
         if ($rows === []) {
@@ -45,6 +50,7 @@ class MaintenanceTicketReportPdfExporter
                     $row['status'],
                     $row['created_at'],
                     $row['completed_at'],
+                    $row['cut'],
                 ], $widths, $headers);
             }
         }
@@ -72,6 +78,32 @@ class MaintenanceTicketReportPdfExporter
         foreach ($headers as $index => $header) {
             $pdf->MultiCell($widths[$index], $height, $header, 1, 'L', true, 0, $x, $y, true, 0, false, true, $height, 'M');
             $x += $widths[$index];
+        }
+
+        $pdf->SetXY(10, $y + $height);
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetFont('dejavusans', '', 8);
+    }
+
+    /**
+     * @param  array<int, array{label: string, value: string}>  $indicators
+     */
+    private function drawIndicators(TCPDF $pdf, array $indicators): void
+    {
+        $width = 277 / count($indicators);
+        $height = 16;
+        $x = $pdf->GetX();
+        $y = $pdf->GetY();
+
+        foreach ($indicators as $indicator) {
+            $pdf->SetFillColor(239, 246, 255);
+            $pdf->SetTextColor(30, 64, 175);
+            $pdf->SetFont('dejavusans', 'B', 7);
+            $pdf->MultiCell($width, 6, $indicator['label'], 1, 'L', true, 0, $x, $y, true, 0, false, true, 6, 'M');
+            $pdf->SetTextColor(15, 23, 42);
+            $pdf->SetFont('dejavusans', 'B', 10);
+            $pdf->MultiCell($width, 10, $indicator['value'], 1, 'L', false, 0, $x, $y + 6, true, 0, false, true, 10, 'M');
+            $x += $width;
         }
 
         $pdf->SetXY(10, $y + $height);
