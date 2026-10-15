@@ -1973,10 +1973,9 @@ class MaintenanceController extends Controller
             ->with([
                 'property:id,uuid,internal_name,internal_reference',
                 'currentProvider:id,name',
+                'cutItem:id,maintenance_cut_id,ticket_id,labor_total,material_total,grand_total',
                 'cutItem.cut:id,uuid,paid_at,grand_total',
             ])
-            ->withSum('costs as labor_total', 'labor_cost')
-            ->withSum('costs as material_total', 'material_cost')
             ->when($technicianIds->isNotEmpty(), function (Builder $query) use ($technicianIds): void {
                 $query->whereIn('current_provider_id', $technicianIds->all());
             })
