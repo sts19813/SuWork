@@ -92,6 +92,11 @@
                             </a>
                         @endif
                     @endif
+                        @if ($canExportMaintenanceReports ?? false)
+                            <button class="maintenance-soft-btn" type="button" data-bs-toggle="modal" data-bs-target="#maintenanceExportModal">
+                                <i class="bi bi-file-earmark-arrow-down"></i> Exportar reporte
+                            </button>
+                        @endif
                     @if ($canCreateTicket)
                         <button class="maintenance-primary-btn" data-bs-toggle="modal" data-bs-target="#createMaintenanceTicketModal">
                             <i class="bi bi-plus-lg"></i> Nuevo ticket
@@ -554,6 +559,78 @@
         </div>
     </div>
 
+    @if ($canExportMaintenanceReports ?? false)
+        <div class="modal fade" id="maintenanceExportModal" tabindex="-1" aria-labelledby="maintenanceExportModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <form class="modal-content" method="GET" action="{{ route('maintenance.export.pdf') }}">
+                    <div class="modal-header">
+                        <div>
+                            <h3 class="modal-title mb-1" id="maintenanceExportModalLabel">Exportar reporte de tickets</h3>
+                            <div class="text-muted fs-7">Elige los filtros para generar el historial de trabajos de uno o varios técnicos.</div>
+                        </div>
+                        <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal" aria-label="Cerrar">×</button>
+                    </div>
+                    <div class="modal-body">
+                        @if ($errors->maintenanceExport->any())
+                            <div class="alert alert-danger">
+                                {{ $errors->maintenanceExport->first() }}
+                            </div>
+                        @endif
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <label class="form-label" for="maintenance-report-technicians">Técnico(s)</label>
+                                <select id="maintenance-report-technicians" class="form-select" name="technician_ids[]" multiple
+                                    data-control="select2" data-placeholder="Todos los técnicos" data-allow-clear="true">
+                                    @foreach ($reportTechnicians as $technician)
+                                        <option value="{{ $technician->id }}" @selected(in_array($technician->id, old('technician_ids', request()->input('technician_ids', []))))>
+                                            {{ $technician->name }}{{ $technician->is_active ? '' : ' · Inactivo' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="form-text">Se incluye el historial de asignaciones, incluso si el técnico ya no está activo.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="maintenance-report-statuses">Estatus</label>
+                                <select id="maintenance-report-statuses" class="form-select" name="statuses[]" multiple
+                                    data-control="select2" data-placeholder="Todos los estatus" data-allow-clear="true">
+                                    @foreach (\App\Models\MaintenanceTicket::STATUS_LABELS as $key => $label)
+                                        <option value="{{ $key }}" @selected(in_array($key, old('statuses', request()->input('statuses', []))))>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="maintenance-report-date-field">Aplicar rango sobre</label>
+                                <select id="maintenance-report-date-field" class="form-select" name="date_field">
+                                    <option value="reported_at" @selected(old('date_field', request()->input('date_field', 'reported_at')) === 'reported_at')>Fecha de creación</option>
+                                    <option value="completed_at" @selected(old('date_field', request()->input('date_field')) === 'completed_at')>Fecha de completado</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="maintenance-report-date-from">Desde</label>
+                                <input id="maintenance-report-date-from" class="form-control" type="date" name="date_from"
+                                    value="{{ old('date_from', request()->input('date_from')) }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="maintenance-report-date-to">Hasta</label>
+                                <input id="maintenance-report-date-to" class="form-control" type="date" name="date_to"
+                                    value="{{ old('date_to', request()->input('date_to')) }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button class="btn btn-light-primary" type="submit" formmethod="GET" formaction="{{ route('maintenance.export.excel') }}">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> Descargar Excel
+                        </button>
+                        <button class="btn btn-primary" type="submit" formmethod="GET" formaction="{{ route('maintenance.export.pdf') }}">
+                            <i class="bi bi-file-earmark-pdf"></i> Descargar PDF
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+
     @if ($canCreateTicket)
         <div class="modal fade" id="createMaintenanceTicketModal" tabindex="-1" aria-hidden="true">
 
@@ -939,6 +1016,15 @@
 
 @push('scripts')
     <script src="{{ asset('/metronic/assets/plugins/custom/fullcalendar/fullcalendar.bundle.js') }}"></script>
+    @if ($errors->maintenanceExport->any())
+        <script>
+            (() => {
+                const modalEl = document.getElementById('maintenanceExportModal');
+                if (!modalEl) return;
+                new bootstrap.Modal(modalEl).show();
+            })();
+        </script>
+    @endif
     @if ($errors->createMaintenanceTicket->any())
         <script>
             (() => {

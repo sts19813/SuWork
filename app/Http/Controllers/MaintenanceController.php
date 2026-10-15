@@ -8,7 +8,6 @@ use App\Mail\MaintenanceTicketEventMail;
 use App\Models\Expense;
 use App\Models\ExpenseFile;
 use App\Models\MaintenanceProvider;
-use App\Models\MaintenanceReviewerAccess;
 use App\Models\MaintenanceTicket;
 use App\Models\MaintenanceTicketAssignment;
 use App\Models\MaintenanceTicketCost;
@@ -19,6 +18,9 @@ use App\Models\MaintenanceTicketValidation;
 use App\Models\Property;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\MaintenanceTicketReportData;
+use App\Services\MaintenanceTicketReportExcelExporter;
+use App\Services\MaintenanceTicketReportPdfExporter;
 use App\Support\NotificationSettings;
 use App\Support\PropertyVisibility;
 use Illuminate\Database\Eloquent\Builder;
@@ -37,6 +39,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Spatie\Permission\Models\Role;
 
 class MaintenanceController extends Controller
@@ -250,6 +253,12 @@ class MaintenanceController extends Controller
             ->with('user:id,name,email')
             ->orderBy('name')
             ->get();
+        $reportTechnicians = $role === 'administrador'
+            ? MaintenanceProvider::query()
+                ->where('type', 'tecnico_interno')
+                ->orderBy('name')
+                ->get(['id', 'name', 'is_active'])
+            : collect();
 
         $viewData = [
             'ticketTables' => $ticketTables,
@@ -291,6 +300,8 @@ class MaintenanceController extends Controller
             'canUpdateTicketProvider' => in_array($role, ['administrador', 'tecnico', 'asesor'], true),
             'canManageCosts' => in_array($role, ['administrador', 'proveedor'], true),
             'canGroupTickets' => in_array($role, ['administrador', 'tecnico'], true),
+            'canExportMaintenanceReports' => $role === 'administrador',
+            'reportTechnicians' => $reportTechnicians,
             'isTenant' => $role === 'inquilino',
             'isTicketReviewer' => $role === 'revisor_tickets',
             'canValidateTickets' => $role === 'revisor_tickets' && $user?->can('mantenimiento.validar_tickets'),
@@ -308,6 +319,38 @@ class MaintenanceController extends Controller
         }
 
         return view('maintenance.index', $viewData);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        [$tickets, $filterSummary] = $this->maintenanceTicketsForReport($request);
+        $generatedAt = now();
+        $rows = app(MaintenanceTicketReportData::class)->rows($tickets);
+        $pdf = app(MaintenanceTicketReportPdfExporter::class)->generate($rows, $filterSummary, $generatedAt);
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="reporte_tickets_mantenimiento_'.$generatedAt->format('Ymd_His').'.pdf"',
+        ]);
+    }
+
+    public function exportExcel(Request $request)
+    {
+        [$tickets, $filterSummary] = $this->maintenanceTicketsForReport($request);
+        $generatedAt = now();
+        $rows = app(MaintenanceTicketReportData::class)->rows($tickets);
+        $spreadsheet = app(MaintenanceTicketReportExcelExporter::class)->generate($rows, $filterSummary, $generatedAt);
+        $filename = 'reporte_tickets_mantenimiento_'.$generatedAt->format('Ymd_His').'.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet): void {
+            try {
+                (new Xlsx($spreadsheet))->save('php://output');
+            } finally {
+                $spreadsheet->disconnectWorksheets();
+            }
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 
     public function technicians(Request $request): View
@@ -1888,6 +1931,82 @@ class MaintenanceController extends Controller
 
         return $role === 'administrador'
             || ! in_array($ticket->status, ['completado', 'cancelado'], true);
+    }
+
+    /**
+     * @return array{0: Collection<int, MaintenanceTicket>, 1: string}
+     */
+    private function maintenanceTicketsForReport(Request $request): array
+    {
+        if (! $this->isAdminUser($request->user())) {
+            abort(403);
+        }
+
+        $filters = $request->validateWithBag('maintenanceExport', [
+            'technician_ids' => ['nullable', 'array'],
+            'technician_ids.*' => [
+                'integer',
+                Rule::exists('maintenance_providers', 'id')->where('type', 'tecnico_interno'),
+            ],
+            'statuses' => ['nullable', 'array'],
+            'statuses.*' => [Rule::in(array_keys(MaintenanceTicket::STATUS_LABELS))],
+            'date_field' => ['nullable', Rule::in(['reported_at', 'completed_at'])],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+        ]);
+
+        $technicianIds = collect($filters['technician_ids'] ?? [])
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values();
+        $statuses = collect($filters['statuses'] ?? [])
+            ->filter(fn ($status): bool => array_key_exists($status, MaintenanceTicket::STATUS_LABELS))
+            ->unique()
+            ->values();
+        $dateField = (string) ($filters['date_field'] ?? 'reported_at');
+        $dateFrom = $filters['date_from'] ?? null;
+        $dateTo = $filters['date_to'] ?? null;
+
+        $tickets = MaintenanceTicket::query()
+            ->with([
+                'property:id,uuid,internal_name,internal_reference',
+                'currentProvider:id,name',
+                'assignments.provider:id,name',
+            ])
+            ->when($technicianIds->isNotEmpty(), function (Builder $query) use ($technicianIds): void {
+                $query->where(function (Builder $technicianQuery) use ($technicianIds): void {
+                    $technicianQuery
+                        ->whereIn('current_provider_id', $technicianIds->all())
+                        ->orWhereHas('assignments', fn (Builder $assignmentQuery) => $assignmentQuery->whereIn('provider_id', $technicianIds->all()));
+                });
+            })
+            ->when($statuses->isNotEmpty(), fn (Builder $query) => $query->whereIn('status', $statuses->all()))
+            ->when($dateFrom, fn (Builder $query) => $query->whereDate($dateField, '>=', $dateFrom))
+            ->when($dateTo, fn (Builder $query) => $query->whereDate($dateField, '<=', $dateTo))
+            ->orderByRaw($dateField.' IS NULL')
+            ->orderBy($dateField)
+            ->orderBy('id')
+            ->get();
+
+        $technicianNames = $technicianIds->isEmpty()
+            ? collect()
+            : MaintenanceProvider::query()
+                ->whereIn('id', $technicianIds->all())
+                ->orderBy('name')
+                ->pluck('name');
+
+        $summary = collect([
+            'Técnico(s): '.($technicianNames->isNotEmpty() ? $technicianNames->implode(', ') : 'Todos'),
+            'Estatus: '.($statuses->isNotEmpty()
+                ? $statuses->map(fn (string $status) => MaintenanceTicket::STATUS_LABELS[$status])->implode(', ')
+                : 'Todos'),
+            'Rango por '.($dateField === 'completed_at' ? 'fecha de completado' : 'fecha de creación').': '
+                .($dateFrom ? Carbon::parse($dateFrom)->format('d/m/Y') : 'sin inicio')
+                .' a '
+                .($dateTo ? Carbon::parse($dateTo)->format('d/m/Y') : 'sin fin'),
+        ])->implode(' · ');
+
+        return [$tickets, $summary];
     }
 
     private function isAdminUser(?User $user): bool
