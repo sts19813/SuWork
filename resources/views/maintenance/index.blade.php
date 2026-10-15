@@ -599,19 +599,19 @@
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label" for="maintenance-report-date-field">Aplicar rango sobre</label>
-                                <select id="maintenance-report-date-field" class="form-select" name="date_field">
-                                    <option value="reported_at" @selected(old('date_field', request()->input('date_field', 'reported_at')) === 'reported_at')>Fecha de creación</option>
-                                    <option value="completed_at" @selected(old('date_field', request()->input('date_field')) === 'completed_at')>Fecha de completado</option>
+                                <label class="form-label" for="maintenance-report-sort-completed">Orden de completado</label>
+                                <select id="maintenance-report-sort-completed" class="form-select" name="sort_completed">
+                                    <option value="completed_desc" @selected(old('sort_completed', request()->input('sort_completed', 'completed_desc')) === 'completed_desc')>Completados más recientes</option>
+                                    <option value="completed_asc" @selected(old('sort_completed', request()->input('sort_completed')) === 'completed_asc')>Completados más antiguos</option>
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label" for="maintenance-report-date-from">Desde</label>
+                                <label class="form-label" for="maintenance-report-date-from">Completado desde</label>
                                 <input id="maintenance-report-date-from" class="form-control" type="date" name="date_from"
                                     value="{{ old('date_from', request()->input('date_from')) }}">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label" for="maintenance-report-date-to">Hasta</label>
+                                <label class="form-label" for="maintenance-report-date-to">Completado hasta</label>
                                 <input id="maintenance-report-date-to" class="form-control" type="date" name="date_to"
                                     value="{{ old('date_to', request()->input('date_to')) }}">
                             </div>

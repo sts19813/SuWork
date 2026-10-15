@@ -29,36 +29,81 @@ class MaintenanceTicketReportPdfExporter
         $pdf->MultiCell(0, 5, 'Generado el '.$generatedAt->format('d/m/Y H:i').' · '.$filterSummary, 0, 'L', false, 1);
         $pdf->Ln(2);
 
-        $html = '<table border="1" cellpadding="4" cellspacing="0" style="font-size:7.5pt;">'
-            .'<thead><tr style="background-color:#1f4e78;color:#ffffff;font-weight:bold;">'
-            .'<th width="9%">Folio</th><th width="17%">Propiedad</th><th width="27%">Solicitud</th>'
-            .'<th width="16%">Técnico asignado</th><th width="10%">Estatus</th><th width="11%">Creación</th><th width="10%">Completado</th>'
-            .'</tr></thead><tbody>';
+        $widths = [25, 47, 75, 44, 28, 30, 28];
+        $headers = ['Folio', 'Propiedad', 'Solicitud', 'Técnico asignado', 'Estatus', 'Creación', 'Completado'];
+        $this->drawHeader($pdf, $headers, $widths);
 
         if ($rows === []) {
-            $html .= '<tr><td colspan="7" align="center">No se encontraron tickets con los filtros seleccionados.</td></tr>';
+            $pdf->MultiCell(array_sum($widths), 10, 'No se encontraron tickets con los filtros seleccionados.', 1, 'C');
         } else {
             foreach ($rows as $row) {
-                $html .= '<tr>'
-                    .'<td>'.$this->escape($row['folio']).'</td>'
-                    .'<td>'.$this->escape($row['property']).'</td>'
-                    .'<td>'.$this->escape($row['title']).'</td>'
-                    .'<td>'.$this->escape($row['technician']).'</td>'
-                    .'<td>'.$this->escape($row['status']).'</td>'
-                    .'<td>'.$this->escape($row['created_at']).'</td>'
-                    .'<td>'.$this->escape($row['completed_at']).'</td>'
-                    .'</tr>';
+                $this->drawRow($pdf, [
+                    $row['folio'],
+                    $row['property'],
+                    $row['title'],
+                    $row['technician'],
+                    $row['status'],
+                    $row['created_at'],
+                    $row['completed_at'],
+                ], $widths, $headers);
             }
         }
-
-        $html .= '</tbody></table>';
-        $pdf->writeHTML($html, true, false, true, false, '');
 
         return $pdf->Output('', 'S');
     }
 
-    private function escape(string $value): string
+    /**
+     * @param  array<int, string>  $headers
+     * @param  array<int, int>  $widths
+     */
+    private function drawHeader(TCPDF $pdf, array $headers, array $widths): void
     {
-        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $pdf->SetFont('dejavusans', 'B', 8);
+        $pdf->SetFillColor(31, 78, 120);
+        $pdf->SetTextColor(255, 255, 255);
+        $height = max(10, ...array_map(
+            fn (int $index, string $header): float => $pdf->getStringHeight($widths[$index] - 2, $header) + 3,
+            array_keys($headers),
+            $headers,
+        ));
+        $x = $pdf->GetX();
+        $y = $pdf->GetY();
+
+        foreach ($headers as $index => $header) {
+            $pdf->MultiCell($widths[$index], $height, $header, 1, 'L', true, 0, $x, $y, true, 0, false, true, $height, 'M');
+            $x += $widths[$index];
+        }
+
+        $pdf->SetXY(10, $y + $height);
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetFont('dejavusans', '', 8);
+    }
+
+    /**
+     * @param  array<int, string>  $values
+     * @param  array<int, int>  $widths
+     * @param  array<int, string>  $headers
+     */
+    private function drawRow(TCPDF $pdf, array $values, array $widths, array $headers): void
+    {
+        $height = max(10, ...array_map(
+            fn (int $index, string $value): float => $pdf->getStringHeight($widths[$index] - 2, $value) + 3,
+            array_keys($values),
+            $values,
+        ));
+        $bottomLimit = $pdf->getPageHeight() - 12;
+
+        if ($pdf->GetY() + $height > $bottomLimit) {
+            $pdf->AddPage();
+            $this->drawHeader($pdf, $headers, $widths);
+        }
+
+        $x = $pdf->GetX();
+        $y = $pdf->GetY();
+        foreach ($values as $index => $value) {
+            $pdf->MultiCell($widths[$index], $height, $value, 1, 'L', false, 0, $x, $y, true, 0, false, true, $height, 'M');
+            $x += $widths[$index];
+        }
+        $pdf->SetXY(10, $y + $height);
     }
 }
