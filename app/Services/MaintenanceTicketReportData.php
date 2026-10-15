@@ -15,15 +15,6 @@ class MaintenanceTicketReportData
     {
         return $tickets
             ->map(function (MaintenanceTicket $ticket): array {
-                $technicians = $ticket->assignments
-                    ->map(fn ($assignment) => $assignment->provider?->name)
-                    ->filter()
-                    ->push($ticket->currentProvider?->name)
-                    ->filter()
-                    ->unique()
-                    ->values()
-                    ->implode(', ');
-
                 return [
                     'folio' => $ticket->reference ?: '#'.$ticket->id,
                     'property' => trim(implode(' · ', array_filter([
@@ -31,7 +22,7 @@ class MaintenanceTicketReportData
                         $ticket->property?->internal_reference,
                     ]))),
                     'title' => $ticket->title ?: 'Sin título',
-                    'technicians' => $technicians ?: 'Sin asignar',
+                    'technician' => $ticket->currentProvider?->name ?: 'Sin asignar',
                     'status' => MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status,
                     'created_at' => $ticket->reported_at?->format('d/m/Y H:i') ?: '-',
                     'completed_at' => $ticket->completed_at?->format('d/m/Y H:i') ?: '-',

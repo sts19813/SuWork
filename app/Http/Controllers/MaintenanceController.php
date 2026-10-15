@@ -1971,14 +1971,9 @@ class MaintenanceController extends Controller
             ->with([
                 'property:id,uuid,internal_name,internal_reference',
                 'currentProvider:id,name',
-                'assignments.provider:id,name',
             ])
             ->when($technicianIds->isNotEmpty(), function (Builder $query) use ($technicianIds): void {
-                $query->where(function (Builder $technicianQuery) use ($technicianIds): void {
-                    $technicianQuery
-                        ->whereIn('current_provider_id', $technicianIds->all())
-                        ->orWhereHas('assignments', fn (Builder $assignmentQuery) => $assignmentQuery->whereIn('provider_id', $technicianIds->all()));
-                });
+                $query->whereIn('current_provider_id', $technicianIds->all());
             })
             ->when($statuses->isNotEmpty(), fn (Builder $query) => $query->whereIn('status', $statuses->all()))
             ->when($dateFrom, fn (Builder $query) => $query->whereDate($dateField, '>=', $dateFrom))

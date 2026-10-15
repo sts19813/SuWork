@@ -10,6 +10,7 @@ use App\Models\PropertyType;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -17,7 +18,7 @@ class MaintenanceTicketReportExportTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_administrator_can_export_historical_tickets_for_a_selected_technician_as_pdf_and_excel(): void
+    public function test_administrator_can_export_tickets_for_their_currently_assigned_technician_as_pdf_and_excel(): void
     {
         $administrator = $this->administrator();
         $property = $this->createProperty($administrator);
@@ -32,16 +33,16 @@ class MaintenanceTicketReportExportTest extends TestCase
             'is_active' => true,
         ]);
 
-        $matchingTicket = $this->createTicket($administrator, $property, $replacementTechnician, 'Trabajo histórico de Alejandro', 'completado');
+        $this->createTicket($administrator, $property, $departingTechnician, 'Trabajo actual de Alejandro', 'completado');
+        $historicalTicket = $this->createTicket($administrator, $property, $replacementTechnician, 'Trabajo ya reasignado a Allison', 'completado');
         MaintenanceTicketAssignment::create([
-            'ticket_id' => $matchingTicket->id,
+            'ticket_id' => $historicalTicket->id,
             'provider_id' => $departingTechnician->id,
             'assigned_by_user_id' => $administrator->id,
             'assigned_at' => now()->subDays(3),
             'unassigned_at' => now()->subDays(2),
             'is_current' => false,
         ]);
-        $this->createTicket($administrator, $property, $replacementTechnician, 'Trabajo exclusivo de Allison', 'completado');
 
         $query = [
             'technician_ids' => [$departingTechnician->id],
@@ -63,7 +64,19 @@ class MaintenanceTicketReportExportTest extends TestCase
 
         $excel->assertOk()
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        $this->assertStringStartsWith('PK', $excel->streamedContent());
+        $excelContent = $excel->streamedContent();
+        $this->assertStringStartsWith('PK', $excelContent);
+
+        $temporaryFile = tempnam(sys_get_temp_dir(), 'maintenance-report-');
+        file_put_contents($temporaryFile, $excelContent);
+        try {
+            $sheet = (new Xlsx)->load($temporaryFile)->getActiveSheet();
+            $this->assertSame('Alejandro Técnico', $sheet->getCell('D5')->getValue());
+            $this->assertSame('Trabajo actual de Alejandro', $sheet->getCell('C5')->getValue());
+            $this->assertSame(5, $sheet->getHighestRow());
+        } finally {
+            @unlink($temporaryFile);
+        }
     }
 
     public function test_only_administrators_see_and_can_use_maintenance_report_exports(): void

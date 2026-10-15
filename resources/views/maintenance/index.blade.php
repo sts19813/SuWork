@@ -587,7 +587,7 @@
                                         </option>
                                     @endforeach
                                 </select>
-                                <div class="form-text">Se incluye el historial de asignaciones, incluso si el técnico ya no está activo.</div>
+                                <div class="form-text">Solo se incluyen los tickets que actualmente están asignados al técnico seleccionado.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="maintenance-report-statuses">Estatus</label>
