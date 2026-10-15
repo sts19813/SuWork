@@ -32,7 +32,7 @@ class MaintenanceTicketReportPdfExporter
         $html = '<table border="1" cellpadding="4" cellspacing="0" style="font-size:7.5pt;">'
             .'<thead><tr style="background-color:#1f4e78;color:#ffffff;font-weight:bold;">'
             .'<th width="9%">Folio</th><th width="17%">Propiedad</th><th width="27%">Solicitud</th>'
-            .'<th width="16%">Técnico(s)</th><th width="10%">Estatus</th><th width="11%">Creación</th><th width="10%">Completado</th>'
+            .'<th width="16%">Técnico asignado</th><th width="10%">Estatus</th><th width="11%">Creación</th><th width="10%">Completado</th>'
             .'</tr></thead><tbody>';
 
         if ($rows === []) {
@@ -43,7 +43,7 @@ class MaintenanceTicketReportPdfExporter
                     .'<td>'.$this->escape($row['folio']).'</td>'
                     .'<td>'.$this->escape($row['property']).'</td>'
                     .'<td>'.$this->escape($row['title']).'</td>'
-                    .'<td>'.$this->escape($row['technicians']).'</td>'
+                    .'<td>'.$this->escape($row['technician']).'</td>'
                     .'<td>'.$this->escape($row['status']).'</td>'
                     .'<td>'.$this->escape($row['created_at']).'</td>'
                     .'<td>'.$this->escape($row['completed_at']).'</td>'

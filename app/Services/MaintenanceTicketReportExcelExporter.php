@@ -22,14 +22,14 @@ class MaintenanceTicketReportExcelExporter
         $sheet->setCellValue('A1', 'Reporte de tickets de mantenimiento');
         $sheet->mergeCells('A2:G2');
         $sheet->setCellValue('A2', 'Generado el '.$generatedAt->format('d/m/Y H:i').' · '.$filterSummary);
-        $sheet->fromArray(['Folio', 'Propiedad', 'Solicitud', 'Técnico(s)', 'Estatus', 'Creación', 'Completado'], null, 'A4');
+        $sheet->fromArray(['Folio', 'Propiedad', 'Solicitud', 'Técnico asignado', 'Estatus', 'Creación', 'Completado'], null, 'A4');
 
         foreach ($rows as $index => $row) {
             $sheet->fromArray([
                 $row['folio'],
                 $row['property'],
                 $row['title'],
-                $row['technicians'],
+                $row['technician'],
                 $row['status'],
                 $row['created_at'],
                 $row['completed_at'],
