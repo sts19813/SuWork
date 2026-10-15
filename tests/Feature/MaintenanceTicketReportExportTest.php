@@ -35,13 +35,6 @@ class MaintenanceTicketReportExportTest extends TestCase
         ]);
 
         $matchingTicket = $this->createTicket($administrator, $property, $departingTechnician, 'Trabajo actual de Alejandro', 'completado');
-        $matchingTicket->costs()->create([
-            'labor_cost' => 600,
-            'material_cost' => 300,
-            'final_cost' => 900,
-            'currency' => 'MXN',
-            'payer' => 'administracion',
-        ]);
         $cut = MaintenanceCut::create([
             'paid_by_user_id' => $administrator->id,
             'ticket_count' => 1,
@@ -95,9 +88,15 @@ class MaintenanceTicketReportExportTest extends TestCase
             $sheet = (new Xlsx)->load($temporaryFile)->getActiveSheet();
             $this->assertSame('Total de tickets pagados', $sheet->getCell('A4')->getValue());
             $this->assertSame('1', (string) $sheet->getCell('A5')->getValue());
+            $this->assertSame('Mano de obra pagada', $sheet->getCell('C4')->getValue());
+            $this->assertSame('$600.00', $sheet->getCell('C5')->getValue());
+            $this->assertSame('Materiales pagados', $sheet->getCell('E4')->getValue());
+            $this->assertSame('$300.00', $sheet->getCell('E5')->getValue());
+            $this->assertSame('Total pagado', $sheet->getCell('G4')->getValue());
+            $this->assertSame('$900.00', $sheet->getCell('G5')->getValue());
             $this->assertSame('Alejandro Técnico', $sheet->getCell('D8')->getValue());
             $this->assertSame('Trabajo actual de Alejandro', $sheet->getCell('C8')->getValue());
-            $this->assertSame('Pagado', $sheet->getCell('E8')->getValue());
+            $this->assertSame('Completado - Pagado', $sheet->getCell('E8')->getValue());
             $this->assertStringContainsString($cut->display_reference, (string) $sheet->getCell('H8')->getValue());
             $this->assertSame(8, $sheet->getHighestRow());
         } finally {

@@ -24,7 +24,7 @@ class MaintenanceTicketReportData
                     'title' => $ticket->title ?: 'Sin título',
                     'technician' => $ticket->currentProvider?->name ?: 'Sin asignar',
                     'status' => $ticket->status === 'completado' && $ticket->cutItem?->cut
-                        ? 'Pagado'
+                        ? 'Completado - Pagado'
                         : (MaintenanceTicket::STATUS_LABELS[$ticket->status] ?? $ticket->status),
                     'created_at' => $ticket->reported_at?->format('d/m/Y') ?: '-',
                     'completed_at' => $ticket->completed_at?->format('d/m/Y') ?: '-',
@@ -56,17 +56,15 @@ class MaintenanceTicketReportData
             return null;
         }
 
-        $pendingTickets = $completedTickets
-            ->reject(fn (MaintenanceTicket $ticket): bool => $ticket->cutItem?->cut !== null)
-            ->values();
-        $laborPending = (float) $pendingTickets->sum(fn (MaintenanceTicket $ticket): float => (float) ($ticket->labor_total ?? 0));
-        $materialsPending = (float) $pendingTickets->sum(fn (MaintenanceTicket $ticket): float => (float) ($ticket->material_total ?? 0));
+        $laborPaid = (float) $paidTickets->sum(fn (MaintenanceTicket $ticket): float => (float) ($ticket->cutItem?->labor_total ?? 0));
+        $materialsPaid = (float) $paidTickets->sum(fn (MaintenanceTicket $ticket): float => (float) ($ticket->cutItem?->material_total ?? 0));
+        $totalPaid = (float) $paidTickets->sum(fn (MaintenanceTicket $ticket): float => (float) ($ticket->cutItem?->grand_total ?? 0));
 
         return [
             ['label' => 'Total de tickets pagados', 'value' => (string) $paidTickets->count()],
-            ['label' => 'Mano de obra pendiente', 'value' => '$'.number_format($laborPending, 2)],
-            ['label' => 'Materiales pendientes', 'value' => '$'.number_format($materialsPending, 2)],
-            ['label' => 'Total', 'value' => '$'.number_format($laborPending + $materialsPending, 2)],
+            ['label' => 'Mano de obra pagada', 'value' => '$'.number_format($laborPaid, 2)],
+            ['label' => 'Materiales pagados', 'value' => '$'.number_format($materialsPaid, 2)],
+            ['label' => 'Total pagado', 'value' => '$'.number_format($totalPaid, 2)],
         ];
     }
 }
