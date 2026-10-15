@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\MaintenanceCut;
 use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\MaintenanceTicketAssignment;
@@ -33,7 +34,28 @@ class MaintenanceTicketReportExportTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->createTicket($administrator, $property, $departingTechnician, 'Trabajo actual de Alejandro', 'completado');
+        $matchingTicket = $this->createTicket($administrator, $property, $departingTechnician, 'Trabajo actual de Alejandro', 'completado');
+        $matchingTicket->costs()->create([
+            'labor_cost' => 600,
+            'material_cost' => 300,
+            'final_cost' => 900,
+            'currency' => 'MXN',
+            'payer' => 'administracion',
+        ]);
+        $cut = MaintenanceCut::create([
+            'paid_by_user_id' => $administrator->id,
+            'ticket_count' => 1,
+            'labor_total' => 600,
+            'material_total' => 300,
+            'grand_total' => 900,
+            'paid_at' => now()->subDay(),
+        ]);
+        $cut->items()->create([
+            'ticket_id' => $matchingTicket->id,
+            'labor_total' => 600,
+            'material_total' => 300,
+            'grand_total' => 900,
+        ]);
         $historicalTicket = $this->createTicket($administrator, $property, $replacementTechnician, 'Trabajo ya reasignado a Allison', 'completado');
         MaintenanceTicketAssignment::create([
             'ticket_id' => $historicalTicket->id,
@@ -71,9 +93,13 @@ class MaintenanceTicketReportExportTest extends TestCase
         file_put_contents($temporaryFile, $excelContent);
         try {
             $sheet = (new Xlsx)->load($temporaryFile)->getActiveSheet();
-            $this->assertSame('Alejandro Técnico', $sheet->getCell('D5')->getValue());
-            $this->assertSame('Trabajo actual de Alejandro', $sheet->getCell('C5')->getValue());
-            $this->assertSame(5, $sheet->getHighestRow());
+            $this->assertSame('Total de tickets pagados', $sheet->getCell('A4')->getValue());
+            $this->assertSame('1', (string) $sheet->getCell('A5')->getValue());
+            $this->assertSame('Alejandro Técnico', $sheet->getCell('D8')->getValue());
+            $this->assertSame('Trabajo actual de Alejandro', $sheet->getCell('C8')->getValue());
+            $this->assertSame('Pagado', $sheet->getCell('E8')->getValue());
+            $this->assertStringContainsString($cut->display_reference, (string) $sheet->getCell('H8')->getValue());
+            $this->assertSame(8, $sheet->getHighestRow());
         } finally {
             @unlink($temporaryFile);
         }
@@ -127,6 +153,34 @@ class MaintenanceTicketReportExportTest extends TestCase
         $this->assertSame('Ticket completado primero', $this->firstExcelTicketTitle($administrator, $baseQuery + [
             'sort_completed' => 'completed_asc',
         ]));
+    }
+
+    public function test_pending_ticket_report_does_not_show_payment_indicators(): void
+    {
+        $administrator = $this->administrator();
+        $property = $this->createProperty($administrator);
+        $technician = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico pendiente',
+            'is_active' => true,
+        ]);
+        $this->createTicket($administrator, $property, $technician, 'Ticket pendiente', 'pendiente');
+
+        $response = $this->actingAs($administrator)->get(route('maintenance.export.excel', [
+            'technician_ids' => [$technician->id],
+            'statuses' => ['pendiente'],
+        ]));
+        $response->assertOk();
+
+        $temporaryFile = tempnam(sys_get_temp_dir(), 'maintenance-report-');
+        file_put_contents($temporaryFile, $response->streamedContent());
+        try {
+            $sheet = (new Xlsx)->load($temporaryFile)->getActiveSheet();
+            $this->assertSame('Folio', $sheet->getCell('A4')->getValue());
+            $this->assertSame('Ticket pendiente', $sheet->getCell('C5')->getValue());
+        } finally {
+            @unlink($temporaryFile);
+        }
     }
 
     private function administrator(): User

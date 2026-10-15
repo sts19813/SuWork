@@ -325,8 +325,9 @@ class MaintenanceController extends Controller
     {
         [$tickets, $filterSummary] = $this->maintenanceTicketsForReport($request);
         $generatedAt = now();
-        $rows = app(MaintenanceTicketReportData::class)->rows($tickets);
-        $pdf = app(MaintenanceTicketReportPdfExporter::class)->generate($rows, $filterSummary, $generatedAt);
+        $reportData = app(MaintenanceTicketReportData::class);
+        $rows = $reportData->rows($tickets);
+        $pdf = app(MaintenanceTicketReportPdfExporter::class)->generate($rows, $filterSummary, $generatedAt, $reportData->indicators($tickets));
 
         return response($pdf, 200, [
             'Content-Type' => 'application/pdf',
@@ -338,8 +339,9 @@ class MaintenanceController extends Controller
     {
         [$tickets, $filterSummary] = $this->maintenanceTicketsForReport($request);
         $generatedAt = now();
-        $rows = app(MaintenanceTicketReportData::class)->rows($tickets);
-        $spreadsheet = app(MaintenanceTicketReportExcelExporter::class)->generate($rows, $filterSummary, $generatedAt);
+        $reportData = app(MaintenanceTicketReportData::class);
+        $rows = $reportData->rows($tickets);
+        $spreadsheet = app(MaintenanceTicketReportExcelExporter::class)->generate($rows, $filterSummary, $generatedAt, $reportData->indicators($tickets));
         $filename = 'reporte_tickets_mantenimiento_'.$generatedAt->format('Ymd_His').'.xlsx';
 
         return response()->streamDownload(function () use ($spreadsheet): void {
@@ -1971,7 +1973,10 @@ class MaintenanceController extends Controller
             ->with([
                 'property:id,uuid,internal_name,internal_reference',
                 'currentProvider:id,name',
+                'cutItem.cut:id,uuid,paid_at,grand_total',
             ])
+            ->withSum('costs as labor_total', 'labor_cost')
+            ->withSum('costs as material_total', 'material_cost')
             ->when($technicianIds->isNotEmpty(), function (Builder $query) use ($technicianIds): void {
                 $query->whereIn('current_provider_id', $technicianIds->all());
             })
