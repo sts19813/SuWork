@@ -1,0 +1,134 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\MaintenanceProvider;
+use App\Models\MaintenanceTicket;
+use App\Models\MaintenanceTicketAssignment;
+use App\Models\Property;
+use App\Models\PropertyType;
+use App\Models\User;
+use App\Models\Zone;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
+use Tests\TestCase;
+
+class MaintenanceTicketReportExportTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_administrator_can_export_historical_tickets_for_a_selected_technician_as_pdf_and_excel(): void
+    {
+        $administrator = $this->administrator();
+        $property = $this->createProperty($administrator);
+        $departingTechnician = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Alejandro Técnico',
+            'is_active' => false,
+        ]);
+        $replacementTechnician = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Allison Técnica',
+            'is_active' => true,
+        ]);
+
+        $matchingTicket = $this->createTicket($administrator, $property, $replacementTechnician, 'Trabajo histórico de Alejandro', 'completado');
+        MaintenanceTicketAssignment::create([
+            'ticket_id' => $matchingTicket->id,
+            'provider_id' => $departingTechnician->id,
+            'assigned_by_user_id' => $administrator->id,
+            'assigned_at' => now()->subDays(3),
+            'unassigned_at' => now()->subDays(2),
+            'is_current' => false,
+        ]);
+        $this->createTicket($administrator, $property, $replacementTechnician, 'Trabajo exclusivo de Allison', 'completado');
+
+        $query = [
+            'technician_ids' => [$departingTechnician->id],
+            'statuses' => ['completado'],
+            'date_field' => 'completed_at',
+            'date_from' => now()->subMonth()->toDateString(),
+            'date_to' => now()->toDateString(),
+        ];
+
+        $pdf = $this->actingAs($administrator)
+            ->get(route('maintenance.export.pdf', $query));
+
+        $pdf->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+
+        $excel = $this->actingAs($administrator)
+            ->get(route('maintenance.export.excel', $query));
+
+        $excel->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $this->assertStringStartsWith('PK', $excel->streamedContent());
+    }
+
+    public function test_only_administrators_see_and_can_use_maintenance_report_exports(): void
+    {
+        $administrator = $this->administrator();
+        $technician = User::factory()->create(['is_active' => true]);
+        $technician->assignRole(Role::findOrCreate('tecnico', 'web'));
+
+        $this->actingAs($administrator)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertSee('Exportar reporte')
+            ->assertSee('maintenance-report-technicians');
+
+        $this->actingAs($technician)
+            ->get(route('maintenance.index'))
+            ->assertOk()
+            ->assertDontSee('Exportar reporte')
+            ->assertDontSee('maintenance-report-technicians');
+
+        $this->actingAs($technician)
+            ->get(route('maintenance.export.pdf'))
+            ->assertForbidden();
+    }
+
+    private function administrator(): User
+    {
+        $administrator = User::factory()->create(['is_active' => true]);
+        $administrator->assignRole(Role::findOrCreate('administrador', 'web'));
+
+        return $administrator;
+    }
+
+    private function createProperty(User $user): Property
+    {
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+
+        return Property::create([
+            'internal_name' => 'Casa del reporte',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle Principal 10',
+            'status' => Property::STATUS_OCCUPIED,
+            'onboarding_step' => 5,
+            'created_by' => $user->id,
+        ]);
+    }
+
+    private function createTicket(User $user, Property $property, MaintenanceProvider $provider, string $title, string $status): MaintenanceTicket
+    {
+        return MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $user->id,
+            'current_provider_id' => $provider->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $user->name,
+            'category' => 'plomeria',
+            'priority' => 'alta',
+            'status' => $status,
+            'title' => $title,
+            'exact_location' => 'Cocina',
+            'description' => 'Descripción de prueba',
+            'reported_at' => now()->subDays(5),
+            'completed_at' => $status === 'completado' ? now()->subDay() : null,
+        ]);
+    }
+}
