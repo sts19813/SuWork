@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\AirbnbFinancialEvent;
 use App\Models\Charge;
+use App\Models\ChargePayment;
 use App\Models\IntegrationClient;
 use App\Models\Property;
 use App\Models\PropertyType;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -142,34 +144,86 @@ class SuhomesAirbnbIntegrationApiTest extends TestCase
             ->assertUnprocessable();
     }
 
-    public function test_financial_events_are_idempotent_by_external_event_id(): void
+    public function test_financial_event_creates_an_airbnbsu_charge_paid_in_full_and_is_idempotent(): void
     {
         $property = $this->createProperty('Casa Financiera');
+        $property->update([
+            'airbnb_enabled_at' => now(),
+            'airbnb_managed_at' => now(),
+            'airbnb_external_property_id' => 'airbnb-property-financial',
+        ]);
         $token = $this->airbnbToken();
 
         $payload = [
             'property_uuid' => $property->uuid,
-            'external_event_id' => 'reservation-payment-1',
-            'event_type' => 'reservation_payment',
+            'external_event_id' => 'reservation-payment-001',
+            'event_type' => 'late_checkout',
             'external_reservation_id' => 'RSV-001',
+            'concept' => 'Late check-out',
+            'customer_name' => 'Ana Huésped',
             'amount' => 1250.50,
             'currency' => 'mxn',
-            'occurred_on' => now()->toDateString(),
+            'payment_method' => ChargePayment::METHOD_CARD,
+            'paid_at' => now()->toDateString(),
             'payload' => ['source' => 'airbnbsu'],
         ];
 
         $this->withToken($token)
             ->postJson('/api/internal/airbnb/financial-events', $payload)
             ->assertCreated()
-            ->assertJsonPath('data.created', true);
+            ->assertJsonPath('data.created', true)
+            ->assertJsonPath('data.status', Charge::STATUS_PAID)
+            ->assertJsonPath('data.charge.source', Charge::SOURCE_AIRBNB_SU)
+            ->assertJsonPath('data.payment.status', ChargePayment::STATUS_SUCCEEDED);
+
+        $charge = Charge::query()->sole();
+        $this->assertSame(Charge::STATUS_PAID, $charge->status);
+        $this->assertSame(Charge::SOURCE_AIRBNB_SU, $charge->source);
+        $this->assertNull($charge->tenant_id);
+        $this->assertSame('Ana Huésped', $charge->customer_name);
+        $this->assertSame('1250.50', (string) $charge->paid_amount);
+        $this->assertSame('Late check-out', $charge->concept);
+        $this->assertDatabaseHas('charge_payments', [
+            'charge_id' => $charge->id,
+            'amount' => 1250.50,
+            'status' => ChargePayment::STATUS_SUCCEEDED,
+            'source' => ChargePayment::SOURCE_AIRBNB_SU,
+            'payment_method' => ChargePayment::METHOD_CARD,
+            'reference' => 'reservation-payment-001',
+        ]);
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertSee('Late check-out')
+            ->assertSee('Airbnb SU')
+            ->assertSee('Cliente: Ana Huésped');
+
+        $this->app['auth']->forgetGuards();
 
         $this->withToken($token)
             ->postJson('/api/internal/airbnb/financial-events', array_merge($payload, ['amount' => 1300]))
             ->assertOk()
-            ->assertJsonPath('data.created', false);
+            ->assertJsonPath('data.created', false)
+            ->assertJsonPath('data.charge.uuid', $charge->uuid);
 
         $this->assertSame(1, AirbnbFinancialEvent::query()->count());
-        $this->assertSame('1300.00', (string) AirbnbFinancialEvent::query()->firstOrFail()->amount);
+        $this->assertSame(1, Charge::query()->count());
+        $this->assertSame(1, ChargePayment::query()->count());
+        $this->assertSame('1250.50', (string) AirbnbFinancialEvent::query()->firstOrFail()->amount);
+    }
+
+    public function test_financial_event_rejects_a_property_that_is_not_linked_to_airbnbsu(): void
+    {
+        $property = $this->createProperty('Casa sin enlace');
+
+        $this->withToken($this->airbnbToken())
+            ->postJson('/api/internal/airbnb/financial-events', $this->financialEventPayload($property))
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'La propiedad no está enlazada con Airbnb SU.');
+
+        $this->assertDatabaseCount('charges', 0);
+        $this->assertDatabaseCount('charge_payments', 0);
     }
 
     private function airbnbToken(): string
@@ -203,5 +257,19 @@ class SuhomesAirbnbIntegrationApiTest extends TestCase
             'status' => Property::STATUS_AVAILABLE,
             'onboarding_step' => 5,
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function financialEventPayload(Property $property): array
+    {
+        return [
+            'property_uuid' => $property->uuid,
+            'external_event_id' => 'event-'.str()->uuid(),
+            'event_type' => 'reservation_payment',
+            'concept' => 'Pago de reservación',
+            'customer_name' => 'Cliente Airbnb',
+            'amount' => 500,
+            'payment_method' => ChargePayment::METHOD_CARD,
+        ];
     }
 }
