@@ -15,6 +15,7 @@ class MaintenanceCut extends Model
     protected $fillable = [
         'uuid',
         'paid_by_user_id',
+        'provider_id',
         'ticket_count',
         'labor_total',
         'material_total',
@@ -55,6 +56,11 @@ class MaintenanceCut extends Model
     public function paidBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'paid_by_user_id');
+    }
+
+    public function provider(): BelongsTo
+    {
+        return $this->belongsTo(MaintenanceProvider::class, 'provider_id');
     }
 
     public function items(): HasMany

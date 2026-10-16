@@ -408,7 +408,56 @@
                     <h2>Historial de cortes pagados</h2>
                     <p>Los importes registrados aquí son inmutables y conservan la fecha exacta del pago.</p>
                 </div>
+                <button class="maintenance-primary-btn" type="button" data-bs-toggle="modal" data-bs-target="#maintenanceCutExportModal">
+                    <i class="bi bi-file-earmark-arrow-down"></i> Exportar reporte
+                </button>
             </div>
+
+            <form class="cut-history-filters" method="GET" action="{{ route('maintenance-cuts.index') }}" aria-label="Filtros del historial de cortes">
+                <input type="hidden" name="tab" value="historial">
+                <label class="cut-filter-field">
+                    <span>Propiedad</span>
+                    <select class="form-select" name="history_property_id" data-control="select2" data-placeholder="Todas las propiedades" data-allow-clear="true">
+                        <option value="">Todas las propiedades</option>
+                        @foreach ($historyPropertyOptions as $property)
+                            <option value="{{ $property->id }}" @selected($historyFilters['property_id'] === $property->id)>
+                                {{ $property->internal_name }}{{ $property->internal_reference ? ' · '.$property->internal_reference : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="cut-filter-field">
+                    <span>Proveedor / técnico</span>
+                    <select class="form-select" name="history_provider_id" data-control="select2" data-placeholder="Todos los proveedores / técnicos" data-allow-clear="true">
+                        <option value="">Todos los proveedores / técnicos</option>
+                        @foreach ($historyProviderOptions as $provider)
+                            <option value="{{ $provider->id }}" @selected($historyFilters['provider_id'] === $provider->id)>
+                                {{ $provider->name }}{{ $provider->is_active ? '' : ' · Inactivo' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="cut-filter-field is-search">
+                    <span>Buscar</span>
+                    <div class="cut-search-box">
+                        <i class="bi bi-search"></i>
+                        <input class="form-control" type="search" name="history_search" value="{{ $historyFilters['search'] }}"
+                            placeholder="Corte, ticket, propiedad o usuario..." autocomplete="off">
+                    </div>
+                </label>
+                <label class="cut-filter-field">
+                    <span>Pagado desde</span>
+                    <input class="form-control" type="date" name="history_date_from" value="{{ $historyFilters['date_from'] }}">
+                </label>
+                <label class="cut-filter-field">
+                    <span>Pagado hasta</span>
+                    <input class="form-control" type="date" name="history_date_to" value="{{ $historyFilters['date_to'] }}">
+                </label>
+                <div class="cut-history-filter-actions">
+                    <button class="maintenance-soft-btn" type="submit"><i class="bi bi-funnel"></i> Filtrar</button>
+                    <a class="maintenance-plain-btn" href="{{ route('maintenance-cuts.index', ['tab' => 'historial']) }}">Limpiar</a>
+                </div>
+            </form>
 
             @forelse ($cuts as $cut)
                 <details class="cut-history-item" @if ($loop->first && session('success')) open @endif>
@@ -418,6 +467,7 @@
                             <span><strong>{{ $cut->display_reference }}</strong><small>{{ $cut->ticket_count }} tickets</small></span>
                         </span>
                         <span><small>Pagado</small><strong>{{ $cut->paid_at?->format('d/m/Y H:i') }}</strong></span>
+                        <span><small>Proveedor / técnico</small><strong>{{ $cut->provider?->name ?? $cut->items->map(fn ($item) => $item->ticket?->currentProvider?->name)->filter()->first() ?? 'Sin técnico asignado' }}</strong></span>
                         <span><small>Registró</small><strong>{{ $cut->paidBy?->name ?? 'Usuario eliminado' }}</strong></span>
                         <span><small>Mano de obra</small><strong>${{ number_format((float) $cut->labor_total, 2) }}</strong></span>
                         <span><small>Materiales</small><strong>${{ number_format((float) $cut->material_total, 2) }}</strong></span>
@@ -492,6 +542,78 @@
         </div>
         </div>
     </div>
+
+    <div class="modal fade" id="maintenanceCutExportModal" tabindex="-1" aria-labelledby="maintenanceCutExportModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <form class="modal-content" method="GET" action="{{ route('maintenance-cuts.export.pdf') }}">
+                <div class="modal-header">
+                    <div>
+                        <h3 class="modal-title mb-1" id="maintenanceCutExportModalLabel">Exportar reporte de cortes</h3>
+                        <div class="text-muted fs-7">Filtra los pagos por proveedor o técnico, propiedad y período antes de descargar el reporte.</div>
+                    </div>
+                    <button type="button" class="btn btn-icon btn-sm btn-light" data-bs-dismiss="modal" aria-label="Cerrar">×</button>
+                </div>
+                <div class="modal-body">
+                    @if ($errors->maintenanceCutExport->any())
+                        <div class="alert alert-danger">{{ $errors->maintenanceCutExport->first() }}</div>
+                    @endif
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label" for="maintenance-cut-report-providers">Proveedor(es) / técnico(s)</label>
+                            <select id="maintenance-cut-report-providers" class="form-select" name="provider_ids[]" multiple
+                                data-control="select2" data-placeholder="Todos los proveedores / técnicos" data-allow-clear="true">
+                                @foreach ($historyProviderOptions as $provider)
+                                    <option value="{{ $provider->id }}" @selected(in_array($provider->id, old('provider_ids', request()->input('provider_ids', []))))>
+                                        {{ $provider->name }}{{ $provider->is_active ? '' : ' · Inactivo' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="maintenance-cut-report-properties">Propiedad(es)</label>
+                            <select id="maintenance-cut-report-properties" class="form-select" name="property_ids[]" multiple
+                                data-control="select2" data-placeholder="Todas las propiedades" data-allow-clear="true">
+                                @foreach ($historyPropertyOptions as $property)
+                                    <option value="{{ $property->id }}" @selected(in_array($property->id, old('property_ids', request()->input('property_ids', []))))>
+                                        {{ $property->internal_name }}{{ $property->internal_reference ? ' · '.$property->internal_reference : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="maintenance-cut-report-date-from">Pagado desde</label>
+                            <input id="maintenance-cut-report-date-from" class="form-control" type="date" name="date_from" value="{{ old('date_from', request()->input('date_from')) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="maintenance-cut-report-date-to">Pagado hasta</label>
+                            <input id="maintenance-cut-report-date-to" class="form-control" type="date" name="date_to" value="{{ old('date_to', request()->input('date_to')) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="maintenance-cut-report-sort">Orden de pago</label>
+                            <select id="maintenance-cut-report-sort" class="form-select" name="sort_paid">
+                                <option value="paid_desc" @selected(old('sort_paid', request()->input('sort_paid', 'paid_desc')) === 'paid_desc')>Pagos más recientes</option>
+                                <option value="paid_asc" @selected(old('sort_paid', request()->input('sort_paid')) === 'paid_asc')>Pagos más antiguos</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="maintenance-cut-report-search">Buscar corte o ticket</label>
+                            <input id="maintenance-cut-report-search" class="form-control" type="search" name="search"
+                                value="{{ old('search', request()->input('search')) }}" placeholder="Ej. CORTE-000011, folio o solicitud">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button class="btn btn-light-primary" type="submit" formmethod="GET" formaction="{{ route('maintenance-cuts.export.excel') }}">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> Descargar Excel
+                    </button>
+                    <button class="btn btn-primary" type="submit" formmethod="GET" formaction="{{ route('maintenance-cuts.export.pdf') }}">
+                        <i class="bi bi-file-earmark-pdf"></i> Descargar PDF
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 @endsection
 
 @push('styles')
@@ -508,6 +630,9 @@
     @media(max-width:1200px){.cut-summary-card{margin:0}}
     @media(max-width:767px){.cut-workspace{padding:.75rem;display:grid;gap:.75rem}.cut-summary-card{margin:0}.cut-table th:last-child,.cut-table td:last-child{padding-right:1.35rem}}
     @media(max-width:767px){.cut-filters{grid-template-columns:1fr;padding:.85rem}.cut-filter-count{width:100%}}
+    .cut-history-filters{display:grid;grid-template-columns:minmax(170px,1fr) minmax(190px,1fr) minmax(220px,1.2fr) minmax(145px,.7fr) minmax(145px,.7fr) auto;align-items:end;gap:.85rem;padding:1rem;background:#fbfcfe;border-bottom:1px solid #edf0f5}.cut-history-filter-actions{display:flex;align-items:center;gap:.5rem;height:43px}.cut-history-filter-actions .maintenance-soft-btn,.cut-history-filter-actions .maintenance-plain-btn{height:43px;white-space:nowrap}.cut-history-item summary{grid-template-columns:1.15fr repeat(5,1fr) 1.1fr auto}
+    @media(max-width:1300px){.cut-history-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.cut-history-filter-actions{height:auto}.cut-history-item summary{grid-template-columns:1.3fr repeat(3,1fr) 1.1fr auto}.cut-history-item summary>span:nth-of-type(3),.cut-history-item summary>span:nth-of-type(5){display:none}}
+    @media(max-width:767px){.cut-panel-heading .maintenance-primary-btn{width:100%;justify-content:center}.cut-history-filters{grid-template-columns:1fr;padding:.85rem}.cut-history-filter-actions{height:43px}.cut-history-filter-actions>*{flex:1;justify-content:center}.cut-history-item summary>span:nth-of-type(3),.cut-history-item summary>span:nth-of-type(4),.cut-history-item summary>span:nth-of-type(5),.cut-history-item summary>span:nth-of-type(6){display:none}}
     @media(min-width:768px){.cut-table-wrap{overflow-x:visible}.cut-table{width:100%;min-width:0;table-layout:fixed}.cut-ticket-link{min-width:0}.cut-table th,.cut-table td{padding-left:.5rem;padding-right:.5rem}.cut-table th:nth-child(2){width:14%}.cut-table th:nth-child(3){width:15%}.cut-table th:nth-child(4){width:12%}.cut-table th:nth-child(5),.cut-table th:nth-child(6){width:12%}.cut-table th:nth-child(7),.cut-table th:nth-child(8){width:9%}.cut-table th:nth-child(9){width:10%}.cut-table th:last-child,.cut-table td:last-child{padding-right:1.75rem}}
     @media(max-width:767px){.cut-table{min-width:1020px}.cut-table-wrap{overflow-x:auto}}
     .cut-zero-cost-table{padding:0 1.25rem 1.25rem}.cut-zero-cost-table .cut-table{border:1px solid #e7ebf2;border-radius:16px;overflow:hidden}

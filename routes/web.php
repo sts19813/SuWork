@@ -211,6 +211,8 @@ Route::middleware(['auth', 'system.access', 'provider.operational', 'reviewer.re
         Route::get('/mantenimiento/exportar/pdf', [MaintenanceController::class, 'exportPdf'])->name('maintenance.export.pdf');
         Route::get('/mantenimiento/exportar/excel', [MaintenanceController::class, 'exportExcel'])->name('maintenance.export.excel');
         Route::get('/mantenimiento/cortes', [MaintenanceCutController::class, 'index'])->name('maintenance-cuts.index');
+        Route::get('/mantenimiento/cortes/exportar/pdf', [MaintenanceCutController::class, 'exportPdf'])->name('maintenance-cuts.export.pdf');
+        Route::get('/mantenimiento/cortes/exportar/excel', [MaintenanceCutController::class, 'exportExcel'])->name('maintenance-cuts.export.excel');
         Route::post('/mantenimiento/cortes', [MaintenanceCutController::class, 'store'])->name('maintenance-cuts.store');
         Route::post('/mantenimiento', [MaintenanceController::class, 'store'])->name('maintenance.store');
         Route::post('/mantenimiento/agrupar', [MaintenanceController::class, 'groupTickets'])->name('maintenance.group');
