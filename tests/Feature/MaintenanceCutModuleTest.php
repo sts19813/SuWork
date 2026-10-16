@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Expense;
+use App\Models\MaintenanceCut;
 use App\Models\MaintenanceProvider;
 use App\Models\MaintenanceTicket;
 use App\Models\Property;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -23,8 +25,15 @@ class MaintenanceCutModuleTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
         $property = $this->createProperty($admin);
+        $provider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico del corte',
+            'email' => 'tecnico.corte@example.test',
+            'is_active' => true,
+        ]);
 
         $first = $this->createTicket($property, 'Cambio de bomba', 'completado');
+        $first->update(['current_provider_id' => $provider->id]);
         $firstPendingExpense = Expense::query()->create([
             'property_id' => $property->id,
             'concept' => 'Mantenimiento pendiente',
@@ -55,6 +64,7 @@ class MaintenanceCutModuleTest extends TestCase
         ]);
 
         $second = $this->createTicket($property, 'Reparación eléctrica', 'completado');
+        $second->update(['current_provider_id' => $provider->id]);
         $secondPendingExpense = Expense::query()->create([
             'property_id' => $property->id,
             'concept' => 'Mantenimiento segundo',
@@ -83,6 +93,7 @@ class MaintenanceCutModuleTest extends TestCase
 
         $this->assertDatabaseHas('maintenance_cuts', [
             'paid_by_user_id' => $admin->id,
+            'provider_id' => $provider->id,
             'ticket_count' => 2,
             'labor_total' => 900,
             'material_total' => 1000,
@@ -239,6 +250,103 @@ class MaintenanceCutModuleTest extends TestCase
             ->assertSee('data-technician-key="unassigned"', false)
             ->assertSee('Cambio de minisplit')
             ->assertSee('Reparación de chapa');
+    }
+
+    public function test_administrator_can_filter_history_by_provider_and_export_maintenance_cut_reports(): void
+    {
+        $admin = User::factory()->create(['name' => 'Admin de cortes']);
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $firstProperty = $this->createProperty($admin, 'Casa Historial Norte', 'historial-norte');
+        $secondProperty = $this->createProperty($admin, 'Casa Historial Sur', 'historial-sur');
+        $alejandro = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Alejandro Historial',
+            'email' => 'alejandro.historial@example.test',
+            'is_active' => false,
+        ]);
+        $allison = MaintenanceProvider::create([
+            'type' => 'proveedor',
+            'name' => 'Allison Historial',
+            'email' => 'allison.historial@example.test',
+            'is_active' => true,
+        ]);
+        $alejandroTicket = $this->createTicket($firstProperty, 'Trabajo de Alejandro para historial', 'completado');
+        $alejandroTicket->update(['current_provider_id' => $alejandro->id]);
+        $allisonTicket = $this->createTicket($secondProperty, 'Trabajo de Allison para historial', 'completado');
+        $allisonTicket->update(['current_provider_id' => $allison->id]);
+
+        $alejandroCut = MaintenanceCut::create([
+            'paid_by_user_id' => $admin->id,
+            'provider_id' => $alejandro->id,
+            'ticket_count' => 1,
+            'labor_total' => 400,
+            'material_total' => 100,
+            'grand_total' => 500,
+            'paid_at' => now()->subDays(2),
+        ]);
+        $alejandroCut->items()->create([
+            'ticket_id' => $alejandroTicket->id,
+            'labor_total' => 400,
+            'material_total' => 100,
+            'grand_total' => 500,
+        ]);
+        $allisonCut = MaintenanceCut::create([
+            'paid_by_user_id' => $admin->id,
+            'provider_id' => $allison->id,
+            'ticket_count' => 1,
+            'labor_total' => 200,
+            'material_total' => 300,
+            'grand_total' => 500,
+            'paid_at' => now()->subDay(),
+        ]);
+        $allisonCut->items()->create([
+            'ticket_id' => $allisonTicket->id,
+            'labor_total' => 200,
+            'material_total' => 300,
+            'grand_total' => 500,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('maintenance-cuts.index', ['tab' => 'historial', 'history_provider_id' => $alejandro->id]))
+            ->assertOk()
+            ->assertSee('Proveedor / técnico')
+            ->assertSee('Alejandro Historial')
+            ->assertSee('Trabajo de Alejandro para historial')
+            ->assertDontSee('Trabajo de Allison para historial')
+            ->assertSee('maintenanceCutExportModal')
+            ->assertSee('maintenance-cut-report-providers');
+
+        $pdf = $this->actingAs($admin)->get(route('maintenance-cuts.export.pdf', [
+            'provider_ids' => [$alejandro->id],
+            'property_ids' => [$firstProperty->id],
+            'date_from' => now()->subWeek()->toDateString(),
+            'date_to' => now()->toDateString(),
+        ]));
+        $pdf->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+
+        $excel = $this->actingAs($admin)->get(route('maintenance-cuts.export.excel', [
+            'provider_ids' => [$alejandro->id],
+            'property_ids' => [$firstProperty->id],
+        ]));
+        $excel->assertOk()->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $temporaryFile = tempnam(sys_get_temp_dir(), 'maintenance-cut-report-');
+        file_put_contents($temporaryFile, $excel->streamedContent());
+        try {
+            $sheet = (new Xlsx)->load($temporaryFile)->getActiveSheet();
+            $this->assertSame('Cortes pagados', $sheet->getCell('A4')->getValue());
+            $this->assertSame('1', (string) $sheet->getCell('C4')->getValue());
+            $this->assertSame('Proveedor / técnico', $sheet->getCell('B11')->getValue());
+            $this->assertSame($alejandroCut->display_reference, $sheet->getCell('A12')->getValue());
+            $this->assertSame('Alejandro Historial', $sheet->getCell('B12')->getValue());
+            $this->assertSame('$500.00', $sheet->getCell('H12')->getValue());
+        } finally {
+            @unlink($temporaryFile);
+        }
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('maintenance-cuts.export.pdf'))
+            ->assertForbidden();
     }
 
     public function test_zero_cost_completed_tickets_are_separated_from_payable_cut_tickets(): void
