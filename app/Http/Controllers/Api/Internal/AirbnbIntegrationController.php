@@ -10,6 +10,7 @@ use App\Models\Property;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class AirbnbIntegrationController extends Controller
@@ -172,38 +173,110 @@ class AirbnbIntegrationController extends Controller
             'property_uuid' => ['required', 'uuid', 'exists:properties,uuid'],
             'external_event_id' => ['required', 'string', 'max:120'],
             'event_type' => ['required', 'string', 'max:60'],
+            'concept' => ['required', 'string', 'max:190'],
+            'customer_name' => ['required', 'string', 'max:190'],
+            'payment_method' => ['required', 'string', 'in:'.implode(',', array_keys(ChargePayment::METHOD_LABELS))],
             'external_reservation_id' => ['nullable', 'string', 'max:120'],
-            'amount' => ['required', 'numeric'],
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:9999999999.99'],
             'currency' => ['nullable', 'string', 'size:3'],
+            'paid_at' => ['nullable', 'date'],
             'occurred_on' => ['nullable', 'date'],
             'payload' => ['nullable', 'array'],
         ]);
 
-        $property = Property::query()
-            ->where('uuid', $validated['property_uuid'])
-            ->firstOrFail();
+        [$event, $created] = DB::transaction(function () use ($validated): array {
+            $property = Property::query()
+                ->where('uuid', $validated['property_uuid'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $event = AirbnbFinancialEvent::query()->firstOrNew([
-            'external_event_id' => $validated['external_event_id'],
-        ]);
-        $created = ! $event->exists;
+            if (! $property->airbnb_managed_at || blank($property->airbnb_external_property_id)) {
+                abort(422, 'La propiedad no está enlazada con Airbnb SU.');
+            }
 
-        $event->fill([
-            'property_id' => $property->id,
-            'event_type' => $validated['event_type'],
-            'external_reservation_id' => $validated['external_reservation_id'] ?? null,
-            'amount' => $validated['amount'],
-            'currency' => strtoupper((string) ($validated['currency'] ?? 'MXN')),
-            'occurred_on' => $validated['occurred_on'] ?? null,
-            'payload' => $validated['payload'] ?? null,
-        ]);
-        $event->save();
+            $existing = AirbnbFinancialEvent::query()
+                ->where('external_event_id', $validated['external_event_id'])
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing) {
+                if ($existing->property_id !== $property->id) {
+                    abort(409, 'El external_event_id ya fue usado para otra propiedad.');
+                }
+
+                return [$existing, false];
+            }
+
+            $paidAt = Carbon::parse($validated['paid_at'] ?? $validated['occurred_on'] ?? now());
+            $amount = (float) $validated['amount'];
+            $currency = strtolower((string) ($validated['currency'] ?? 'MXN'));
+
+            $charge = Charge::query()->create([
+                'property_id' => $property->id,
+                'tenant_id' => null,
+                'customer_name' => $validated['customer_name'],
+                'type' => Charge::TYPE_OTHER,
+                'due_date' => $paidAt->toDateString(),
+                'amount' => $amount,
+                'paid_amount' => $amount,
+                'period_month' => (int) $paidAt->month,
+                'period_year' => (int) $paidAt->year,
+                'concept' => $validated['concept'],
+                'notes' => 'Cobranza recibida automáticamente desde Airbnb SU.',
+                'status' => Charge::STATUS_PAID,
+                'source' => Charge::SOURCE_AIRBNB_SU,
+                'paid_at' => $paidAt,
+            ]);
+
+            $payment = $charge->payments()->create([
+                'amount' => $amount,
+                'currency' => $currency,
+                'status' => ChargePayment::STATUS_SUCCEEDED,
+                'source' => ChargePayment::SOURCE_AIRBNB_SU,
+                'payment_method' => $validated['payment_method'],
+                'reference' => $validated['external_event_id'],
+                'payment_date' => $paidAt->toDateString(),
+                'paid_at' => $paidAt,
+                'payload' => $validated['payload'] ?? null,
+                'notes' => 'Pago confirmado por Airbnb SU.',
+            ]);
+
+            $event = AirbnbFinancialEvent::query()->create([
+                'property_id' => $property->id,
+                'external_event_id' => $validated['external_event_id'],
+                'event_type' => $validated['event_type'],
+                'concept' => $validated['concept'],
+                'customer_name' => $validated['customer_name'],
+                'payment_method' => $validated['payment_method'],
+                'external_reservation_id' => $validated['external_reservation_id'] ?? null,
+                'amount' => $amount,
+                'currency' => strtoupper($currency),
+                'occurred_on' => $paidAt->toDateString(),
+                'payload' => $validated['payload'] ?? null,
+                'charge_id' => $charge->id,
+                'charge_payment_id' => $payment->id,
+            ]);
+
+            return [$event, true];
+        });
+
+        $event->loadMissing(['charge', 'chargePayment']);
 
         return response()->json([
             'data' => [
                 'id' => $event->id,
                 'external_event_id' => $event->external_event_id,
                 'created' => $created,
+                'status' => 'paid',
+                'charge' => [
+                    'uuid' => $event->charge?->uuid,
+                    'status' => $event->charge?->status,
+                    'source' => $event->charge?->source,
+                ],
+                'payment' => [
+                    'id' => $event->chargePayment?->id,
+                    'status' => $event->chargePayment?->status,
+                ],
             ],
         ], $created ? 201 : 200);
     }

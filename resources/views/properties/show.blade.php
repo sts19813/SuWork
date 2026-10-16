@@ -1399,7 +1399,15 @@
                                         <tbody>
                                             @forelse ($propertyCharges as $charge)
                                                 <tr>
-                                                    <td>{{ $charge->concept }}</td>
+                                                    <td>
+                                                        <div>{{ $charge->concept }}</div>
+                                                        @if ($charge->source === \App\Models\Charge::SOURCE_AIRBNB_SU)
+                                                            <span class="badge badge-light-info text-info mt-1">Airbnb SU</span>
+                                                            @if ($charge->customer_name)
+                                                                <div class="text-muted fs-8 mt-1">Cliente: {{ $charge->customer_name }}</div>
+                                                            @endif
+                                                        @endif
+                                                    </td>
                                                     <td>{{ str_pad((string) $charge->period_month, 2, '0', STR_PAD_LEFT) }}/{{ $charge->period_year }}
                                                     </td>
                                                     <td>{{ $charge->due_date?->format('d/m/Y') ?? '-' }}</td>

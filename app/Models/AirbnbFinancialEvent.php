@@ -14,11 +14,16 @@ class AirbnbFinancialEvent extends Model
         'property_id',
         'external_event_id',
         'event_type',
+        'concept',
+        'customer_name',
+        'payment_method',
         'external_reservation_id',
         'amount',
         'currency',
         'occurred_on',
         'payload',
+        'charge_id',
+        'charge_payment_id',
     ];
 
     protected function casts(): array
@@ -33,5 +38,15 @@ class AirbnbFinancialEvent extends Model
     public function property(): BelongsTo
     {
         return $this->belongsTo(Property::class);
+    }
+
+    public function charge(): BelongsTo
+    {
+        return $this->belongsTo(Charge::class);
+    }
+
+    public function chargePayment(): BelongsTo
+    {
+        return $this->belongsTo(ChargePayment::class);
     }
 }
