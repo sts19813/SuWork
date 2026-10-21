@@ -2213,6 +2213,7 @@
                 });
             });
 
+            @unless ($isProviderPropertyViewer)
             document.querySelectorAll('.js-airbnb-management-form').forEach((form) => {
                 const checkbox = form.querySelector('input[name="airbnb_enabled"][type="checkbox"]');
                 if (!checkbox) {
@@ -2267,6 +2268,7 @@
                     form.submit();
                 });
             });
+            @endunless
 
             const tabButtons = document.querySelectorAll('#propertyTabs [data-bs-toggle="tab"]');
             const tabRestoreKey = `suwork:property-tab-restore:${window.location.pathname}`;
