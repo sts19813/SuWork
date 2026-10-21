@@ -13,27 +13,15 @@ class Charge extends Model
     use HasFactory;
 
     public const TYPE_RENT = 'rent';
-
     public const TYPE_MAINTENANCE = 'maintenance';
-
     public const TYPE_PENALTY = 'penalty';
-
     public const TYPE_DEPOSIT_ADJUSTMENT = 'deposit_adjustment';
-
     public const TYPE_OTHER = 'other';
 
-    public const SOURCE_MANUAL = 'manual';
-
-    public const SOURCE_AIRBNB_SU = 'airbnbsu';
-
     public const STATUS_PENDING = 'pending';
-
     public const STATUS_IN_VALIDATION = 'in_validation';
-
     public const STATUS_PARTIAL = 'partial';
-
     public const STATUS_PAID = 'paid';
-
     public const STATUS_CANCELED = 'canceled';
 
     public const TYPE_LABELS = [
@@ -60,16 +48,10 @@ class Charge extends Model
         self::STATUS_CANCELED => 'badge-light-secondary text-secondary',
     ];
 
-    public const SOURCE_LABELS = [
-        self::SOURCE_MANUAL => 'SuHomes',
-        self::SOURCE_AIRBNB_SU => 'Airbnb SU',
-    ];
-
     protected $fillable = [
         'uuid',
         'property_id',
         'tenant_id',
-        'customer_name',
         'type',
         'due_date',
         'amount',
@@ -79,7 +61,6 @@ class Charge extends Model
         'concept',
         'notes',
         'status',
-        'source',
         'payment_token',
         'paid_at',
         'created_by',
@@ -149,16 +130,6 @@ class Charge extends Model
         return self::STATUS_BADGE_CLASSES[$this->status] ?? 'badge-light-secondary text-secondary';
     }
 
-    public function getSourceLabelAttribute(): string
-    {
-        return self::SOURCE_LABELS[$this->source] ?? ucfirst(str_replace('_', ' ', (string) $this->source));
-    }
-
-    public function getCustomerDisplayNameAttribute(): string
-    {
-        return $this->customer_name ?: ($this->tenant?->full_name ?: '-');
-    }
-
     public function getDisplayStatusLabelAttribute(): string
     {
         if ($this->status === self::STATUS_IN_VALIDATION) {
@@ -179,7 +150,7 @@ class Charge extends Model
 
     public function getIsOverdueAttribute(): bool
     {
-        if (! in_array($this->status, [self::STATUS_PENDING, self::STATUS_PARTIAL], true)) {
+        if (!in_array($this->status, [self::STATUS_PENDING, self::STATUS_PARTIAL], true)) {
             return false;
         }
 

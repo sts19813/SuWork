@@ -27,8 +27,6 @@ class ChargePayment extends Model
 
     public const SOURCE_PUBLIC_TRANSFER = 'public_transfer';
 
-    public const SOURCE_AIRBNB_SU = 'airbnbsu';
-
     public const METHOD_SPEI = 'spei';
 
     public const METHOD_CASH = 'cash';
@@ -56,13 +54,6 @@ class ChargePayment extends Model
         self::STATUS_SUCCEEDED => 'Validado',
         self::STATUS_FAILED => 'Rechazado',
         self::STATUS_REFUNDED => 'Reembolsado',
-    ];
-
-    public const SOURCE_LABELS = [
-        self::SOURCE_ADMIN => 'SuHomes',
-        self::SOURCE_STRIPE => 'Pago en linea',
-        self::SOURCE_PUBLIC_TRANSFER => 'Transferencia publica',
-        self::SOURCE_AIRBNB_SU => 'Airbnb SU',
     ];
 
     protected $fillable = [
@@ -132,11 +123,6 @@ class ChargePayment extends Model
         return self::STATUS_LABELS[$this->status] ?? ucfirst(str_replace('_', ' ', $this->status));
     }
 
-    public function getSourceLabelAttribute(): string
-    {
-        return self::SOURCE_LABELS[$this->source] ?? ucfirst(str_replace('_', ' ', (string) $this->source));
-    }
-
     public function getMarkedPaidByNameAttribute(): string
     {
         $user = $this->validatedBy ?? $this->registeredBy;
@@ -145,11 +131,7 @@ class ChargePayment extends Model
             return $user->name;
         }
 
-        return match ($this->source) {
-            self::SOURCE_STRIPE => 'Pago en linea',
-            self::SOURCE_AIRBNB_SU => 'Airbnb SU',
-            default => 'Sin registro',
-        };
+        return $this->source === self::SOURCE_STRIPE ? 'Pago en linea' : 'Sin registro';
     }
 
     /**

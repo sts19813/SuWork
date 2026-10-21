@@ -97,11 +97,6 @@ class Property extends Model
         'created_by',
         'advisor_user_id',
         'technician_provider_id',
-        'airbnb_managed_at',
-        'airbnb_enabled_at',
-        'airbnb_external_property_id',
-        'airbnb_external_property_code',
-        'airbnb_external_property_name',
     ];
 
     protected function casts(): array
@@ -123,8 +118,6 @@ class Property extends Model
             'map_coordinates_resolved_at' => 'datetime',
             'map_coordinates_checked_at' => 'datetime',
             'archived_at' => 'datetime',
-            'airbnb_managed_at' => 'datetime',
-            'airbnb_enabled_at' => 'datetime',
         ];
     }
 
@@ -242,11 +235,6 @@ class Property extends Model
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class);
-    }
-
-    public function airbnbFinancialEvents(): HasMany
-    {
-        return $this->hasMany(AirbnbFinancialEvent::class);
     }
 
     public function recurringExpenseItems(): HasMany

@@ -80,15 +80,9 @@
                         <span class="badge {{ $charge->status_badge_class }}">{{ $charge->display_status_label }}</span>
                     </div>
                     <div class="col-lg-4">
-                        <div class="text-muted fs-7 mb-1">Cliente / Inquilino</div>
-                        <div class="fw-semibold">{{ $charge->customer_display_name }}</div>
-                        @if ($charge->tenant)
-                            <div class="text-muted fs-8">{{ $charge->tenant->email ?? '-' }}</div>
-                        @endif
-                    </div>
-                    <div class="col-lg-4">
-                        <div class="text-muted fs-7 mb-1">Origen</div>
-                        <div class="fw-semibold">{{ $charge->source_label }}</div>
+                        <div class="text-muted fs-7 mb-1">Inquilino</div>
+                        <div class="fw-semibold">{{ $charge->tenant?->full_name ?? '-' }}</div>
+                        <div class="text-muted fs-8">{{ $charge->tenant?->email ?? '-' }}</div>
                     </div>
                     <div class="col-lg-4">
                         <div class="text-muted fs-7 mb-1">Propiedad</div>
@@ -138,7 +132,6 @@
                                 <th>Monto</th>
                                 <th>Metodo</th>
                                 <th>Fecha</th>
-                                <th>Origen</th>
                                 <th>Referencia</th>
                                 <th>Estado</th>
                                 <th>Marcado como pagado por</th>
@@ -152,7 +145,6 @@
                                     <td class="fw-bold">${{ number_format((float) $payment->amount, 2) }}</td>
                                     <td>{{ $payment->method_label }}</td>
                                     <td>{{ $payment->payment_date?->format('d/m/Y') ?? '-' }}</td>
-                                    <td>{{ $payment->source_label }}</td>
                                     <td>{{ $payment->reference ?: '-' }}</td>
                                     <td>
                                         @php
@@ -195,7 +187,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-10">Sin pagos registrados.</td>
+                                    <td colspan="7" class="text-center text-muted py-10">Sin pagos registrados.</td>
                                 </tr>
                             @endforelse
                         </tbody>

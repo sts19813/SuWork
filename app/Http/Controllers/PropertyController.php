@@ -42,8 +42,6 @@ class PropertyController extends Controller
 {
     private const TENANT_CHANGE_BLOCKED_MESSAGE = 'No es posible cambiar o quitar el inquilino mientras existan cargos pendientes, en validación o vencidos.';
 
-    private const AIRBNB_ENABLE_BLOCKED_MESSAGE = 'No es posible administrar por Airbnb mientras la propiedad tenga cargos o pagos pendientes, parciales o en validación.';
-
     private const DEFAULT_PROPERTY_TYPES = [
         'Casa',
         'Departamento',
@@ -541,73 +539,6 @@ class PropertyController extends Controller
             ->with('success', $tenant ? 'Inquilino actualizado correctamente.' : 'Inquilino quitado correctamente.');
     }
 
-    public function updateAirbnbManagement(Request $request, Property $property): RedirectResponse
-    {
-        abort_if($this->isProviderUser($request->user()), 403);
-
-        $validated = $request->validate([
-            'airbnb_enabled' => ['nullable', 'boolean'],
-        ]);
-
-        $enableAirbnb = (bool) ($validated['airbnb_enabled'] ?? false);
-
-        $property = DB::transaction(function () use ($property, $enableAirbnb): Property {
-            $locked = Property::query()->whereKey($property->id)->lockForUpdate()->firstOrFail();
-
-            if (! $enableAirbnb && filled($locked->airbnb_external_property_id)) {
-                return $locked;
-            }
-
-            if ($enableAirbnb) {
-                if ($this->propertyDeletion->hasPendingPayments($locked)) {
-                    return $locked;
-                }
-
-                $locked->update([
-                    'status' => Property::STATUS_BLOCKED,
-                    'tenant_id' => null,
-                    'current_tenant_name' => null,
-                    'contract_starts_at' => null,
-                    'contract_expires_at' => null,
-                    'airbnb_enabled_at' => $locked->airbnb_enabled_at ?: now(),
-                ]);
-
-                return $locked;
-            }
-
-            $locked->update([
-                'status' => $locked->status === Property::STATUS_BLOCKED
-                    ? Property::STATUS_AVAILABLE
-                    : $locked->status,
-                'airbnb_enabled_at' => null,
-                'airbnb_managed_at' => null,
-                'airbnb_external_property_id' => null,
-                'airbnb_external_property_code' => null,
-                'airbnb_external_property_name' => null,
-            ]);
-
-            return $locked;
-        });
-
-        if ($enableAirbnb && ! $property->airbnb_enabled_at) {
-            return redirect()
-                ->to(route('properties.show', $property).'#tab-airbnb')
-                ->with('warning', self::AIRBNB_ENABLE_BLOCKED_MESSAGE);
-        }
-
-        if (! $enableAirbnb && filled($property->airbnb_external_property_id)) {
-            return redirect()
-                ->to(route('properties.show', $property).'#tab-airbnb')
-                ->with('warning', 'La propiedad está enlazada con Airbnb. Libérala desde Airbnb antes de desactivar esta opción.');
-        }
-
-        return redirect()
-            ->to(route('properties.show', $property).'#tab-airbnb')
-            ->with('success', $enableAirbnb
-                ? 'La propiedad quedó bloqueada y disponible para administrarse por Airbnb.'
-                : 'La administración por Airbnb se desactivó correctamente.');
-    }
-
     public function show(Property $property): View
     {
         $request = request();
@@ -939,7 +870,6 @@ class PropertyController extends Controller
             'canDeleteProperty' => ! $isProviderPropertyViewer && (bool) $user?->can('propiedades.eliminar'),
             'propertyHasPendingPayments' => $this->propertyDeletion->hasPendingPayments($property),
             'propertyDeleteBlockedMessage' => PropertyDeletionService::PENDING_PAYMENT_MESSAGE,
-            'airbnbEnableBlockedMessage' => self::AIRBNB_ENABLE_BLOCKED_MESSAGE,
         ]);
     }
 
@@ -1017,11 +947,6 @@ class PropertyController extends Controller
             'advisor_user_id' => 'Asesor responsable',
             'technician_provider_id' => 'Técnico de la propiedad',
             'property_advisors' => 'Asesores responsables',
-            'airbnb_enabled_at' => 'Administrar por Airbnb',
-            'airbnb_managed_at' => 'Enlazada con Airbnb',
-            'airbnb_external_property_id' => 'ID externo Airbnb',
-            'airbnb_external_property_code' => 'Código Airbnb',
-            'airbnb_external_property_name' => 'Nombre Airbnb',
         ];
     }
 
