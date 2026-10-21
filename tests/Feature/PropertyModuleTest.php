@@ -175,7 +175,43 @@ class PropertyModuleTest extends TestCase
             ->assertOk()
             ->assertSee('Bitácora')
             ->assertSee('Se confirmó la visita del técnico.')
-            ->assertDontSee('evidencia.jpg');
+            ->assertSee(route('properties.logbook.attachments.preview', [$property, $attachment]));
+    }
+
+    public function test_user_can_add_a_logbook_note_with_only_images(): void
+    {
+        Storage::fake('local');
+
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        $property = Property::create([
+            'internal_name' => 'Casa con imágenes',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 1',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('properties.logbook.store', $property), [
+                'attachments' => [
+                    UploadedFile::fake()->image('fachada.jpg'),
+                    UploadedFile::fake()->image('interior.png'),
+                ],
+            ])
+            ->assertRedirect(route('properties.show', $property).'#tab-logbook')
+            ->assertSessionHasNoErrors();
+
+        $entry = $property->logbookEntries()->firstOrFail();
+
+        $this->assertNull($entry->note);
+        $this->assertCount(2, $entry->attachments);
+        $this->actingAs($user)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertSee(route('properties.logbook.attachments.preview', [$property, $entry->attachments->first()]));
     }
 
     public function test_logbook_note_requires_text_or_attachment(): void
@@ -197,6 +233,31 @@ class PropertyModuleTest extends TestCase
             ->post(route('properties.logbook.store', $property), [])
             ->assertRedirect(route('properties.show', $property))
             ->assertSessionHasErrors(['note', 'attachments']);
+
+        $this->assertDatabaseCount('property_logbook_entries', 0);
+    }
+
+    public function test_logbook_note_rejects_non_image_attachments(): void
+    {
+        $user = User::factory()->create();
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        $property = Property::create([
+            'internal_name' => 'Casa Bitácora',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle 1',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('properties.show', $property))
+            ->post(route('properties.logbook.store', $property), [
+                'attachments' => [UploadedFile::fake()->create('evidencia.pdf', 10, 'application/pdf')],
+            ])
+            ->assertRedirect(route('properties.show', $property))
+            ->assertSessionHasErrors('attachments.0');
 
         $this->assertDatabaseCount('property_logbook_entries', 0);
     }

@@ -9,6 +9,10 @@
         .property-logbook { width: 100%; max-width: none; }
         .logbook-entry { border-left: 3px solid var(--bs-primary); }
         .logbook-entry__note { white-space: pre-wrap; line-height: 1.65; }
+        .logbook-entry__images { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.75rem; }
+        .logbook-entry__image { aspect-ratio: 1; overflow: hidden; border: 1px solid var(--bs-gray-300); border-radius: 0.475rem; background: var(--bs-gray-100); }
+        .logbook-entry__image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s ease; }
+        .logbook-entry__image:hover img { transform: scale(1.04); }
         .property-maintenance-table {
             table-layout: fixed;
             min-width: 1240px;

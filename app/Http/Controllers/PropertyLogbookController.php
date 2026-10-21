@@ -20,10 +20,13 @@ class PropertyLogbookController extends Controller
         $validated = $request->validate([
             'note' => ['nullable', 'string', 'max:10000', 'required_without:attachments'],
             'attachments' => ['nullable', 'array', 'max:10', 'required_without:note'],
-            'attachments.*' => ['file', 'max:20480'],
+            'attachments.*' => ['image', 'mimes:jpg,jpeg,png,gif,webp,avif', 'max:10240'],
         ], [
-            'note.required_without' => 'Escribe una nota',
-            'attachments.required_without' => 'Escribe una nota',
+            'note.required_without' => 'Escribe una nota o agrega al menos una imagen.',
+            'attachments.required_without' => 'Escribe una nota o agrega al menos una imagen.',
+            'attachments.max' => 'Puedes agregar hasta 10 imágenes por nota.',
+            'attachments.*.image' => 'Cada archivo debe ser una imagen válida.',
+            'attachments.*.max' => 'Cada imagen no puede superar 10 MB.',
         ]);
 
         DB::transaction(function () use ($request, $property, $validated): void {

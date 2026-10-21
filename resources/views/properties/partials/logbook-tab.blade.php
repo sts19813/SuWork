@@ -7,13 +7,26 @@
             </div>
         </div>
         <div class="card-body pt-0">
-            <form action="{{ route('properties.logbook.store', $property) }}" method="POST">
+            <form action="{{ route('properties.logbook.store', $property) }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 <textarea name="note" rows="4" class="form-control form-control-solid @error('note') is-invalid @enderror"
                     placeholder="Escribe una nota para la bitácora...">{{ old('note') }}</textarea>
                 @error('note')
                     <div class="invalid-feedback">{{ $message }}</div>
                 @enderror
+
+                <div class="mt-4">
+                    <label for="logbook-attachments" class="form-label fw-semibold">Imágenes</label>
+                    <input id="logbook-attachments" name="attachments[]" type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
+                        class="form-control form-control-solid @error('attachments') is-invalid @enderror @error('attachments.*') is-invalid @enderror">
+                    <div class="form-text">Opcionales. Puedes publicar solo imágenes, solo texto o ambos. Máximo 10 imágenes de 10 MB cada una.</div>
+                    @error('attachments')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    @error('attachments.*')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
 
                 <div class="d-flex justify-content-end mt-5">
                     <button type="submit" class="btn btn-primary">
@@ -51,6 +64,23 @@
 
                 @if ($entry->note)
                     <div class="logbook-entry__note text-gray-800">{{ $entry->note }}</div>
+                @endif
+
+                @if ($entry->attachments->isNotEmpty())
+                    <div class="logbook-entry__images {{ $entry->note ? 'mt-4' : '' }}">
+                        @foreach ($entry->attachments as $attachment)
+                            @if ($attachment->is_image)
+                                <a class="logbook-entry__image" href="{{ route('properties.logbook.attachments.preview', [$property, $attachment]) }}" target="_blank" rel="noopener"
+                                    title="Abrir {{ $attachment->original_name }}">
+                                    <img src="{{ route('properties.logbook.attachments.preview', [$property, $attachment]) }}" alt="Imagen adjunta a la nota">
+                                </a>
+                            @else
+                                <a class="btn btn-sm btn-light-primary" href="{{ route('properties.logbook.attachments.download', [$property, $attachment]) }}">
+                                    <i class="ki-outline ki-file-down fs-5 me-1"></i>{{ $attachment->original_name }}
+                                </a>
+                            @endif
+                        @endforeach
+                    </div>
                 @endif
             </div>
         </article>
