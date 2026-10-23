@@ -378,10 +378,11 @@
                                                 <ul class="dropdown-menu">
                                                     <li><h6 class="dropdown-header">Técnico de la propiedad</h6></li>
                                                     <li>
-                                                        <form method="POST" action="{{ route('properties.update.technician', $property) }}">
+                                                        <form method="POST" action="{{ route('properties.update.technician', $property) }}" class="js-property-technician-form" data-current-technician-id="{{ $property->technician_provider_id }}">
                                                             @csrf
                                                             @method('PUT')
                                                             <input type="hidden" name="technician_provider_id" value="">
+                                                            <input type="hidden" name="reassign_technician_tickets" value="0">
                                                             <button type="submit" class="dropdown-item {{ $property->technician_provider_id ? '' : 'active' }}">
                                                                 Sin técnico de la propiedad
                                                             </button>
@@ -390,10 +391,11 @@
                                                     <li><hr class="dropdown-divider"></li>
                                                     @foreach ($availablePropertyTechnicians as $technician)
                                                         <li>
-                                                            <form method="POST" action="{{ route('properties.update.technician', $property) }}">
+                                                            <form method="POST" action="{{ route('properties.update.technician', $property) }}" class="js-property-technician-form" data-current-technician-id="{{ $property->technician_provider_id }}">
                                                                 @csrf
                                                                 @method('PUT')
                                                                 <input type="hidden" name="technician_provider_id" value="{{ $technician->id }}">
+                                                                <input type="hidden" name="reassign_technician_tickets" value="0">
                                                                 <button type="submit" class="dropdown-item {{ (int) $property->technician_provider_id === $technician->id ? 'active' : '' }}">
                                                                     {{ $technician->name }}
                                                                     @if ($technician->specialty)
@@ -2134,6 +2136,61 @@
                     if (forceInput) {
                         forceInput.value = '1';
                     }
+                    form.submit();
+                });
+            });
+
+            document.querySelectorAll('.js-property-technician-form').forEach((form) => {
+                form.addEventListener('submit', async (event) => {
+                    if (form.dataset.confirmed === '1') {
+                        return;
+                    }
+
+                    const technicianInput = form.querySelector('input[name="technician_provider_id"]');
+                    const reassignInput = form.querySelector('input[name="reassign_technician_tickets"]');
+                    const nextTechnicianId = technicianInput?.value || '';
+                    const currentTechnicianId = form.dataset.currentTechnicianId || '';
+
+                    if (!nextTechnicianId || nextTechnicianId === currentTechnicianId) {
+                        return;
+                    }
+
+                    event.preventDefault();
+
+                    let choice = null;
+                    if (window.Swal?.fire) {
+                        const result = await window.Swal.fire({
+                            title: 'Cambiar técnico responsable',
+                            text: 'Puedes cambiar solo el responsable o también reasignar los tickets técnicos y sin asignar. Los tickets de proveedores permanecerán con su proveedor actual.',
+                            icon: 'question',
+                            showCancelButton: true,
+                            showDenyButton: true,
+                            confirmButtonText: 'Cambiar y reasignar tickets técnicos',
+                            denyButtonText: 'Solo cambiar técnico',
+                            cancelButtonText: 'Cancelar',
+                            reverseButtons: true,
+                        });
+                        if (result.isConfirmed) {
+                            choice = true;
+                        } else if (result.isDenied) {
+                            choice = false;
+                        }
+                    } else {
+                        const continueChange = window.confirm('¿Deseas cambiar el técnico responsable de esta propiedad?');
+                        if (!continueChange) {
+                            return;
+                        }
+                        choice = window.confirm('¿Deseas también reasignar los tickets técnicos y sin asignar? Los tickets de proveedores no cambiarán.');
+                    }
+
+                    if (choice === null) {
+                        return;
+                    }
+
+                    if (reassignInput) {
+                        reassignInput.value = choice ? '1' : '0';
+                    }
+                    form.dataset.confirmed = '1';
                     form.submit();
                 });
             });

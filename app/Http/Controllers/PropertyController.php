@@ -236,6 +236,7 @@ class PropertyController extends Controller
                     ->where('is_active', true)
                     ->where('type', 'tecnico_interno')),
             ],
+            'reassign_technician_tickets' => ['nullable', 'boolean'],
         ]);
 
         $newProviderId = filled($validated['technician_provider_id'] ?? null)
@@ -247,18 +248,24 @@ class PropertyController extends Controller
         $technician = $newProviderId
             ? MaintenanceProvider::query()->with('user:id,email')->findOrFail($newProviderId)
             : null;
+        $shouldReassignTechnicianTickets = $technician && $request->boolean('reassign_technician_tickets');
         $activeTickets = collect();
 
         if ($previousProviderId !== $newProviderId) {
-            DB::transaction(function () use ($property, $technician, $newProviderId, $request, &$activeTickets): void {
+            DB::transaction(function () use ($property, $technician, $newProviderId, $request, $shouldReassignTechnicianTickets, &$activeTickets): void {
                 $property->update(['technician_provider_id' => $newProviderId]);
 
-                if (! $technician) {
+                if (! $technician || ! $shouldReassignTechnicianTickets) {
                     return;
                 }
 
                 $activeTickets = $property->maintenanceTickets()
                     ->whereNotIn('status', ['completado', 'cancelado'])
+                    ->where(function (Builder $query): void {
+                        $query->whereNull('current_provider_id')
+                            ->orWhereHas('currentProvider', fn (Builder $providerQuery) => $providerQuery
+                                ->where('type', 'tecnico_interno'));
+                    })
                     ->orderBy('reported_at')
                     ->orderBy('id')
                     ->get();
@@ -282,7 +289,7 @@ class PropertyController extends Controller
                     $ticket->assignments()->create([
                         'provider_id' => $technician->id,
                         'assigned_by_user_id' => $request->user()?->id,
-                        'notes' => 'Reasignación automática al cambiar el técnico responsable de la propiedad.',
+                        'notes' => 'Reasignación confirmada al cambiar el técnico responsable de la propiedad.',
                         'assigned_at' => now(),
                         'is_current' => true,
                     ]);
@@ -313,7 +320,8 @@ class PropertyController extends Controller
 
         $message = 'Técnico de la propiedad actualizado correctamente.';
         if ($activeTickets->isNotEmpty()) {
-            $message .= ' Se reasignaron '.$activeTickets->count().' tickets pendientes.';
+            $message .= ' Se reasignaron '.$activeTickets->count().' tickets técnicos o sin asignar.';
+            $message .= ' Los tickets de proveedores no se modificaron.';
             $message .= $notifiedEmails > 0
                 ? ' El técnico fue notificado por correo.'
                 : ' No fue posible enviar la notificación porque el técnico no tiene un correo disponible o ocurrió un error de envío.';

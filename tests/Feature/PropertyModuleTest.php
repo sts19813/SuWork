@@ -1411,7 +1411,7 @@ class PropertyModuleTest extends TestCase
         $this->assertSame($technician->id, $property->fresh()->technician_provider_id);
     }
 
-    public function test_changing_property_technician_reassigns_active_tickets_and_sends_summary_email(): void
+    public function test_changing_property_technician_reassigns_only_technician_tickets_after_confirmation(): void
     {
         Mail::fake();
 
@@ -1429,6 +1429,12 @@ class PropertyModuleTest extends TestCase
             'name' => 'Técnico nuevo',
             'email' => $technicianUser->email,
             'user_id' => $technicianUser->id,
+            'is_active' => true,
+        ]);
+        $supplier = MaintenanceProvider::create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor sin cambio',
+            'email' => 'proveedor@example.com',
             'is_active' => true,
         ]);
         $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
@@ -1473,15 +1479,38 @@ class PropertyModuleTest extends TestCase
         $inProgressTicket = $createTicket('en_proceso', 'Ticket en proceso reasignado');
         $completedTicket = $createTicket('completado', 'Ticket completado sin cambios');
         $cancelledTicket = $createTicket('cancelado', 'Ticket cancelado sin cambios');
+        $supplierTicket = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $admin->id,
+            'current_provider_id' => $supplier->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $admin->name,
+            'category' => 'plomeria',
+            'priority' => 'media',
+            'status' => 'asignado',
+            'title' => 'Ticket del proveedor sin cambio',
+            'exact_location' => 'Baño',
+            'description' => 'Debe permanecer con el proveedor.',
+            'reported_at' => now(),
+            'assigned_at' => now(),
+        ]);
+        $supplierTicket->assignments()->create([
+            'provider_id' => $supplier->id,
+            'assigned_by_user_id' => $admin->id,
+            'assigned_at' => now(),
+            'is_current' => true,
+        ]);
 
         $this->actingAs($admin)
             ->from(route('properties.show', $property))
             ->put(route('properties.update.technician', $property), [
                 'technician_provider_id' => $newProvider->id,
+                'reassign_technician_tickets' => true,
             ])
             ->assertRedirect(route('properties.show', $property))
             ->assertSessionHas('success', function (string $message): bool {
-                return str_contains($message, 'Se reasignaron 2 tickets pendientes')
+                return str_contains($message, 'Se reasignaron 2 tickets técnicos o sin asignar')
+                    && str_contains($message, 'Los tickets de proveedores no se modificaron')
                     && str_contains($message, 'notificado por correo');
             });
 
@@ -1490,6 +1519,7 @@ class PropertyModuleTest extends TestCase
         $this->assertSame($newProvider->id, $inProgressTicket->fresh()->current_provider_id);
         $this->assertSame($oldProvider->id, $completedTicket->fresh()->current_provider_id);
         $this->assertSame($oldProvider->id, $cancelledTicket->fresh()->current_provider_id);
+        $this->assertSame($supplier->id, $supplierTicket->fresh()->current_provider_id);
         $this->assertDatabaseHas('maintenance_ticket_assignments', [
             'ticket_id' => $pendingTicket->id,
             'provider_id' => $oldProvider->id,
@@ -1513,6 +1543,72 @@ class PropertyModuleTest extends TestCase
                 && ! str_contains($html, 'Ticket completado sin cambios');
         });
         Mail::assertSent(PropertyTechnicianAssignedMail::class, 1);
+    }
+
+    public function test_changing_property_technician_without_confirmation_does_not_reassign_tickets(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::query()->create(['name' => 'administrador', 'guard_name' => 'web']));
+        $oldProvider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico anterior sin confirmación',
+            'is_active' => true,
+        ]);
+        $newProvider = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico nuevo sin confirmación',
+            'is_active' => true,
+        ]);
+        $type = PropertyType::create(['name' => 'Casa', 'slug' => 'casa', 'is_active' => true]);
+        $zone = Zone::create(['name' => 'Centro', 'slug' => 'centro', 'is_active' => true]);
+        $property = Property::create([
+            'internal_name' => 'Casa sin reasignación automática',
+            'property_type_id' => $type->id,
+            'zone_id' => $zone->id,
+            'full_address' => 'Calle sin reasignación',
+            'status' => Property::STATUS_AVAILABLE,
+            'created_by' => $admin->id,
+            'technician_provider_id' => $oldProvider->id,
+        ]);
+        $ticket = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $admin->id,
+            'current_provider_id' => $oldProvider->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $admin->name,
+            'category' => 'electricidad',
+            'priority' => 'media',
+            'status' => 'asignado',
+            'title' => 'Ticket técnico sin confirmación',
+            'exact_location' => 'Sala',
+            'description' => 'No debe cambiar de responsable.',
+            'reported_at' => now(),
+            'assigned_at' => now(),
+        ]);
+        $ticket->assignments()->create([
+            'provider_id' => $oldProvider->id,
+            'assigned_by_user_id' => $admin->id,
+            'assigned_at' => now(),
+            'is_current' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('properties.show', $property))
+            ->put(route('properties.update.technician', $property), [
+                'technician_provider_id' => $newProvider->id,
+            ])
+            ->assertRedirect(route('properties.show', $property));
+
+        $this->assertSame($newProvider->id, $property->fresh()->technician_provider_id);
+        $this->assertSame($oldProvider->id, $ticket->fresh()->current_provider_id);
+        $this->assertDatabaseHas('maintenance_ticket_assignments', [
+            'ticket_id' => $ticket->id,
+            'provider_id' => $oldProvider->id,
+            'is_current' => true,
+        ]);
+        Mail::assertNothingSent();
     }
 
     public function test_property_advisor_dropdown_only_shows_advisors_and_admins(): void
