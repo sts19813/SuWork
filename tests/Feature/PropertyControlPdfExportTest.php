@@ -79,6 +79,34 @@ class PropertyControlPdfExportTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get(route('properties.control.documents-pdf.export'))
             ->assertForbidden();
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('properties.control.documents-pdf.export-pdf'))
+            ->assertForbidden();
+    }
+
+    public function test_user_with_control_permission_can_export_the_same_pdf_document_report_as_pdf(): void
+    {
+        $user = User::factory()->create();
+        Permission::findOrCreate('propiedades.control_ver', 'web');
+        $user->givePermissionTo('propiedades.control_ver');
+        $property = $this->createProperty($user);
+
+        PropertyDocument::create([
+            'property_id' => $property->id,
+            'document_type' => 'contract',
+            'label' => 'Contrato',
+            'file_path' => 'properties/'.$property->id.'/documents/contrato.pdf',
+            'status' => PropertyDocument::STATUS_UPLOADED,
+            'uploaded_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)
+            ->get(route('properties.control.documents-pdf.export-pdf'));
+
+        $response->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', $response->getContent());
     }
 
     private function createProperty(User $user): Property

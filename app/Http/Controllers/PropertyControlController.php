@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Property;
 use App\Services\PropertyControlService;
 use App\Services\PropertyDocumentPdfExportService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -121,6 +122,17 @@ class PropertyControlController extends Controller
         }, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
+    }
+
+    public function exportPdfDocumentsReport(Request $request, PropertyDocumentPdfExportService $exporter)
+    {
+        $this->ensureCanManageControl($request);
+
+        $generatedAt = now();
+        $pdf = Pdf::loadView('properties.exports.documents-pdf', $exporter->report($generatedAt))
+            ->setPaper('a4', 'landscape');
+
+        return $pdf->download('control_documentos_pdf_propiedades_'.$generatedAt->format('Ymd_His').'.pdf');
     }
 
     private function filterSnapshots(Collection $snapshots, string $search, string $statusFilter): Collection

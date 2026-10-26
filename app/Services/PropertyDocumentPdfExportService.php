@@ -17,30 +17,45 @@ class PropertyDocumentPdfExportService
 {
     public function __construct(private readonly DossierDocumentRequirementService $requirements) {}
 
-    public function generate(): Spreadsheet
+    /** @return array<string, mixed> */
+    public function report(?CarbonInterface $generatedAt = null): array
     {
         $properties = Property::query()
             ->with(['documents.latestVersion'])
             ->orderBy('internal_name')
             ->get();
         $requiredDocuments = $this->requirements->labelsForEntity('property');
-        $generatedAt = now();
+        $summaryRows = $properties
+            ->map(fn (Property $property): array => $this->summaryRow($property, $requiredDocuments))
+            ->all();
+        $documentRows = $properties
+            ->flatMap(fn (Property $property): Collection => $this->documentRows($property, $requiredDocuments))
+            ->all();
+
+        return [
+            'generatedAt' => $generatedAt ?: now(),
+            'summaryRows' => $summaryRows,
+            'documentRows' => $documentRows,
+            'summary' => [
+                'properties' => count($summaryRows),
+                'properties_with_pdf' => collect($summaryRows)->filter(fn (array $row): bool => $row['pdf_count'] > 0)->count(),
+                'pdfs_loaded' => collect($summaryRows)->sum('pdf_count'),
+            ],
+        ];
+    }
+
+    public function generate(): Spreadsheet
+    {
+        $report = $this->report();
 
         $spreadsheet = new Spreadsheet;
         $summarySheet = $spreadsheet->getActiveSheet();
         $summarySheet->setTitle('Resumen por propiedad');
-
-        $summaryRows = $properties
-            ->map(fn (Property $property): array => $this->summaryRow($property, $requiredDocuments))
-            ->all();
-        $this->writeSummarySheet($summarySheet, $summaryRows, $generatedAt);
+        $this->writeSummarySheet($summarySheet, $report['summaryRows'], $report['generatedAt']);
 
         $documentSheet = $spreadsheet->createSheet();
         $documentSheet->setTitle('PDFs cargados');
-        $documentRows = $properties
-            ->flatMap(fn (Property $property): Collection => $this->documentRows($property, $requiredDocuments))
-            ->all();
-        $this->writeDocumentSheet($documentSheet, $documentRows, $generatedAt);
+        $this->writeDocumentSheet($documentSheet, $report['documentRows'], $report['generatedAt']);
 
         $spreadsheet->setActiveSheetIndex(0);
 

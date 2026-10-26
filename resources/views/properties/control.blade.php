@@ -950,10 +950,16 @@
                 <div class="text-muted fs-6">Seguimiento de configuración operativa y documental</div>
             </div>
             <div class="d-flex align-items-center gap-3">
-                <a href="{{ route('properties.control.documents-pdf.export') }}" class="btn btn-primary">
-                    <i class="bi bi-file-earmark-spreadsheet me-2"></i>
-                    Exportar documentos PDF
-                </a>
+                <div class="btn-group" role="group" aria-label="Exportar control documental">
+                    <a href="{{ route('properties.control.documents-pdf.export') }}" class="btn btn-light-success">
+                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>
+                        Exportar Excel
+                    </a>
+                    <a href="{{ route('properties.control.documents-pdf.export-pdf') }}" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-pdf me-2"></i>
+                        Exportar PDF
+                    </a>
+                </div>
                 <div class="text-muted fw-semibold">{{ now()->translatedFormat('d M Y') }}</div>
             </div>
         </div>

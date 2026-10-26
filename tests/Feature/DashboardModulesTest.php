@@ -619,7 +619,8 @@ class DashboardModulesTest extends TestCase
             ->get(route('properties.control'))
             ->assertOk()
             ->assertSee('Control de Alta de Propiedades')
-            ->assertSee('Exportar documentos PDF');
+            ->assertSee('Exportar Excel')
+            ->assertSee('Exportar PDF');
     }
 
     public function test_property_control_checks_can_be_manually_marked_and_unmarked(): void
