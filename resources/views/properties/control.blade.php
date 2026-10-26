@@ -949,7 +949,13 @@
                 <h1 class="mb-1 fw-bold text-dark">Control de Alta de Propiedades</h1>
                 <div class="text-muted fs-6">Seguimiento de configuración operativa y documental</div>
             </div>
-            <div class="text-muted fw-semibold">{{ now()->translatedFormat('d M Y') }}</div>
+            <div class="d-flex align-items-center gap-3">
+                <a href="{{ route('properties.control.documents-pdf.export') }}" class="btn btn-primary">
+                    <i class="bi bi-file-earmark-spreadsheet me-2"></i>
+                    Exportar documentos PDF
+                </a>
+                <div class="text-muted fw-semibold">{{ now()->translatedFormat('d M Y') }}</div>
+            </div>
         </div>
 
         <div class="row g-5 mb-8 property-control-summary-grid">

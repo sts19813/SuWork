@@ -4,17 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\Property;
 use App\Services\PropertyControlService;
+use App\Services\PropertyDocumentPdfExportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PropertyControlController extends Controller
 {
     public function __construct(
         private readonly PropertyControlService $propertyControlService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -64,7 +66,7 @@ class PropertyControlController extends Controller
                 'total' => $snapshots->count(),
                 'complete' => $snapshots->where('is_complete', true)->count(),
                 'incomplete' => $snapshots->where('is_complete', false)->count(),
-                'without_advisor' => $snapshots->filter(fn ($row) => !($row['checks']['advisor'] ?? false))->count(),
+                'without_advisor' => $snapshots->filter(fn ($row) => ! ($row['checks']['advisor'] ?? false))->count(),
                 'overall_progress' => (int) round($snapshots->avg('progress_percent') ?? 0),
             ],
             'resultCount' => $this->filterSnapshots($snapshots, $search, $statusFilter)->count(),
@@ -103,6 +105,24 @@ class PropertyControlController extends Controller
         return redirect()->back()->with('success', $message);
     }
 
+    public function exportPdfDocuments(Request $request, PropertyDocumentPdfExportService $exporter): StreamedResponse
+    {
+        $this->ensureCanManageControl($request);
+
+        $spreadsheet = $exporter->generate();
+        $filename = 'control_documentos_pdf_propiedades_'.now()->format('Ymd_His').'.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet): void {
+            try {
+                (new Xlsx($spreadsheet))->save('php://output');
+            } finally {
+                $spreadsheet->disconnectWorksheets();
+            }
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
     private function filterSnapshots(Collection $snapshots, string $search, string $statusFilter): Collection
     {
         return $snapshots
@@ -118,10 +138,10 @@ class PropertyControlController extends Controller
     {
         return match ($statusFilter) {
             'complete' => $row['is_complete'],
-            'incomplete' => !$row['is_complete'],
-            'no_advisor' => !($row['checks']['advisor'] ?? false),
-            'no_contract' => !($row['checks']['contract'] ?? false),
-            'no_charges' => !($row['checks']['charges'] ?? false),
+            'incomplete' => ! $row['is_complete'],
+            'no_advisor' => ! ($row['checks']['advisor'] ?? false),
+            'no_contract' => ! ($row['checks']['contract'] ?? false),
+            'no_charges' => ! ($row['checks']['charges'] ?? false),
             'no_dossier' => $row['has_dossier_gap'],
             default => true,
         };
