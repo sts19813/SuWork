@@ -18,6 +18,7 @@
         .status-pending { background: #fdecec; color: #991b1b; font-weight: bold; }
         .muted { color: #64748b; }
         .page-break { page-break-before: always; }
+        .property-group { background: #e9f2fb; color: #1f4e78; font-size: 10px; font-weight: bold; margin: 15px 0 6px; padding: 7px 9px; }
     </style>
 </head>
 <body>
@@ -63,35 +64,33 @@
 
     <div class="page-break"></div>
     <h2>PDFs actualmente cargados</h2>
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 19%">Propiedad</th>
-                <th style="width: 10%">Referencia</th>
-                <th style="width: 20%">Documento</th>
-                <th style="width: 11%">Clasificación</th>
-                <th style="width: 12%">Estado</th>
-                <th style="width: 20%">Archivo PDF</th>
-                <th style="width: 8%">Cargado</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse ($documentRows as $row)
+    @forelse (collect($documentRows)->groupBy(fn (array $row) => $row['property']->id) as $propertyRows)
+        @php($property = $propertyRows->first()['property'])
+        <div class="property-group">{{ $property->internal_name }}{{ $property->internal_reference ? ' · '.$property->internal_reference : '' }}</div>
+        <table>
+            <thead>
                 <tr>
-                    <td>{{ $row['property']->internal_name }}</td>
-                    <td>{{ $row['property']->internal_reference ?: '-' }}</td>
-                    <td>{{ $row['document']->label ?: $row['document']->document_type }}</td>
-                    <td>{{ $row['is_required'] ? 'Requerido' : 'Adicional' }}</td>
-                    <td>{{ $row['document']->status_label }}</td>
-                    <td>{{ $row['file_name'] }}</td>
-                    <td>{{ $row['uploaded_at']?->format('d/m/Y') ?: '-' }}</td>
+                    <th style="width: 29%">Documento</th>
+                    <th style="width: 14%">Clasificación</th>
+                    <th style="width: 15%">Estado</th>
+                    <th style="width: 27%">Archivo PDF</th>
+                    <th style="width: 15%">Cargado</th>
                 </tr>
-            @empty
-                <tr>
-                    <td colspan="7" class="muted">No hay documentos PDF cargados.</td>
-                </tr>
-            @endforelse
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach ($propertyRows as $row)
+                    <tr>
+                        <td>{{ $row['document']->label ?: $row['document']->document_type }}</td>
+                        <td>{{ $row['is_required'] ? 'Requerido' : 'Adicional' }}</td>
+                        <td>{{ $row['document']->status_label }}</td>
+                        <td>{{ $row['file_name'] }}</td>
+                        <td>{{ $row['uploaded_at']?->format('d/m/Y') ?: '-' }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @empty
+        <p class="muted">No hay documentos PDF cargados.</p>
+    @endforelse
 </body>
 </html>

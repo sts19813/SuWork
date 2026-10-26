@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDossierDocumentStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,27 +11,31 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class PropertyDocument extends Model
 {
-    use HasFactory;
+    use HasDossierDocumentStatus, HasFactory;
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_UPLOADED = 'uploaded';
+
     public const STATUS_APPROVED = 'approved';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_EXPIRED = 'expired';
 
     public const STATUS_LABELS = [
-        self::STATUS_PENDING => 'Pendiente',
-        self::STATUS_UPLOADED => 'En revision',
+        self::STATUS_PENDING => 'Sin archivo',
+        self::STATUS_UPLOADED => 'Vigente',
         self::STATUS_APPROVED => 'Vigente',
-        self::STATUS_REJECTED => 'Rechazado',
+        self::STATUS_REJECTED => 'Sin archivo',
         self::STATUS_EXPIRED => 'Vencido',
     ];
 
     public const STATUS_BADGE_CLASSES = [
         self::STATUS_PENDING => 'badge-light-secondary text-secondary',
-        self::STATUS_UPLOADED => 'badge-light-primary text-primary',
+        self::STATUS_UPLOADED => 'badge-light-success text-success',
         self::STATUS_APPROVED => 'badge-light-success text-success',
-        self::STATUS_REJECTED => 'badge-light-danger text-danger',
+        self::STATUS_REJECTED => 'badge-light-secondary text-secondary',
         self::STATUS_EXPIRED => 'badge-light-warning text-warning',
     ];
 
@@ -65,15 +70,5 @@ class PropertyDocument extends Model
     public function latestVersion(): HasOne
     {
         return $this->hasOne(PropertyDocumentVersion::class)->latestOfMany('version_number');
-    }
-
-    public function getStatusLabelAttribute(): string
-    {
-        return self::STATUS_LABELS[$this->status] ?? ucfirst($this->status);
-    }
-
-    public function getStatusBadgeClassAttribute(): string
-    {
-        return self::STATUS_BADGE_CLASSES[$this->status] ?? 'badge-light-secondary text-secondary';
     }
 }

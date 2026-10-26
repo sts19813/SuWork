@@ -67,6 +67,7 @@ class PropertyControlPdfExportTest extends TestCase
             $this->assertSame('Casa PDF', $documents->getCell('A5')->getValue());
             $this->assertSame('Contrato', $documents->getCell('C5')->getValue());
             $this->assertSame('Requerido', $documents->getCell('D5')->getValue());
+            $this->assertSame('Vigente', $documents->getCell('E5')->getValue());
             $this->assertSame('contrato.pdf', $documents->getCell('F5')->getValue());
             $this->assertSame(5, $documents->getHighestRow());
         } finally {
@@ -83,6 +84,21 @@ class PropertyControlPdfExportTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get(route('properties.control.documents-pdf.export-pdf'))
             ->assertForbidden();
+    }
+
+    public function test_document_status_is_derived_from_file_presence_and_expiration(): void
+    {
+        $document = new PropertyDocument([
+            'file_path' => 'properties/1/documents/contrato.pdf',
+            'status' => PropertyDocument::STATUS_UPLOADED,
+        ]);
+        $this->assertSame('Vigente', $document->status_label);
+
+        $document->expires_at = now()->subDay();
+        $this->assertSame('Vencido', $document->status_label);
+
+        $document->file_path = null;
+        $this->assertSame('Sin archivo', $document->status_label);
     }
 
     public function test_user_with_control_permission_can_export_the_same_pdf_document_report_as_pdf(): void

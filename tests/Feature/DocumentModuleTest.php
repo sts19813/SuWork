@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\DossierDocumentRequirement;
 use App\Models\Owner;
 use App\Models\Property;
 use App\Models\PropertyDocument;
 use App\Models\PropertyType;
-use App\Models\DossierDocumentRequirement;
 use App\Models\Tenant;
 use App\Models\TenantDocument;
 use App\Models\User;
@@ -61,6 +61,11 @@ class DocumentModuleTest extends TestCase
         $this->actingAs($user)->post(route('dossiers.properties.documents.upload', [$property, $propertyDocumentType]), [
             'file' => UploadedFile::fake()->create('predial-general.pdf', 90, 'application/pdf'),
         ])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('property_documents', [
+            'property_id' => $property->id,
+            'document_type' => $propertyDocumentType,
+            'status' => PropertyDocument::STATUS_APPROVED,
+        ]);
 
         $tenant = Tenant::query()->where('full_name', 'Inquilino Documentado')->firstOrFail();
         $tenantDocumentType = DossierDocumentRequirement::query()

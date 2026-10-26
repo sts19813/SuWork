@@ -357,7 +357,7 @@ class AdvisorTaskController extends Controller
             ->get()
             ->map(function (PropertyDocument $document) use ($today): array {
                 $expiresAt = $document->expires_at?->copy()->startOfDay();
-                $isOverdue = $expiresAt?->lt($today) || $document->status === PropertyDocument::STATUS_EXPIRED;
+                $isOverdue = $document->computed_status === PropertyDocument::STATUS_EXPIRED;
                 $isToday = $expiresAt?->isSameDay($today) ?? false;
 
                 return [
@@ -402,7 +402,7 @@ class AdvisorTaskController extends Controller
                 $property = $document->tenant?->properties
                     ->first(fn (Property $property): bool => $propertyIds->contains($property->id));
                 $expiresAt = $document->expires_at?->copy()->startOfDay();
-                $isOverdue = $expiresAt?->lt($today) || $document->status === TenantDocument::STATUS_EXPIRED;
+                $isOverdue = $document->computed_status === TenantDocument::STATUS_EXPIRED;
                 $isToday = $expiresAt?->isSameDay($today) ?? false;
 
                 return [

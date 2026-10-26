@@ -22,8 +22,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class DocumentController extends Controller
@@ -33,9 +33,7 @@ class DocumentController extends Controller
     public function __construct(
         private readonly DossierDocumentRequirementService $requirements,
         private readonly PropertyVisibility $propertyVisibility,
-    )
-    {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -184,7 +182,7 @@ class DocumentController extends Controller
 
     public function deletedFilesLog(Request $request): View
     {
-        if (!$request->user()?->can('expedientes.ver_bitacora_eliminados') && !$request->user()?->can(self::DELETE_FILES_PERMISSION)) {
+        if (! $request->user()?->can('expedientes.ver_bitacora_eliminados') && ! $request->user()?->can(self::DELETE_FILES_PERMISSION)) {
             abort(403);
         }
 
@@ -200,8 +198,8 @@ class DocumentController extends Controller
 
         $deletedFiles = DossierDeletedFile::query()
             ->with('deletedBy:id,name,email')
-            ->when($entityType !== '', fn($query) => $query->where('entity_type', $entityType))
-            ->when($documentGroup !== '', fn($query) => $query->where('document_group', $documentGroup))
+            ->when($entityType !== '', fn ($query) => $query->where('entity_type', $entityType))
+            ->when($documentGroup !== '', fn ($query) => $query->where('document_group', $documentGroup))
             ->when($search !== '', function ($query) use ($search): void {
                 $like = "%{$search}%";
                 $query->where(function ($inner) use ($like): void {
@@ -236,11 +234,11 @@ class DocumentController extends Controller
         $requiredLabel = $this->requirements->labelFor('property', $documentType);
         $isRequiredDocument = filled($requiredLabel);
 
-        if (!$document && !$isRequiredDocument) {
+        if (! $document && ! $isRequiredDocument) {
             abort(404);
         }
 
-        if (!$document && $isRequiredDocument) {
+        if (! $document && $isRequiredDocument) {
             $document = $property->documents()->create([
                 'document_type' => $documentType,
                 'label' => $requiredLabel,
@@ -274,7 +272,7 @@ class DocumentController extends Controller
 
         $document->update([
             'file_path' => $storedPath,
-            'status' => PropertyDocument::STATUS_UPLOADED,
+            'status' => PropertyDocument::STATUS_APPROVED,
             'uploaded_at' => now(),
             'expires_at' => $validated['expires_at'] ?? $document->expires_at,
         ]);
@@ -290,11 +288,11 @@ class DocumentController extends Controller
         $requiredLabel = $this->requirements->labelFor('tenant', $documentType);
         $isRequiredDocument = filled($requiredLabel);
 
-        if (!$document && !$isRequiredDocument) {
+        if (! $document && ! $isRequiredDocument) {
             abort(404);
         }
 
-        if (!$document && $isRequiredDocument) {
+        if (! $document && $isRequiredDocument) {
             $document = $tenant->documents()->create([
                 'document_type' => $documentType,
                 'label' => $requiredLabel,
@@ -328,7 +326,7 @@ class DocumentController extends Controller
 
         $document->update([
             'file_path' => $storedPath,
-            'status' => TenantDocument::STATUS_UPLOADED,
+            'status' => TenantDocument::STATUS_APPROVED,
             'uploaded_at' => now(),
             'expires_at' => $validated['expires_at'] ?? $document->expires_at,
         ]);
@@ -344,11 +342,11 @@ class DocumentController extends Controller
         $requiredLabel = $this->requirements->labelFor('owner', $documentType);
         $isRequiredDocument = filled($requiredLabel);
 
-        if (!$document && !$isRequiredDocument) {
+        if (! $document && ! $isRequiredDocument) {
             abort(404);
         }
 
-        if (!$document && $isRequiredDocument) {
+        if (! $document && $isRequiredDocument) {
             $document = $owner->documents()->create([
                 'document_type' => $documentType,
                 'label' => $requiredLabel,
@@ -382,7 +380,7 @@ class DocumentController extends Controller
 
         $document->update([
             'file_path' => $storedPath,
-            'status' => OwnerDocument::STATUS_UPLOADED,
+            'status' => OwnerDocument::STATUS_APPROVED,
             'uploaded_at' => now(),
             'expires_at' => $validated['expires_at'] ?? $document->expires_at,
         ]);
@@ -433,7 +431,7 @@ class DocumentController extends Controller
             'document_type' => $documentType,
             'label' => $label,
             'file_path' => $storedPath,
-            'status' => PropertyDocument::STATUS_UPLOADED,
+            'status' => PropertyDocument::STATUS_APPROVED,
             'uploaded_at' => now(),
             'expires_at' => $validated['expires_at'] ?? null,
         ]);
@@ -473,7 +471,7 @@ class DocumentController extends Controller
             'document_type' => $documentType,
             'label' => $label,
             'file_path' => $storedPath,
-            'status' => TenantDocument::STATUS_UPLOADED,
+            'status' => TenantDocument::STATUS_APPROVED,
             'uploaded_at' => now(),
             'expires_at' => $validated['expires_at'] ?? null,
         ]);
@@ -513,7 +511,7 @@ class DocumentController extends Controller
             'document_type' => $documentType,
             'label' => $label,
             'file_path' => $storedPath,
-            'status' => OwnerDocument::STATUS_UPLOADED,
+            'status' => OwnerDocument::STATUS_APPROVED,
             'uploaded_at' => now(),
             'expires_at' => $validated['expires_at'] ?? null,
         ]);
@@ -722,7 +720,7 @@ class DocumentController extends Controller
     private function mapPropertyDocument(PropertyDocument $document): array
     {
         return [
-            'id' => 'property-' . $document->id,
+            'id' => 'property-'.$document->id,
             'label' => $document->label,
             'document_type' => $document->document_type,
             'entity_type' => 'property',
@@ -741,7 +739,7 @@ class DocumentController extends Controller
     private function mapTenantDocument(TenantDocument $document): array
     {
         return [
-            'id' => 'tenant-' . $document->id,
+            'id' => 'tenant-'.$document->id,
             'label' => $document->label,
             'document_type' => $document->document_type,
             'entity_type' => 'tenant',
@@ -760,7 +758,7 @@ class DocumentController extends Controller
     private function mapOwnerDocument(OwnerDocument $document): array
     {
         return [
-            'id' => 'owner-' . $document->id,
+            'id' => 'owner-'.$document->id,
             'label' => $document->label,
             'document_type' => $document->document_type,
             'entity_type' => 'owner',
@@ -783,6 +781,7 @@ class DocumentController extends Controller
 
             if ($existingDocument) {
                 $existingDocument->update(['label' => $label]);
+
                 continue;
             }
 
@@ -804,6 +803,7 @@ class DocumentController extends Controller
 
             if ($existingDocument) {
                 $existingDocument->update(['label' => $label]);
+
                 continue;
             }
 
@@ -825,6 +825,7 @@ class DocumentController extends Controller
 
             if ($existingDocument) {
                 $existingDocument->update(['label' => $label]);
+
                 continue;
             }
 
@@ -841,7 +842,7 @@ class DocumentController extends Controller
 
     private function buildCustomDocumentType(array $existingTypes, string $label): string
     {
-        $base = 'custom_' . Str::slug($label, '_');
+        $base = 'custom_'.Str::slug($label, '_');
         if ($base === 'custom_') {
             $base = 'custom_documento';
         }
@@ -850,7 +851,7 @@ class DocumentController extends Controller
         $counter = 2;
 
         while (in_array($candidate, $existingTypes, true)) {
-            $candidate = $base . '_' . $counter;
+            $candidate = $base.'_'.$counter;
             $counter++;
         }
 
@@ -866,7 +867,7 @@ class DocumentController extends Controller
 
     private function ensureDeleteDossierFilesPermission(Request $request): void
     {
-        if (!$this->canDeleteDossierFiles($request)) {
+        if (! $this->canDeleteDossierFiles($request)) {
             abort(403);
         }
     }
@@ -890,7 +891,7 @@ class DocumentController extends Controller
             'required',
             'file',
             'mimes:pdf,jpg,jpeg,png,zip',
-            'max:' . DossierSettings::uploadLimit()['effective_kilobytes'],
+            'max:'.DossierSettings::uploadLimit()['effective_kilobytes'],
         ];
     }
 
@@ -900,7 +901,7 @@ class DocumentController extends Controller
 
         if ($storage['limit_bytes'] > 0 && $fileSize > $storage['available_bytes']) {
             throw ValidationException::withMessages([
-                'file' => 'No hay espacio suficiente en el plan contratado. Disponible: ' . $storage['available_label'] . '.',
+                'file' => 'No hay espacio suficiente en el plan contratado. Disponible: '.$storage['available_label'].'.',
             ]);
         }
     }
@@ -926,7 +927,7 @@ class DocumentController extends Controller
     ): RedirectResponse|JsonResponse {
         $latestVersion = $document->versions()->orderByDesc('version_number')->first();
 
-        if (!$latestVersion) {
+        if (! $latestVersion) {
             throw ValidationException::withMessages([
                 'file_name' => 'No hay un archivo vigente para editar.',
             ]);
@@ -967,7 +968,7 @@ class DocumentController extends Controller
         $currentExtension = pathinfo($currentName, PATHINFO_EXTENSION);
 
         return $currentExtension !== ''
-            ? $requestedName . '.' . $currentExtension
+            ? $requestedName.'.'.$currentExtension
             : $requestedName;
     }
 
@@ -1055,7 +1056,7 @@ class DocumentController extends Controller
     private function refreshPropertyDocumentAfterVersionDelete(PropertyDocument $document): void
     {
         $latest = $document->versions()->orderByDesc('version_number')->first();
-        if (!$latest) {
+        if (! $latest) {
             $isRequired = $this->requirements->isConfigured('property', $document->document_type);
             if ($isRequired) {
                 $document->update([
@@ -1074,14 +1075,14 @@ class DocumentController extends Controller
         $document->update([
             'file_path' => $latest->file_path,
             'uploaded_at' => $latest->uploaded_at,
-            'status' => PropertyDocument::STATUS_UPLOADED,
+            'status' => PropertyDocument::STATUS_APPROVED,
         ]);
     }
 
     private function refreshTenantDocumentAfterVersionDelete(TenantDocument $document): void
     {
         $latest = $document->versions()->orderByDesc('version_number')->first();
-        if (!$latest) {
+        if (! $latest) {
             $isRequired = $this->requirements->isConfigured('tenant', $document->document_type);
             if ($isRequired) {
                 $document->update([
@@ -1100,14 +1101,14 @@ class DocumentController extends Controller
         $document->update([
             'file_path' => $latest->file_path,
             'uploaded_at' => $latest->uploaded_at,
-            'status' => TenantDocument::STATUS_UPLOADED,
+            'status' => TenantDocument::STATUS_APPROVED,
         ]);
     }
 
     private function refreshOwnerDocumentAfterVersionDelete(OwnerDocument $document): void
     {
         $latest = $document->versions()->orderByDesc('version_number')->first();
-        if (!$latest) {
+        if (! $latest) {
             $isRequired = $this->requirements->isConfigured('owner', $document->document_type);
             if ($isRequired) {
                 $document->update([
@@ -1126,7 +1127,7 @@ class DocumentController extends Controller
         $document->update([
             'file_path' => $latest->file_path,
             'uploaded_at' => $latest->uploaded_at,
-            'status' => OwnerDocument::STATUS_UPLOADED,
+            'status' => OwnerDocument::STATUS_APPROVED,
         ]);
     }
 

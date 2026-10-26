@@ -1261,11 +1261,7 @@ class PropertyController extends Controller
         foreach ($this->requirements->labelsForEntity('tenant') as $documentType => $label) {
             $document = $documentsByType->get($documentType);
             $hasUploadedFile = filled($document?->file_path);
-            $isRejectedOrExpired = in_array(
-                $document?->status,
-                [TenantDocument::STATUS_REJECTED, TenantDocument::STATUS_EXPIRED],
-                true,
-            );
+            $isRejectedOrExpired = $document?->computed_status === TenantDocument::STATUS_EXPIRED;
 
             if (! $hasUploadedFile || $isRejectedOrExpired) {
                 $missing[] = 'Documento: '.$label;
@@ -1569,7 +1565,7 @@ class PropertyController extends Controller
 
             $document->update([
                 'file_path' => $storedPath,
-                'status' => PropertyDocument::STATUS_UPLOADED,
+                'status' => PropertyDocument::STATUS_APPROVED,
                 'uploaded_at' => now(),
             ]);
         }
@@ -1628,7 +1624,7 @@ class PropertyController extends Controller
 
             $document->update([
                 'file_path' => $storedPath,
-                'status' => PropertyDocument::STATUS_UPLOADED,
+                'status' => PropertyDocument::STATUS_APPROVED,
                 'uploaded_at' => now(),
                 'expires_at' => filled($expiresAt) ? $expiresAt : $document->expires_at,
                 'label' => $label !== '' ? $label : $document->label,
@@ -1653,7 +1649,7 @@ class PropertyController extends Controller
                 'document_type' => $documentType,
                 'label' => $label,
                 'file_path' => $storedPath,
-                'status' => PropertyDocument::STATUS_UPLOADED,
+                'status' => PropertyDocument::STATUS_APPROVED,
                 'uploaded_at' => now(),
                 'expires_at' => $documentData['expires_at'] ?? null,
             ]);

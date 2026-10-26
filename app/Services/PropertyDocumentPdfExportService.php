@@ -69,9 +69,19 @@ class PropertyDocumentPdfExportService
     private function summaryRow(Property $property, array $requiredDocuments): array
     {
         $pdfDocuments = $this->pdfDocuments($property);
-        $pdfDocumentTypes = $pdfDocuments->pluck('document_type')->all();
+        $validPdfDocumentTypes = $pdfDocuments
+            ->reject(fn (PropertyDocument $document): bool => $document->computed_status === PropertyDocument::STATUS_EXPIRED)
+            ->pluck('document_type')
+            ->all();
+        $expiredPdfDocumentTypes = $pdfDocuments
+            ->filter(fn (PropertyDocument $document): bool => $document->computed_status === PropertyDocument::STATUS_EXPIRED)
+            ->pluck('document_type')
+            ->all();
         $missingRequiredDocuments = collect($requiredDocuments)
-            ->reject(fn (string $label, string $type): bool => in_array($type, $pdfDocumentTypes, true))
+            ->reject(fn (string $label, string $type): bool => in_array($type, $validPdfDocumentTypes, true))
+            ->map(fn (string $label, string $type): string => in_array($type, $expiredPdfDocumentTypes, true)
+                ? $label.' (vencido)'
+                : $label)
             ->values();
 
         return [
@@ -79,7 +89,7 @@ class PropertyDocumentPdfExportService
             'pdf_count' => $pdfDocuments->count(),
             'pdf_labels' => $pdfDocuments->pluck('label')->filter()->implode("\n"),
             'required_pdf_count' => collect(array_keys($requiredDocuments))
-                ->filter(fn (string $type): bool => in_array($type, $pdfDocumentTypes, true))
+                ->filter(fn (string $type): bool => in_array($type, $validPdfDocumentTypes, true))
                 ->count(),
             'required_total' => count($requiredDocuments),
             'missing_labels' => $missingRequiredDocuments->implode("\n"),

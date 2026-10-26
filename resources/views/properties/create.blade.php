@@ -560,7 +560,7 @@
                                     <h4 class="mb-0">{{ $documentLabel }}</h4>
                                     <div class="d-flex align-items-center gap-2">
                                         <span class="badge {{ $existingDocument?->status_badge_class ?? 'badge-light-secondary text-secondary' }}">
-                                            {{ $existingDocument?->status_label ?? 'Pendiente' }}
+                                            {{ $existingDocument?->status_label ?? 'Sin archivo' }}
                                         </span>
                                         @if ($existingDocument)
                                             <span class="badge badge-light-info text-info">v{{ $existingDocument->versions->count() }}</span>

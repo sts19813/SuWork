@@ -7,14 +7,15 @@ use App\Models\ChargePayment;
 use App\Models\Expense;
 use App\Models\MaintenanceTicket;
 use App\Models\Owner;
+use App\Models\OwnerDocument;
 use App\Models\Property;
 use App\Models\PropertyDocument;
 use App\Models\StorageItem;
 use App\Models\Tenant;
+use App\Models\TenantDocument;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
@@ -57,7 +58,7 @@ class CopilotToolRegistry
             ]),
             $this->tool('list_documents_status', 'Consulta expedientes y documentos por entidad, estado o vencimiento.', [
                 'entity_type' => ['type' => 'string', 'description' => 'property, owner, tenant o all.'],
-                'status' => ['type' => 'string', 'description' => 'pending, uploaded, approved, rejected, expired o all.'],
+                'status' => ['type' => 'string', 'description' => 'pending, approved, expired o all.'],
                 'expires_within_days' => ['type' => 'integer', 'description' => 'Documentos que vencen dentro de N dias.'],
                 'limit' => ['type' => 'integer', 'description' => 'Maximo de resultados, de 1 a 30.'],
             ]),
@@ -186,7 +187,7 @@ class CopilotToolRegistry
             ],
             'documents' => [
                 'properties_pending' => PropertyDocument::query()->whereIn('property_id', $propertyIds)->where('status', 'pending')->count(),
-                'properties_uploaded' => PropertyDocument::query()->whereIn('property_id', $propertyIds)->where('status', 'uploaded')->count(),
+                'properties_uploaded' => PropertyDocument::query()->whereIn('property_id', $propertyIds)->whereNotNull('file_path')->count(),
                 'properties_expiring_30_days' => PropertyDocument::query()
                     ->whereIn('property_id', $propertyIds)
                     ->whereNotNull('expires_at')
@@ -281,7 +282,7 @@ class CopilotToolRegistry
                 'maintenance' => $property->maintenanceTickets->map(fn (MaintenanceTicket $ticket): array => $this->ticketCard($ticket))->all(),
                 'documents' => $property->documents->map(fn (PropertyDocument $document): array => [
                     'label' => $document->label,
-                    'status' => $document->status,
+                    'status' => $document->computed_status,
                     'expires_at' => $document->expires_at?->toDateString(),
                 ])->all(),
                 'inventory' => $property->inventoryAreas->map(fn ($area): array => [
@@ -401,7 +402,7 @@ class CopilotToolRegistry
 
         if (in_array($entityType, ['all', 'tenant'], true)) {
             $visibleTenantIds = Tenant::query()->whereHas('properties', fn (Builder $query) => $query->whereIn('properties.id', $propertyIds))->pluck('tenants.id');
-            $rows = $rows->merge(\App\Models\TenantDocument::query()
+            $rows = $rows->merge(TenantDocument::query()
                 ->with('tenant')
                 ->whereIn('tenant_id', $visibleTenantIds)
                 ->when($status !== 'all' && $status !== '', fn (Builder $query) => $query->where('status', $status))
@@ -419,7 +420,7 @@ class CopilotToolRegistry
 
         if (in_array($entityType, ['all', 'owner'], true)) {
             $visibleOwnerIds = Owner::query()->whereHas('properties', fn (Builder $query) => $query->whereIn('properties.id', $propertyIds))->pluck('owners.id');
-            $rows = $rows->merge(\App\Models\OwnerDocument::query()
+            $rows = $rows->merge(OwnerDocument::query()
                 ->with('owner')
                 ->whereIn('owner_id', $visibleOwnerIds)
                 ->when($status !== 'all' && $status !== '', fn (Builder $query) => $query->where('status', $status))

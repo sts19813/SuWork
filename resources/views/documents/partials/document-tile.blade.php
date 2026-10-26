@@ -7,7 +7,7 @@
     $isExpired = $document->expires_at && $document->expires_at->lt(today());
     $hasFile = filled($document->file_path);
     $stateTone = $isExpired ? 'warning' : ($hasFile ? 'success' : 'danger');
-    $stateLabel = $isExpired ? 'Vencido' : ($hasFile ? 'Cargado' : 'Falta cargar');
+    $stateLabel = $isExpired ? 'Vencido' : ($hasFile ? 'Vigente' : 'Sin archivo');
     $stateHelp = $isExpired
         ? 'El archivo sigue disponible, pero su vigencia ya vencio.'
         : ($hasFile ? 'Documento disponible para abrir o descargar.' : 'Sube un archivo para completar este requisito.');
@@ -29,9 +29,6 @@
                         <span class="badge badge-light">{{ $extensionLabel }}</span>
                         @if ($versions->count() > 1)
                             <span class="badge badge-light-info text-info">v{{ $versions->count() }}</span>
-                        @endif
-                        @if ($document->exists && filled($document->status))
-                            <span class="badge {{ $document->status_badge_class }}">{{ $document->status_label }}</span>
                         @endif
                     </div>
 
