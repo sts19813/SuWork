@@ -266,6 +266,8 @@ class PropertyController extends Controller
                             ->orWhereHas('currentProvider', fn (Builder $providerQuery) => $providerQuery
                                 ->where('type', 'tecnico_interno'));
                     })
+                    ->whereDoesntHave('assignments.provider', fn (Builder $providerQuery) => $providerQuery
+                        ->where('type', 'proveedor'))
                     ->orderBy('reported_at')
                     ->orderBy('id')
                     ->get();

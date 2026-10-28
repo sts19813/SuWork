@@ -1500,6 +1500,34 @@ class PropertyModuleTest extends TestCase
             'assigned_at' => now(),
             'is_current' => true,
         ]);
+        $legacySupplierTicket = MaintenanceTicket::create([
+            'property_id' => $property->id,
+            'reported_by_user_id' => $admin->id,
+            'current_provider_id' => $oldProvider->id,
+            'reported_by_role' => 'administrador',
+            'reported_by_name' => $admin->name,
+            'category' => 'servicio_piscinas',
+            'priority' => 'media',
+            'status' => 'programado',
+            'title' => 'Ticket de proveedor reasignado erróneamente',
+            'exact_location' => 'Piscina',
+            'description' => 'Debe conservar su proveedor original.',
+            'reported_at' => now(),
+            'assigned_at' => now(),
+        ]);
+        $legacySupplierTicket->assignments()->create([
+            'provider_id' => $supplier->id,
+            'assigned_by_user_id' => $admin->id,
+            'assigned_at' => now()->subDay(),
+            'unassigned_at' => now(),
+            'is_current' => false,
+        ]);
+        $legacySupplierTicket->assignments()->create([
+            'provider_id' => $oldProvider->id,
+            'assigned_by_user_id' => $admin->id,
+            'assigned_at' => now(),
+            'is_current' => true,
+        ]);
 
         $this->actingAs($admin)
             ->from(route('properties.show', $property))
@@ -1520,6 +1548,7 @@ class PropertyModuleTest extends TestCase
         $this->assertSame($oldProvider->id, $completedTicket->fresh()->current_provider_id);
         $this->assertSame($oldProvider->id, $cancelledTicket->fresh()->current_provider_id);
         $this->assertSame($supplier->id, $supplierTicket->fresh()->current_provider_id);
+        $this->assertSame($oldProvider->id, $legacySupplierTicket->fresh()->current_provider_id);
         $this->assertDatabaseHas('maintenance_ticket_assignments', [
             'ticket_id' => $pendingTicket->id,
             'provider_id' => $oldProvider->id,
