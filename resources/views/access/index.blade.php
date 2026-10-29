@@ -23,6 +23,13 @@
             background: #fbfcff;
         }
 
+        .access-module .access-user-avatar {
+            flex: 0 0 auto;
+            height: 42px;
+            object-fit: cover;
+            width: 42px;
+        }
+
         .access-module .nav-line-tabs .nav-link {
             border: 0;
             border-bottom: 2px solid transparent;
