@@ -1835,6 +1835,66 @@ class MaintenanceModuleTest extends TestCase
         ]);
     }
 
+    public function test_technician_cannot_complete_tickets_but_external_provider_can(): void
+    {
+        $admin = User::factory()->create();
+        $property = $this->createPropertyFixture($admin);
+        Role::findOrCreate('tecnico', 'web');
+        Role::findOrCreate('proveedor', 'web');
+
+        $technicianUser = User::factory()->create(['email' => 'tecnico-sin-cierre@example.com']);
+        $technicianUser->assignRole('tecnico');
+        $technician = MaintenanceProvider::create([
+            'type' => 'tecnico_interno',
+            'name' => 'Técnico sin cierre',
+            'email' => $technicianUser->email,
+            'user_id' => $technicianUser->id,
+            'is_active' => true,
+        ]);
+        $technicianTicket = $this->createTicketFixture($admin, $property);
+        $technicianTicket->update([
+            'current_provider_id' => $technician->id,
+            'status' => 'en_proceso',
+        ]);
+
+        $this->actingAs($technicianUser)
+            ->get(route('maintenance.show', $technicianTicket))
+            ->assertOk()
+            ->assertDontSee('<option value="completado"', false)
+            ->assertDontSee('Marcar terminado');
+
+        $this->actingAs($technicianUser)
+            ->patch(route('maintenance.status', $technicianTicket), ['status' => 'completado'])
+            ->assertForbidden();
+        $this->assertSame('en_proceso', $technicianTicket->fresh()->status);
+
+        $providerUser = User::factory()->create(['email' => 'proveedor-con-cierre@example.com']);
+        $providerUser->assignRole('proveedor');
+        $provider = MaintenanceProvider::create([
+            'type' => 'proveedor',
+            'name' => 'Proveedor con cierre',
+            'email' => $providerUser->email,
+            'user_id' => $providerUser->id,
+            'is_active' => true,
+        ]);
+        $providerTicket = $this->createTicketFixture($admin, $property);
+        $providerTicket->update([
+            'current_provider_id' => $provider->id,
+            'status' => 'en_proceso',
+        ]);
+
+        $this->actingAs($providerUser)
+            ->get(route('maintenance.show', $providerTicket))
+            ->assertOk()
+            ->assertSee('<option value="completado"', false)
+            ->assertSee('Marcar terminado');
+
+        $this->actingAs($providerUser)
+            ->patch(route('maintenance.status', $providerTicket), ['status' => 'completado'])
+            ->assertRedirect();
+        $this->assertSame('completado', $providerTicket->fresh()->status);
+    }
+
     public function test_status_change_notifies_only_advisor_assigned_technician_and_tenant(): void
     {
         Mail::fake();

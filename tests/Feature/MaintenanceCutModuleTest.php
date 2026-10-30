@@ -521,7 +521,7 @@ class MaintenanceCutModuleTest extends TestCase
             ->assertSee('evidencia-uno.jpg');
     }
 
-    public function test_technician_can_group_active_tickets_and_completing_master_completes_children(): void
+    public function test_technician_can_group_active_tickets_but_only_administrator_can_complete_master_and_children(): void
     {
         Mail::fake();
 
@@ -570,6 +570,19 @@ class MaintenanceCutModuleTest extends TestCase
         $this->assertSame('en_proceso', $second->fresh()->status);
 
         $this->actingAs($technicianUser)
+            ->get(route('maintenance.show', $master))
+            ->assertOk()
+            ->assertDontSee('<option value="completado"', false)
+            ->assertDontSee('Marcar terminado');
+
+        $this->actingAs($technicianUser)
+            ->patch(route('maintenance.status', $master), [
+                'status' => 'completado',
+                'notes' => 'Master terminado',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($admin)
             ->patch(route('maintenance.status', $master), [
                 'status' => 'completado',
                 'notes' => 'Master terminado',

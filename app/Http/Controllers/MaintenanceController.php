@@ -521,12 +521,18 @@ class MaintenanceController extends Controller
                 ->get(['id', 'uuid', 'internal_name', 'internal_reference']),
             default => collect(),
         };
-        $statusOptions = $role === 'administrador'
-            ? MaintenanceTicket::STATUS_LABELS
-            : array_intersect_key(
+        $statusOptions = match ($role) {
+            'administrador' => MaintenanceTicket::STATUS_LABELS,
+            'proveedor' => array_intersect_key(
                 MaintenanceTicket::STATUS_LABELS,
-                array_flip(['revisado', 'programado', 'en_proceso', 'esperando_material', 'completado', 'cancelado', 'reabierto'])
-            );
+                array_flip(['revisado', 'programado', 'en_proceso', 'esperando_material', 'completado', 'reabierto'])
+            ),
+            'tecnico' => array_intersect_key(
+                MaintenanceTicket::STATUS_LABELS,
+                array_flip(['revisado', 'programado', 'en_proceso', 'esperando_material', 'cancelado', 'reabierto'])
+            ),
+            default => [],
+        };
 
         $isTicketTechnician = $role === 'tecnico'
             && (
@@ -572,6 +578,7 @@ class MaintenanceController extends Controller
             'isMaintenancePaid' => $isMaintenancePaid,
             'canEditTicket' => $role === 'administrador',
             'canChangeStatus' => in_array($role, ['administrador', 'tecnico', 'proveedor'], true),
+            'canCompleteTicket' => in_array($role, ['administrador', 'proveedor'], true),
             'canQuickScheduleVisit' => in_array($role, ['administrador', 'tecnico'], true),
             'canValidateTickets' => $role === 'revisor_tickets' && $user?->can('mantenimiento.validar_tickets'),
         ]);
@@ -896,6 +903,9 @@ class MaintenanceController extends Controller
             abort(403);
         }
         if ($role === 'proveedor' && $nextStatus === 'cancelado') {
+            abort(403);
+        }
+        if ($role === 'tecnico' && $nextStatus === 'completado') {
             abort(403);
         }
         if ($role !== 'administrador') {

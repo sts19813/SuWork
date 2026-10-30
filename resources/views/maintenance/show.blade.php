@@ -867,7 +867,7 @@
                 </aside>
             </div>
 
-            @if ($canChangeStatus && !in_array($ticket->status, ['completado', 'cancelado'], true))
+            @if ($canCompleteTicket && !in_array($ticket->status, ['completado', 'cancelado'], true))
                 <div class="ticket-mobile-actionbar">
                     <form method="POST" action="{{ route('maintenance.status', $ticket) }}" class="flex-grow-1 js-ticket-status-form"
                         data-current-status="{{ $ticket->status }}"
