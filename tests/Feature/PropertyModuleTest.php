@@ -703,7 +703,7 @@ class PropertyModuleTest extends TestCase
             'email' => 'tabs@example.com',
             'is_active' => true,
         ]);
-        MaintenanceProvider::query()->create([
+        $selectableSupplier = MaintenanceProvider::query()->create([
             'type' => 'proveedor',
             'name' => 'Proveedor seleccionable',
             'email' => 'proveedor.tabs@example.com',
@@ -766,7 +766,29 @@ class PropertyModuleTest extends TestCase
             ->assertSee('js-property-maintenance-provider', false)
             ->assertSee(route('maintenance.meta', $activeTicket), false)
             ->assertSee('js-property-maintenance-cancel-form', false)
+            ->assertSee('Técnico o proveedor asignado')
+            ->assertSee('Asignar al técnico responsable de la propiedad')
+            ->assertSee('value="'.$selectableSupplier->id.'"', false)
             ->assertSee('Proveedor seleccionable');
+
+        $this->actingAs($admin)
+            ->post(route('maintenance.store'), [
+                'property_id' => $property->id,
+                'category' => 'servicio_piscinas',
+                'priority' => 'media',
+                'title' => 'Ticket con proveedor elegido desde propiedad',
+                'exact_location' => 'Piscina',
+                'description' => 'Debe asignarse directamente al proveedor elegido.',
+                'reported_at' => now()->format('Y-m-d H:i:s'),
+                'provider_id' => $selectableSupplier->id,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('maintenance_tickets', [
+            'property_id' => $property->id,
+            'title' => 'Ticket con proveedor elegido desde propiedad',
+            'current_provider_id' => $selectableSupplier->id,
+        ]);
 
         $advisorRole = Role::query()->create(['name' => 'asesores', 'guard_name' => 'web']);
         $advisor = User::factory()->create(['name' => 'Asesor cancela tickets']);
