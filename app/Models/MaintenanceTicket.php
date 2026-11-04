@@ -73,7 +73,18 @@ class MaintenanceTicket extends Model
     public const COST_PAYER_LABELS = [
         'inquilino' => 'Inquilino',
         'administracion' => 'Administración',
+        'otro' => 'Otro',
     ];
+
+    /**
+     * Los gastos cuyo pagador no es la administración se conservan en el
+     * historial de gastos de la propiedad, pero no forman parte de la
+     * rentabilidad de SuHomes.
+     */
+    public static function costPayerIsExcludedFromTotals(?string $payer): bool
+    {
+        return in_array($payer, ['inquilino', 'otro'], true);
+    }
 
     public const PAYMENT_RULE_LABELS = [
         'mal_uso' => 'Daños por mal uso',

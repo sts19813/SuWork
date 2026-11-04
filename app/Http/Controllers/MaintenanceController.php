@@ -1303,7 +1303,7 @@ class MaintenanceController extends Controller
                 'property_id' => $lockedTicket->property_id,
                 'concept' => Str::limit('Mantenimiento '.$lockedTicket->display_reference.': '.$lockedTicket->title, 190, ''),
                 'amount' => $totalCost,
-                'excluded_from_totals' => $payer === 'inquilino',
+                'excluded_from_totals' => MaintenanceTicket::costPayerIsExcludedFromTotals($payer),
                 'due_date' => now()->toDateString(),
                 'paid_at' => (bool) ($validated['is_paid'] ?? false) ? now() : null,
                 'description' => filled($validated['notes'] ?? null) ? trim((string) $validated['notes']) : null,
@@ -1371,7 +1371,7 @@ class MaintenanceController extends Controller
                     'property_id' => $maintenance->property_id,
                     'concept' => Str::limit('Mantenimiento '.$maintenance->display_reference.': '.$maintenance->title, 190, ''),
                     'amount' => $totalCost,
-                    'excluded_from_totals' => $payer === 'inquilino',
+                    'excluded_from_totals' => MaintenanceTicket::costPayerIsExcludedFromTotals($payer),
                     'due_date' => now()->toDateString(),
                     'description' => $notes,
                     'created_by' => $user?->id,
@@ -1381,7 +1381,7 @@ class MaintenanceController extends Controller
                 $expense->update([
                     'property_id' => $maintenance->property_id,
                     'amount' => $totalCost,
-                    'excluded_from_totals' => $payer === 'inquilino',
+                    'excluded_from_totals' => MaintenanceTicket::costPayerIsExcludedFromTotals($payer),
                     'description' => $notes,
                 ]);
             }

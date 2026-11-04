@@ -467,7 +467,7 @@
                                                 <td class="fw-bold">${{ number_format((float) $costRow->final_cost, 2) }}</td>
                                                 <td>
                                                     {{ $costPayerOptions[$costRow->payer] ?? 'Sin definir' }}
-                                                    @if ($costRow->payer === 'inquilino')
+                                                    @if (\App\Models\MaintenanceTicket::costPayerIsExcludedFromTotals($costRow->payer))
                                                         <span class="maintenance-chip maintenance-chip-neutral ms-1">No contabiliza</span>
                                                     @endif
                                                 </td>
@@ -921,7 +921,7 @@
                                             <option value="{{ $key }}" {{ old('payer', 'administracion') === $key ? 'selected' : '' }}>{{ $label }}</option>
                                         @endforeach
                                     </select>
-                                    <div class="form-text">Los costos del inquilino aparecen en Gastos, pero no se suman en resúmenes ni dashboards.</div>
+                                    <div class="form-text">Los costos de inquilino u otro aparecen en Gastos, pero no se suman en resúmenes ni dashboards.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Regla de pago</label>

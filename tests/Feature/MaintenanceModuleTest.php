@@ -1653,7 +1653,7 @@ class MaintenanceModuleTest extends TestCase
         }
     }
 
-    public function test_multiple_costs_create_expenses_and_tenant_costs_are_excluded_from_totals(): void
+    public function test_multiple_costs_create_expenses_and_non_administration_costs_are_excluded_from_totals(): void
     {
         Storage::fake('public');
 
@@ -1699,12 +1699,33 @@ class MaintenanceModuleTest extends TestCase
             ])
             ->assertRedirect(route('maintenance.show', $ticket));
 
-        $this->assertSame(2, $ticket->costs()->count());
-        $this->assertSame(2, Expense::query()->where('property_id', $property->id)->count());
+        $this->actingAs($user)
+            ->from(route('maintenance.show', $ticket))
+            ->put(route('maintenance.costs', $ticket), [
+                'labor_cost' => 125,
+                'material_cost' => 75,
+                'currency' => 'MXN',
+                'payer' => 'otro',
+                'payment_rule' => 'otro',
+            ])
+            ->assertRedirect(route('maintenance.show', $ticket));
+
+        $this->assertSame(3, $ticket->costs()->count());
+        $this->assertSame(3, Expense::query()->where('property_id', $property->id)->count());
         $this->assertSame(600.0, (float) Expense::query()->includedInTotals()->sum('amount'));
         $this->assertDatabaseHas('expenses', [
             'property_id' => $property->id,
             'amount' => 500,
+            'excluded_from_totals' => true,
+        ]);
+        $this->assertDatabaseHas('maintenance_ticket_costs', [
+            'ticket_id' => $ticket->id,
+            'final_cost' => 200,
+            'payer' => 'otro',
+        ]);
+        $this->assertDatabaseHas('expenses', [
+            'property_id' => $property->id,
+            'amount' => 200,
             'excluded_from_totals' => true,
         ]);
         $this->assertNotNull(Expense::query()->where('amount', 500)->value('paid_at'));
@@ -1720,7 +1741,7 @@ class MaintenanceModuleTest extends TestCase
         $this->actingAs($user)
             ->get(route('expenses.index', ['property' => $property->uuid]))
             ->assertOk()
-            ->assertViewHas('expenses', fn ($expenses): bool => $expenses->count() === 2)
+            ->assertViewHas('expenses', fn ($expenses): bool => $expenses->count() === 3)
             ->assertViewHas('summary', fn (array $summary): bool => $summary['overdue_total'] + $summary['pending_total'] === 600.0);
 
         $this->actingAs($user)
