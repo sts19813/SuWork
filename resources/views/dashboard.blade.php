@@ -73,7 +73,7 @@
 
         @media (min-width: 1200px) {
             .executive-dashboard .dashboard-mobile-shell {
-                display: block !important;
+                display: flex !important;
             }
 
             .executive-dashboard .dashboard-filter-panel {
@@ -107,6 +107,10 @@
                 min-height: 44px;
                 align-self: end;
             }
+
+            .executive-dashboard .dashboard-currency-switch {
+                flex-shrink: 0;
+            }
         }
 
         @media (max-width: 767.98px) {
@@ -116,6 +120,18 @@
 
             .executive-dashboard .dashboard-mobile-shell {
                 margin-bottom: 1rem !important;
+            }
+
+            .executive-dashboard .dashboard-currency-switch {
+                width: 100%;
+            }
+
+            .executive-dashboard .dashboard-currency-switch .btn-group {
+                width: 100%;
+            }
+
+            .executive-dashboard .dashboard-currency-switch .btn {
+                flex: 1 1 auto;
             }
 
             .executive-dashboard .dashboard-filter-panel {
@@ -329,13 +345,29 @@
 
 @section('content')
     <div class="py-10 executive-dashboard">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-8 dashboard-mobile-shell">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-4 mb-5 dashboard-mobile-shell">
             <div>
                 <h1 class="mb-1 fw-bold text-dark">Panel ejecutivo</h1>
                 <div class="text-muted fs-6">{{ $periodLabel }} · {{ $billingCurrencyOptions[$selectedBillingCurrency] }}</div>
             </div>
 
-            <form method="GET" action="{{ route('dashboard') }}" class="d-flex flex-wrap align-items-end gap-3 dashboard-filter-panel {{ $isAdvisorUser ? 'dashboard-filter-panel--with-scope' : '' }}">
+            <form method="GET" action="{{ route('dashboard') }}" class="dashboard-currency-switch">
+                @foreach (['property_scope', 'advisor_user_id', 'property_id', 'preset', 'start_date', 'end_date', 'month'] as $filter)
+                    @if (filled(request($filter)))
+                        <input type="hidden" name="{{ $filter }}" value="{{ request($filter) }}">
+                    @endif
+                @endforeach
+                <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1 d-block text-end">Moneda de cobranza</label>
+                <div class="btn-group" role="group" aria-label="Moneda de cobranza">
+                    @foreach ($billingCurrencyOptions as $currency => $label)
+                        <input type="radio" class="btn-check" name="billing_currency" id="dashboard_billing_currency_{{ $currency }}" value="{{ $currency }}" {{ $selectedBillingCurrency === $currency ? 'checked' : '' }} onchange="this.form.submit()">
+                        <label class="btn btn-sm btn-outline-primary" for="dashboard_billing_currency_{{ $currency }}">{{ strtoupper($currency) }}</label>
+                    @endforeach
+                </div>
+            </form>
+        </div>
+
+        <form method="GET" action="{{ route('dashboard') }}" class="d-flex flex-wrap align-items-end gap-3 dashboard-filter-panel {{ $isAdvisorUser ? 'dashboard-filter-panel--with-scope' : '' }} mb-8">
                 @if ($isAdvisorUser)
                     <div class="dashboard-filter-field dashboard-filter-field--wide">
                         <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1">Propiedades</label>
@@ -388,20 +420,11 @@
                         </div>
                     </div>
                 </div>
-                <div class="dashboard-filter-field">
-                    <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1 d-block">Moneda de cobranza</label>
-                    <div class="btn-group" role="group" aria-label="Moneda de cobranza">
-                        @foreach ($billingCurrencyOptions as $currency => $label)
-                            <input type="radio" class="btn-check" name="billing_currency" id="dashboard_billing_currency_{{ $currency }}" value="{{ $currency }}" {{ $selectedBillingCurrency === $currency ? 'checked' : '' }}>
-                            <label class="btn btn-sm btn-outline-primary" for="dashboard_billing_currency_{{ $currency }}">{{ strtoupper($currency) }}</label>
-                        @endforeach
-                    </div>
-                </div>
+                <input type="hidden" name="billing_currency" value="{{ $selectedBillingCurrency }}">
                 <div class="dashboard-filter-field">
                     <button type="submit" class="btn btn-primary dashboard-filter-submit">Aplicar filtro</button>
                 </div>
             </form>
-        </div>
 
         <div class="row g-5 mb-8 dashboard-kpi-row">
             @foreach ($dashboardKpis as $kpi)
