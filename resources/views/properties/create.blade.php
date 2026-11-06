@@ -289,7 +289,6 @@
                                     <option value="{{ $currency }}" {{ $fieldValue('billing_currency', \App\Models\Property::BILLING_CURRENCY_MXN) === $currency ? 'selected' : '' }}>{{ $label }}</option>
                                 @endforeach
                             </select>
-                            <div class="form-text">Los nuevos cobros y el panel financiero usarán esta moneda.</div>
                             @error('billing_currency')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror

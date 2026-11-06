@@ -461,7 +461,7 @@ class PropertyModuleTest extends TestCase
             ->assertSee('Asesor Responsable')
             ->assertSee('Moneda de cobranza')
             ->assertSee('Pesos mexicanos (MXN)')
-            ->assertSee('Dólares americanos (USD)');
+            ->assertSee('Dólares (USD)');
 
         $createResponse = $this->actingAs($advisor)
             ->post(route('properties.store'), [
@@ -497,7 +497,8 @@ class PropertyModuleTest extends TestCase
         $this->actingAs($advisor)
             ->get(route('properties.show', $property))
             ->assertOk()
-            ->assertSee('Moneda de cobranza: Dólares americanos (USD)');
+            ->assertSee('Moneda: USD')
+            ->assertSee('Moneda de cobranza: Dólares (USD)');
 
         $this->actingAs($advisor)
             ->get(route('properties.edit', $property))

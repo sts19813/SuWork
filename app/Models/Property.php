@@ -63,7 +63,7 @@ class Property extends Model
 
     public const BILLING_CURRENCY_LABELS = [
         self::BILLING_CURRENCY_MXN => 'Pesos mexicanos (MXN)',
-        self::BILLING_CURRENCY_USD => 'Dólares americanos (USD)',
+        self::BILLING_CURRENCY_USD => 'Dólares (USD)',
     ];
 
     protected $fillable = [

@@ -521,11 +521,11 @@
 
                                 <!-- HEADER -->
                                 <div class="d-flex justify-content-between align-items-center mb-4">
-                                    <h3 class="fw-bold mb-0">Cobranza</h3>
-                                    <a href="{{ route('charges.index', ['property' => $property->uuid]) }}"
-                                        class="btn btn-sm btn-light-primary">
-                                        Abrir
-                                    </a>
+                                    <div>
+                                        <h3 class="fw-bold mb-1">Cobranza</h3>
+                                        <span class="badge badge-light-primary text-primary">Moneda: {{ strtoupper($property->billing_currency ?: \App\Models\Property::BILLING_CURRENCY_MXN) }}</span>
+                                    </div>
+                                    <a href="{{ route('charges.index', ['property' => $property->uuid]) }}" class="btn btn-sm btn-light-primary">Abrir</a>
                                 </div>
 
                                 <!-- INDICADORES -->
