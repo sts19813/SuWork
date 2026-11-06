@@ -65,6 +65,28 @@
             place-items: center;
         }
 
+        .executive-dashboard .dashboard-currency-switch__option {
+            min-width: 72px;
+            border-color: #e5c6bc;
+            background: var(--sw-primary-light);
+            color: var(--sw-primary);
+            font-weight: 700;
+        }
+
+        .executive-dashboard .dashboard-currency-switch__option:hover {
+            border-color: var(--sw-primary);
+            background: #edd2c8;
+            color: var(--sw-primary-hover);
+        }
+
+        .executive-dashboard .dashboard-currency-switch .btn-check:checked + .dashboard-currency-switch__option,
+        .executive-dashboard .dashboard-currency-switch .btn-check:focus + .dashboard-currency-switch__option {
+            border-color: var(--sw-primary-border);
+            background: var(--sw-primary);
+            color: #fff;
+            box-shadow: none;
+        }
+
         .executive-dashboard #dashboard_collection_pie {
             width: min(100%, 280px);
             height: 280px;
@@ -361,7 +383,7 @@
                 <div class="btn-group" role="group" aria-label="Moneda de cobranza">
                     @foreach ($billingCurrencyOptions as $currency => $label)
                         <input type="radio" class="btn-check" name="billing_currency" id="dashboard_billing_currency_{{ $currency }}" value="{{ $currency }}" {{ $selectedBillingCurrency === $currency ? 'checked' : '' }} onchange="this.form.submit()">
-                        <label class="btn btn-sm btn-outline-primary" for="dashboard_billing_currency_{{ $currency }}">{{ strtoupper($currency) }}</label>
+                        <label class="btn btn-sm dashboard-currency-switch__option" for="dashboard_billing_currency_{{ $currency }}">{{ strtoupper($currency) }}</label>
                     @endforeach
                 </div>
             </form>
