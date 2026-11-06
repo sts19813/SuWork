@@ -498,7 +498,7 @@ class PropertyModuleTest extends TestCase
             ->get(route('properties.show', $property))
             ->assertOk()
             ->assertSee('Moneda: USD')
-            ->assertSee('Moneda de cobranza: Dólares (USD)');
+            ->assertDontSee('Moneda de cobranza: Dólares (USD)');
 
         $this->actingAs($advisor)
             ->get(route('properties.edit', $property))
