@@ -822,10 +822,15 @@
                                     <tr class="charges-list-row" data-payment-row>
                                         <td class="ps-7">
                                             <div class="charges-list-title">{{ $charge->concept }}</div>
-                                            <div class="charges-list-meta">{{ $charge->type_label }}</div>
+                                            <div class="charges-list-meta">
+                                                {{ $charge->type_label }}
+                                                @if ($charge->source === \App\Models\Charge::SOURCE_AIRBNB_SU)
+                                                    · Airbnb SU
+                                                @endif
+                                            </div>
                                         </td>
                                         <td data-mobile-label="Inquilino / propiedad">
-                                            <div class="charges-list-value">{{ $charge->tenant?->full_name ?? '-' }}</div>
+                                            <div class="charges-list-value">{{ $charge->customer_display_name }}</div>
                                             <div class="charges-list-meta">
                                                 {{ $charge->property?->internal_name ?: '-' }}
                                                 @if ($charge->property?->internal_reference)

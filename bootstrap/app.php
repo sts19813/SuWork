@@ -1,11 +1,20 @@
 <?php
 
 use App\Console\Commands\GenerateRecurringExpensesCommand;
+use App\Console\Commands\IssueAirbnbIntegrationTokenCommand;
 use App\Console\Commands\SendExpenseNotificationsCommand;
+use App\Http\Middleware\EnsureEmailIsVerified;
+use App\Http\Middleware\EnsurePropertyIsVisible;
+use App\Http\Middleware\EnsureStorageAccess;
+use App\Http\Middleware\EnsureUserHasSystemAccess;
+use App\Http\Middleware\RestrictProviderToOperations;
+use App\Http\Middleware\RestrictTicketReviewerToMaintenance;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Console\Scheduling\Schedule;
+use Laravel\Sanctum\Http\Middleware\CheckAbilities;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withCommands([
         GenerateRecurringExpensesCommand::class,
+        IssueAirbnbIntegrationTokenCommand::class,
         SendExpenseNotificationsCommand::class,
     ])
     ->withSchedule(function (Schedule $schedule): void {
@@ -24,16 +34,17 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->api(prepend: [
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            EnsureFrontendRequestsAreStateful::class,
         ]);
 
         $middleware->alias([
-            'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
-            'system.access' => \App\Http\Middleware\EnsureUserHasSystemAccess::class,
-            'storage.access' => \App\Http\Middleware\EnsureStorageAccess::class,
-            'provider.operational' => \App\Http\Middleware\RestrictProviderToOperations::class,
-            'reviewer.restricted' => \App\Http\Middleware\RestrictTicketReviewerToMaintenance::class,
-            'property.visible' => \App\Http\Middleware\EnsurePropertyIsVisible::class,
+            'verified' => EnsureEmailIsVerified::class,
+            'system.access' => EnsureUserHasSystemAccess::class,
+            'storage.access' => EnsureStorageAccess::class,
+            'provider.operational' => RestrictProviderToOperations::class,
+            'reviewer.restricted' => RestrictTicketReviewerToMaintenance::class,
+            'property.visible' => EnsurePropertyIsVisible::class,
+            'abilities' => CheckAbilities::class,
         ]);
 
         //
