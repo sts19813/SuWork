@@ -620,6 +620,10 @@ class ChargeController extends Controller
         }
 
         $validated = $request->validated();
+        $charge->load('property:id,billing_currency');
+        $currency = array_key_exists((string) $charge->property?->billing_currency, Property::BILLING_CURRENCY_LABELS)
+            ? $charge->property->billing_currency
+            : Property::BILLING_CURRENCY_MXN;
         $amount = (float) $validated['amount'];
         if ($amount > $charge->outstanding_amount) {
             return redirect()->back()->with('error', 'El monto no puede ser mayor al saldo pendiente.');
@@ -644,10 +648,10 @@ class ChargeController extends Controller
 
         $becamePaid = false;
         try {
-            DB::transaction(function () use ($charge, $validated, $amount, $receiptPaths, $request, &$becamePaid): void {
+            DB::transaction(function () use ($charge, $validated, $amount, $currency, $receiptPaths, $request, &$becamePaid): void {
                 $charge->payments()->create([
                     'amount' => $amount,
-                    'currency' => strtolower((string) config('services.stripe.currency', 'mxn')),
+                    'currency' => $currency,
                     'status' => ChargePayment::STATUS_SUCCEEDED,
                     'source' => ChargePayment::SOURCE_ADMIN,
                     'payment_method' => $validated['payment_method'],

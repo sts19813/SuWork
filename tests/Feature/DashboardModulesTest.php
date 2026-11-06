@@ -432,6 +432,28 @@ class DashboardModulesTest extends TestCase
                 ->assertViewHas('advisorCommissions', fn (Collection $commissions): bool => $commissions->count() === 1
                     && $commissions->first()['advisor']->is($firstAdvisor)
                     && $commissions->first()['collected_amount'] === 1000.0);
+
+            $secondProperty->update(['billing_currency' => Property::BILLING_CURRENCY_USD]);
+
+            $this->actingAs($viewer)
+                ->get(route('dashboard', [
+                    'billing_currency' => Property::BILLING_CURRENCY_USD,
+                    'preset' => 'custom',
+                    'start_date' => '2026-06-01',
+                    'end_date' => '2026-06-30',
+                ]))
+                ->assertOk()
+                ->assertSee('id="dashboard_billing_currency_usd"', false)
+                ->assertSee('Casa Indicadores Dos')
+                ->assertDontSee('Casa Indicadores Uno')
+                ->assertViewHas('selectedBillingCurrency', Property::BILLING_CURRENCY_USD)
+                ->assertViewHas('dashboardKpis', fn (array $kpis): bool => $kpis[0]['value'] === '1'
+                    && $kpis[2]['value'] === '$2,000.00'
+                    && $kpis[3]['value'] === '$0.00'
+                    && $kpis[4]['value'] === '$2,000.00')
+                ->assertViewHas('profitabilitySummary', fn (array $summary): bool => $summary['income_total'] === 0.0
+                    && $summary['expense_total'] === 500.0
+                    && $summary['profit_total'] === -500.0);
         } finally {
             Carbon::setTestNow();
         }

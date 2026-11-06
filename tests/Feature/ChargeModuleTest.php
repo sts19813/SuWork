@@ -417,6 +417,26 @@ class ChargeModuleTest extends TestCase
         $this->assertEquals(18000.0, (float) $charge->paid_amount);
     }
 
+    public function test_manual_payment_uses_the_property_billing_currency(): void
+    {
+        $user = User::factory()->create();
+        $charge = $this->createChargeFixture();
+        $charge->property->update(['billing_currency' => Property::BILLING_CURRENCY_USD]);
+
+        $this->actingAs($user)->post(route('charges.payments.store', $charge), [
+            'amount' => 5000,
+            'payment_date' => now()->toDateString(),
+            'payment_method' => ChargePayment::METHOD_TRANSFER,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('charge_payments', [
+            'charge_id' => $charge->id,
+            'amount' => 5000,
+            'currency' => Property::BILLING_CURRENCY_USD,
+            'status' => ChargePayment::STATUS_SUCCEEDED,
+        ]);
+    }
+
     public function test_admin_can_attach_multiple_images_and_pdfs_when_registering_a_payment(): void
     {
         Storage::fake('public');

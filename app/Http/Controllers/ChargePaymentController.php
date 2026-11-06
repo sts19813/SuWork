@@ -6,6 +6,7 @@ use App\Http\Requests\StoreTransferProofRequest;
 use App\Mail\ChargeCompletedMail;
 use App\Models\Charge;
 use App\Models\ChargePayment;
+use App\Models\Property;
 use App\Support\NotificationSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -49,9 +50,9 @@ class ChargePaymentController extends Controller
 
     public function createCheckoutSession(Request $request, string $token): RedirectResponse
     {
-        $charge = $this->findChargeByToken($token)->loadMissing(['tenant:id,full_name,email', 'property:id,internal_name']);
+        $charge = $this->findChargeByToken($token)->loadMissing(['tenant:id,full_name,email', 'property:id,internal_name,billing_currency']);
 
-        if (!in_array($charge->status, [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL], true) || $charge->outstanding_amount <= 0) {
+        if (! in_array($charge->status, [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL], true) || $charge->outstanding_amount <= 0) {
             return redirect()
                 ->route('charges.public.show', ['token' => $charge->payment_token])
                 ->with('error', 'Este cargo ya no requiere pago.');
@@ -67,7 +68,7 @@ class ChargePaymentController extends Controller
         Stripe::setApiKey($stripeSecret);
 
         $amountCents = (int) round($charge->outstanding_amount * 100);
-        $currency = strtolower((string) config('services.stripe.currency', 'mxn'));
+        $currency = $this->billingCurrencyForCharge($charge);
         $description = sprintf(
             '%s | %s/%s',
             $charge->type_label,
@@ -77,8 +78,8 @@ class ChargePaymentController extends Controller
 
         $checkoutPayload = [
             'mode' => 'payment',
-            'success_url' => route('charges.public.success', ['token' => $charge->payment_token]) . '?session_id={CHECKOUT_SESSION_ID}',
-            'cancel_url' => route('charges.public.show', ['token' => $charge->payment_token]) . '?cancelled=1',
+            'success_url' => route('charges.public.success', ['token' => $charge->payment_token]).'?session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url' => route('charges.public.show', ['token' => $charge->payment_token]).'?cancelled=1',
             'payment_method_types' => ['card'],
             'client_reference_id' => (string) $charge->id,
             'line_items' => [[
@@ -124,9 +125,9 @@ class ChargePaymentController extends Controller
 
     public function storeTransferProof(StoreTransferProofRequest $request, string $token): RedirectResponse
     {
-        $charge = $this->findChargeByToken($token)->loadMissing(['tenant:id,full_name,email', 'property:id,internal_name']);
+        $charge = $this->findChargeByToken($token)->loadMissing(['tenant:id,full_name,email', 'property:id,internal_name,billing_currency']);
 
-        if (!in_array($charge->status, [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION], true) || $charge->outstanding_amount <= 0) {
+        if (! in_array($charge->status, [Charge::STATUS_PENDING, Charge::STATUS_PARTIAL, Charge::STATUS_IN_VALIDATION], true) || $charge->outstanding_amount <= 0) {
             return redirect()
                 ->route('charges.public.show', ['token' => $charge->payment_token])
                 ->with('error', 'Este cargo ya no requiere pago.');
@@ -145,7 +146,7 @@ class ChargePaymentController extends Controller
 
             $charge->payments()->create([
                 'amount' => $amount,
-                'currency' => strtolower((string) config('services.stripe.currency', 'mxn')),
+                'currency' => $this->billingCurrencyForCharge($charge),
                 'status' => ChargePayment::STATUS_PENDING_VALIDATION,
                 'source' => ChargePayment::SOURCE_PUBLIC_TRANSFER,
                 'payment_method' => ChargePayment::METHOD_TRANSFER,
@@ -215,7 +216,7 @@ class ChargePaymentController extends Controller
             return response()->json(['error' => 'Invalid Stripe payload'], 400);
         }
 
-        if (!in_array($eventType, ['checkout.session.completed', 'checkout.session.async_payment_succeeded'], true)) {
+        if (! in_array($eventType, ['checkout.session.completed', 'checkout.session.async_payment_succeeded'], true)) {
             return response()->json(['received' => true]);
         }
 
@@ -237,6 +238,17 @@ class ChargePaymentController extends Controller
             ->firstOrFail();
     }
 
+    private function billingCurrencyForCharge(Charge $charge): string
+    {
+        $charge->load('property:id,billing_currency');
+
+        $currency = strtolower((string) $charge->property?->billing_currency);
+
+        return array_key_exists($currency, Property::BILLING_CURRENCY_LABELS)
+            ? $currency
+            : strtolower((string) config('services.stripe.currency', 'mxn'));
+    }
+
     private function applySuccessfulSession(array $sessionData, ?string $eventId): void
     {
         $chargeId = (int) (($sessionData['metadata']['charge_id'] ?? null) ?: ($sessionData['client_reference_id'] ?? 0));
@@ -249,7 +261,7 @@ class ChargePaymentController extends Controller
 
         DB::transaction(function () use ($chargeId, $sessionData, $eventId, &$becamePaid, &$charge): void {
             $charge = Charge::query()->lockForUpdate()->find($chargeId);
-            if (!$charge) {
+            if (! $charge) {
                 return;
             }
 
@@ -292,10 +304,10 @@ class ChargePaymentController extends Controller
     private function sendCompletedMail(Charge $charge): void
     {
         $charge->loadMissing(['tenant:id,email,full_name']);
-        if (!filled($charge->tenant?->email)) {
+        if (! filled($charge->tenant?->email)) {
             return;
         }
-        if (!NotificationSettings::allows(NotificationSettings::ROLE_TENANT, NotificationSettings::EVENT_PAYMENT_CONFIRMED)) {
+        if (! NotificationSettings::allows(NotificationSettings::ROLE_TENANT, NotificationSettings::EVENT_PAYMENT_CONFIRMED)) {
             return;
         }
 

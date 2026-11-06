@@ -332,7 +332,7 @@
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-8 dashboard-mobile-shell">
             <div>
                 <h1 class="mb-1 fw-bold text-dark">Panel ejecutivo</h1>
-                <div class="text-muted fs-6">{{ $periodLabel }}</div>
+                <div class="text-muted fs-6">{{ $periodLabel }} · {{ $billingCurrencyOptions[$selectedBillingCurrency] }}</div>
             </div>
 
             <form method="GET" action="{{ route('dashboard') }}" class="d-flex flex-wrap align-items-end gap-3 dashboard-filter-panel {{ $isAdvisorUser ? 'dashboard-filter-panel--with-scope' : '' }}">
@@ -388,7 +388,18 @@
                         </div>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary dashboard-filter-submit">Aplicar filtro</button>
+                <div class="dashboard-filter-field">
+                    <label class="form-label fs-8 fw-bold text-muted text-uppercase mb-1 d-block">Moneda de cobranza</label>
+                    <div class="btn-group" role="group" aria-label="Moneda de cobranza">
+                        @foreach ($billingCurrencyOptions as $currency => $label)
+                            <input type="radio" class="btn-check" name="billing_currency" id="dashboard_billing_currency_{{ $currency }}" value="{{ $currency }}" {{ $selectedBillingCurrency === $currency ? 'checked' : '' }}>
+                            <label class="btn btn-sm btn-outline-primary" for="dashboard_billing_currency_{{ $currency }}">{{ strtoupper($currency) }}</label>
+                        @endforeach
+                    </div>
+                </div>
+                <div class="dashboard-filter-field">
+                    <button type="submit" class="btn btn-primary dashboard-filter-submit">Aplicar filtro</button>
+                </div>
             </form>
         </div>
 
@@ -545,7 +556,7 @@
                     <div class="card-header border-0 pt-7">
                         <div>
                             <h3 class="card-title fw-bold text-dark">Rentabilidad general</h3>
-                            <div class="text-muted fs-7">Ingresos, gastos y utilidad del periodo seleccionado</div>
+                            <div class="text-muted fs-7">Ingresos, gastos y utilidad del periodo seleccionado · {{ $billingCurrencyOptions[$selectedBillingCurrency] }}</div>
                         </div>
                     </div>
                     <div class="card-body pt-2">

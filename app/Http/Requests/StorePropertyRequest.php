@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Owner;
 use App\Models\Property;
 use App\Models\User;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -22,7 +23,7 @@ class StorePropertyRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -39,6 +40,7 @@ class StorePropertyRequest extends FormRequest
             'unit_number' => ['nullable', 'string', 'max:100'],
             'advisor_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'monthly_rent_price' => ['nullable', 'numeric', 'min:0'],
+            'billing_currency' => ['nullable', Rule::in(array_keys(Property::BILLING_CURRENCY_LABELS))],
             'facade_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'details' => ['nullable', 'string'],
             'description' => ['nullable', 'string'],
@@ -99,6 +101,7 @@ class StorePropertyRequest extends FormRequest
             'full_address' => 'direccion completa',
             'tenant_id' => 'inquilino',
             'advisor_user_id' => 'asesor responsable',
+            'billing_currency' => 'moneda de cobranza',
             'owner_ids' => 'propietarios',
             'new_owners.*.name' => 'nombre del propietario',
             'new_owners.*.phone' => 'telefono del propietario',
@@ -165,7 +168,7 @@ class StorePropertyRequest extends FormRequest
 
             foreach ($newOwners as $index => $ownerData) {
                 $hasAnyData = collect($ownerData)->contains(fn ($value) => filled($value));
-                if (!$hasAnyData) {
+                if (! $hasAnyData) {
                     continue;
                 }
 
@@ -213,21 +216,21 @@ class StorePropertyRequest extends FormRequest
             }
 
             foreach ((array) $this->input('new_custom_documents', []) as $index => $documentData) {
-                if (!is_array($documentData)) {
+                if (! is_array($documentData)) {
                     continue;
                 }
 
                 $hasLabel = filled($documentData['label'] ?? null);
                 $hasFile = $this->hasFile("new_custom_documents.$index.file");
 
-                if ($hasLabel && !$hasFile) {
+                if ($hasLabel && ! $hasFile) {
                     $validator->errors()->add(
                         "new_custom_documents.$index.file",
                         'Debes cargar el archivo del nuevo documento personalizado.',
                     );
                 }
 
-                if (!$hasLabel && $hasFile) {
+                if (! $hasLabel && $hasFile) {
                     $validator->errors()->add(
                         "new_custom_documents.$index.label",
                         'Debes capturar el nombre del nuevo documento personalizado.',
@@ -240,7 +243,7 @@ class StorePropertyRequest extends FormRequest
             $propertyId = $this->route('property')?->id ?? null;
             $existingFacadePhoto = $propertyId ? Property::find($propertyId)?->facade_photo_path : null;
 
-            if (!$hasNewFacadePhoto && !$existingFacadePhoto) {
+            if (! $hasNewFacadePhoto && ! $existingFacadePhoto) {
                 $validator->errors()->add('facade_photo', 'La foto de fachada es obligatoria.');
             }
         });

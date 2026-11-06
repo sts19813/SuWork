@@ -458,7 +458,10 @@ class PropertyModuleTest extends TestCase
             ->get(route('properties.create'))
             ->assertOk()
             ->assertSee('Nueva Propiedad')
-            ->assertSee('Asesor Responsable');
+            ->assertSee('Asesor Responsable')
+            ->assertSee('Moneda de cobranza')
+            ->assertSee('Pesos mexicanos (MXN)')
+            ->assertSee('Dólares americanos (USD)');
 
         $createResponse = $this->actingAs($advisor)
             ->post(route('properties.store'), [
@@ -468,6 +471,7 @@ class PropertyModuleTest extends TestCase
                 'full_address' => 'Calle Asesor 100',
                 'status' => Property::STATUS_AVAILABLE,
                 'advisor_user_id' => $otherAdvisor->id,
+                'billing_currency' => Property::BILLING_CURRENCY_USD,
                 'facade_photo' => UploadedFile::fake()->image('fachada.jpg'),
                 'new_owners' => [
                     [
@@ -484,10 +488,16 @@ class PropertyModuleTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('properties.show', $property));
         $this->assertSame($otherAdvisor->id, $property->advisor_user_id);
+        $this->assertSame(Property::BILLING_CURRENCY_USD, $property->billing_currency);
         $this->assertDatabaseHas('property_advisor', [
             'property_id' => $property->id,
             'user_id' => $otherAdvisor->id,
         ]);
+
+        $this->actingAs($advisor)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertSee('Moneda de cobranza: Dólares americanos (USD)');
 
         $this->actingAs($advisor)
             ->get(route('properties.edit', $property))
@@ -503,6 +513,7 @@ class PropertyModuleTest extends TestCase
                 'full_address' => 'Calle Asesor 200',
                 'status' => Property::STATUS_AVAILABLE,
                 'advisor_user_id' => $otherAdvisor->id,
+                'billing_currency' => Property::BILLING_CURRENCY_MXN,
                 'owner_ids' => [$owner->id],
             ])
             ->assertSessionHasNoErrors()
@@ -512,6 +523,7 @@ class PropertyModuleTest extends TestCase
             'id' => $property->id,
             'internal_name' => 'Casa Editada por Asesor',
             'advisor_user_id' => $otherAdvisor->id,
+            'billing_currency' => Property::BILLING_CURRENCY_MXN,
         ]);
 
         $this->actingAs($advisor)

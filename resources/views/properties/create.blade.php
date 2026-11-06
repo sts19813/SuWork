@@ -282,6 +282,19 @@
                             @enderror
                         </div>
 
+                        <div class="col-lg-6">
+                            <label class="form-label required">Moneda de cobranza</label>
+                            <select name="billing_currency" class="form-select @error('billing_currency') is-invalid @enderror">
+                                @foreach (\App\Models\Property::BILLING_CURRENCY_LABELS as $currency => $label)
+                                    <option value="{{ $currency }}" {{ $fieldValue('billing_currency', \App\Models\Property::BILLING_CURRENCY_MXN) === $currency ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">Los nuevos cobros y el panel financiero usarán esta moneda.</div>
+                            @error('billing_currency')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
                         <div class="col-12">
                             <label class="form-label required">Foto de fachada de la propiedad</label>
                             <label class="upload-box upload-box-sm">

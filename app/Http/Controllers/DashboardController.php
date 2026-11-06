@@ -11,15 +11,14 @@ use App\Support\PropertyVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
     private const ADVISOR_COMMISSION_RATE = 0.10;
 
-    public function __construct(private readonly PropertyVisibility $propertyVisibility)
-    {
-    }
+    public function __construct(private readonly PropertyVisibility $propertyVisibility) {}
 
     public function index(Request $request): View
     {
@@ -31,6 +30,7 @@ class DashboardController extends Controller
             'advisor_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'property_scope' => ['nullable', 'in:mine,all'],
             'property_id' => ['nullable', 'integer', 'exists:properties,id'],
+            'billing_currency' => ['nullable', Rule::in(array_keys(Property::BILLING_CURRENCY_LABELS))],
         ]);
 
         $isAdvisorUser = $this->isAdvisorUser($request);
@@ -43,9 +43,14 @@ class DashboardController extends Controller
         $selectedAdvisorId = $requestedAdvisorId && $availableAdvisors->contains('id', $requestedAdvisorId)
             ? $requestedAdvisorId
             : null;
+        $selectedBillingCurrency = $validated['billing_currency'] ?? Property::BILLING_CURRENCY_MXN;
         $filteredPropertyIds = $this->intersectPropertyIds(
             $visiblePropertyIds,
             $selectedAdvisorId ? $this->advisorFilterPropertyIds($selectedAdvisorId) : null,
+        );
+        $filteredPropertyIds = $this->intersectPropertyIds(
+            $filteredPropertyIds,
+            $this->billingCurrencyPropertyIds($selectedBillingCurrency),
         );
         $availableProperties = $this->availableProperties($filteredPropertyIds);
         $requestedPropertyId = isset($validated['property_id']) ? (int) $validated['property_id'] : null;
@@ -82,6 +87,8 @@ class DashboardController extends Controller
             'selectedAdvisorId' => $selectedAdvisorId,
             'availableAdvisors' => $availableAdvisors,
             'selectedPropertyId' => $selectedPropertyId,
+            'selectedBillingCurrency' => $selectedBillingCurrency,
+            'billingCurrencyOptions' => Property::BILLING_CURRENCY_LABELS,
             'availableProperties' => $availableProperties,
             'dashboardKpis' => $kpis,
             'collectionSummary' => $collectionSummary,
@@ -606,6 +613,13 @@ class DashboardController extends Controller
             ->pluck('id')
             ->unique()
             ->values();
+    }
+
+    private function billingCurrencyPropertyIds(string $currency): Collection
+    {
+        return Property::query()
+            ->where('billing_currency', $currency)
+            ->pluck('id');
     }
 
     private function intersectPropertyIds(?Collection $basePropertyIds, ?Collection $filterPropertyIds): ?Collection

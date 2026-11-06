@@ -1022,6 +1022,7 @@ class PropertyController extends Controller
                 'status' => $validated['status'],
                 'onboarding_step' => 5,
                 'monthly_rent_price' => $validated['monthly_rent_price'] ?? null,
+                'billing_currency' => $validated['billing_currency'] ?? Property::BILLING_CURRENCY_MXN,
                 'advisor_user_id' => $validated['advisor_user_id'] ?? $request->user()?->id,
             ];
 

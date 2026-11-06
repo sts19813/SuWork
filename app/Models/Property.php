@@ -57,6 +57,15 @@ class Property extends Model
         self::STATUS_RENTED => 'badge-light-success text-success',
     ];
 
+    public const BILLING_CURRENCY_MXN = 'mxn';
+
+    public const BILLING_CURRENCY_USD = 'usd';
+
+    public const BILLING_CURRENCY_LABELS = [
+        self::BILLING_CURRENCY_MXN => 'Pesos mexicanos (MXN)',
+        self::BILLING_CURRENCY_USD => 'Dólares americanos (USD)',
+    ];
+
     protected $fillable = [
         'uuid',
         'internal_name',
@@ -75,6 +84,7 @@ class Property extends Model
         'official_number',
         'unit_number',
         'monthly_rent_price',
+        'billing_currency',
         'charge_day',
         'charge_tolerance_days',
         'use_global_expense_notifications',

@@ -1379,6 +1379,9 @@
                                     <div class="text-muted fs-7">Pagos completos:
                                         {{ (int) $rentChargesPaid }}/{{ (int) $rentChargesTotal }}
                                     </div>
+                                    <div class="mt-2">
+                                        <span class="badge badge-light-primary text-primary">Moneda de cobranza: {{ \App\Models\Property::BILLING_CURRENCY_LABELS[$property->billing_currency] ?? \App\Models\Property::BILLING_CURRENCY_LABELS[\App\Models\Property::BILLING_CURRENCY_MXN] }}</span>
+                                    </div>
                                 </div>
                                 <a href="{{ route('charges.index', ['property' => $property->uuid]) }}"
                                     class="btn btn-sm btn-light-primary">Abrir cobranza</a>
