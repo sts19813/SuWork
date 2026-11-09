@@ -83,6 +83,7 @@ class MaintenanceCutModuleTest extends TestCase
             ->get(route('maintenance-cuts.index'))
             ->assertOk()
             ->assertSee('Corte de mantenimiento')
+            ->assertSee('Fecha de completado')
             ->assertSee('Cambio de bomba')
             ->assertSee('$900.00')
             ->assertSee('$1,000.00');

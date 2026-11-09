@@ -149,8 +149,8 @@
                                     <th>Ticket</th>
                                     <th>Propiedad</th>
                                     <th>Técnico</th>
-                                    <th>Creado</th>
-                                    <th>Completado</th>
+                                    <th>Fecha de alta</th>
+                                    <th>Fecha de completado</th>
                                     <th class="text-end">Mano de obra</th>
                                     <th class="text-end">Materiales</th>
                                     <th class="text-end">Total</th>
@@ -193,8 +193,14 @@
                                             <small class="text-muted">{{ $ticket->property?->internal_reference ?: 'Sin referencia' }}</small>
                                         </td>
                                         <td><span class="cut-technician-name">{{ $ticket->currentProvider?->name ?? 'Sin técnico asignado' }}</span></td>
-                                        <td class="text-nowrap">{{ $ticket->created_at?->format('d/m/Y H:i') ?: '-' }}</td>
-                                        <td class="text-nowrap">{{ $ticket->completed_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                        <td class="cut-ticket-date">
+                                            <span>{{ $ticket->created_at?->format('d/m/Y') ?: '-' }}</span>
+                                            <small>{{ $ticket->created_at?->format('H:i') ?: '' }}</small>
+                                        </td>
+                                        <td class="cut-ticket-date">
+                                            <span>{{ $ticket->completed_at?->format('d/m/Y') ?: '-' }}</span>
+                                            <small>{{ $ticket->completed_at?->format('H:i') ?: '' }}</small>
+                                        </td>
                                         <td class="text-end text-nowrap">${{ number_format($labor, 2) }}</td>
                                         <td class="text-end text-nowrap">${{ number_format($materials, 2) }}</td>
                                         <td class="text-end text-nowrap fw-bold">${{ number_format($grand, 2) }}</td>
@@ -310,8 +316,8 @@
                                 <th>Ticket</th>
                                 <th>Propiedad</th>
                                 <th>Técnico</th>
-                                <th>Creado</th>
-                                <th>Completado</th>
+                                <th>Fecha de alta</th>
+                                <th>Fecha de completado</th>
                                 <th class="text-end">Mano de obra</th>
                                 <th class="text-end">Materiales</th>
                                 <th class="text-end">Total</th>
@@ -353,8 +359,14 @@
                                         <small class="text-muted">{{ $ticket->property?->internal_reference ?: 'Sin referencia' }}</small>
                                     </td>
                                     <td><span class="cut-technician-name">{{ $ticket->currentProvider?->name ?? 'Sin técnico asignado' }}</span></td>
-                                    <td class="text-nowrap">{{ $ticket->created_at?->format('d/m/Y H:i') ?: '-' }}</td>
-                                    <td class="text-nowrap">{{ $ticket->completed_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                    <td class="cut-ticket-date">
+                                        <span>{{ $ticket->created_at?->format('d/m/Y') ?: '-' }}</span>
+                                        <small>{{ $ticket->created_at?->format('H:i') ?: '' }}</small>
+                                    </td>
+                                    <td class="cut-ticket-date">
+                                        <span>{{ $ticket->completed_at?->format('d/m/Y') ?: '-' }}</span>
+                                        <small>{{ $ticket->completed_at?->format('H:i') ?: '' }}</small>
+                                    </td>
                                     <td class="text-end text-nowrap">${{ number_format($labor, 2) }}</td>
                                     <td class="text-end text-nowrap">${{ number_format($materials, 2) }}</td>
                                     <td class="text-end text-nowrap fw-bold">${{ number_format($grand, 2) }}</td>
@@ -476,7 +488,7 @@
                     </summary>
                     <div class="table-responsive cut-history-detail">
                         <table class="table align-middle mb-0">
-                            <thead><tr><th>Ticket</th><th>Propiedad</th><th>Creado</th><th>Completado</th><th class="text-end">Mano de obra</th><th class="text-end">Materiales</th><th class="text-end">Total</th></tr></thead>
+                            <thead><tr><th>Ticket</th><th>Propiedad</th><th>Fecha de alta</th><th>Fecha de completado</th><th class="text-end">Mano de obra</th><th class="text-end">Materiales</th><th class="text-end">Total</th></tr></thead>
                             <tbody>
                                 @foreach ($cut->items as $item)
                                     <tr>
@@ -495,8 +507,14 @@
                                             @endif
                                         </td>
                                         <td>{{ $item->ticket?->property?->internal_name ?? '-' }}</td>
-                                        <td class="text-nowrap">{{ $item->ticket?->created_at?->format('d/m/Y H:i') ?: '-' }}</td>
-                                        <td class="text-nowrap">{{ $item->ticket?->completed_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                        <td class="cut-ticket-date">
+                                            <span>{{ $item->ticket?->created_at?->format('d/m/Y') ?: '-' }}</span>
+                                            <small>{{ $item->ticket?->created_at?->format('H:i') ?: '' }}</small>
+                                        </td>
+                                        <td class="cut-ticket-date">
+                                            <span>{{ $item->ticket?->completed_at?->format('d/m/Y') ?: '-' }}</span>
+                                            <small>{{ $item->ticket?->completed_at?->format('H:i') ?: '' }}</small>
+                                        </td>
                                         <td class="text-end text-nowrap">${{ number_format((float) $item->labor_total, 2) }}</td>
                                         <td class="text-end text-nowrap">${{ number_format((float) $item->material_total, 2) }}</td>
                                         <td class="text-end text-nowrap fw-bold">${{ number_format((float) $item->grand_total, 2) }}</td>
@@ -639,6 +657,7 @@
     @media(max-width:767px){.cut-zero-cost-table{padding:.75rem}.cut-zero-cost-table .cut-table{min-width:920px}}
     .cut-child-row td{background:#fbfcfe!important;padding:.75rem 1rem 1rem!important}.cut-child-details{border:1px dashed #d8deea;border-radius:12px;background:#fff}.cut-child-details summary{display:flex;align-items:center;gap:.45rem;padding:.75rem .9rem;cursor:pointer;color:#5f6b84;font-weight:800}.cut-child-details summary::-webkit-details-marker{display:none}.cut-child-details[open] summary i{transform:rotate(90deg)}.cut-child-details summary i{transition:.16s ease}.cut-child-list{display:grid;gap:.5rem;padding:0 .9rem .9rem}.cut-child-ticket{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(150px,auto);gap:.75rem;align-items:center;color:#24304d;text-decoration:none;padding:.55rem .65rem;border-radius:10px;background:#f7f8fb}.cut-child-ticket strong{color:#ef285c}.cut-child-ticket span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cut-child-ticket small{color:#8490aa;text-align:right}
     @media(max-width:767px){.cut-child-ticket{grid-template-columns:1fr;gap:.15rem}.cut-child-ticket small{text-align:left}}
+    .cut-ticket-date{min-width:118px;white-space:normal!important;line-height:1.2}.cut-ticket-date span{display:block;white-space:nowrap;font-weight:700;color:#303b57}.cut-ticket-date small{display:block;margin-top:.18rem;white-space:nowrap;color:#8490aa;font-size:.76rem}.cut-table-wrap{overflow-x:auto!important}@media(min-width:768px){.cut-table{min-width:1100px!important}.cut-table th:nth-child(5),.cut-table th:nth-child(6){width:118px!important}}
 </style>
 @endpush
 
