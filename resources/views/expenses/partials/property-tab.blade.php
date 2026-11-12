@@ -3,7 +3,7 @@
         <div class="card-header border-0 pt-6 d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
                 <h3 class="card-title fw-bold mb-1">Resumen de gastos</h3>
-                <div class="text-muted fs-7">Seguimiento de pendientes, pagados y atrasados.</div>
+                <div class="text-muted fs-7">Consulta los gastos y su estado por periodo.</div>
             </div>
             <div class="d-flex flex-wrap gap-2">
                  <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createExpenseModalProperty">
@@ -23,7 +23,21 @@
         </div>
 
         <div class="card-body pt-0">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-5">
+                <div>
+                    <div class="fw-bold text-dark">Periodo de gastos</div>
+                    <div class="text-muted fs-7">Según la fecha de vencimiento{{ $expensePeriodStart ? ': '.$expensePeriodStart->format('d/m/Y').' al '.$expensePeriodEnd->format('d/m/Y') : ': todos los registros' }}.</div>
+                </div>
+                <div class="btn-group" role="group" aria-label="Filtrar gastos por periodo">
+                    @foreach (['month' => 'Este mes', 'three_months' => 'Últimos 3 meses', 'all' => 'Todos'] as $period => $label)
+                        <a href="{{ route('properties.show', ['property' => $property, 'expense_period' => $period]) }}#tab-expenses"
+                            class="btn btn-sm {{ $expensePeriod === $period ? 'btn-primary' : 'btn-light' }}"
+                            @if ($expensePeriod === $period) aria-current="true" @endif>{{ $label }}</a>
+                    @endforeach
+                </div>
+            </div>
             @include('expenses.partials.summary-cards', ['summary' => $propertyExpenseSummary])
+            <div class="text-muted fs-7 mb-6">Los importes excluyen gastos marcados como excluidos de rentabilidad. Los pendientes y atrasados se muestran por separado.</div>
 
             <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-4">
                 <div>
@@ -187,7 +201,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-8">No hay gastos registrados para esta propiedad.</td>
+                                <td colspan="6" class="text-center text-muted py-8">No hay gastos registrados en este periodo.</td>
                             </tr>
                         @endforelse
                     </tbody>

@@ -204,65 +204,6 @@
                                             </span>
                                         </div>
 
-                                        @if (!$isProviderPropertyViewer && $property->tenant_id)
-                                            <div class="row g-4 mb-4 pt-5 align-items-center">
-
-                                                <!-- POR COBRAR -->
-                                                <div class="col-6 col-md-3">
-                                                    <div class="d-flex align-items-center gap-3">
-                                                        
-                                                        <div>
-                                                            <div class="meta-pill text-warning ">Por cobrar</div>
-                                                            <div class="fw-bold fs-5">
-                                                                ${{ number_format((float) $propertyPendingAmount, 2) }}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <!-- VENCIDO -->
-                                                <div class="col-6 col-md-3">
-                                                    <div class="d-flex align-items-center gap-3">
-                                                        
-                                                        <div>
-                                                            <div class="meta-pill  text-danger">Vencido</div>
-                                                            <div class="fw-bold fs-5">
-                                                                ${{ number_format((float) $propertyOverdueAmount, 2) }}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <!-- COBRADO -->
-                                                <div class="col-6 col-md-3">
-                                                    <div class="d-flex align-items-center gap-3">
-                                                      
-                                                        <div>
-                                                            <div class="meta-pill text-success">
-                                                                Cobrado ({{ $propertyCurrentMonthLabel }})
-                                                            </div>
-                                                            <div class="fw-bold fs-5">
-                                                                ${{ number_format((float) $propertyCollectedMonthAmount, 2) }}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <!-- PENDIENTE VALIDACIÓN -->
-                                                <div class="col-6 col-md-3">
-                                                    <div class="d-flex align-items-center gap-3">
-                                                        
-                                                        <div>
-                                                            <div class="meta-pill text-info">Pend. validación</div>
-                                                            <div class="fw-bold fs-5">
-                                                                {{ (int) $propertyPendingValidationCount }}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                            </div>
-                                        @endif
                                     </div>
 
                                     <!-- RESUMEN RÁPIDO -->
@@ -1390,6 +1331,30 @@
                                     class="btn btn-sm btn-light-primary">Abrir cobranza</a>
                             </div>
                             <div class="card-body pt-0">
+                                @unless ($isProviderPropertyViewer)
+                                    <div class="row g-4 mb-7">
+                                        <div class="col-sm-6 col-xl-3"><div class="border rounded h-100 p-4 bg-light-warning">
+                                            <div class="text-muted fs-7">Saldo por cobrar · total</div>
+                                            <div class="fw-bold fs-2">${{ number_format((float) $propertyPendingAmount, 2) }}</div>
+                                            <div class="text-muted fs-8">Saldo pendiente de todos los periodos.</div>
+                                        </div></div>
+                                        <div class="col-sm-6 col-xl-3"><div class="border rounded h-100 p-4 bg-light-danger">
+                                            <div class="text-muted fs-7">De ese saldo, vencido</div>
+                                            <div class="fw-bold fs-2">${{ number_format((float) $propertyOverdueAmount, 2) }}</div>
+                                            <div class="text-muted fs-8">Ya pasó la fecha de vencimiento.</div>
+                                        </div></div>
+                                        <div class="col-sm-6 col-xl-3"><div class="border rounded h-100 p-4 bg-light-success">
+                                            <div class="text-muted fs-7">Cobrado · {{ $propertyCurrentMonthLabel }}</div>
+                                            <div class="fw-bold fs-2">${{ number_format((float) $propertyCollectedMonthAmount, 2) }}</div>
+                                            <div class="text-muted fs-8">Pagos confirmados durante este mes.</div>
+                                        </div></div>
+                                        <div class="col-sm-6 col-xl-3"><div class="border rounded h-100 p-4 bg-light-info">
+                                            <div class="text-muted fs-7">Pagos por validar</div>
+                                            <div class="fw-bold fs-2">{{ (int) $propertyPendingValidationCount }}</div>
+                                            <div class="text-muted fs-8">Comprobantes pendientes de revisión.</div>
+                                        </div></div>
+                                    </div>
+                                @endunless
                                 <div class="table-responsive">
                                     <table class="table table-row-bordered align-middle mb-0">
                                         <thead>
